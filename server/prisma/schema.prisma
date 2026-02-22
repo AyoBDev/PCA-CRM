@@ -1,0 +1,124 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  role         String   @default("pca")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Client {
+  id              Int             @id @default(autoincrement())
+  clientName      String          @map("client_name")
+  medicaidId      String          @default("") @map("medicaid_id")
+  insuranceType   String          @default("MEDICAID") @map("insurance_type") // MEDICAID | WAIVER 58 | etc
+  authorizations  Authorization[]
+  timesheets      Timesheet[]
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  @@map("clients")
+}
+
+model Authorization {
+  id                   Int      @id @default(autoincrement())
+  clientId             Int      @map("client_id")
+  serviceCategory      String   @default("") @map("service_category")
+  serviceCode          String   @map("service_code") // PCS | SDPC | TIMESHEETS
+  serviceName          String   @default("") @map("service_name")
+  authorizedUnits      Int      @default(0) @map("authorized_units")
+  authorizationStartDate DateTime? @map("authorization_start_date")
+  authorizationEndDate DateTime @map("authorization_end_date")
+  notes                String   @default("") @map("notes")
+  client               Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@index([clientId])
+  @@map("authorizations")
+}
+
+model InsuranceType {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  color     String   @default("#9E9E9E")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("insurance_types")
+}
+
+model Service {
+  id        Int      @id @default(autoincrement())
+  category  String
+  code      String   @unique
+  name      String   @default("")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("services")
+}
+
+model Timesheet {
+  id                  Int              @id @default(autoincrement())
+  clientId            Int              @map("client_id")
+  clientPhone         String           @default("") @map("client_phone")
+  clientIdNumber      String           @default("") @map("client_id_number")
+  pcaName             String           @map("pca_name")
+  weekStart           DateTime         @map("week_start")
+  status              String           @default("draft")
+  totalPasHours       Float            @default(0) @map("total_pas_hours")
+  totalHmHours        Float            @default(0) @map("total_hm_hours")
+  totalHours          Float            @default(0) @map("total_hours")
+  recipientName       String           @default("") @map("recipient_name")
+  recipientSignature  String           @default("") @map("recipient_signature")
+  pcaSignature        String           @default("") @map("pca_signature")
+  pcaFullName         String           @default("") @map("pca_full_name")
+  supervisorName      String           @default("Sona Hakobyan") @map("supervisor_name")
+  supervisorSignature String           @default("") @map("supervisor_signature")
+  completionDate      String           @default("") @map("completion_date")
+  submittedAt         DateTime?        @map("submitted_at")
+  client              Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  entries             TimesheetEntry[]
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+
+  @@unique([clientId, pcaName, weekStart])
+  @@map("timesheets")
+}
+
+model TimesheetEntry {
+  id                  Int       @id @default(autoincrement())
+  timesheetId         Int       @map("timesheet_id")
+  dayOfWeek           Int       @map("day_of_week")
+  dateOfService       String    @default("") @map("date_of_service")
+  // ADL / PAS section
+  adlActivities       String    @default("{}") @map("adl_activities")
+  adlTimeIn           String?   @map("adl_time_in")
+  adlTimeOut          String?   @map("adl_time_out")
+  adlHours            Float     @default(0) @map("adl_hours")
+  adlPcaInitials      String    @default("") @map("adl_pca_initials")
+  adlClientInitials   String    @default("") @map("adl_client_initials")
+  // IADL / HM section
+  iadlActivities      String    @default("{}") @map("iadl_activities")
+  iadlTimeIn          String?   @map("iadl_time_in")
+  iadlTimeOut         String?   @map("iadl_time_out")
+  iadlHours           Float     @default(0) @map("iadl_hours")
+  iadlPcaInitials     String    @default("") @map("iadl_pca_initials")
+  iadlClientInitials  String    @default("") @map("iadl_client_initials")
+  timesheet           Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+
+  @@map("timesheet_entries")
+}
