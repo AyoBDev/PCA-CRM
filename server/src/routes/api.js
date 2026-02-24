@@ -40,12 +40,19 @@ const {
     listUsers,
     deleteUser,
 } = require('../controllers/authController');
+const {
+    generateSigningLinks,
+    getSigningForm,
+    submitSigningForm,
+} = require('../controllers/signingController');
 const { authenticate, requireRole } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
-// ── Auth routes (public) ──
+// ── Public routes (no auth) ──
 router.post('/auth/login', login);
+router.get('/sign/:token', getSigningForm);
+router.put('/sign/:token', submitSigningForm);
 
 // ── All routes below require authentication ──
 router.use(authenticate);
@@ -90,6 +97,7 @@ router.get('/timesheets/:id', getTimesheet);
 router.post('/timesheets', createTimesheet);
 router.put('/timesheets/:id', updateTimesheet);
 router.put('/timesheets/:id/submit', submitTimesheet);
+router.post('/timesheets/:id/signing-links', requireRole('admin'), generateSigningLinks);
 router.delete('/timesheets/:id', deleteTimesheet);
 
 module.exports = router;

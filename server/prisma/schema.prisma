@@ -92,6 +92,7 @@ model Timesheet {
   submittedAt         DateTime?        @map("submitted_at")
   client              Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
   entries             TimesheetEntry[]
+  signingTokens       SigningToken[]
   createdAt           DateTime         @default(now()) @map("created_at")
   updatedAt           DateTime         @updatedAt @map("updated_at")
 
@@ -121,4 +122,17 @@ model TimesheetEntry {
   timesheet           Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
 
   @@map("timesheet_entries")
+}
+
+model SigningToken {
+  id           Int       @id @default(autoincrement())
+  token        String    @unique
+  timesheetId  Int       @map("timesheet_id")
+  role         String    // "pca" or "client"
+  expiresAt    DateTime  @map("expires_at")
+  usedAt       DateTime? @map("used_at")
+  timesheet    Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@map("signing_tokens")
 }

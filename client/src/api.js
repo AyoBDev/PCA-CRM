@@ -111,3 +111,29 @@ export const submitTimesheet = (id) =>
     request(`/timesheets/${id}/submit`, { method: 'PUT' });
 export const deleteTimesheet = (id) =>
     request(`/timesheets/${id}`, { method: 'DELETE' });
+
+// Signing Links
+export const generateSigningLinks = (timesheetId) =>
+    request(`/timesheets/${timesheetId}/signing-links`, { method: 'POST' });
+
+export const getSigningForm = (token) =>
+    fetch(`${BASE}/sign/${token}`).then(async (res) => {
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.error || `HTTP ${res.status}`);
+        }
+        return res.json();
+    });
+
+export const submitSigningForm = (token, data) =>
+    fetch(`${BASE}/sign/${token}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    }).then(async (res) => {
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.error || `HTTP ${res.status}`);
+        }
+        return res.json();
+    });

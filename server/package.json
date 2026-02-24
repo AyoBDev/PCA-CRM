@@ -1,5 +1,5 @@
 {
-  "name": "auth-tracking-server",
+  "name": "socket-server",
   "version": "1.0.0",
   "description": "Authorization Tracking System - Backend",
   "main": "src/index.js",

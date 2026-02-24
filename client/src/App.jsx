@@ -115,6 +115,16 @@ const Icons = {
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" x2="9" y1="12" y2="12" />
         </svg>
     ),
+    share: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" x2="15.42" y1="13.51" y2="17.49" /><line x1="15.41" x2="8.59" y1="6.51" y2="10.49" />
+        </svg>
+    ),
+    copy: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+        </svg>
+    ),
 };
 
 // ────────────────────────────────────────
@@ -858,6 +868,7 @@ function TimesheetFormPage({ timesheetId, clients, onBack, showToast }) {
     const [pcaFullName, setPcaFullName] = useState('');
     const [completionDate, setCompletionDate] = useState('');
     const [saving, setSaving] = useState(false);
+    const [shareLinkModal, setShareLinkModal] = useState(null);
     const submitted = ts?.status === 'submitted';
 
     useEffect(() => {
@@ -908,6 +919,13 @@ function TimesheetFormPage({ timesheetId, clients, onBack, showToast }) {
     const handleSubmit = async () => {
         await handleSave();
         try { const result = await api.submitTimesheet(ts.id); setTs(result); showToast('Timesheet submitted!'); } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleShareLinks = async () => {
+        try {
+            const links = await api.generateSigningLinks(ts.id);
+            setShareLinkModal(links);
+        } catch (err) { showToast(err.message, 'error'); }
     };
 
     if (!ts) return <div style={{ padding: 40, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>Loading…</div>;
@@ -987,6 +1005,7 @@ function TimesheetFormPage({ timesheetId, clients, onBack, showToast }) {
                         <span className="ts-badge ts-badge--submitted">Submitted {ts.submittedAt ? new Date(ts.submittedAt).toLocaleString() : ''}</span>
                     ) : (
                         <>
+                            <button className="btn btn--outline btn--sm" onClick={handleShareLinks}>{Icons.share} Share</button>
                             <button className="btn btn--outline btn--sm" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Draft'}</button>
                             <button className="btn btn--primary btn--sm" onClick={handleSubmit}>Submit</button>
                         </>
@@ -1039,7 +1058,223 @@ function TimesheetFormPage({ timesheetId, clients, onBack, showToast }) {
                     </div>
                 </div>
             </div>
+
+            {/* Share Links Modal */}
+            {shareLinkModal && (
+                <Modal onClose={() => setShareLinkModal(null)}>
+                    <h2 className="modal__title"><span style={{ display: 'inline-block', width: 20, height: 20, verticalAlign: 'middle', marginRight: 6 }}>{Icons.share}</span>Signing Links</h2>
+                    <p className="modal__desc">Share these secure one-time links. Each link expires in 72 hours and can only be used once.</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        <div className="share-link-group">
+                            <label style={{ fontWeight: 600, fontSize: 13, marginBottom: 4, display: 'block' }}>PCA Link</label>
+                            <div className="share-link-row">
+                                <input type="text" readOnly value={shareLinkModal.pcaLink} className="share-link-input" />
+                                <button className="btn btn--outline btn--sm" onClick={() => { navigator.clipboard.writeText(shareLinkModal.pcaLink); showToast('PCA link copied!'); }}>{Icons.copy} Copy</button>
+                            </div>
+                        </div>
+                        <div className="share-link-group">
+                            <label style={{ fontWeight: 600, fontSize: 13, marginBottom: 4, display: 'block' }}>Client / Guardian Link</label>
+                            <div className="share-link-row">
+                                <input type="text" readOnly value={shareLinkModal.clientLink} className="share-link-input" />
+                                <button className="btn btn--outline btn--sm" onClick={() => { navigator.clipboard.writeText(shareLinkModal.clientLink); showToast('Client link copied!'); }}>{Icons.copy} Copy</button>
+                            </div>
+                        </div>
+                    </div>
+                </Modal>
+            )}
         </>
+    );
+}
+
+// ────────────────────────────────────────
+// Signing Form Page — Public (no auth)
+// ────────────────────────────────────────
+function SigningFormPage({ token }) {
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [role, setRole] = useState(null);
+    const [ts, setTs] = useState(null);
+    const [entries, setEntries] = useState([]);
+    const [recipientName, setRecipientName] = useState('');
+    const [recipientSig, setRecipientSig] = useState('');
+    const [pcaFullName, setPcaFullName] = useState('');
+    const [pcaSig, setPcaSig] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const [success, setSuccess] = useState(false);
+
+    useEffect(() => {
+        api.getSigningForm(token)
+            .then((data) => {
+                setRole(data.role);
+                setTs(data.timesheet);
+                setEntries(data.timesheet.entries || []);
+                setRecipientName(data.timesheet.recipientName || '');
+                setRecipientSig(data.timesheet.recipientSignature || '');
+                setPcaFullName(data.timesheet.pcaFullName || '');
+                setPcaSig(data.timesheet.pcaSignature || '');
+            })
+            .catch((err) => setError(err.message))
+            .finally(() => setLoading(false));
+    }, [token]);
+
+    const updateEntry = (idx, field, value) => {
+        setEntries((prev) => prev.map((e, i) => (i === idx ? { ...e, [field]: value } : e)));
+    };
+
+    const handleSubmit = async () => {
+        setSubmitting(true);
+        try {
+            const payload = { entries };
+            if (role === 'pca') {
+                payload.pcaFullName = pcaFullName;
+                payload.pcaSignature = pcaSig;
+            } else {
+                payload.recipientName = recipientName;
+                payload.recipientSignature = recipientSig;
+            }
+            await api.submitSigningForm(token, payload);
+            setSuccess(true);
+        } catch (err) { setError(err.message); }
+        setSubmitting(false);
+    };
+
+    if (loading) return (
+        <div className="signing-page">
+            <div className="signing-card"><p style={{ textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>Loading form…</p></div>
+        </div>
+    );
+    if (error) return (
+        <div className="signing-page">
+            <div className="signing-card signing-card--error">
+                <div className="signing-card__icon" style={{ color: 'hsl(0 84% 60%)' }}>{Icons.alertCircle}</div>
+                <h2>{error}</h2>
+                <p>This signing link is no longer valid. Please request a new link from your administrator.</p>
+            </div>
+        </div>
+    );
+    if (success) return (
+        <div className="signing-page">
+            <div className="signing-card signing-card--success">
+                <div className="signing-card__icon" style={{ color: 'hsl(142 76% 36%)' }}>{Icons.checkCircle}</div>
+                <h2>Thank you!</h2>
+                <p>Your {role === 'pca' ? 'service record' : 'acknowledgement'} has been submitted successfully. You may close this page.</p>
+            </div>
+        </div>
+    );
+
+    const weekLabel = formatWeek(ts.weekStart.split('T')[0]);
+    const adlDailyHrs = (e) => { const [hI, mI] = (e.adlTimeIn || '').split(':').map(Number); const [hO, mO] = (e.adlTimeOut || '').split(':').map(Number); if (!e.adlTimeIn || !e.adlTimeOut) return 0; const d = (hO * 60 + mO) - (hI * 60 + mI); return d > 0 ? Math.round(d / 60 * 100) / 100 : 0; };
+    const iadlDailyHrs = (e) => { const [hI, mI] = (e.iadlTimeIn || '').split(':').map(Number); const [hO, mO] = (e.iadlTimeOut || '').split(':').map(Number); if (!e.iadlTimeIn || !e.iadlTimeOut) return 0; const d = (hO * 60 + mO) - (hI * 60 + mI); return d > 0 ? Math.round(d / 60 * 100) / 100 : 0; };
+
+    return (
+        <div className="signing-page">
+            <div className="signing-form-container">
+                <div className="signing-header">
+                    <div className="signing-header__logo">{Icons.shieldCheck}</div>
+                    <h1 className="signing-header__title">NV Best PCA</h1>
+                    <p className="signing-header__sub">
+                        {role === 'pca' ? 'PCA Service Delivery Record' : 'Client Acknowledgement'}
+                    </p>
+                </div>
+
+                <div className="signing-info-bar">
+                    <div><strong>Client:</strong> {ts.client?.clientName}</div>
+                    <div><strong>PCA:</strong> {ts.pcaName}</div>
+                    <div><strong>Week:</strong> {weekLabel}</div>
+                </div>
+
+                {/* Day entries */}
+                <div className="signing-entries">
+                    {entries.map((entry, idx) => {
+                        const dayName = DAY_SHORT[entry.dayOfWeek] || `Day ${entry.dayOfWeek}`;
+                        const dateStr = entry.dateOfService ? new Date(entry.dateOfService + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+
+                        return (
+                            <div key={entry.id} className="signing-day-card">
+                                <div className="signing-day-card__header">{dayName} {dateStr && <span>{dateStr}</span>}</div>
+
+                                {role === 'pca' ? (
+                                    <div className="signing-day-card__body">
+                                        <div className="signing-field-row">
+                                            <div className="signing-field">
+                                                <label>ADL Time In</label>
+                                                <input type="time" value={entry.adlTimeIn || ''} onChange={(e) => updateEntry(idx, 'adlTimeIn', e.target.value)} />
+                                            </div>
+                                            <div className="signing-field">
+                                                <label>ADL Time Out</label>
+                                                <input type="time" value={entry.adlTimeOut || ''} onChange={(e) => updateEntry(idx, 'adlTimeOut', e.target.value)} />
+                                            </div>
+                                            <div className="signing-field">
+                                                <label>ADL Hrs</label>
+                                                <div className="signing-hours">{adlDailyHrs(entry).toFixed(2)}</div>
+                                            </div>
+                                        </div>
+                                        <div className="signing-field" style={{ marginTop: 8 }}>
+                                            <label>PCA Initials</label>
+                                            <input type="text" value={entry.adlPcaInitials || ''} onChange={(e) => updateEntry(idx, 'adlPcaInitials', e.target.value)} maxLength={5} style={{ width: 80 }} />
+                                        </div>
+                                        <div className="signing-field-row" style={{ marginTop: 12 }}>
+                                            <div className="signing-field">
+                                                <label>IADL Time In</label>
+                                                <input type="time" value={entry.iadlTimeIn || ''} onChange={(e) => updateEntry(idx, 'iadlTimeIn', e.target.value)} />
+                                            </div>
+                                            <div className="signing-field">
+                                                <label>IADL Time Out</label>
+                                                <input type="time" value={entry.iadlTimeOut || ''} onChange={(e) => updateEntry(idx, 'iadlTimeOut', e.target.value)} />
+                                            </div>
+                                            <div className="signing-field">
+                                                <label>IADL Hrs</label>
+                                                <div className="signing-hours">{iadlDailyHrs(entry).toFixed(2)}</div>
+                                            </div>
+                                        </div>
+                                        <div className="signing-field" style={{ marginTop: 8 }}>
+                                            <label>PCA Initials (IADL)</label>
+                                            <input type="text" value={entry.iadlPcaInitials || ''} onChange={(e) => updateEntry(idx, 'iadlPcaInitials', e.target.value)} maxLength={5} style={{ width: 80 }} />
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="signing-day-card__body">
+                                        <div className="signing-field-row">
+                                            <div className="signing-field"><label>ADL</label><div className="signing-hours">{entry.adlTimeIn || '—'} → {entry.adlTimeOut || '—'} ({adlDailyHrs(entry).toFixed(2)}h)</div></div>
+                                        </div>
+                                        <div className="signing-field" style={{ marginTop: 6 }}>
+                                            <label>Client Initials (ADL)</label>
+                                            <input type="text" value={entry.adlClientInitials || ''} onChange={(e) => updateEntry(idx, 'adlClientInitials', e.target.value)} maxLength={5} style={{ width: 80 }} />
+                                        </div>
+                                        <div className="signing-field-row" style={{ marginTop: 12 }}>
+                                            <div className="signing-field"><label>IADL</label><div className="signing-hours">{entry.iadlTimeIn || '—'} → {entry.iadlTimeOut || '—'} ({iadlDailyHrs(entry).toFixed(2)}h)</div></div>
+                                        </div>
+                                        <div className="signing-field" style={{ marginTop: 6 }}>
+                                            <label>Client Initials (IADL)</label>
+                                            <input type="text" value={entry.iadlClientInitials || ''} onChange={(e) => updateEntry(idx, 'iadlClientInitials', e.target.value)} maxLength={5} style={{ width: 80 }} />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {/* Signature section */}
+                <div className="signing-signature-section">
+                    {role === 'pca' ? (
+                        <>
+                            <div className="form-group"><label>PCA Full Name</label><input type="text" value={pcaFullName} onChange={(e) => setPcaFullName(e.target.value)} placeholder="Enter your full name" /></div>
+                            <SignaturePad label="PCA Signature" value={pcaSig} onChange={setPcaSig} />
+                        </>
+                    ) : (
+                        <>
+                            <div className="form-group"><label>Recipient / Responsible Party Name</label><input type="text" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} placeholder="Enter your full name" /></div>
+                            <SignaturePad label="Recipient / Responsible Party Signature" value={recipientSig} onChange={setRecipientSig} />
+                        </>
+                    )}
+                </div>
+
+                <button className="btn btn--primary" style={{ width: '100%', marginTop: 16, padding: '14px 0', fontSize: 16 }} onClick={handleSubmit} disabled={submitting}>
+                    {submitting ? 'Submitting…' : 'Submit'}
+                </button>
+            </div>
+        </div>
     );
 }
 
@@ -1551,6 +1786,10 @@ export default function App() {
     const insuranceTypeNames = insuranceTypes.length > 0
         ? insuranceTypes.map((t) => t.name)
         : ['MEDICAID'];
+
+    // Public signing form route — bypass auth
+    const signingMatch = window.location.pathname.match(/^\/sign\/(.+)$/);
+    if (signingMatch) return <SigningFormPage token={signingMatch[1]} />;
 
     if (authChecking) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'hsl(var(--muted-foreground))' }}>Loading…</div>;
 
