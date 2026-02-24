@@ -5,6 +5,7 @@ const {
     createClient,
     updateClient,
     deleteClient,
+    bulkDelete,
     bulkImport,
 } = require('../controllers/clientController');
 const {
@@ -70,6 +71,7 @@ router.get('/clients', requireRole('admin'), listClients);
 router.get('/clients/:id', requireRole('admin'), getClient);
 router.post('/clients', requireRole('admin'), createClient);
 router.post('/clients/bulk-import', requireRole('admin'), bulkImport);
+router.post('/clients/bulk-delete', requireRole('admin'), bulkDelete);
 router.put('/clients/:id', requireRole('admin'), updateClient);
 router.delete('/clients/:id', requireRole('admin'), deleteClient);
 

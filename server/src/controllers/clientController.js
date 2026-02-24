@@ -86,6 +86,22 @@ async function deleteClient(req, res, next) {
     }
 }
 
+// POST /api/clients/bulk-delete
+async function bulkDelete(req, res, next) {
+    try {
+        const { ids } = req.body;
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ error: 'ids array is required' });
+        }
+        const numericIds = ids.map(Number).filter(n => !isNaN(n));
+        await prisma.authorization.deleteMany({ where: { clientId: { in: numericIds } } });
+        await prisma.client.deleteMany({ where: { id: { in: numericIds } } });
+        res.json({ deleted: numericIds.length });
+    } catch (err) {
+        next(err);
+    }
+}
+
 // POST /api/clients/bulk-import
 async function bulkImport(req, res, next) {
     try {
@@ -153,4 +169,4 @@ async function bulkImport(req, res, next) {
     }
 }
 
-module.exports = { listClients, getClient, createClient, updateClient, deleteClient, bulkImport };
+module.exports = { listClients, getClient, createClient, updateClient, deleteClient, bulkDelete, bulkImport };

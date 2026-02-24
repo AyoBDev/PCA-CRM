@@ -309,53 +309,72 @@ function BulkImportModal({ onImport, onClose }) {
     const [error, setError] = useState('');
     const [fileName, setFileName] = useState('');
 
-    // Column-name aliases so we can accept many header variations
-    const colMap = {
-        'clientname': 'clientName', 'client name': 'clientName', 'client': 'clientName', 'name': 'clientName',
-        'medicaidid': 'medicaidId', 'medicaid id': 'medicaidId', 'medicaid': 'medicaidId', 'medicaid_id': 'medicaidId',
-        'insurancetype': 'insuranceType', 'insurance type': 'insuranceType', 'insurance': 'insuranceType', 'insurance_type': 'insuranceType',
-        'servicecategory': 'serviceCategory', 'service category': 'serviceCategory', 'service_category': 'serviceCategory', 'category': 'serviceCategory',
-        'servicecode': 'serviceCode', 'service code': 'serviceCode', 'service_code': 'serviceCode', 'code': 'serviceCode',
-        'servicename': 'serviceName', 'service name': 'serviceName', 'service_name': 'serviceName', 'service': 'serviceName',
-        'authorizedunits': 'authorizedUnits', 'authorized units': 'authorizedUnits', 'authorized_units': 'authorizedUnits', 'units': 'authorizedUnits', 'auth units': 'authorizedUnits',
-        'authorizationstartdate': 'authorizationStartDate', 'authorization start date': 'authorizationStartDate', 'auth start': 'authorizationStartDate', 'start date': 'authorizationStartDate', 'auth_start': 'authorizationStartDate', 'authstart': 'authorizationStartDate',
-        'authorizationenddate': 'authorizationEndDate', 'authorization end date': 'authorizationEndDate', 'auth end': 'authorizationEndDate', 'end date': 'authorizationEndDate', 'auth_end': 'authorizationEndDate', 'authend': 'authorizationEndDate',
-        'notes': 'notes',
-    };
-
-    const normalizeKey = (k) => colMap[(k || '').trim().toLowerCase()] || k;
-
     const excelDateToString = (v) => {
-        if (!v) return '';
+        if (!v && v !== 0) return '';
         if (typeof v === 'number') {
             const d = XLSX.SSF.parse_date_code(v);
             if (d) return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`;
         }
-        return String(v);
+        const str = String(v).trim();
+        if (!str) return '';
+        const dt = new Date(str);
+        return isNaN(dt.getTime()) ? '' : dt.toISOString().slice(0, 10);
     };
 
-    // Group flat rows by clientName → array of authorizations
-    const rowsToClients = (rows) => {
-        const map = {};
-        for (const raw of rows) {
-            const row = {};
-            for (const [k, v] of Object.entries(raw)) { row[normalizeKey(k)] = v; }
-            const name = (row.clientName || '').toString().trim();
-            if (!name) continue;
-            if (!map[name]) map[name] = { clientName: name, medicaidId: (row.medicaidId || '').toString().trim(), insuranceType: (row.insuranceType || 'MEDICAID').toString().trim(), authorizations: [] };
-            if (row.serviceCode || row.serviceCategory || row.serviceName) {
-                map[name].authorizations.push({
-                    serviceCategory: (row.serviceCategory || '').toString().trim(),
-                    serviceCode: (row.serviceCode || '').toString().trim(),
-                    serviceName: (row.serviceName || '').toString().trim(),
-                    authorizedUnits: Number(row.authorizedUnits) || 0,
-                    authorizationStartDate: excelDateToString(row.authorizationStartDate),
-                    authorizationEndDate: excelDateToString(row.authorizationEndDate),
-                    notes: (row.notes || '').toString().trim(),
+    // Parse parent-child row layout:
+    //   Row with col B (client name) → new client (parent row)
+    //   Row with col F (service code) → authorization (child row)
+    // Column indices: 0=row#, 1=Client Name, 2=Medicaid ID, 3=Insurance Type,
+    //   4=Service Category, 5=Service Code, 6=Service Name,
+    //   7=Authorized Units, 8=Auth Start, 9=Auth End, 10=status, 11=days, 12=Notes
+    const parseParentChildRows = (rawRows) => {
+        const clients = [];
+        let current = null;
+
+        // Skip header row (index 0)
+        for (let i = 1; i < rawRows.length; i++) {
+            const row = rawRows[i];
+            const hasContent = row.some(cell => cell !== '' && cell !== undefined && cell !== null);
+            if (!hasContent) continue;
+
+            const clientName = String(row[1] || '').trim();
+            const medicaidId = String(row[2] || '').trim();
+            const insuranceType = String(row[3] || '').trim();
+            const serviceCategory = String(row[4] || '').trim();
+            const serviceCode = String(row[5] || '').trim();
+            const serviceName = String(row[6] || '').trim();
+            const authorizedUnits = row[7];
+            const authStart = row[8];
+            const authEnd = row[9];
+            const notes = String(row[12] || '').trim();
+
+            // Parent row: has a client name
+            if (clientName) {
+                if (current) clients.push(current);
+                current = {
+                    clientName,
+                    medicaidId,
+                    insuranceType: insuranceType || 'MEDICAID',
+                    authorizations: [],
+                };
+                continue;
+            }
+
+            // Child row: has a service code
+            if (current && serviceCode) {
+                current.authorizations.push({
+                    serviceCategory,
+                    serviceCode,
+                    serviceName: serviceName || serviceCode,
+                    authorizedUnits: parseInt(authorizedUnits, 10) || 0,
+                    authorizationStartDate: excelDateToString(authStart),
+                    authorizationEndDate: excelDateToString(authEnd),
+                    notes,
                 });
             }
         }
-        return Object.values(map);
+        if (current) clients.push(current);
+        return clients;
     };
 
     const handleFileUpload = (e) => {
@@ -381,10 +400,10 @@ function BulkImportModal({ onImport, onClose }) {
                 try {
                     const wb = XLSX.read(evt.target.result, { type: 'array', cellDates: false });
                     const sheet = wb.Sheets[wb.SheetNames[0]];
-                    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-                    if (!rows.length) throw new Error('Spreadsheet is empty');
-                    const clients = rowsToClients(rows);
-                    if (!clients.length) throw new Error('No valid client rows found. Make sure a "Client Name" column exists.');
+                    const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true });
+                    if (!rawRows.length) throw new Error('Spreadsheet is empty');
+                    const clients = parseParentChildRows(rawRows);
+                    if (!clients.length) throw new Error('No valid client rows found. Make sure column B has client names.');
                     setPreview(clients);
                     setError('');
                 } catch (err) { setError(err.message); setPreview(null); }
@@ -1622,6 +1641,7 @@ export default function App() {
     const [statusFilter, setStatusFilter] = useState('All');
     const [currentPage, setCurrentPage] = useState(1);
     const [searchQuery, setSearchQuery] = useState('');
+    const [selectedIds, setSelectedIds] = useState(new Set());
     const [activePage, setActivePage] = useState(null);
     const [insuranceTypes, setInsuranceTypes] = useState([]);
     const [services, setServices] = useState([]);
@@ -1760,6 +1780,18 @@ export default function App() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    // ── Bulk delete ──
+    const handleBulkDelete = async () => {
+        try {
+            const ids = [...selectedIds];
+            await api.bulkDeleteClients(ids);
+            showToast(`Deleted ${ids.length} client(s)`);
+            setSelectedIds(new Set());
+            setModal(null);
+            fetchClients();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     // ── Stats ──
     const totalAuths = clients.reduce((s, c) => s + c.authorizations.length, 0);
     const expiredCount = clients.filter((c) => c.overallStatus === 'Expired').length;
@@ -1776,6 +1808,24 @@ export default function App() {
     const totalPages = Math.max(1, Math.ceil(filteredClients.length / ROWS_PER_PAGE));
     const safePage = Math.min(currentPage, totalPages);
     const paginatedClients = filteredClients.slice((safePage - 1) * ROWS_PER_PAGE, safePage * ROWS_PER_PAGE);
+
+    const toggleSelect = (id) => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        const pageIds = paginatedClients.map(c => c.id);
+        const allSelected = pageIds.every(id => selectedIds.has(id));
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            pageIds.forEach(id => allSelected ? next.delete(id) : next.add(id));
+            return next;
+        });
+    };
 
     const handleFilterChange = (filter) => {
         setStatusFilter(filter);
@@ -1900,6 +1950,24 @@ export default function App() {
                                     })}
                                 </div>
 
+                                {selectedIds.size > 0 && (
+                                    <div className="bulk-action-bar">
+                                        <span>{selectedIds.size} client(s) selected</span>
+                                        <button
+                                            className="btn btn--danger btn--sm"
+                                            onClick={() => setModal({ type: 'confirmBulkDelete' })}
+                                        >
+                                            {Icons.trash} Delete Selected
+                                        </button>
+                                        <button
+                                            className="btn btn--outline btn--sm"
+                                            onClick={() => setSelectedIds(new Set())}
+                                        >
+                                            Clear Selection
+                                        </button>
+                                    </div>
+                                )}
+
                                 {loading ? (
                                     <div style={{ padding: 16 }}>
                                         {[1, 2, 3, 4].map((i) => <div key={i} className="skeleton skeleton-row" style={{ marginBottom: 4 }} />)}
@@ -1916,6 +1984,14 @@ export default function App() {
                                             <table className="sheet-table">
                                                 <thead>
                                                     <tr>
+                                                        <th style={{ width: 36 }}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={paginatedClients.length > 0 && paginatedClients.every(c => selectedIds.has(c.id))}
+                                                                onChange={toggleSelectAll}
+                                                                style={{ cursor: 'pointer' }}
+                                                            />
+                                                        </th>
                                                         <th style={{ width: 36 }}></th>
                                                         <th>Client Name</th>
                                                         <th>Medicaid ID</th>
@@ -1943,6 +2019,14 @@ export default function App() {
                                                                     className={`row-client row-client--${client.statusColor}`}
                                                                     onClick={() => toggleExpand(client.id)}
                                                                 >
+                                                                    <td onClick={(e) => e.stopPropagation()}>
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={selectedIds.has(client.id)}
+                                                                            onChange={() => toggleSelect(client.id)}
+                                                                            style={{ cursor: 'pointer' }}
+                                                                        />
+                                                                    </td>
                                                                     <td>
                                                                         <span className={`row-client__toggle ${isOpen ? 'row-client__toggle--open' : ''}`}>
                                                                             {Icons.chevronRight}
@@ -1999,6 +2083,7 @@ export default function App() {
                                                                 {isOpen && client.authorizations.map((auth) => (
                                                                     <tr key={`a-${auth.id}`} className="row-auth">
                                                                         <td></td>
+                                                                        <td></td>
                                                                         <td className="row-auth__indent">└─</td>
                                                                         <td></td>
                                                                         <td></td>
@@ -2035,6 +2120,7 @@ export default function App() {
                                                                 {/* Add Service row — always shown when expanded */}
                                                                 {isOpen && (
                                                                     <tr key={`add-${client.id}`} className="row-auth">
+                                                                        <td></td>
                                                                         <td></td>
                                                                         <td colSpan={12} style={{ paddingLeft: 48 }}>
                                                                             <button
@@ -2124,6 +2210,14 @@ export default function App() {
                     title="Delete Client"
                     message={`This will permanently delete "${modal.client.clientName}" and all associated authorizations. This action cannot be undone.`}
                     onConfirm={() => handleDeleteClient(modal.client)}
+                    onClose={() => setModal(null)}
+                />
+            )}
+            {modal?.type === 'confirmBulkDelete' && (
+                <ConfirmModal
+                    title="Delete Selected Clients"
+                    message={`This will permanently delete ${selectedIds.size} client(s) and all their associated authorizations. This action cannot be undone.`}
+                    onConfirm={handleBulkDelete}
                     onClose={() => setModal(null)}
                 />
             )}

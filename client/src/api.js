@@ -73,6 +73,10 @@ export const deleteClient = (id) =>
 export const bulkImport = (clients) =>
     request('/clients/bulk-import', { method: 'POST', body: JSON.stringify({ clients }) });
 
+// Bulk Delete
+export const bulkDeleteClients = (ids) =>
+    request('/clients/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) });
+
 // Authorizations
 export const createAuthorization = (clientId, data) =>
     request(`/clients/${clientId}/authorizations`, { method: 'POST', body: JSON.stringify(data) });

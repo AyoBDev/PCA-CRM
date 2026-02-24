@@ -1130,6 +1130,17 @@ body {
   background: hsl(var(--muted) / 0.3);
 }
 
+.bulk-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 24px;
+  background: hsl(240 5.9% 10%);
+  color: hsl(0 0% 98%);
+  font-size: 13px;
+  font-weight: 500;
+}
+
 .filter-btn {
   display: inline-flex;
   align-items: center;
