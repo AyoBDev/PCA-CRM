@@ -141,3 +141,26 @@ export const submitSigningForm = (token, data) =>
         }
         return res.json();
     });
+
+// ── Payroll ──
+export const getPayrollRuns   = ()    => request('/payroll/runs');
+export const getPayrollRun    = (id)  => request(`/payroll/runs/${id}`);
+export const deletePayrollRun = (id)  => request(`/payroll/runs/${id}`, { method: 'DELETE' });
+
+export const uploadPayrollRun = (formData) =>
+    fetch(`${BASE}/payroll/runs`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${authToken}` },
+        body: formData,
+    }).then(async (res) => {
+        if (res.status === 401) {
+            clearToken();
+            window.dispatchEvent(new Event('auth:logout'));
+            throw new Error('Session expired. Please log in again.');
+        }
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.error || `HTTP ${res.status}`);
+        }
+        return res.json();
+    });

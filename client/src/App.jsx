@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import * as api from './api';
 import * as XLSX from 'xlsx';
 
@@ -123,6 +123,11 @@ const Icons = {
     copy: (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+        </svg>
+    ),
+    dollarSign: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
         </svg>
     ),
 };
@@ -1556,6 +1561,369 @@ function UsersPage({ showToast }) {
 }
 
 // ────────────────────────────────────────
+// Payroll helpers
+// ────────────────────────────────────────
+function visitRowClass(v) {
+    if (v.voidFlag)       return 'payroll-row--void';
+    if (v.isIncomplete)   return 'payroll-row--incomplete';
+    if (v.isUnauthorized) return 'payroll-row--unauthorized';
+    if (v.overlapId)      return 'payroll-row--overlap';
+    return '';
+}
+
+// ────────────────────────────────────────
+// PayrollUploadModal
+// ────────────────────────────────────────
+function PayrollUploadModal({ onUpload, onClose }) {
+    const [name, setName]               = useState('');
+    const [periodStart, setPeriodStart] = useState('');
+    const [periodEnd, setPeriodEnd]     = useState('');
+    const [file, setFile]               = useState(null);
+    const [loading, setLoading]         = useState(false);
+    const [error, setError]             = useState('');
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!file) { setError('Please select an XLSX file.'); return; }
+        setLoading(true);
+        setError('');
+        try {
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('name', name.trim() || file.name);
+            if (periodStart) fd.append('periodStart', periodStart);
+            if (periodEnd)   fd.append('periodEnd',   periodEnd);
+            const run = await api.uploadPayrollRun(fd);
+            onUpload(run);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <Modal onClose={onClose}>
+            <h2 className="modal__title">New Payroll Run</h2>
+            <p className="modal__desc">Upload an XLSX export from the scheduling system to process payroll.</p>
+            <form onSubmit={handleSubmit}>
+                <div className="form-group">
+                    <label htmlFor="payrollRunName">Run Name</label>
+                    <input id="payrollRunName" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Feb 2026 Week 1" />
+                </div>
+                <div className="form-group">
+                    <label htmlFor="periodStart">Period Start</label>
+                    <input id="periodStart" type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
+                </div>
+                <div className="form-group">
+                    <label htmlFor="periodEnd">Period End</label>
+                    <input id="periodEnd" type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
+                </div>
+                <div className="form-group">
+                    <label htmlFor="payrollFile">XLSX File <span style={{ color: 'hsl(var(--destructive))' }}>*</span></label>
+                    <input id="payrollFile" type="file" accept=".xlsx,.xls" required onChange={(e) => setFile(e.target.files[0] || null)} />
+                </div>
+                {error && <p style={{ color: 'hsl(var(--destructive))', fontSize: 13, marginBottom: 8 }}>{error}</p>}
+                <div className="form-actions">
+                    <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn--primary" disabled={loading}>
+                        {loading ? 'Processing…' : 'Upload & Process'}
+                    </button>
+                </div>
+            </form>
+        </Modal>
+    );
+}
+
+// ────────────────────────────────────────
+// PayrollClientGroup
+// ────────────────────────────────────────
+function PayrollClientGroup({ clientName, visits }) {
+    // Auth summary: group non-void visits by serviceCode, sum finalPayableUnits
+    const authSummary = useMemo(() => {
+        const map = new Map();
+        for (const v of visits) {
+            if (v.voidFlag) continue;
+            const code = v.serviceCode || '—';
+            map.set(code, (map.get(code) || 0) + v.finalPayableUnits);
+        }
+        return [...map.entries()].map(([code, units]) => `${code}:${units}`).join('  ');
+    }, [visits]);
+
+    const total = useMemo(() =>
+        visits.filter((v) => !v.voidFlag).reduce((s, v) => s + v.finalPayableUnits, 0),
+        [visits]
+    );
+
+    return (
+        <div className="payroll-client-group">
+            <div className="payroll-client-banner">
+                <span>{clientName}</span>
+                {authSummary && (
+                    <span className="payroll-client-banner__auths">{authSummary}</span>
+                )}
+            </div>
+            <table className="payroll-visits-table">
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Service</th>
+                        <th>Date</th>
+                        <th>In</th>
+                        <th>Out</th>
+                        <th>Status</th>
+                        <th>Units (Raw)</th>
+                        <th>Final Units</th>
+                        <th>Overlap</th>
+                        <th>Void Reason</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {visits.map((v) => (
+                        <tr key={v.id} className={visitRowClass(v)}>
+                            <td>{v.employeeName}</td>
+                            <td>{v.service}</td>
+                            <td>{v.visitDate ? new Date(v.visitDate).toLocaleDateString('en-US') : '—'}</td>
+                            <td>{v.callInTime}</td>
+                            <td>{v.callOutTime}</td>
+                            <td>{v.visitStatus}</td>
+                            <td>{v.unitsRaw}</td>
+                            <td>{v.voidFlag ? <span style={{ color: 'hsl(var(--destructive))' }}>VOID</span> : v.finalPayableUnits}</td>
+                            <td>{v.overlapId || ''}</td>
+                            <td>{v.voidReason || ''}</td>
+                        </tr>
+                    ))}
+                    <tr className="payroll-total-row">
+                        <td colSpan={7} style={{ textAlign: 'right' }}>TOTAL</td>
+                        <td>{total}</td>
+                        <td colSpan={2}></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+// ────────────────────────────────────────
+// PayrollRunDetail
+// ────────────────────────────────────────
+function PayrollRunDetail({ run }) {
+    const clientGroups = useMemo(() => {
+        const map = new Map();
+        for (const v of run.visits) {
+            if (!map.has(v.clientName)) map.set(v.clientName, []);
+            map.get(v.clientName).push(v);
+        }
+        return [...map.entries()];
+    }, [run.visits]);
+
+    return (
+        <div>
+            <div className="payroll-legend">
+                <span className="payroll-legend__item payroll-legend__item--void">Void</span>
+                <span className="payroll-legend__item payroll-legend__item--incomplete">Incomplete</span>
+                <span className="payroll-legend__item payroll-legend__item--unauthorized">Unauthorized</span>
+                <span className="payroll-legend__item payroll-legend__item--overlap">Overlap</span>
+            </div>
+            {clientGroups.map(([clientName, visits]) => (
+                <PayrollClientGroup key={clientName} clientName={clientName} visits={visits} />
+            ))}
+            {clientGroups.length === 0 && (
+                <p style={{ color: 'hsl(240 3.8% 46.1%)', fontStyle: 'italic' }}>No visit records in this run.</p>
+            )}
+        </div>
+    );
+}
+
+// ────────────────────────────────────────
+// PayrollPage
+// ────────────────────────────────────────
+function PayrollPage({ showToast }) {
+    const [runs, setRuns]               = useState([]);
+    const [selectedRun, setSelectedRun] = useState(null);
+    const [loading, setLoading]         = useState(true);
+    const [modal, setModal]             = useState(null);
+    const [exporting, setExporting]     = useState(false);
+
+    const loadRuns = useCallback(async () => {
+        setLoading(true);
+        try {
+            const data = await api.getPayrollRuns();
+            setRuns(data);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setLoading(false);
+        }
+    }, [showToast]);
+
+    useEffect(() => { loadRuns(); }, [loadRuns]);
+
+    const handleRunClick = async (run) => {
+        try {
+            const full = await api.getPayrollRun(run.id);
+            setSelectedRun(full);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    };
+
+    const handleUpload = (run) => {
+        setModal(null);
+        showToast('Payroll run processed successfully.', 'success');
+        loadRuns();
+        setSelectedRun(run);
+    };
+
+    const handleDelete = async (run) => {
+        try {
+            await api.deletePayrollRun(run.id);
+            showToast('Payroll run deleted.', 'success');
+            setModal(null);
+            if (selectedRun?.id === run.id) setSelectedRun(null);
+            loadRuns();
+        } catch (err) {
+            showToast(err.message, 'error');
+            setModal(null);
+        }
+    };
+
+    const handleExport = async () => {
+        if (!selectedRun) return;
+        setExporting(true);
+        try {
+            const res = await fetch(`/api/payroll/runs/${selectedRun.id}/export`, {
+                headers: { Authorization: `Bearer ${api.getToken()}` },
+            });
+            if (!res.ok) {
+                const b = await res.json().catch(() => ({}));
+                throw new Error(b.error || `HTTP ${res.status}`);
+            }
+            const blob = await res.blob();
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            a.download = `payroll_${selectedRun.name.replace(/\s+/g, '_')}.xlsx`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setExporting(false);
+        }
+    };
+
+    if (selectedRun) {
+        return (
+            <div>
+                <div className="content-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <button className="btn btn--outline btn--sm" onClick={() => setSelectedRun(null)}>
+                            ← Back
+                        </button>
+                        <h1 className="content-header__title">{selectedRun.name}</h1>
+                        <span style={{ fontSize: 12, color: 'hsl(240 3.8% 46.1%)' }}>
+                            {selectedRun.totalVisits} visits · {selectedRun.totalPayable} payable units
+                        </span>
+                    </div>
+                    <div className="content-header__actions">
+                        <button className="btn btn--primary btn--sm" onClick={handleExport} disabled={exporting}>
+                            {Icons.download} {exporting ? 'Exporting…' : 'Export XLSX'}
+                        </button>
+                    </div>
+                </div>
+                <div className="page-content">
+                    <PayrollRunDetail run={selectedRun} />
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div>
+            <div className="content-header">
+                <h1 className="content-header__title">Payroll Runs</h1>
+                <div className="content-header__actions">
+                    <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'upload' })}>
+                        {Icons.upload} New Run
+                    </button>
+                </div>
+            </div>
+            <div className="page-content">
+                {loading ? (
+                    <p style={{ color: 'hsl(240 3.8% 46.1%)' }}>Loading…</p>
+                ) : runs.length === 0 ? (
+                    <p style={{ color: 'hsl(240 3.8% 46.1%)', fontStyle: 'italic' }}>No payroll runs yet. Upload an XLSX to get started.</p>
+                ) : (
+                    <div className="table-wrapper">
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Run Name</th>
+                                    <th>File</th>
+                                    <th>Period</th>
+                                    <th>Visits</th>
+                                    <th>Payable Units</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {runs.map((run) => (
+                                    <tr key={run.id} style={{ cursor: 'pointer' }} onClick={() => handleRunClick(run)}>
+                                        <td style={{ fontWeight: 500 }}>{run.name}</td>
+                                        <td style={{ fontSize: 12, color: 'hsl(240 3.8% 46.1%)' }}>{run.fileName}</td>
+                                        <td style={{ fontSize: 12 }}>
+                                            {run.periodStart ? fmtDate(run.periodStart) : '—'}
+                                            {run.periodEnd   ? ` – ${fmtDate(run.periodEnd)}` : ''}
+                                        </td>
+                                        <td>{run.totalVisits}</td>
+                                        <td>{run.totalPayable}</td>
+                                        <td>
+                                            <span style={{
+                                                display: 'inline-block', padding: '2px 8px', borderRadius: 4,
+                                                fontSize: 11, fontWeight: 600,
+                                                background: run.status === 'done' ? 'hsl(142 76% 96%)' : run.status === 'error' ? 'hsl(0 93% 97%)' : 'hsl(38 100% 96%)',
+                                                color:      run.status === 'done' ? 'hsl(142 71% 35%)' : run.status === 'error' ? 'hsl(0 84% 45%)' : 'hsl(38 92% 35%)',
+                                            }}>
+                                                {run.status}
+                                            </span>
+                                        </td>
+                                        <td style={{ fontSize: 12 }}>{fmtDate(run.createdAt)}</td>
+                                        <td onClick={(e) => e.stopPropagation()}>
+                                            <button
+                                                className="btn btn--danger-ghost btn--icon"
+                                                title="Delete run"
+                                                onClick={() => setModal({ type: 'confirmDelete', run })}
+                                            >
+                                                {Icons.trash}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+
+            {modal?.type === 'upload' && (
+                <PayrollUploadModal onUpload={handleUpload} onClose={() => setModal(null)} />
+            )}
+            {modal?.type === 'confirmDelete' && (
+                <ConfirmModal
+                    title="Delete Payroll Run"
+                    message={`This will permanently delete the run "${modal.run.name}" and all ${modal.run.totalVisits} visit records. This action cannot be undone.`}
+                    onConfirm={() => handleDelete(modal.run)}
+                    onClose={() => setModal(null)}
+                />
+            )}
+        </div>
+    );
+}
+
+// ────────────────────────────────────────
 // Sidebar
 // ────────────────────────────────────────
 function Sidebar({ activePage, onNavigate, user, onLogout }) {
@@ -1582,15 +1950,10 @@ function Sidebar({ activePage, onNavigate, user, onLogout }) {
                 <button className={`sidebar__nav-item ${activePage === 'timesheets' ? 'sidebar__nav-item--active' : ''}`} onClick={() => onNavigate('timesheets')}>
                     {Icons.fileText} Timesheets
                 </button>
-
                 {isAdmin && (
-                    <>
-                        <div className="separator" style={{ margin: '8px 12px' }} />
-                        <div className="sidebar__section-label">Documents</div>
-                        <button className="sidebar__nav-item">
-                            {Icons.fileText} Reports
-                        </button>
-                    </>
+                    <button className={`sidebar__nav-item ${activePage === 'payroll' ? 'sidebar__nav-item--active' : ''}`} onClick={() => onNavigate('payroll')}>
+                        {Icons.dollarSign} Payroll
+                    </button>
                 )}
             </nav>
 
@@ -1863,6 +2226,8 @@ export default function App() {
                     <ServicesPage services={services} onRefresh={fetchServices} showToast={showToast} />
                 ) : activePage === 'timesheets' ? (
                     <TimesheetsListPage clients={clients} showToast={showToast} onNavigate={setActivePage} />
+                ) : activePage === 'payroll' && isAdmin ? (
+                    <PayrollPage showToast={showToast} />
                 ) : (
                     <>
                         {/* Content Header */}

@@ -1,4 +1,6 @@
 const express = require('express');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 const {
     listClients,
     getClient,
@@ -46,6 +48,13 @@ const {
     getSigningForm,
     submitSigningForm,
 } = require('../controllers/signingController');
+const {
+    uploadPayrollRun,
+    listPayrollRuns,
+    getPayrollRun,
+    deletePayrollRun,
+    exportPayrollRun,
+} = require('../controllers/payrollController');
 const { authenticate, requireRole } = require('../middleware/authMiddleware');
 
 const router = express.Router();
@@ -101,5 +110,12 @@ router.put('/timesheets/:id', updateTimesheet);
 router.put('/timesheets/:id/submit', submitTimesheet);
 router.post('/timesheets/:id/signing-links', requireRole('admin'), generateSigningLinks);
 router.delete('/timesheets/:id', deleteTimesheet);
+
+// Payroll (admin only)
+router.get('/payroll/runs',                requireRole('admin'), listPayrollRuns);
+router.post('/payroll/runs',               requireRole('admin'), upload.single('file'), uploadPayrollRun);
+router.get('/payroll/runs/:id',            requireRole('admin'), getPayrollRun);
+router.delete('/payroll/runs/:id',         requireRole('admin'), deletePayrollRun);
+router.get('/payroll/runs/:id/export',     requireRole('admin'), exportPayrollRun);
 
 module.exports = router;

@@ -136,3 +136,52 @@ model SigningToken {
 
   @@map("signing_tokens")
 }
+
+model PayrollRun {
+  id           Int            @id @default(autoincrement())
+  name         String
+  fileName     String         @map("file_name")
+  periodStart  DateTime?      @map("period_start")
+  periodEnd    DateTime?      @map("period_end")
+  status       String         @default("processing")
+  totalVisits  Int            @default(0) @map("total_visits")
+  totalPayable Int            @default(0) @map("total_payable")
+  errorMessage String?        @map("error_message")
+  visits       PayrollVisit[]
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  @@map("payroll_runs")
+}
+
+model PayrollVisit {
+  id                Int        @id @default(autoincrement())
+  runId             Int        @map("run_id")
+
+  clientName        String     @map("client_name")
+  employeeName      String     @map("employee_name")
+  service           String
+  visitDate         DateTime   @map("visit_date")
+  callInRaw         Float      @map("call_in_raw")
+  callOutRaw        Float      @map("call_out_raw")
+  callHoursRaw      Float      @default(0) @map("call_hours_raw")
+  visitStatus       String     @map("visit_status")
+  unitsRaw          Int        @default(0) @map("units_raw")
+
+  serviceCode       String     @default("") @map("service_code")
+  callInTime        String     @default("") @map("call_in_time")
+  callOutTime       String     @default("") @map("call_out_time")
+  durationMinutes   Int        @default(0) @map("duration_minutes")
+  finalPayableUnits Int        @default(0) @map("final_payable_units")
+  voidFlag          Boolean    @default(false) @map("void_flag")
+  voidReason        String     @default("") @map("void_reason")
+  overlapId         String     @default("") @map("overlap_id")
+  isIncomplete      Boolean    @default(false) @map("is_incomplete")
+  isUnauthorized    Boolean    @default(false) @map("is_unauthorized")
+
+  run               PayrollRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  createdAt         DateTime   @default(now()) @map("created_at")
+
+  @@index([runId])
+  @@map("payroll_visits")
+}

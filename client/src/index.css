@@ -1991,3 +1991,28 @@ body {
     gap: 4px;
   }
 }
+
+/* ─── Payroll ──────────────────────────────────────────── */
+.payroll-row--void          { background: hsl(0 84% 96%); color: hsl(0 60% 45%); }
+.payroll-row--incomplete    { background: hsl(340 80% 96%); }
+.payroll-row--unauthorized  { background: hsl(48 96% 94%); }
+.payroll-row--overlap       { font-weight: 700; }
+
+.payroll-client-group       { margin-bottom: 24px; }
+.payroll-client-banner      { display: flex; align-items: center; gap: 12px; padding: 8px 12px;
+                               background: hsl(var(--muted));
+                               border-radius: var(--radius) var(--radius) 0 0;
+                               font-weight: 600; font-size: 14px; }
+.payroll-client-banner__auths { font-size: 12px; color: hsl(240 3.8% 46.1%);
+                                  font-weight: 400; font-family: monospace; }
+.payroll-total-row          { background: hsl(var(--muted)); font-weight: 700; }
+.payroll-visits-table       { width: 100%; border-collapse: collapse; font-size: 13px; }
+.payroll-visits-table th,
+.payroll-visits-table td    { padding: 6px 10px; border-bottom: 1px solid hsl(var(--border)); }
+
+.payroll-legend             { display: flex; gap: 16px; margin-bottom: 12px; font-size: 12px; flex-wrap: wrap; }
+.payroll-legend__item       { padding: 3px 8px; border-radius: 4px; }
+.payroll-legend__item--void         { background: hsl(0 84% 96%); color: hsl(0 60% 45%); }
+.payroll-legend__item--incomplete   { background: hsl(340 80% 96%); }
+.payroll-legend__item--unauthorized { background: hsl(48 96% 94%); }
+.payroll-legend__item--overlap      { font-weight: 700; border: 1px solid hsl(var(--border)); }
