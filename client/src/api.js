@@ -145,7 +145,9 @@ export const submitSigningForm = (token, data) =>
 // ── Payroll ──
 export const getPayrollRuns   = ()    => request('/payroll/runs');
 export const getPayrollRun    = (id)  => request(`/payroll/runs/${id}`);
-export const deletePayrollRun = (id)  => request(`/payroll/runs/${id}`, { method: 'DELETE' });
+export const deletePayrollRun   = (id)  => request(`/payroll/runs/${id}`, { method: 'DELETE' });
+export const updatePayrollVisit = (id, data) =>
+    request(`/payroll/visits/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 
 export const uploadPayrollRun = (formData) =>
     fetch(`${BASE}/payroll/runs`, {

@@ -90,6 +90,11 @@ const Icons = {
             <polyline points="22 17 13.5 8.5 8.5 13.5 2 7" /><polyline points="16 17 22 17 22 11" />
         </svg>
     ),
+    chevronLeft: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m15 18-6-6 6-6" />
+        </svg>
+    ),
     chevronRight: (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m9 18 6-6-6-6" />
@@ -1564,6 +1569,7 @@ function UsersPage({ showToast }) {
 // Payroll helpers
 // ────────────────────────────────────────
 function visitRowClass(v) {
+    if (v.needsReview)    return 'payroll-row--needs-review';
     if (v.voidFlag)       return 'payroll-row--void';
     if (v.isIncomplete)   return 'payroll-row--incomplete';
     if (v.isUnauthorized) return 'payroll-row--unauthorized';
@@ -1638,12 +1644,11 @@ function PayrollUploadModal({ onUpload, onClose }) {
 // ────────────────────────────────────────
 // PayrollClientGroup
 // ────────────────────────────────────────
-function PayrollClientGroup({ clientName, visits }) {
-    // Auth summary: group non-void visits by serviceCode, sum finalPayableUnits
+function PayrollClientGroup({ clientName, visits, onVisitChange }) {
     const authSummary = useMemo(() => {
         const map = new Map();
         for (const v of visits) {
-            if (v.voidFlag) continue;
+            if (v.voidFlag || v.needsReview) continue;
             const code = v.serviceCode || '—';
             map.set(code, (map.get(code) || 0) + v.finalPayableUnits);
         }
@@ -1651,14 +1656,14 @@ function PayrollClientGroup({ clientName, visits }) {
     }, [visits]);
 
     const total = useMemo(() =>
-        visits.filter((v) => !v.voidFlag).reduce((s, v) => s + v.finalPayableUnits, 0),
+        visits.filter((v) => !v.voidFlag && !v.needsReview).reduce((s, v) => s + v.finalPayableUnits, 0),
         [visits]
     );
 
     return (
         <div className="payroll-client-group">
             <div className="payroll-client-banner">
-                <span>{clientName}</span>
+                <span>{clientName || <em style={{ color: 'hsl(270 50% 40%)' }}>Unknown Client</em>}</span>
                 {authSummary && (
                     <span className="payroll-client-banner__auths">{authSummary}</span>
                 )}
@@ -1666,6 +1671,7 @@ function PayrollClientGroup({ clientName, visits }) {
             <table className="payroll-visits-table">
                 <thead>
                     <tr>
+                        <th>Client</th>
                         <th>Employee</th>
                         <th>Service</th>
                         <th>Date</th>
@@ -1675,28 +1681,87 @@ function PayrollClientGroup({ clientName, visits }) {
                         <th>Units (Raw)</th>
                         <th>Final Units</th>
                         <th>Overlap</th>
-                        <th>Void Reason</th>
+                        <th>Void / Review Reason</th>
+                        <th>Notes / Exceptions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {visits.map((v) => (
                         <tr key={v.id} className={visitRowClass(v)}>
-                            <td>{v.employeeName}</td>
-                            <td>{v.service}</td>
-                            <td>{v.visitDate ? new Date(v.visitDate).toLocaleDateString('en-US') : '—'}</td>
-                            <td>{v.callInTime}</td>
-                            <td>{v.callOutTime}</td>
+                            <td>
+                                <PayrollEditableText
+                                    value={v.clientName}
+                                    placeholder="missing client…"
+                                    highlight={!v.clientName}
+                                    onSave={async (val) => {
+                                        const updated = await api.updatePayrollVisit(v.id, { clientName: val });
+                                        onVisitChange(v.id, updated);
+                                    }}
+                                />
+                            </td>
+                            <td>
+                                <PayrollEditableText
+                                    value={v.employeeName}
+                                    placeholder="missing employee…"
+                                    highlight={!v.employeeName || /^\d+$/.test(v.employeeName)}
+                                    onSave={async (val) => {
+                                        const updated = await api.updatePayrollVisit(v.id, { employeeName: val });
+                                        onVisitChange(v.id, updated);
+                                    }}
+                                />
+                            </td>
+                            <td>{v.service || '—'}</td>
+                            <td>{v.visitDate ? new Date(v.visitDate).toLocaleDateString('en-US') : <em style={{ color: 'hsl(270 50% 40%)' }}>missing</em>}</td>
+                            <td>
+                                <PayrollEditableText
+                                    value={v.callInTime}
+                                    placeholder="HH:MM"
+                                    highlight={!v.callInTime || v.callInTime === '00:00'}
+                                    onSave={async (val) => {
+                                        const updated = await api.updatePayrollVisit(v.id, { callInTime: val });
+                                        onVisitChange(v.id, updated);
+                                    }}
+                                    width={60}
+                                />
+                            </td>
+                            <td>
+                                <PayrollEditableText
+                                    value={v.callOutTime}
+                                    placeholder="HH:MM"
+                                    highlight={!v.callOutTime || v.callOutTime === '00:00'}
+                                    onSave={async (val) => {
+                                        const updated = await api.updatePayrollVisit(v.id, { callOutTime: val });
+                                        onVisitChange(v.id, updated);
+                                    }}
+                                    width={60}
+                                />
+                            </td>
                             <td>{v.visitStatus}</td>
                             <td>{v.unitsRaw}</td>
-                            <td>{v.voidFlag ? <span style={{ color: 'hsl(var(--destructive))' }}>VOID</span> : v.finalPayableUnits}</td>
+                            <td>
+                                <PayrollEditableUnits
+                                    visit={v}
+                                    onChange={(newUnits) => onVisitChange(v.id, { finalPayableUnits: newUnits })}
+                                />
+                            </td>
                             <td>{v.overlapId || ''}</td>
-                            <td>{v.voidReason || ''}</td>
+                            <td>
+                                {v.needsReview
+                                    ? <span style={{ color: 'hsl(270 50% 40%)', fontWeight: 600 }}>{v.reviewReason}</span>
+                                    : (v.voidReason || '')}
+                            </td>
+                            <td>
+                                <PayrollEditableNotes
+                                    visit={v}
+                                    onChange={(newNotes) => onVisitChange(v.id, { notes: newNotes })}
+                                />
+                            </td>
                         </tr>
                     ))}
                     <tr className="payroll-total-row">
-                        <td colSpan={7} style={{ textAlign: 'right' }}>TOTAL</td>
+                        <td colSpan={8} style={{ textAlign: 'right' }}>TOTAL</td>
                         <td>{total}</td>
-                        <td colSpan={2}></td>
+                        <td colSpan={3}></td>
                     </tr>
                 </tbody>
             </table>
@@ -1705,30 +1770,250 @@ function PayrollClientGroup({ clientName, visits }) {
 }
 
 // ────────────────────────────────────────
+// PayrollEditableText — generic inline text editor for any visit field
+// Used for clientName, employeeName, callInTime, callOutTime
+// ────────────────────────────────────────
+function PayrollEditableText({ value, placeholder, highlight, onSave, width = 130 }) {
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft]     = useState(value || '');
+    const [saving, setSaving]   = useState(false);
+
+    // keep draft in sync if parent updates the value (e.g. after server recalc)
+    const prevValue = useRef(value);
+    if (prevValue.current !== value) {
+        prevValue.current = value;
+        if (!editing) setDraft(value || '');
+    }
+
+    const commit = async () => {
+        const trimmed = draft.trim();
+        if (trimmed === (value || '').trim()) { setEditing(false); return; }
+        setSaving(true);
+        try {
+            await onSave(trimmed);
+        } catch (_) {
+            setDraft(value || '');
+        } finally {
+            setSaving(false);
+            setEditing(false);
+        }
+    };
+
+    if (editing) {
+        return (
+            <input
+                type="text"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={commit}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter') commit();
+                    if (e.key === 'Escape') { setDraft(value || ''); setEditing(false); }
+                }}
+                autoFocus
+                placeholder={placeholder}
+                style={{ width, padding: '2px 6px', fontSize: 13 }}
+            />
+        );
+    }
+
+    const isEmpty = !value || value === '00:00';
+    return (
+        <span
+            title="Click to edit"
+            onClick={() => { setDraft(value || ''); setEditing(true); }}
+            style={{
+                cursor: 'pointer',
+                color: isEmpty || highlight ? 'hsl(270 50% 40%)' : 'inherit',
+                fontStyle: isEmpty ? 'italic' : 'normal',
+                fontWeight: highlight && !isEmpty ? 600 : 'normal',
+                borderBottom: '1px dashed hsl(var(--border))',
+                paddingBottom: 1,
+                opacity: saving ? 0.5 : 1,
+                whiteSpace: 'nowrap',
+            }}
+        >
+            {isEmpty ? placeholder : value}
+        </span>
+    );
+}
+
+// ────────────────────────────────────────
+// PayrollEditableUnits — inline number editor
+// ────────────────────────────────────────
+function PayrollEditableUnits({ visit, onChange }) {
+    const [editing, setEditing] = useState(false);
+    const [value, setValue]     = useState(String(visit.finalPayableUnits));
+    const [saving, setSaving]   = useState(false);
+
+    const commit = async () => {
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 0 || n === visit.finalPayableUnits) {
+            setValue(String(visit.finalPayableUnits));
+            setEditing(false);
+            return;
+        }
+        setSaving(true);
+        try {
+            await api.updatePayrollVisit(visit.id, { finalPayableUnits: n });
+            onChange(n);
+        } catch (_) {
+            setValue(String(visit.finalPayableUnits));
+        } finally {
+            setSaving(false);
+            setEditing(false);
+        }
+    };
+
+    if (visit.voidFlag) return <span style={{ color: 'hsl(var(--destructive))' }}>VOID</span>;
+
+    if (editing) {
+        return (
+            <input
+                type="number" min="0" max="112"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                onBlur={commit}
+                onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setValue(String(visit.finalPayableUnits)); setEditing(false); } }}
+                autoFocus
+                style={{ width: 56, padding: '2px 4px', fontSize: 13, textAlign: 'center' }}
+            />
+        );
+    }
+
+    return (
+        <span
+            title="Click to edit"
+            onClick={() => { setValue(String(visit.finalPayableUnits)); setEditing(true); }}
+            style={{ cursor: 'pointer', borderBottom: '1px dashed hsl(var(--border))', paddingBottom: 1, opacity: saving ? 0.5 : 1 }}
+        >
+            {visit.finalPayableUnits}
+        </span>
+    );
+}
+
+// ────────────────────────────────────────
+// PayrollEditableNotes — inline text editor
+// ────────────────────────────────────────
+function PayrollEditableNotes({ visit, onChange }) {
+    const [editing, setEditing] = useState(false);
+    const [value, setValue]     = useState(visit.notes || '');
+    const [saving, setSaving]   = useState(false);
+
+    const commit = async () => {
+        const trimmed = value.trim();
+        if (trimmed === (visit.notes || '').trim()) { setEditing(false); return; }
+        setSaving(true);
+        try {
+            await api.updatePayrollVisit(visit.id, { notes: trimmed });
+            onChange(trimmed);
+        } catch (_) {
+            setValue(visit.notes || '');
+        } finally {
+            setSaving(false);
+            setEditing(false);
+        }
+    };
+
+    if (editing) {
+        return (
+            <input
+                type="text"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                onBlur={commit}
+                onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setValue(visit.notes || ''); setEditing(false); } }}
+                autoFocus
+                placeholder="Add note…"
+                style={{ width: 200, padding: '2px 6px', fontSize: 13 }}
+            />
+        );
+    }
+
+    return (
+        <span
+            title="Click to edit"
+            onClick={() => { setValue(visit.notes || ''); setEditing(true); }}
+            style={{ cursor: 'pointer', color: value ? 'inherit' : 'hsl(240 3.8% 46.1%)', fontStyle: value ? 'normal' : 'italic', borderBottom: '1px dashed hsl(var(--border))', paddingBottom: 1, opacity: saving ? 0.5 : 1, whiteSpace: 'nowrap' }}
+        >
+            {value || 'add note…'}
+        </span>
+    );
+}
+
+// ────────────────────────────────────────
 // PayrollRunDetail
 // ────────────────────────────────────────
-function PayrollRunDetail({ run }) {
+function PayrollRunDetail({ run, onVisitChange }) {
+    const [tab, setTab] = useState('all');
+
+    const reviewCount = useMemo(() =>
+        run.visits.filter((v) => v.needsReview).length,
+        [run.visits]
+    );
+
+    // Reset to 'all' if review count drops to 0 while on review tab
+    useEffect(() => {
+        if (tab === 'review' && reviewCount === 0) setTab('all');
+    }, [reviewCount, tab]);
+
+    const visibleVisits = useMemo(() =>
+        tab === 'review'
+            ? run.visits.filter((v) => v.needsReview)
+            : run.visits.filter((v) => !v.needsReview),
+        [run.visits, tab]
+    );
+
     const clientGroups = useMemo(() => {
         const map = new Map();
-        for (const v of run.visits) {
-            if (!map.has(v.clientName)) map.set(v.clientName, []);
-            map.get(v.clientName).push(v);
+        for (const v of visibleVisits) {
+            const key = v.clientName || '(Unknown Client)';
+            if (!map.has(key)) map.set(key, []);
+            map.get(key).push(v);
         }
         return [...map.entries()];
-    }, [run.visits]);
+    }, [visibleVisits]);
 
     return (
         <div>
-            <div className="payroll-legend">
-                <span className="payroll-legend__item payroll-legend__item--void">Void</span>
-                <span className="payroll-legend__item payroll-legend__item--incomplete">Incomplete</span>
-                <span className="payroll-legend__item payroll-legend__item--unauthorized">Unauthorized</span>
-                <span className="payroll-legend__item payroll-legend__item--overlap">Overlap</span>
+            <div className="payroll-tabs">
+                <button
+                    className={`payroll-tab${tab === 'all' ? ' payroll-tab--active' : ''}`}
+                    onClick={() => setTab('all')}
+                >
+                    All Visits
+                </button>
+                <button
+                    className={`payroll-tab${tab === 'review' ? ' payroll-tab--active' : ''}`}
+                    onClick={() => setTab('review')}
+                >
+                    Needs Review
+                    <span className={`payroll-tab__badge${reviewCount === 0 ? ' payroll-tab__badge--zero' : ''}`}>
+                        {reviewCount}
+                    </span>
+                </button>
             </div>
+
+            {tab === 'all' && (
+                <div className="payroll-legend">
+                    <span className="payroll-legend__item payroll-legend__item--void">Void</span>
+                    <span className="payroll-legend__item payroll-legend__item--incomplete">Incomplete</span>
+                    <span className="payroll-legend__item payroll-legend__item--unauthorized">Unauthorized</span>
+                    <span className="payroll-legend__item payroll-legend__item--overlap">Overlap</span>
+                </div>
+            )}
+
+            {tab === 'review' && reviewCount === 0 && (
+                <p style={{ color: 'hsl(240 3.8% 46.1%)', fontStyle: 'italic' }}>
+                    No rows need review — all visits have complete data.
+                </p>
+            )}
+
             {clientGroups.map(([clientName, visits]) => (
-                <PayrollClientGroup key={clientName} clientName={clientName} visits={visits} />
+                <PayrollClientGroup key={clientName} clientName={clientName} visits={visits} onVisitChange={onVisitChange} />
             ))}
-            {clientGroups.length === 0 && (
+
+            {tab === 'all' && clientGroups.length === 0 && (
                 <p style={{ color: 'hsl(240 3.8% 46.1%)', fontStyle: 'italic' }}>No visit records in this run.</p>
             )}
         </div>
@@ -1738,12 +2023,23 @@ function PayrollRunDetail({ run }) {
 // ────────────────────────────────────────
 // PayrollPage
 // ────────────────────────────────────────
-function PayrollPage({ showToast }) {
+function PayrollPage({ showToast, initialRunId, onNavigate }) {
     const [runs, setRuns]               = useState([]);
     const [selectedRun, setSelectedRun] = useState(null);
     const [loading, setLoading]         = useState(true);
     const [modal, setModal]             = useState(null);
     const [exporting, setExporting]     = useState(false);
+
+    // Optimistically update a visit field in selectedRun state after a successful PATCH
+    // patch may be a plain object (optimistic update) or a full visit from the server
+    const handleVisitChange = useCallback((visitId, patch) => {
+        setSelectedRun((prev) => {
+            if (!prev) return prev;
+            const visits = prev.visits.map((v) => v.id === visitId ? { ...v, ...patch } : v);
+            const totalPayable = visits.filter((v) => !v.voidFlag && !v.needsReview).reduce((s, v) => s + v.finalPayableUnits, 0);
+            return { ...prev, visits, totalPayable };
+        });
+    }, []);
 
     const loadRuns = useCallback(async () => {
         setLoading(true);
@@ -1759,10 +2055,19 @@ function PayrollPage({ showToast }) {
 
     useEffect(() => { loadRuns(); }, [loadRuns]);
 
+    // On mount (or when initialRunId changes from URL), load that run
+    useEffect(() => {
+        if (!initialRunId) return;
+        api.getPayrollRun(initialRunId)
+            .then(setSelectedRun)
+            .catch(() => onNavigate('payroll')); // run not found — fall back to list
+    }, [initialRunId, onNavigate]);
+
     const handleRunClick = async (run) => {
         try {
             const full = await api.getPayrollRun(run.id);
             setSelectedRun(full);
+            onNavigate(`payroll/runs/${run.id}`);
         } catch (err) {
             showToast(err.message, 'error');
         }
@@ -1773,6 +2078,7 @@ function PayrollPage({ showToast }) {
         showToast('Payroll run processed successfully.', 'success');
         loadRuns();
         setSelectedRun(run);
+        onNavigate(`payroll/runs/${run.id}`);
     };
 
     const handleDelete = async (run) => {
@@ -1780,7 +2086,10 @@ function PayrollPage({ showToast }) {
             await api.deletePayrollRun(run.id);
             showToast('Payroll run deleted.', 'success');
             setModal(null);
-            if (selectedRun?.id === run.id) setSelectedRun(null);
+            if (selectedRun?.id === run.id) {
+                setSelectedRun(null);
+                onNavigate('payroll');
+            }
             loadRuns();
         } catch (err) {
             showToast(err.message, 'error');
@@ -1818,7 +2127,7 @@ function PayrollPage({ showToast }) {
             <div>
                 <div className="content-header">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <button className="btn btn--outline btn--sm" onClick={() => setSelectedRun(null)}>
+                        <button className="btn btn--outline btn--sm" onClick={() => { setSelectedRun(null); onNavigate('payroll'); }}>
                             ← Back
                         </button>
                         <h1 className="content-header__title">{selectedRun.name}</h1>
@@ -1833,7 +2142,7 @@ function PayrollPage({ showToast }) {
                     </div>
                 </div>
                 <div className="page-content">
-                    <PayrollRunDetail run={selectedRun} />
+                    <PayrollRunDetail run={selectedRun} onVisitChange={handleVisitChange} />
                 </div>
             </div>
         );
@@ -1926,14 +2235,20 @@ function PayrollPage({ showToast }) {
 // ────────────────────────────────────────
 // Sidebar
 // ────────────────────────────────────────
-function Sidebar({ activePage, onNavigate, user, onLogout }) {
+function Sidebar({ activePage, onNavigate, user, onLogout, collapsed, onToggleCollapse }) {
     const isAdmin = user?.role === 'admin';
     return (
-        <aside className="sidebar">
+        <aside className={`sidebar${collapsed ? ' sidebar--collapsed' : ''}`}>
+            <button
+                className="sidebar__collapse-btn"
+                onClick={onToggleCollapse}
+                title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+                {Icons.chevronLeft}
+            </button>
+
             <div className="sidebar__header">
-                <div className="sidebar__logo">
-                    {Icons.shieldCheck}
-                </div>
+                <div className="sidebar__logo">{Icons.shieldCheck}</div>
                 <div className="sidebar__brand-info">
                     <div className="sidebar__brand-name">NV Best PCA</div>
                     <div className="sidebar__brand-sub">Auth Tracker</div>
@@ -1943,15 +2258,15 @@ function Sidebar({ activePage, onNavigate, user, onLogout }) {
             <nav className="sidebar__nav">
                 <div className="sidebar__section-label">Home</div>
                 {isAdmin && (
-                    <button className={`sidebar__nav-item ${activePage === 'dashboard' ? 'sidebar__nav-item--active' : ''}`} onClick={() => onNavigate('dashboard')}>
+                    <button className={`sidebar__nav-item ${activePage === 'dashboard' ? 'sidebar__nav-item--active' : ''}`} onClick={() => onNavigate('dashboard')} title="Dashboard">
                         {Icons.layoutDashboard} Dashboard
                     </button>
                 )}
-                <button className={`sidebar__nav-item ${activePage === 'timesheets' ? 'sidebar__nav-item--active' : ''}`} onClick={() => onNavigate('timesheets')}>
+                <button className={`sidebar__nav-item ${activePage === 'timesheets' ? 'sidebar__nav-item--active' : ''}`} onClick={() => onNavigate('timesheets')} title="Timesheets">
                     {Icons.fileText} Timesheets
                 </button>
                 {isAdmin && (
-                    <button className={`sidebar__nav-item ${activePage === 'payroll' ? 'sidebar__nav-item--active' : ''}`} onClick={() => onNavigate('payroll')}>
+                    <button className={`sidebar__nav-item ${activePage === 'payroll' ? 'sidebar__nav-item--active' : ''}`} onClick={() => onNavigate('payroll')} title="Payroll">
                         {Icons.dollarSign} Payroll
                     </button>
                 )}
@@ -1961,26 +2276,26 @@ function Sidebar({ activePage, onNavigate, user, onLogout }) {
                 {isAdmin && (
                     <>
                         <div className="sidebar__section-label">Settings</div>
-                        <button className={`sidebar__nav-item ${activePage === 'insuranceTypes' ? 'sidebar__nav-item--active' : ''}`} onClick={() => onNavigate('insuranceTypes')}>
+                        <button className={`sidebar__nav-item ${activePage === 'insuranceTypes' ? 'sidebar__nav-item--active' : ''}`} onClick={() => onNavigate('insuranceTypes')} title="Insurance Types">
                             {Icons.shieldCheck} Insurance Types
                         </button>
-                        <button className={`sidebar__nav-item ${activePage === 'services' ? 'sidebar__nav-item--active' : ''}`} onClick={() => onNavigate('services')}>
+                        <button className={`sidebar__nav-item ${activePage === 'services' ? 'sidebar__nav-item--active' : ''}`} onClick={() => onNavigate('services')} title="Services">
                             {Icons.fileText} Services
                         </button>
-                        <button className={`sidebar__nav-item ${activePage === 'users' ? 'sidebar__nav-item--active' : ''}`} onClick={() => onNavigate('users')}>
+                        <button className={`sidebar__nav-item ${activePage === 'users' ? 'sidebar__nav-item--active' : ''}`} onClick={() => onNavigate('users')} title="Users">
                             {Icons.user} Users
                         </button>
                     </>
                 )}
                 <div className="separator" style={{ margin: '8px 12px' }} />
-                <div className="sidebar__user">
+                <div className="sidebar__user" title={user?.name}>
                     <div className="sidebar__avatar">{(user?.name || 'U').charAt(0).toUpperCase()}</div>
                     <div className="sidebar__user-info">
                         <div className="sidebar__user-name">{user?.name || 'User'}</div>
                         <div className="sidebar__user-email">{user?.email}</div>
                     </div>
                 </div>
-                <button className="btn btn--outline btn--sm" style={{ margin: '8px 12px', width: 'calc(100% - 24px)' }} onClick={onLogout}>
+                <button className="btn btn--outline btn--sm" style={{ margin: '8px 12px', width: 'calc(100% - 24px)' }} onClick={onLogout} title="Sign Out">
                     {Icons.logOut} Sign Out
                 </button>
             </div>
@@ -1993,6 +2308,17 @@ function Sidebar({ activePage, onNavigate, user, onLogout }) {
 // ────────────────────────────────────────
 const ROWS_PER_PAGE = 25;
 
+// ── Hash router helpers ─────────────────────────────────────
+// Hash scheme: #dashboard | #timesheets | #payroll | #payroll/runs/42 | ...
+function parseHash() {
+    const hash = window.location.hash.replace(/^#\/?/, '');
+    const runMatch = hash.match(/^payroll\/runs\/(\d+)$/);
+    if (runMatch) return { page: 'payroll', runId: parseInt(runMatch[1], 10) };
+    return { page: hash || null, runId: null };
+}
+
+// ───────────────────────────────────────────────────────────
+
 export default function App() {
     const [authUser, setAuthUser] = useState(null);
     const [authChecking, setAuthChecking] = useState(true);
@@ -2001,11 +2327,14 @@ export default function App() {
     const [expandedIds, setExpandedIds] = useState(new Set());
     const [toast, setToast] = useState(null);
     const [modal, setModal] = useState(null);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(
+        () => localStorage.getItem('sidebarCollapsed') === 'true'
+    );
     const [statusFilter, setStatusFilter] = useState('All');
     const [currentPage, setCurrentPage] = useState(1);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedIds, setSelectedIds] = useState(new Set());
-    const [activePage, setActivePage] = useState(null);
+    const [route, setRoute] = useState(parseHash);   // { page, runId }
     const [insuranceTypes, setInsuranceTypes] = useState([]);
     const [services, setServices] = useState([]);
 
@@ -2024,32 +2353,57 @@ export default function App() {
         }
     }, [showToast]);
 
+    // ── Hash change listener ──
+    useEffect(() => {
+        const handler = () => setRoute(parseHash());
+        window.addEventListener('hashchange', handler);
+        return () => window.removeEventListener('hashchange', handler);
+    }, []);
+
+    const navigate = useCallback((page) => {
+        window.location.hash = page;
+        // hashchange listener will call setRoute — no need to do it here too
+    }, []);
+
+    const handleToggleSidebar = useCallback(() => {
+        setSidebarCollapsed((prev) => {
+            const next = !prev;
+            localStorage.setItem('sidebarCollapsed', next);
+            return next;
+        });
+    }, []);
+
     // ── Auth check on mount ──
     useEffect(() => {
         const token = api.getToken();
         if (!token) { setAuthChecking(false); return; }
         api.getMe().then((user) => {
             setAuthUser(user);
-            setActivePage(user.role === 'admin' ? 'dashboard' : 'timesheets');
+            // If no hash set yet, default to the landing page for the role
+            if (!parseHash().page) {
+                window.location.hash = user.role === 'admin' ? 'dashboard' : 'timesheets';
+            }
         }).catch(() => { api.clearToken(); }).finally(() => setAuthChecking(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Listen for 401 logout events
     useEffect(() => {
-        const handler = () => { setAuthUser(null); setActivePage(null); };
+        const handler = () => { setAuthUser(null); setRoute({ page: null, runId: null }); window.location.hash = ''; };
         window.addEventListener('auth:logout', handler);
         return () => window.removeEventListener('auth:logout', handler);
     }, []);
 
     const handleLogin = (user) => {
         setAuthUser(user);
-        setActivePage(user.role === 'admin' ? 'dashboard' : 'timesheets');
+        window.location.hash = user.role === 'admin' ? 'dashboard' : 'timesheets';
     };
 
     const handleLogout = () => {
         api.clearToken();
         setAuthUser(null);
-        setActivePage(null);
+        setRoute({ page: null, runId: null });
+        window.location.hash = '';
         setClients([]);
     };
 
@@ -2213,9 +2567,18 @@ export default function App() {
         </>
     );
 
+    const activePage = route.page;
+
     return (
-        <div className="app">
-            <Sidebar activePage={activePage} onNavigate={setActivePage} user={authUser} onLogout={handleLogout} />
+        <div className={`app${sidebarCollapsed ? ' app--sidebar-collapsed' : ''}`}>
+            <Sidebar
+                activePage={activePage}
+                onNavigate={navigate}
+                user={authUser}
+                onLogout={handleLogout}
+                collapsed={sidebarCollapsed}
+                onToggleCollapse={handleToggleSidebar}
+            />
 
             <div className="main-content">
                 {activePage === 'users' && isAdmin ? (
@@ -2225,9 +2588,9 @@ export default function App() {
                 ) : activePage === 'services' && isAdmin ? (
                     <ServicesPage services={services} onRefresh={fetchServices} showToast={showToast} />
                 ) : activePage === 'timesheets' ? (
-                    <TimesheetsListPage clients={clients} showToast={showToast} onNavigate={setActivePage} />
+                    <TimesheetsListPage clients={clients} showToast={showToast} onNavigate={navigate} />
                 ) : activePage === 'payroll' && isAdmin ? (
-                    <PayrollPage showToast={showToast} />
+                    <PayrollPage showToast={showToast} initialRunId={route.runId} onNavigate={navigate} />
                 ) : (
                     <>
                         {/* Content Header */}
