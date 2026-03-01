@@ -160,6 +160,14 @@ function statusLabel(s) {
     return s;
 }
 
+function hhmm12(t) {
+    if (!t || t === '00:00') return t;
+    const [hh, mm] = t.split(':').map(Number);
+    const period = hh < 12 ? 'AM' : 'PM';
+    const h = hh % 12 || 12;
+    return `${h}:${String(mm).padStart(2, '0')} ${period}`;
+}
+
 // ────────────────────────────────────────
 // Toast
 // ────────────────────────────────────────
@@ -1644,7 +1652,7 @@ function PayrollUploadModal({ onUpload, onClose }) {
 // ────────────────────────────────────────
 // PayrollClientGroup
 // ────────────────────────────────────────
-function PayrollClientGroup({ clientName, visits, onVisitChange }) {
+function PayrollClientGroup({ clientName, visits, onVisitChange, authMap }) {
     const authSummary = useMemo(() => {
         const map = new Map();
         for (const v of visits) {
@@ -1652,7 +1660,7 @@ function PayrollClientGroup({ clientName, visits, onVisitChange }) {
             const code = v.serviceCode || '—';
             map.set(code, (map.get(code) || 0) + v.finalPayableUnits);
         }
-        return [...map.entries()].map(([code, units]) => `${code}:${units}`).join('  ');
+        return [...map.entries()];
     }, [visits]);
 
     const total = useMemo(() =>
@@ -1660,12 +1668,29 @@ function PayrollClientGroup({ clientName, visits, onVisitChange }) {
         [visits]
     );
 
+    // Match server normalizeName: lowercase, strip non-alphanumeric, sort words
+    const clientKey = (clientName || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').trim().split(/\s+/).filter(Boolean).sort().join(' ');
+    const clientAuthMap = (authMap && authMap[clientKey]) || {};
+
     return (
         <div className="payroll-client-group">
             <div className="payroll-client-banner">
                 <span>{clientName || <em style={{ color: 'hsl(270 50% 40%)' }}>Unknown Client</em>}</span>
-                {authSummary && (
-                    <span className="payroll-client-banner__auths">{authSummary}</span>
+                {authSummary.length > 0 && (
+                    <span className="payroll-client-banner__auths">
+                        {authSummary.map(([code, units], i) => {
+                            const authorized = clientAuthMap[code];
+                            let color = 'inherit';
+                            if (authorized != null) {
+                                color = units >= authorized ? 'hsl(142 71% 35%)' : 'hsl(0 72% 45%)';
+                            }
+                            return (
+                                <span key={code} style={{ color, marginLeft: i > 0 ? 12 : 0 }}>
+                                    {code}:{units}{authorized != null ? `/${authorized}` : ''}
+                                </span>
+                            );
+                        })}
+                    </span>
                 )}
             </div>
             <table className="payroll-visits-table">
@@ -1715,25 +1740,27 @@ function PayrollClientGroup({ clientName, visits, onVisitChange }) {
                             <td>
                                 <PayrollEditableText
                                     value={v.callInTime}
+                                    displayValue={hhmm12(v.callInTime)}
                                     placeholder="HH:MM"
                                     highlight={!v.callInTime || v.callInTime === '00:00'}
                                     onSave={async (val) => {
                                         const updated = await api.updatePayrollVisit(v.id, { callInTime: val });
                                         onVisitChange(v.id, updated);
                                     }}
-                                    width={60}
+                                    width={75}
                                 />
                             </td>
                             <td>
                                 <PayrollEditableText
                                     value={v.callOutTime}
+                                    displayValue={hhmm12(v.callOutTime)}
                                     placeholder="HH:MM"
                                     highlight={!v.callOutTime || v.callOutTime === '00:00'}
                                     onSave={async (val) => {
                                         const updated = await api.updatePayrollVisit(v.id, { callOutTime: val });
                                         onVisitChange(v.id, updated);
                                     }}
-                                    width={60}
+                                    width={75}
                                 />
                             </td>
                             <td>{v.visitStatus}</td>
@@ -1773,7 +1800,7 @@ function PayrollClientGroup({ clientName, visits, onVisitChange }) {
 // PayrollEditableText — generic inline text editor for any visit field
 // Used for clientName, employeeName, callInTime, callOutTime
 // ────────────────────────────────────────
-function PayrollEditableText({ value, placeholder, highlight, onSave, width = 130 }) {
+function PayrollEditableText({ value, displayValue, placeholder, highlight, onSave, width = 130 }) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft]     = useState(value || '');
     const [saving, setSaving]   = useState(false);
@@ -1833,7 +1860,7 @@ function PayrollEditableText({ value, placeholder, highlight, onSave, width = 13
                 whiteSpace: 'nowrap',
             }}
         >
-            {isEmpty ? placeholder : value}
+            {isEmpty ? placeholder : (displayValue ?? value)}
         </span>
     );
 }
@@ -1944,7 +1971,7 @@ function PayrollEditableNotes({ visit, onChange }) {
 // ────────────────────────────────────────
 // PayrollRunDetail
 // ────────────────────────────────────────
-function PayrollRunDetail({ run, onVisitChange }) {
+function PayrollRunDetail({ run, onVisitChange, authMap }) {
     const [tab, setTab] = useState('all');
 
     const reviewCount = useMemo(() =>
@@ -2010,7 +2037,7 @@ function PayrollRunDetail({ run, onVisitChange }) {
             )}
 
             {clientGroups.map(([clientName, visits]) => (
-                <PayrollClientGroup key={clientName} clientName={clientName} visits={visits} onVisitChange={onVisitChange} />
+                <PayrollClientGroup key={clientName} clientName={clientName} visits={visits} onVisitChange={onVisitChange} authMap={authMap} />
             ))}
 
             {tab === 'all' && clientGroups.length === 0 && (
@@ -2142,7 +2169,7 @@ function PayrollPage({ showToast, initialRunId, onNavigate }) {
                     </div>
                 </div>
                 <div className="page-content">
-                    <PayrollRunDetail run={selectedRun} onVisitChange={handleVisitChange} />
+                    <PayrollRunDetail run={selectedRun} onVisitChange={handleVisitChange} authMap={selectedRun.authMap || {}} />
                 </div>
             </div>
         );
