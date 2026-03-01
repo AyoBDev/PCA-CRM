@@ -54,6 +54,7 @@ const {
     getPayrollRun,
     deletePayrollRun,
     exportPayrollRun,
+    updatePayrollVisit,
 } = require('../controllers/payrollController');
 const { authenticate, requireRole } = require('../middleware/authMiddleware');
 
@@ -117,5 +118,6 @@ router.post('/payroll/runs',               requireRole('admin'), upload.single('
 router.get('/payroll/runs/:id',            requireRole('admin'), getPayrollRun);
 router.delete('/payroll/runs/:id',         requireRole('admin'), deletePayrollRun);
 router.get('/payroll/runs/:id/export',     requireRole('admin'), exportPayrollRun);
+router.patch('/payroll/visits/:id',        requireRole('admin'), updatePayrollVisit);
 
 module.exports = router;

@@ -158,14 +158,14 @@ model PayrollVisit {
   id                Int        @id @default(autoincrement())
   runId             Int        @map("run_id")
 
-  clientName        String     @map("client_name")
-  employeeName      String     @map("employee_name")
-  service           String
-  visitDate         DateTime   @map("visit_date")
-  callInRaw         Float      @map("call_in_raw")
-  callOutRaw        Float      @map("call_out_raw")
+  clientName        String     @default("") @map("client_name")
+  employeeName      String     @default("") @map("employee_name")
+  service           String     @default("")
+  visitDate         DateTime?  @map("visit_date")
+  callInRaw         Float      @default(0) @map("call_in_raw")
+  callOutRaw        Float      @default(0) @map("call_out_raw")
   callHoursRaw      Float      @default(0) @map("call_hours_raw")
-  visitStatus       String     @map("visit_status")
+  visitStatus       String     @default("") @map("visit_status")
   unitsRaw          Int        @default(0) @map("units_raw")
 
   serviceCode       String     @default("") @map("service_code")
@@ -178,6 +178,9 @@ model PayrollVisit {
   overlapId         String     @default("") @map("overlap_id")
   isIncomplete      Boolean    @default(false) @map("is_incomplete")
   isUnauthorized    Boolean    @default(false) @map("is_unauthorized")
+  needsReview       Boolean    @default(false) @map("needs_review")
+  reviewReason      String     @default("") @map("review_reason")
+  notes             String     @default("") @map("notes")
 
   run               PayrollRun @relation(fields: [runId], references: [id], onDelete: Cascade)
   createdAt         DateTime   @default(now()) @map("created_at")
