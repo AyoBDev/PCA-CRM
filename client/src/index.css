@@ -2071,3 +2071,4 @@ body {
 .payroll-legend__item--incomplete   { background: hsl(340 80% 96%); }
 .payroll-legend__item--unauthorized { background: hsl(48 96% 94%); }
 .payroll-legend__item--overlap      { font-weight: 700; border: 1px solid hsl(var(--border)); }
+.payroll-legend__item--overcap      { background: hsl(0 84% 92%); font-weight: 700; }

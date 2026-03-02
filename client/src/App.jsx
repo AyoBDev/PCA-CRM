@@ -1764,7 +1764,7 @@ function PayrollClientGroup({ clientName, visits, onVisitChange, authMap }) {
                                 />
                             </td>
                             <td>{v.visitStatus}</td>
-                            <td>{v.unitsRaw}</td>
+                            <td style={v.unitsRaw > 28 && !v.voidFlag && !v.needsReview ? { background: 'hsl(0 84% 92%)', fontWeight: 700 } : undefined}>{v.unitsRaw}</td>
                             <td>
                                 <PayrollEditableUnits
                                     visit={v}
@@ -1973,6 +1973,7 @@ function PayrollEditableNotes({ visit, onChange }) {
 // ────────────────────────────────────────
 function PayrollRunDetail({ run, onVisitChange, authMap }) {
     const [tab, setTab] = useState('all');
+    const [search, setSearch] = useState('');
 
     const reviewCount = useMemo(() =>
         run.visits.filter((v) => v.needsReview).length,
@@ -1984,12 +1985,17 @@ function PayrollRunDetail({ run, onVisitChange, authMap }) {
         if (tab === 'review' && reviewCount === 0) setTab('all');
     }, [reviewCount, tab]);
 
-    const visibleVisits = useMemo(() =>
-        tab === 'review'
+    const visibleVisits = useMemo(() => {
+        const byTab = tab === 'review'
             ? run.visits.filter((v) => v.needsReview)
-            : run.visits.filter((v) => !v.needsReview),
-        [run.visits, tab]
-    );
+            : run.visits.filter((v) => !v.needsReview);
+        if (!search.trim()) return byTab;
+        const q = search.trim().toLowerCase();
+        return byTab.filter((v) =>
+            (v.clientName || '').toLowerCase().includes(q) ||
+            (v.employeeName || '').toLowerCase().includes(q)
+        );
+    }, [run.visits, tab, search]);
 
     const clientGroups = useMemo(() => {
         const map = new Map();
@@ -2027,6 +2033,7 @@ function PayrollRunDetail({ run, onVisitChange, authMap }) {
                     <span className="payroll-legend__item payroll-legend__item--incomplete">Incomplete</span>
                     <span className="payroll-legend__item payroll-legend__item--unauthorized">Unauthorized</span>
                     <span className="payroll-legend__item payroll-legend__item--overlap">Overlap</span>
+                    <span className="payroll-legend__item payroll-legend__item--overcap">Over daily cap (28 units)</span>
                 </div>
             )}
 
@@ -2036,13 +2043,30 @@ function PayrollRunDetail({ run, onVisitChange, authMap }) {
                 </p>
             )}
 
+            <div style={{ margin: '12px 0' }}>
+                <input
+                    type="search"
+                    placeholder="Search by client or employee…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    style={{ width: 280, padding: '6px 10px', fontSize: 13, borderRadius: 6, border: '1px solid hsl(var(--border))', background: 'hsl(var(--background))', color: 'hsl(var(--foreground))' }}
+                />
+                {search && (
+                    <span style={{ marginLeft: 10, fontSize: 12, color: 'hsl(240 3.8% 46.1%)' }}>
+                        {visibleVisits.length} visit{visibleVisits.length !== 1 ? 's' : ''} found
+                    </span>
+                )}
+            </div>
+
             {clientGroups.map(([clientName, visits]) => (
                 <PayrollClientGroup key={clientName} clientName={clientName} visits={visits} onVisitChange={onVisitChange} authMap={authMap} />
             ))}
 
-            {tab === 'all' && clientGroups.length === 0 && (
+            {clientGroups.length === 0 && (search ? (
+                <p style={{ color: 'hsl(240 3.8% 46.1%)', fontStyle: 'italic' }}>No visits match "{search}".</p>
+            ) : tab === 'all' ? (
                 <p style={{ color: 'hsl(240 3.8% 46.1%)', fontStyle: 'italic' }}>No visit records in this run.</p>
-            )}
+            ) : null)}
         </div>
     );
 }
