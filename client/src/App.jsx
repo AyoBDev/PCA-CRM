@@ -1690,6 +1690,29 @@ function PayrollClientGroup({ clientName, visits, onVisitChange, authMap }) {
         return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
     }, [visits]);
 
+    // Assign a distinct left-border color to each employee (only when 2+ employees)
+    const EMP_COLORS = [
+        'hsl(221 83% 53%)',  // blue
+        'hsl(142 71% 35%)',  // green
+        'hsl(291 64% 42%)',  // purple
+        'hsl(24 95% 48%)',   // orange
+        'hsl(346 77% 49%)',  // red-pink
+        'hsl(187 71% 38%)',  // teal
+        'hsl(43 96% 46%)',   // amber
+        'hsl(262 52% 47%)',  // indigo
+    ];
+    const employeeColorMap = useMemo(() => {
+        const seen = [];
+        for (const v of visits) {
+            const emp = v.employeeName || '';
+            if (emp && !seen.includes(emp)) seen.push(emp);
+        }
+        if (seen.length < 2) return null;
+        const map = new Map();
+        seen.forEach((emp, i) => map.set(emp, EMP_COLORS[i % EMP_COLORS.length]));
+        return map;
+    }, [visits]);
+
     // Match server normalizeName: lowercase, strip non-alphanumeric, sort words
     const clientKey = (clientName || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').trim().split(/\s+/).filter(Boolean).sort().join(' ');
     const clientAuthMap = (authMap && authMap[clientKey]) || {};
@@ -1733,8 +1756,10 @@ function PayrollClientGroup({ clientName, visits, onVisitChange, authMap }) {
                     </tr>
                 </thead>
                 <tbody>
-                    {visits.map((v) => (
-                        <tr key={v.id} className={visitRowClass(v)}>
+                    {visits.map((v) => {
+                        const empColor = employeeColorMap?.get(v.employeeName || '');
+                        return (
+                        <tr key={v.id} className={visitRowClass(v)} style={empColor ? { borderLeft: `4px solid ${empColor}` } : undefined}>
                             <td>
                                 <PayrollEditableText
                                     value={v.clientName}
@@ -1746,7 +1771,7 @@ function PayrollClientGroup({ clientName, visits, onVisitChange, authMap }) {
                                     }}
                                 />
                             </td>
-                            <td>
+                            <td style={empColor ? { color: empColor, fontWeight: 600 } : undefined}>
                                 <PayrollEditableText
                                     value={v.employeeName}
                                     placeholder="missing employee…"
@@ -1806,7 +1831,8 @@ function PayrollClientGroup({ clientName, visits, onVisitChange, authMap }) {
                                 />
                             </td>
                         </tr>
-                    ))}
+                        );
+                    })}
                     <tr className="payroll-total-row">
                         <td colSpan={8} style={{ textAlign: 'right' }}>TOTAL</td>
                         <td>{total}</td>
@@ -1818,7 +1844,7 @@ function PayrollClientGroup({ clientName, visits, onVisitChange, authMap }) {
                                 <span className="payroll-employee-totals__label">By Employee:</span>
                                 {employeeTotals.map(([emp, { units, voidUnits }]) => (
                                     <span key={emp} className="payroll-employee-totals__item">
-                                        <span className="payroll-employee-totals__name">{emp}</span>
+                                        <span className="payroll-employee-totals__name" style={employeeColorMap?.get(emp) ? { color: employeeColorMap.get(emp) } : undefined}>{emp}</span>
                                         <span className="payroll-employee-totals__units">{units} units · {(units / 4).toFixed(1)} hrs</span>
                                         {voidUnits > 0 && <span className="payroll-employee-totals__void">{voidUnits} void</span>}
                                     </span>
