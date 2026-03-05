@@ -374,6 +374,7 @@ function applyDailyCap(visits) {
  * Partial balance  → reduce, reason includes remaining count.
  */
 function applyAuthCap(visits, clientsWithAuths) {
+    // Balance keyed by normalized clientName || serviceCode — shared across all employees
     const authMap = new Map();
     for (const client of clientsWithAuths) {
         const normClient = normalizeName(client.clientName);
@@ -388,8 +389,7 @@ function applyAuthCap(visits, clientsWithAuths) {
     for (const v of visits) {
         if (v.voidFlag || !v.serviceCode) continue;
 
-        // DB stores PCAs (employees) as clients — match against employeeName
-        const key = `${normalizeName(v.employeeName)}||${v.serviceCode}`;
+        const key = `${normalizeName(v.clientName)}||${v.serviceCode}`;
 
         if (!balanceMap.has(key)) {
             v.isUnauthorized = true;
