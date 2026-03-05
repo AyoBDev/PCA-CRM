@@ -1668,6 +1668,24 @@ function PayrollClientGroup({ clientName, visits, onVisitChange, authMap }) {
         [visits]
     );
 
+    // Employee totals: grouped by employeeName, including void rows (units=0 for void)
+    const employeeTotals = useMemo(() => {
+        const map = new Map();
+        for (const v of visits) {
+            if (v.needsReview) continue;
+            const emp = v.employeeName || '(Unknown)';
+            if (!map.has(emp)) map.set(emp, { units: 0, voidUnits: 0 });
+            const entry = map.get(emp);
+            if (v.voidFlag) {
+                // voided visit contributes 0 payable but track it was there
+                entry.voidUnits += 1;
+            } else {
+                entry.units += v.finalPayableUnits;
+            }
+        }
+        return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    }, [visits]);
+
     // Match server normalizeName: lowercase, strip non-alphanumeric, sort words
     const clientKey = (clientName || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').trim().split(/\s+/).filter(Boolean).sort().join(' ');
     const clientAuthMap = (authMap && authMap[clientKey]) || {};
@@ -1737,7 +1755,7 @@ function PayrollClientGroup({ clientName, visits, onVisitChange, authMap }) {
                             </td>
                             <td>{v.service || '—'}</td>
                             <td>{v.visitDate ? new Date(v.visitDate).toLocaleDateString('en-US') : <em style={{ color: 'hsl(270 50% 40%)' }}>missing</em>}</td>
-                            <td>
+                            <td style={v.earlyCallIn ? { background: 'hsl(38 96% 88%)', fontWeight: 600 } : undefined}>
                                 <PayrollEditableText
                                     value={v.callInTime}
                                     displayValue={hhmm12(v.callInTime)}
@@ -1750,7 +1768,7 @@ function PayrollClientGroup({ clientName, visits, onVisitChange, authMap }) {
                                     width={75}
                                 />
                             </td>
-                            <td>
+                            <td style={(v.lateCallOut || v.nextDayCallOut) ? { background: 'hsl(38 96% 88%)', fontWeight: 600 } : undefined}>
                                 <PayrollEditableText
                                     value={v.callOutTime}
                                     displayValue={hhmm12(v.callOutTime)}
@@ -1790,6 +1808,20 @@ function PayrollClientGroup({ clientName, visits, onVisitChange, authMap }) {
                         <td>{total}</td>
                         <td colSpan={3}></td>
                     </tr>
+                    {employeeTotals.length > 0 && (
+                        <tr className="payroll-employee-totals-row">
+                            <td colSpan={12}>
+                                <span className="payroll-employee-totals__label">By Employee:</span>
+                                {employeeTotals.map(([emp, { units, voidUnits }]) => (
+                                    <span key={emp} className="payroll-employee-totals__item">
+                                        <span className="payroll-employee-totals__name">{emp}</span>
+                                        <span className="payroll-employee-totals__units">{units} units · {(units / 4).toFixed(1)} hrs</span>
+                                        {voidUnits > 0 && <span className="payroll-employee-totals__void">{voidUnits} void</span>}
+                                    </span>
+                                ))}
+                            </td>
+                        </tr>
+                    )}
                 </tbody>
             </table>
         </div>
@@ -1974,6 +2006,7 @@ function PayrollEditableNotes({ visit, onChange }) {
 function PayrollRunDetail({ run, onVisitChange, authMap }) {
     const [tab, setTab] = useState('all');
     const [search, setSearch] = useState('');
+    const [legendFilter, setLegendFilter] = useState(null);
 
     const reviewCount = useMemo(() =>
         run.visits.filter((v) => v.needsReview).length,
@@ -1985,17 +2018,31 @@ function PayrollRunDetail({ run, onVisitChange, authMap }) {
         if (tab === 'review' && reviewCount === 0) setTab('all');
     }, [reviewCount, tab]);
 
+    // Clear legend filter when switching tabs
+    useEffect(() => { setLegendFilter(null); }, [tab]);
+
     const visibleVisits = useMemo(() => {
         const byTab = tab === 'review'
             ? run.visits.filter((v) => v.needsReview)
             : run.visits.filter((v) => !v.needsReview);
-        if (!search.trim()) return byTab;
+
+        const byFilter = legendFilter ? byTab.filter((v) => {
+            if (legendFilter === 'void')        return v.voidFlag;
+            if (legendFilter === 'incomplete')  return v.isIncomplete;
+            if (legendFilter === 'unauthorized') return v.isUnauthorized;
+            if (legendFilter === 'overlap')     return !!v.overlapId;
+            if (legendFilter === 'overcap')     return v.unitsRaw > 28 && !v.voidFlag;
+            if (legendFilter === 'timeflag')    return v.earlyCallIn || v.lateCallOut || v.nextDayCallOut;
+            return true;
+        }) : byTab;
+
+        if (!search.trim()) return byFilter;
         const q = search.trim().toLowerCase();
-        return byTab.filter((v) =>
+        return byFilter.filter((v) =>
             (v.clientName || '').toLowerCase().includes(q) ||
             (v.employeeName || '').toLowerCase().includes(q)
         );
-    }, [run.visits, tab, search]);
+    }, [run.visits, tab, search, legendFilter]);
 
     const clientGroups = useMemo(() => {
         const map = new Map();
@@ -2029,11 +2076,24 @@ function PayrollRunDetail({ run, onVisitChange, authMap }) {
 
             {tab === 'all' && (
                 <div className="payroll-legend">
-                    <span className="payroll-legend__item payroll-legend__item--void">Void</span>
-                    <span className="payroll-legend__item payroll-legend__item--incomplete">Incomplete</span>
-                    <span className="payroll-legend__item payroll-legend__item--unauthorized">Unauthorized</span>
-                    <span className="payroll-legend__item payroll-legend__item--overlap">Overlap</span>
-                    <span className="payroll-legend__item payroll-legend__item--overcap">Over daily cap (28 units)</span>
+                    {[
+                        { key: 'void',         label: 'Void',                                                      cls: 'void' },
+                        { key: 'incomplete',   label: 'Incomplete',                                                cls: 'incomplete' },
+                        { key: 'unauthorized', label: 'Unauthorized',                                              cls: 'unauthorized' },
+                        { key: 'overlap',      label: 'Overlap',                                                   cls: 'overlap' },
+                        { key: 'overcap',      label: 'Over daily cap (28 units)',                                  cls: 'overcap' },
+                        { key: 'timeflag',     label: 'Time violation (In <4:30 AM / Out >11:30 PM / next day)',   cls: 'timeflag' },
+                    ].map(({ key, label, cls }) => (
+                        <button
+                            key={key}
+                            type="button"
+                            className={`payroll-legend__item payroll-legend__item--${cls}${legendFilter === key ? ' payroll-legend__item--active' : ''}`}
+                            onClick={() => setLegendFilter((f) => f === key ? null : key)}
+                            title={legendFilter === key ? 'Click to clear filter' : `Click to filter by: ${label}`}
+                        >
+                            {label}
+                        </button>
+                    ))}
                 </div>
             )}
 
