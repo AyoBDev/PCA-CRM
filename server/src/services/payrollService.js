@@ -338,8 +338,8 @@ function applyDailyCap(visits) {
         const dateStr = v.visitDate instanceof Date
             ? v.visitDate.toISOString().split('T')[0]
             : new Date(v.visitDate).toISOString().split('T')[0];
-        // Cap is per employee per day (across all clients they worked that day)
-        const key = `${normalizeName(v.employeeName)}||${dateStr}`;
+        // Cap is per employee per client per day
+        const key = `${normalizeName(v.employeeName)}||${normalizeName(v.clientName)}||${dateStr}`;
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(v);
     }
@@ -351,14 +351,14 @@ function applyDailyCap(visits) {
             if (running >= MAX_UNITS) {
                 // Cap already full — this entry pays nothing but is not voided
                 v.finalPayableUnits = 0;
-                v.voidReason        = `Daily cap of ${MAX_UNITS} units already reached`;
+                v.voidReason        = `Daily cap of ${MAX_UNITS} units already reached (this client)`;
                 continue;
             }
             const remaining = MAX_UNITS - running;
             if (v.finalPayableUnits > remaining) {
                 // This entry puts us over — reduce it to whatever remains
                 v.finalPayableUnits = remaining;
-                v.voidReason        = `Reduced to ${remaining}: daily cap of ${MAX_UNITS} units`;
+                v.voidReason        = `Reduced to ${remaining}: daily cap of ${MAX_UNITS} units (this client)`;
                 running             = MAX_UNITS;
             } else {
                 running += v.finalPayableUnits;
