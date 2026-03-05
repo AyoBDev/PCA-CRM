@@ -176,6 +176,9 @@ function parseRawRow(rawRow) {
         overlapId:         '',
         finalPayableUnits: 0,
         durationMinutes:   0,
+        earlyCallIn:       false,
+        lateCallOut:       false,
+        nextDayCallOut:    false,
     };
 }
 
@@ -198,10 +201,27 @@ function applyTimeRules(v) {
     // 1. Overnight detection
     if (outM <= inM) outM += 1440;
 
+    // ── Time-violation flags (checked against original times, before clipping) ──
+    // earlyCallIn:    callIn was before 04:30
+    v.earlyCallIn    = inM < CLIP_START;
+    // lateCallOut:    callOut was after 23:30 (same-day)
+    v.lateCallOut    = outM < 1440 && outM > CLIP_END;
+    // nextDayCallOut: callOut lands on the next calendar day (any time — not just midnight)
+    v.nextDayCallOut = outM >= 1440;
+
+    // Build violation reasons to append to voidReason
+    const violationReasons = [];
+    if (v.earlyCallIn)    violationReasons.push('Clock In before 4:30 AM');
+    if (v.lateCallOut)    violationReasons.push('Clock Out after 11:30 PM');
+    if (v.nextDayCallOut) violationReasons.push('Clock Out on next calendar day');
+
     // 2. Overnight void: ends after 01:00 next day
     if (outM >= 1440 && (outM % 1440) > OVERNIGHT_VOID) {
         v.voidFlag        = true;
-        v.voidReason      = 'Overnight > 01:00 AM (void)';
+        const baseReason  = 'Overnight > 01:00 AM (void)';
+        v.voidReason      = violationReasons.length > 0
+            ? `${baseReason}; ${violationReasons.join('; ')}`
+            : baseReason;
         v.callInMinutes   = inM;
         v.callOutMinutes  = outM;
         v.callInTime      = minutesToHHMM(inM);
@@ -210,17 +230,19 @@ function applyTimeRules(v) {
         return;
     }
 
-    // 3. Clip start
-    if (inM < CLIP_START) inM = CLIP_START;
-
-    // 4. Clip end (same-day only)
-    if (outM < 1440 && outM > CLIP_END) outM = CLIP_END;
-
+    // No clipping — use original times as-is
     v.callInMinutes   = inM;
     v.callOutMinutes  = outM;
     v.callInTime      = minutesToHHMM(inM);
     v.callOutTime     = minutesToHHMM(outM % 1440);
     v.durationMinutes = Math.max(0, outM - inM);
+
+    // Append violation reasons to voidReason (even for non-void rows)
+    if (violationReasons.length > 0) {
+        v.voidReason = v.voidReason
+            ? `${v.voidReason}; ${violationReasons.join('; ')}`
+            : violationReasons.join('; ');
+    }
 }
 
 /**

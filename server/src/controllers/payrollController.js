@@ -242,6 +242,9 @@ async function uploadPayrollRun(req, res, next) {
                 isUnauthorized:    v.isUnauthorized    || false,
                 needsReview:       v.needsReview       || false,
                 reviewReason:      v.reviewReason      || '',
+                earlyCallIn:       v.earlyCallIn       || false,
+                lateCallOut:       v.lateCallOut       || false,
+                nextDayCallOut:    v.nextDayCallOut     || false,
             };
         });
 
@@ -474,6 +477,9 @@ async function updatePayrollVisit(req, res, next) {
                 voidFlag:       false,
                 voidReason:     '',
                 durationMinutes: 0,
+                earlyCallIn:    false,
+                lateCallOut:    false,
+                nextDayCallOut: false,
             };
             applyTimeRules(v);
 
@@ -499,6 +505,9 @@ async function updatePayrollVisit(req, res, next) {
             data.finalPayableUnits = finalPayableUnits;
             data.voidFlag          = v.voidFlag;
             data.voidReason        = v.voidReason;
+            data.earlyCallIn       = v.earlyCallIn;
+            data.lateCallOut       = v.lateCallOut;
+            data.nextDayCallOut    = v.nextDayCallOut;
         }
 
         if (Object.keys(data).length === 0) {
