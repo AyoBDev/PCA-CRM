@@ -4,13 +4,10 @@ const { enrichAuthorization, enrichClient } = require('../services/authorization
 const VALID_SERVICE_CODES = ['PCS', 'SDPC', 'TIMESHEETS', 'S5125', 'S5130', 'S5135', 'S5150', 'PAS'];
 
 function validateBody(body) {
-    const { serviceCode, authorizationEndDate } = body;
+    const { serviceCode } = body;
     const errors = [];
     if (!serviceCode || !VALID_SERVICE_CODES.includes(serviceCode)) {
         errors.push(`serviceCode must be one of: ${VALID_SERVICE_CODES.join(', ')}`);
-    }
-    if (!authorizationEndDate || isNaN(Date.parse(authorizationEndDate))) {
-        errors.push('authorizationEndDate must be a valid date (YYYY-MM-DD)');
     }
     return errors;
 }
@@ -35,7 +32,7 @@ async function createAuthorization(req, res, next) {
                 authorizationStartDate: req.body.authorizationStartDate
                     ? new Date(req.body.authorizationStartDate)
                     : null,
-                authorizationEndDate: new Date(req.body.authorizationEndDate),
+                authorizationEndDate: req.body.authorizationEndDate ? new Date(req.body.authorizationEndDate) : null,
                 notes: (req.body.notes || '').trim(),
             },
         });
@@ -63,7 +60,7 @@ async function updateAuthorization(req, res, next) {
                 authorizationStartDate: req.body.authorizationStartDate
                     ? new Date(req.body.authorizationStartDate)
                     : null,
-                authorizationEndDate: new Date(req.body.authorizationEndDate),
+                authorizationEndDate: req.body.authorizationEndDate ? new Date(req.body.authorizationEndDate) : null,
                 notes: (req.body.notes || '').trim(),
             },
         });

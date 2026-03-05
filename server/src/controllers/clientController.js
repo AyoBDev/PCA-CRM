@@ -133,7 +133,7 @@ async function bulkImport(req, res, next) {
             // Create authorizations if provided
             if (Array.isArray(row.authorizations)) {
                 for (const auth of row.authorizations) {
-                    if (!auth.serviceCode || !auth.authorizationEndDate) continue;
+                    if (!auth.serviceCode) continue;
                     await prisma.authorization.create({
                         data: {
                             clientId: client.id,
@@ -144,7 +144,9 @@ async function bulkImport(req, res, next) {
                             authorizationStartDate: auth.authorizationStartDate
                                 ? new Date(auth.authorizationStartDate)
                                 : null,
-                            authorizationEndDate: new Date(auth.authorizationEndDate),
+                            authorizationEndDate: auth.authorizationEndDate
+                                ? new Date(auth.authorizationEndDate)
+                                : null,
                             notes: (auth.notes || '').trim(),
                         },
                     });

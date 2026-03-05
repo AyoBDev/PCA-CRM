@@ -6,6 +6,10 @@ const REMINDER_WINDOWS = {
   PCS: 60,
   SDPC: 30,
   TIMESHEETS: 15,
+  S5125: 30,
+  S5130: 30,
+  S5135: 30,
+  S5150: 30,
 };
 
 const DEFAULT_REMINDER_WINDOW = 30;
@@ -20,6 +24,10 @@ const RENEWAL_COLORS = {
   PCS: 'ORANGE',
   SDPC: 'YELLOW',
   TIMESHEETS: 'ORANGE',
+  S5125: 'ORANGE',
+  S5130: 'ORANGE',
+  S5135: 'ORANGE',
+  S5150: 'ORANGE',
 };
 
 /**
@@ -27,6 +35,7 @@ const RENEWAL_COLORS = {
  * Uses UTC dates to avoid timezone drift.
  */
 function computeDaysToExpire(endDate) {
+  if (!endDate) return null;
   const now = new Date();
   const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   const end = new Date(endDate);
@@ -45,6 +54,7 @@ function getReminderWindow(serviceCode) {
  * Determine status and colour for a single authorization.
  */
 function computeStatus(daysToExpire, serviceCode) {
+  if (daysToExpire === null) return { status: 'OK', statusColor: 'BLUE' };
   const window = getReminderWindow(serviceCode);
 
   if (daysToExpire < 0) {
