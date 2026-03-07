@@ -1657,12 +1657,13 @@ function PayrollUploadModal({ onUpload, onClose }) {
 // PayrollClientGroup
 // ────────────────────────────────────────
 function PayrollClientGroup({ clientName, visits, onVisitChange, authMap }) {
+    // Auth banner: show raw reported units (for claims review), not reduced payroll units
     const authSummary = useMemo(() => {
         const map = new Map();
         for (const v of visits) {
-            if (v.voidFlag || v.needsReview) continue;
+            if (v.needsReview) continue;
             const code = v.serviceCode || '—';
-            map.set(code, (map.get(code) || 0) + v.finalPayableUnits);
+            map.set(code, (map.get(code) || 0) + (v.unitsRaw || 0));
         }
         return [...map.entries()];
     }, [visits]);
@@ -1672,22 +1673,24 @@ function PayrollClientGroup({ clientName, visits, onVisitChange, authMap }) {
         [visits]
     );
 
-    // Employee totals: grouped by employeeName, including void rows (units=0 for void)
+    // Employee totals: grouped by normalized employeeName (case-insensitive), including void rows
     const employeeTotals = useMemo(() => {
-        const map = new Map();
+        const map = new Map();       // normalized key → { displayName, units, voidUnits }
         for (const v of visits) {
             if (v.needsReview) continue;
-            const emp = v.employeeName || '(Unknown)';
-            if (!map.has(emp)) map.set(emp, { units: 0, voidUnits: 0 });
-            const entry = map.get(emp);
+            const raw = v.employeeName || '(Unknown)';
+            const key = raw.toLowerCase().trim();
+            if (!map.has(key)) map.set(key, { displayName: raw, units: 0, voidUnits: 0 });
+            const entry = map.get(key);
             if (v.voidFlag) {
-                // voided visit contributes 0 payable but track it was there
                 entry.voidUnits += 1;
             } else {
                 entry.units += v.finalPayableUnits;
             }
         }
-        return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+        return [...map.entries()]
+            .map(([, data]) => [data.displayName, { units: data.units, voidUnits: data.voidUnits }])
+            .sort((a, b) => a[0].localeCompare(b[0]));
     }, [visits]);
 
     // Assign a distinct left-border color to each employee (only when 2+ employees)
@@ -1702,14 +1705,15 @@ function PayrollClientGroup({ clientName, visits, onVisitChange, authMap }) {
         'hsl(262 52% 47%)',  // indigo
     ];
     const employeeColorMap = useMemo(() => {
-        const seen = [];
+        const seen = [];  // normalized keys in insertion order
         for (const v of visits) {
             const emp = v.employeeName || '';
-            if (emp && !seen.includes(emp)) seen.push(emp);
+            const key = emp.toLowerCase().trim();
+            if (key && !seen.includes(key)) seen.push(key);
         }
         if (seen.length < 2) return null;
         const map = new Map();
-        seen.forEach((emp, i) => map.set(emp, EMP_COLORS[i % EMP_COLORS.length]));
+        seen.forEach((key, i) => map.set(key, EMP_COLORS[i % EMP_COLORS.length]));
         return map;
     }, [visits]);
 
@@ -1757,7 +1761,7 @@ function PayrollClientGroup({ clientName, visits, onVisitChange, authMap }) {
                 </thead>
                 <tbody>
                     {visits.map((v) => {
-                        const empColor = employeeColorMap?.get(v.employeeName || '');
+                        const empColor = employeeColorMap?.get((v.employeeName || '').toLowerCase().trim());
                         return (
                         <tr key={v.id} className={visitRowClass(v)} style={empColor ? { borderLeft: `4px solid ${empColor}` } : undefined}>
                             <td>
@@ -1771,7 +1775,7 @@ function PayrollClientGroup({ clientName, visits, onVisitChange, authMap }) {
                                     }}
                                 />
                             </td>
-                            <td style={empColor ? { color: empColor, fontWeight: 600 } : undefined}>
+                            <td style={empColor ? { color: empColor, fontWeight: 600, whiteSpace: 'nowrap' } : undefined}>
                                 <PayrollEditableText
                                     value={v.employeeName}
                                     placeholder="missing employee…"
@@ -1783,7 +1787,7 @@ function PayrollClientGroup({ clientName, visits, onVisitChange, authMap }) {
                                 />
                             </td>
                             <td>{v.service || '—'}</td>
-                            <td>{v.visitDate ? new Date(v.visitDate).toLocaleDateString('en-US') : <em style={{ color: 'hsl(270 50% 40%)' }}>missing</em>}</td>
+                            <td>{v.visitDate ? new Date(v.visitDate).toLocaleDateString('en-US', { timeZone: 'UTC' }) : <em style={{ color: 'hsl(270 50% 40%)' }}>missing</em>}</td>
                             <td style={v.earlyCallIn ? { background: 'hsl(38 96% 88%)', fontWeight: 600 } : undefined}>
                                 <PayrollEditableText
                                     value={v.callInTime}
@@ -1844,8 +1848,8 @@ function PayrollClientGroup({ clientName, visits, onVisitChange, authMap }) {
                                 <span className="payroll-employee-totals__label">By Employee:</span>
                                 {employeeTotals.map(([emp, { units, voidUnits }]) => (
                                     <span key={emp} className="payroll-employee-totals__item">
-                                        <span className="payroll-employee-totals__name" style={employeeColorMap?.get(emp) ? { color: employeeColorMap.get(emp) } : undefined}>{emp}</span>
-                                        <span className="payroll-employee-totals__units">{units} units · {(units / 4).toFixed(1)} hrs</span>
+                                        <span className="payroll-employee-totals__name" style={employeeColorMap?.get(emp.toLowerCase().trim()) ? { color: employeeColorMap.get(emp.toLowerCase().trim()) } : undefined}>{emp}</span>
+                                        <span className="payroll-employee-totals__units">{units} units · {(units / 4).toFixed(2)} hrs</span>
                                         {voidUnits > 0 && <span className="payroll-employee-totals__void">{voidUnits} void</span>}
                                     </span>
                                 ))}
@@ -2074,12 +2078,25 @@ function PayrollRunDetail({ run, onVisitChange, authMap }) {
         );
     }, [run.visits, tab, search, legendFilter]);
 
+    // Service code sort order: PCS → S5125 → S5130 → S5150 → S5135 → SDPC
+    const svcOrder = { PCS: 0, S5125: 1, S5130: 2, S5150: 3, S5135: 4, SDPC: 5 };
     const clientGroups = useMemo(() => {
         const map = new Map();
         for (const v of visibleVisits) {
             const key = v.clientName || '(Unknown Client)';
             if (!map.has(key)) map.set(key, []);
             map.get(key).push(v);
+        }
+        // Sort visits within each group: by service code first, then by date
+        for (const [, arr] of map) {
+            arr.sort((a, b) => {
+                const sa = svcOrder[a.serviceCode] ?? 99;
+                const sb = svcOrder[b.serviceCode] ?? 99;
+                if (sa !== sb) return sa - sb;
+                const da = a.visitDate ? new Date(a.visitDate).getTime() : 0;
+                const db = b.visitDate ? new Date(b.visitDate).getTime() : 0;
+                return da - db;
+            });
         }
         return [...map.entries()];
     }, [visibleVisits]);
