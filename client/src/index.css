@@ -2051,6 +2051,7 @@ body {
 .payroll-row--incomplete    { background: hsl(340 80% 96%); }
 .payroll-row--unauthorized  { background: hsl(48 96% 94%); }
 .payroll-row--overlap       { font-weight: 700; }
+.payroll-row--merged-original { background: hsl(220 14% 96%); border-left: 3px solid hsl(240 3.8% 76%); }
 
 .payroll-client-group       { margin-bottom: 24px; }
 .payroll-client-banner      { display: flex; align-items: center; gap: 12px; padding: 8px 12px;
@@ -2081,3 +2082,4 @@ body {
 .payroll-legend__item--overlap      { font-weight: 700; border: 1px solid hsl(var(--border)); }
 .payroll-legend__item--overcap      { background: hsl(0 84% 92%); font-weight: 700; }
 .payroll-legend__item--timeflag     { background: hsl(38 96% 88%); font-weight: 600; }
+.payroll-legend__item--review      { background: hsl(270 60% 96%); color: hsl(270 50% 40%); }

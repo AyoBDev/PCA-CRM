@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'react';
 import * as api from './api';
 import * as XLSX from 'xlsx';
 
@@ -1656,7 +1656,7 @@ function PayrollUploadModal({ onUpload, onClose }) {
 // ────────────────────────────────────────
 // PayrollClientGroup
 // ────────────────────────────────────────
-function PayrollClientGroup({ clientName, visits, onVisitChange, authMap }) {
+function PayrollClientGroup({ clientName, visits, onVisitChange, authMap, mergedOriginalsMap }) {
     // Auth banner: show raw reported units (for claims review), not reduced payroll units
     const authSummary = useMemo(() => {
         const map = new Map();
@@ -1762,8 +1762,10 @@ function PayrollClientGroup({ clientName, visits, onVisitChange, authMap }) {
                 <tbody>
                     {visits.map((v) => {
                         const empColor = employeeColorMap?.get((v.employeeName || '').toLowerCase().trim());
+                        const originals = mergedOriginalsMap?.get(v.id);
                         return (
-                        <tr key={v.id} className={visitRowClass(v)} style={empColor ? { borderLeft: `4px solid ${empColor}` } : undefined}>
+                        <Fragment key={v.id}>
+                        <tr className={visitRowClass(v)} style={empColor ? { borderLeft: `4px solid ${empColor}` } : undefined}>
                             <td>
                                 <PayrollEditableText
                                     value={v.clientName}
@@ -1835,6 +1837,28 @@ function PayrollClientGroup({ clientName, visits, onVisitChange, authMap }) {
                                 />
                             </td>
                         </tr>
+                        {originals && originals.map((orig) => {
+                            const s = { color: 'hsl(240 3.8% 46.1%)', fontSize: 12 };
+                            return (
+                            <tr key={`orig-${orig.id}`} className="payroll-row--merged-original">
+                                <td style={{ paddingLeft: 24 }}>
+                                    <span style={s}>↳ {orig.clientName || ''}</span>
+                                </td>
+                                <td><span style={s}>{orig.employeeName || ''}</span></td>
+                                <td><span style={s}>{orig.service || '—'}</span></td>
+                                <td><span style={s}>{orig.visitDate ? new Date(orig.visitDate).toLocaleDateString('en-US', { timeZone: 'UTC' }) : ''}</span></td>
+                                <td><span style={s}>{hhmm12(orig.callInTime) || '—'}</span></td>
+                                <td><span style={s}>{hhmm12(orig.callOutTime) || '—'}</span></td>
+                                <td><span style={{ ...s, fontStyle: 'italic' }}>{orig.visitStatus || ''}</span></td>
+                                <td><span style={s}>{orig.unitsRaw || ''}</span></td>
+                                <td><span style={s}>{orig.finalPayableUnits || ''}</span></td>
+                                <td><span style={s}>{orig.overlapId || ''}</span></td>
+                                <td><span style={s}>{orig.reviewReason || ''}</span></td>
+                                <td><span style={s}>{orig.notes || ''}</span></td>
+                            </tr>
+                            );
+                        })}
+                        </Fragment>
                         );
                     })}
                     <tr className="payroll-total-row">
@@ -2038,37 +2062,35 @@ function PayrollEditableNotes({ visit, onChange }) {
 // PayrollRunDetail
 // ────────────────────────────────────────
 function PayrollRunDetail({ run, onVisitChange, authMap }) {
-    const [tab, setTab] = useState('all');
     const [search, setSearch] = useState('');
     const [legendFilter, setLegendFilter] = useState(null);
 
-    const reviewCount = useMemo(() =>
-        run.visits.filter((v) => v.needsReview).length,
-        [run.visits]
-    );
-
-    // Reset to 'all' if review count drops to 0 while on review tab
-    useEffect(() => {
-        if (tab === 'review' && reviewCount === 0) setTab('all');
-    }, [reviewCount, tab]);
-
-    // Clear legend filter when switching tabs
-    useEffect(() => { setLegendFilter(null); }, [tab]);
+    // Build lookup: mergedVisitId → [originalRows] for displaying originals under merged rows
+    const mergedOriginalsMap = useMemo(() => {
+        const map = new Map();
+        for (const v of run.visits) {
+            if (v.mergedInto != null) {
+                if (!map.has(v.mergedInto)) map.set(v.mergedInto, []);
+                map.get(v.mergedInto).push(v);
+            }
+        }
+        return map;
+    }, [run.visits]);
 
     const visibleVisits = useMemo(() => {
-        const byTab = tab === 'review'
-            ? run.visits.filter((v) => v.needsReview)
-            : run.visits.filter((v) => !v.needsReview);
+        // Exclude mergedInto reference rows — they are shown inline under their parent
+        const all = run.visits.filter((v) => v.mergedInto == null);
 
-        const byFilter = legendFilter ? byTab.filter((v) => {
+        const byFilter = legendFilter ? all.filter((v) => {
             if (legendFilter === 'void')        return v.voidFlag;
             if (legendFilter === 'incomplete')  return v.isIncomplete;
             if (legendFilter === 'unauthorized') return v.isUnauthorized;
             if (legendFilter === 'overlap')     return !!v.overlapId;
             if (legendFilter === 'overcap')     return v.unitsRaw > 28 && !v.voidFlag;
             if (legendFilter === 'timeflag')    return v.earlyCallIn || v.lateCallOut || v.nextDayCallOut;
+            if (legendFilter === 'review')      return v.needsReview;
             return true;
-        }) : byTab;
+        }) : all;
 
         if (!search.trim()) return byFilter;
         const q = search.trim().toLowerCase();
@@ -2076,7 +2098,7 @@ function PayrollRunDetail({ run, onVisitChange, authMap }) {
             (v.clientName || '').toLowerCase().includes(q) ||
             (v.employeeName || '').toLowerCase().includes(q)
         );
-    }, [run.visits, tab, search, legendFilter]);
+    }, [run.visits, search, legendFilter]);
 
     // Service code sort order: PCS → S5125 → S5130 → S5150 → S5135 → SDPC
     const svcOrder = { PCS: 0, S5125: 1, S5130: 2, S5150: 3, S5135: 4, SDPC: 5 };
@@ -2098,57 +2120,40 @@ function PayrollRunDetail({ run, onVisitChange, authMap }) {
                 return da - db;
             });
         }
-        return [...map.entries()];
+        // Sort client groups: real names first (alphabetical), then unknown/phone/needsReview at bottom
+        const isUnknownClient = (name) => !name || name === '(Unknown Client)' || /^\d/.test(name) || /^\(/.test(name);
+        const allNeedsReview = (visits) => visits.every((v) => v.needsReview);
+        return [...map.entries()].sort((a, b) => {
+            const aBottom = isUnknownClient(a[0]) || allNeedsReview(a[1]);
+            const bBottom = isUnknownClient(b[0]) || allNeedsReview(b[1]);
+            if (aBottom !== bBottom) return aBottom ? 1 : -1;
+            return a[0].localeCompare(b[0]);
+        });
     }, [visibleVisits]);
 
     return (
         <div>
-            <div className="payroll-tabs">
-                <button
-                    className={`payroll-tab${tab === 'all' ? ' payroll-tab--active' : ''}`}
-                    onClick={() => setTab('all')}
-                >
-                    All Visits
-                </button>
-                <button
-                    className={`payroll-tab${tab === 'review' ? ' payroll-tab--active' : ''}`}
-                    onClick={() => setTab('review')}
-                >
-                    Needs Review
-                    <span className={`payroll-tab__badge${reviewCount === 0 ? ' payroll-tab__badge--zero' : ''}`}>
-                        {reviewCount}
-                    </span>
-                </button>
+            <div className="payroll-legend">
+                {[
+                    { key: 'void',         label: 'Void',                                                      cls: 'void' },
+                    { key: 'incomplete',   label: 'Incomplete',                                                cls: 'incomplete' },
+                    { key: 'unauthorized', label: 'Unauthorized',                                              cls: 'unauthorized' },
+                    { key: 'overlap',      label: 'Overlap',                                                   cls: 'overlap' },
+                    { key: 'overcap',      label: 'Over daily cap (28 units)',                                  cls: 'overcap' },
+                    { key: 'timeflag',     label: 'Time violation (In <4:30 AM / Out >11:30 PM / next day)',   cls: 'timeflag' },
+                    { key: 'review',       label: 'Needs Review',                                              cls: 'review' },
+                ].map(({ key, label, cls }) => (
+                    <button
+                        key={key}
+                        type="button"
+                        className={`payroll-legend__item payroll-legend__item--${cls}${legendFilter === key ? ' payroll-legend__item--active' : ''}`}
+                        onClick={() => setLegendFilter((f) => f === key ? null : key)}
+                        title={legendFilter === key ? 'Click to clear filter' : `Click to filter by: ${label}`}
+                    >
+                        {label}
+                    </button>
+                ))}
             </div>
-
-            {tab === 'all' && (
-                <div className="payroll-legend">
-                    {[
-                        { key: 'void',         label: 'Void',                                                      cls: 'void' },
-                        { key: 'incomplete',   label: 'Incomplete',                                                cls: 'incomplete' },
-                        { key: 'unauthorized', label: 'Unauthorized',                                              cls: 'unauthorized' },
-                        { key: 'overlap',      label: 'Overlap',                                                   cls: 'overlap' },
-                        { key: 'overcap',      label: 'Over daily cap (28 units)',                                  cls: 'overcap' },
-                        { key: 'timeflag',     label: 'Time violation (In <4:30 AM / Out >11:30 PM / next day)',   cls: 'timeflag' },
-                    ].map(({ key, label, cls }) => (
-                        <button
-                            key={key}
-                            type="button"
-                            className={`payroll-legend__item payroll-legend__item--${cls}${legendFilter === key ? ' payroll-legend__item--active' : ''}`}
-                            onClick={() => setLegendFilter((f) => f === key ? null : key)}
-                            title={legendFilter === key ? 'Click to clear filter' : `Click to filter by: ${label}`}
-                        >
-                            {label}
-                        </button>
-                    ))}
-                </div>
-            )}
-
-            {tab === 'review' && reviewCount === 0 && (
-                <p style={{ color: 'hsl(240 3.8% 46.1%)', fontStyle: 'italic' }}>
-                    No rows need review — all visits have complete data.
-                </p>
-            )}
 
             <div style={{ margin: '12px 0' }}>
                 <input
@@ -2166,14 +2171,14 @@ function PayrollRunDetail({ run, onVisitChange, authMap }) {
             </div>
 
             {clientGroups.map(([clientName, visits]) => (
-                <PayrollClientGroup key={clientName} clientName={clientName} visits={visits} onVisitChange={onVisitChange} authMap={authMap} />
+                <PayrollClientGroup key={clientName} clientName={clientName} visits={visits} onVisitChange={onVisitChange} authMap={authMap} mergedOriginalsMap={mergedOriginalsMap} />
             ))}
 
-            {clientGroups.length === 0 && (search ? (
-                <p style={{ color: 'hsl(240 3.8% 46.1%)', fontStyle: 'italic' }}>No visits match "{search}".</p>
-            ) : tab === 'all' ? (
-                <p style={{ color: 'hsl(240 3.8% 46.1%)', fontStyle: 'italic' }}>No visit records in this run.</p>
-            ) : null)}
+            {clientGroups.length === 0 && (
+                <p style={{ color: 'hsl(240 3.8% 46.1%)', fontStyle: 'italic' }}>
+                    {search ? `No visits match "${search}".` : 'No visit records in this run.'}
+                </p>
+            )}
         </div>
     );
 }
@@ -2194,7 +2199,7 @@ function PayrollPage({ showToast, initialRunId, onNavigate }) {
         setSelectedRun((prev) => {
             if (!prev) return prev;
             const visits = prev.visits.map((v) => v.id === visitId ? { ...v, ...patch } : v);
-            const totalPayable = visits.filter((v) => !v.voidFlag && !v.needsReview).reduce((s, v) => s + v.finalPayableUnits, 0);
+            const totalPayable = visits.filter((v) => !v.voidFlag && !v.needsReview && v.mergedInto == null).reduce((s, v) => s + v.finalPayableUnits, 0);
             return { ...prev, visits, totalPayable };
         });
     }, []);

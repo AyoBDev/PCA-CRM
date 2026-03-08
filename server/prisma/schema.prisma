@@ -181,6 +181,7 @@ model PayrollVisit {
   needsReview       Boolean    @default(false) @map("needs_review")
   reviewReason      String     @default("") @map("review_reason")
   notes             String     @default("") @map("notes")
+  mergedInto        Int?       @map("merged_into")
   earlyCallIn       Boolean    @default(false) @map("early_call_in")
   lateCallOut       Boolean    @default(false) @map("late_call_out")
   nextDayCallOut    Boolean    @default(false) @map("next_day_call_out")

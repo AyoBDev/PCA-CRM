@@ -152,7 +152,9 @@ async function uploadPayrollRun(req, res, next) {
         // Only merge rows that are not flagged for other review reasons.
         // Merge them into one row using A's callIn and B's callOut.
         // Mark with visitStatus 'Verified (merged)' so admins can see it was reconstructed.
+        // Also preserve the two original incomplete rows for claims review.
         const rawRows = [];
+        const mergeOriginals = []; // array of { mergeIndex, originalA, originalB }
         let skip = false;
         for (let i = 0; i < allRows.length; i++) {
             if (skip) { skip = false; continue; }
@@ -185,6 +187,7 @@ async function uploadPayrollRun(req, res, next) {
                 if (!a.visitDate && a.visitDate !== 0)             mergedReasons.push('missingDate');
                 // callIn and callOut are both present after merge — no time reasons
 
+                const mergeIndex = rawRows.length; // track position of merged row
                 rawRows.push({
                     ...a,
                     employeeName: mergedEmployee,
@@ -195,6 +198,9 @@ async function uploadPayrollRun(req, res, next) {
                     needsReview:  mergedReasons.length > 0,
                     reviewReason: mergedReasons.join(', '),
                 });
+
+                // Save originals for later insertion
+                mergeOriginals.push({ mergeIndex, originalA: { ...a }, originalB: { ...b } });
                 skip = true; // consume row B
             } else {
                 rawRows.push(a);
@@ -249,6 +255,90 @@ async function uploadPayrollRun(req, res, next) {
         });
 
         await prisma.payrollVisit.createMany({ data: visitData });
+
+        // Insert original incomplete rows for each merge pair (for claims review)
+        if (mergeOriginals.length > 0) {
+            // Find the merged rows and match by clientName + callInTime (unique per merge)
+            const mergedVisits = await prisma.payrollVisit.findMany({
+                where: { runId: run.id, visitStatus: 'Verified (merged)' },
+            });
+
+            // Build a lookup: "clientName|callInTime" → mergedVisit
+            // callInTime is unique per merge since it comes from originalA's callIn
+            const mergedLookup = new Map();
+            for (const mv of mergedVisits) {
+                const key = `${mv.clientName}|${mv.callInTime}`;
+                mergedLookup.set(key, mv);
+            }
+
+            const originalVisitData = [];
+            for (const { originalA, originalB } of mergeOriginals) {
+                // The merged row has the same clientName as originalA and the callInTime derived from originalA's callIn
+                // Try matching by clientName + the processed callInTime from the merged row
+                // Since we don't have the processed callInTime here, match by clientName and consume matches
+                let mergedVisit = null;
+                for (const [key, mv] of mergedLookup) {
+                    if (mv.clientName === (originalA.clientName || '')) {
+                        mergedVisit = mv;
+                        mergedLookup.delete(key);
+                        break;
+                    }
+                }
+                if (!mergedVisit) continue;
+
+                // Remove matched so duplicate client+date merges don't collide
+                const idx = mergedVisits.indexOf(mergedVisit);
+                if (idx !== -1) mergedVisits.splice(idx, 1);
+
+                // Helper to build an original row record
+                const buildOriginal = (orig) => {
+                    let visitDate = null;
+                    if (orig.visitDate instanceof Date) visitDate = orig.visitDate;
+                    else if (orig.visitDate != null && orig.visitDate !== '') visitDate = new Date(orig.visitDate);
+
+                    // Parse whatever time the original row has
+                    const inMinutes  = parseTimeToMinutes(orig.callInRaw);
+                    const outMinutes = parseTimeToMinutes(orig.callOutRaw);
+
+                    return {
+                        runId:             run.id,
+                        clientName:        orig.clientName        || '',
+                        employeeName:      orig.employeeName      || '',
+                        service:           orig.service           || '',
+                        visitDate,
+                        callInRaw:         inMinutes,
+                        callOutRaw:        outMinutes,
+                        callHoursRaw:      0,
+                        visitStatus:       orig.visitStatus       || '',
+                        unitsRaw:          orig.unitsRaw          || 0,
+                        serviceCode:       '',
+                        callInTime:        minutesToHHMM(inMinutes),
+                        callOutTime:       minutesToHHMM(outMinutes),
+                        durationMinutes:   0,
+                        finalPayableUnits: 0,
+                        voidFlag:          false,
+                        voidReason:        '',
+                        overlapId:         '',
+                        isIncomplete:      true,
+                        isUnauthorized:    false,
+                        needsReview:       false,
+                        reviewReason:      orig.reviewReason || '',
+                        notes:             '',
+                        mergedInto:        mergedVisit.id,
+                        earlyCallIn:       false,
+                        lateCallOut:       false,
+                        nextDayCallOut:    false,
+                    };
+                };
+
+                originalVisitData.push(buildOriginal(originalA));
+                originalVisitData.push(buildOriginal(originalB));
+            }
+
+            if (originalVisitData.length > 0) {
+                await prisma.payrollVisit.createMany({ data: originalVisitData });
+            }
+        }
 
         const totalPayable = processed
             .filter((v) => !v.voidFlag && !v.needsReview)
@@ -367,8 +457,15 @@ async function exportPayrollRun(req, res, next) {
         if (!run) return res.status(404).json({ error: 'Payroll run not found.' });
 
         // Group visits by client (empty clientName → sentinel key)
+        // Exclude mergedInto reference rows from main grouping; they'll be shown under their parent
         const clientGroups = new Map();
+        const mergedIntoMap = new Map(); // parentId → [originalRows]
         for (const v of run.visits) {
+            if (v.mergedInto != null) {
+                if (!mergedIntoMap.has(v.mergedInto)) mergedIntoMap.set(v.mergedInto, []);
+                mergedIntoMap.get(v.mergedInto).push(v);
+                continue;
+            }
             const key = v.clientName || '(Unknown Client)';
             if (!clientGroups.has(key)) clientGroups.set(key, []);
             clientGroups.get(key).push(v);
@@ -399,9 +496,31 @@ async function exportPayrollRun(req, res, next) {
                     v.overlapId || '',
                     v.notes     || '',
                 ]);
+
+                // Show original incomplete rows under the merged row
+                const originals = mergedIntoMap.get(v.id);
+                if (originals) {
+                    for (const orig of originals) {
+                        aoa.push([
+                            `  ↳ ${orig.clientName || ''}`,
+                            orig.employeeName || '',
+                            orig.service || '',
+                            orig.visitDate ? new Date(orig.visitDate).toLocaleDateString('en-US') : '',
+                            orig.callInTime  || '',
+                            orig.callOutTime || '',
+                            `(original) ${orig.visitStatus || ''}`,
+                            orig.unitsRaw,
+                            '',
+                            '',
+                            '',
+                            '',
+                            '',
+                        ]);
+                    }
+                }
             }
 
-            // Total row (exclude needsReview from totals)
+            // Total row (exclude needsReview and mergedInto from totals)
             const total = visits.filter((v) => !v.voidFlag && !v.needsReview).reduce((s, v) => s + v.finalPayableUnits, 0);
             aoa.push(['', '', '', '', '', '', 'TOTAL', '', total, '', '', '', '']);
         }
@@ -529,9 +648,9 @@ async function updatePayrollVisit(req, res, next) {
 
         const visit = await prisma.payrollVisit.update({ where: { id }, data });
 
-        // Re-compute totalPayable on the parent run
+        // Re-compute totalPayable on the parent run (exclude mergedInto reference rows)
         const allVisits = await prisma.payrollVisit.findMany({ where: { runId: visit.runId } });
-        const totalPayable = allVisits.filter((v) => !v.voidFlag && !v.needsReview).reduce((s, v) => s + v.finalPayableUnits, 0);
+        const totalPayable = allVisits.filter((v) => !v.voidFlag && !v.needsReview && v.mergedInto == null).reduce((s, v) => s + v.finalPayableUnits, 0);
         await prisma.payrollRun.update({ where: { id: visit.runId }, data: { totalPayable } });
 
         return res.json(visit);
