@@ -13,8 +13,10 @@ model User {
   passwordHash String   @map("password_hash")
   name         String
   role         String   @default("pca")
+  phone        String   @default("") @map("phone")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
+  shifts       Shift[]
 
   @@map("users")
 }
@@ -24,8 +26,13 @@ model Client {
   clientName      String          @map("client_name")
   medicaidId      String          @default("") @map("medicaid_id")
   insuranceType   String          @default("MEDICAID") @map("insurance_type") // MEDICAID | WAIVER 58 | etc
+  address         String          @default("") @map("address")
+  phone           String          @default("") @map("phone")
+  gateCode        String          @default("") @map("gate_code")
+  notes           String          @default("") @map("notes")
   authorizations  Authorization[]
   timesheets      Timesheet[]
+  shifts          Shift[]
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
@@ -191,4 +198,27 @@ model PayrollVisit {
 
   @@index([runId])
   @@map("payroll_visits")
+}
+
+model Shift {
+  id          Int      @id @default(autoincrement())
+  clientId    Int      @map("client_id")
+  employeeId  Int      @map("employee_id")
+  serviceCode String   @map("service_code")
+  shiftDate   DateTime @map("shift_date")
+  startTime   String   @map("start_time")    // HH:MM 24h
+  endTime     String   @map("end_time")      // HH:MM 24h
+  hours       Float    @default(0)
+  units       Int      @default(0)
+  notes       String   @default("")
+  status      String   @default("scheduled") // scheduled | completed | cancelled
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  employee    User     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([clientId])
+  @@index([employeeId])
+  @@index([shiftDate])
+  @@map("shifts")
 }

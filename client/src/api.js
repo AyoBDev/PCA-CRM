@@ -149,6 +149,25 @@ export const deletePayrollRun   = (id)  => request(`/payroll/runs/${id}`, { meth
 export const updatePayrollVisit = (id, data) =>
     request(`/payroll/visits/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 
+// ── Scheduling ──
+export const getShifts = (weekStart, filters = {}) => {
+    const params = new URLSearchParams();
+    if (weekStart) params.set('weekStart', weekStart);
+    if (filters.clientId) params.set('clientId', filters.clientId);
+    if (filters.employeeId) params.set('employeeId', filters.employeeId);
+    return request(`/shifts?${params.toString()}`);
+};
+export const createShift = (data) =>
+    request('/shifts', { method: 'POST', body: JSON.stringify(data) });
+export const updateShift = (id, data) =>
+    request(`/shifts/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const deleteShift = (id) =>
+    request(`/shifts/${id}`, { method: 'DELETE' });
+export const getClientSchedule = (clientId, weekStart) =>
+    request(`/shifts/client/${clientId}${weekStart ? '?weekStart=' + weekStart : ''}`);
+export const getEmployeeSchedule = (employeeId, weekStart) =>
+    request(`/shifts/employee/${employeeId}${weekStart ? '?weekStart=' + weekStart : ''}`);
+
 export const uploadPayrollRun = (formData) =>
     fetch(`${BASE}/payroll/runs`, {
         method: 'POST',

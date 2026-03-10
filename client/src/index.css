@@ -2082,4 +2082,312 @@ body {
 .payroll-legend__item--overlap      { font-weight: 700; border: 1px solid hsl(var(--border)); }
 .payroll-legend__item--overcap      { background: hsl(0 84% 92%); font-weight: 700; }
 .payroll-legend__item--timeflag     { background: hsl(38 96% 88%); font-weight: 600; }
+
+/* ────────────────────────────────────────
+   Scheduling Module
+   ──────────────────────────────────────── */
+
+/* Week Navigation */
+.sched-week-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+.sched-week-nav__label {
+    font-size: 16px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin: 0 8px;
+}
+
+/* View Toggle */
+.sched-view-toggle {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 16px;
+    background: hsl(var(--muted));
+    border-radius: 8px;
+    padding: 3px;
+    width: fit-content;
+}
+.sched-view-toggle__btn {
+    padding: 6px 16px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    transition: all 0.15s;
+}
+.sched-view-toggle__btn:hover {
+    color: hsl(var(--foreground));
+}
+.sched-view-toggle__btn--active {
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* Week Grid */
+.sched-week-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    margin-bottom: 20px;
+}
+.sched-week-grid__day {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 8px;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+}
+.sched-week-grid__day--today {
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 1px hsl(var(--primary));
+}
+.sched-week-grid__day-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px 4px;
+    border-bottom: 1px solid hsl(var(--border));
+}
+.sched-week-grid__day-name {
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+}
+.sched-week-grid__day--today .sched-week-grid__day-name {
+    color: hsl(var(--primary));
+}
+.sched-week-grid__day-date {
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+}
+.sched-week-grid__shifts {
+    flex: 1;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* Shift Block */
+.sched-shift-block {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 4px 8px;
+    border: none;
+    border-left: 3px solid;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: opacity 0.15s;
+}
+.sched-shift-block:hover {
+    opacity: 0.85;
+}
+.sched-shift-block--cancelled {
+    opacity: 0.45;
+    text-decoration: line-through;
+}
+.sched-shift-block__time {
+    font-size: 11px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+}
+.sched-shift-block__info {
+    font-size: 11px;
+    color: hsl(var(--foreground));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sched-shift-block__employee {
+    font-size: 10px;
+    color: hsl(var(--muted-foreground));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Add Shift Button */
+.sched-add-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 4px;
+    border: 1px dashed hsl(var(--border));
+    border-radius: 4px;
+    background: transparent;
+    cursor: pointer;
+    color: hsl(var(--muted-foreground));
+    transition: all 0.15s;
+    margin-top: auto;
+}
+.sched-add-btn:hover {
+    border-color: hsl(var(--primary));
+    color: hsl(var(--primary));
+    background: hsl(var(--primary) / 0.05);
+}
+.sched-add-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Unit Summary Bar */
+.sched-unit-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 12px 16px;
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+.sched-unit-summary__item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+}
+.sched-unit-summary__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+.sched-unit-summary__code {
+    font-weight: 600;
+    color: hsl(var(--foreground));
+}
+.sched-unit-summary__numbers {
+    color: hsl(var(--muted-foreground));
+}
+.sched-unit-summary__remaining {
+    color: hsl(142 71% 45%);
+    font-weight: 500;
+}
+.sched-unit-summary__remaining--over {
+    color: hsl(0 84% 60%);
+}
+
+/* Overlap Warning */
+.sched-overlap-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 14px;
+    background: hsl(38 92% 95%);
+    border: 1px solid hsl(38 92% 75%);
+    border-radius: 8px;
+    margin-bottom: 16px;
+    color: hsl(38 60% 30%);
+    font-size: 13px;
+}
+.sched-overlap-warning svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+/* Service Badge */
+.sched-service-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+/* Status Badge */
+.sched-status {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+.sched-status--scheduled {
+    background: hsl(217 91% 95%);
+    color: hsl(217 71% 45%);
+}
+.sched-status--completed {
+    background: hsl(142 71% 93%);
+    color: hsl(142 71% 35%);
+}
+.sched-status--cancelled {
+    background: hsl(0 84% 95%);
+    color: hsl(0 60% 45%);
+}
+
+/* Overlap row highlight */
+.sched-row--overlap {
+    background: hsl(38 92% 97%) !important;
+}
+
+/* Legend */
+.sched-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 10px 0;
+    margin-bottom: 8px;
+}
+.sched-legend__item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+}
+.sched-legend__dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+/* XS button variant */
+.btn--xs {
+    padding: 2px 6px;
+    font-size: 12px;
+}
+.btn--xs svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Form Grid 2 columns */
+.form-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+/* Responsive: stack week grid on small screens */
+@media (max-width: 900px) {
+    .sched-week-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+@media (max-width: 600px) {
+    .sched-week-grid {
+        grid-template-columns: 1fr;
+    }
+    .form-grid-2 {
+        grid-template-columns: 1fr;
+    }
+}
 .payroll-legend__item--review      { background: hsl(270 60% 96%); color: hsl(270 50% 40%); }

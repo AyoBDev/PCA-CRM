@@ -135,6 +135,21 @@ const Icons = {
             <line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
         </svg>
     ),
+    calendar: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 2v4" /><path d="M16 2v4" /><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" />
+        </svg>
+    ),
+    clock: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+        </svg>
+    ),
+    alertTriangle: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><path d="M12 9v4" /><path d="M12 17h.01" />
+        </svg>
+    ),
 };
 
 // ────────────────────────────────────────
@@ -2396,6 +2411,484 @@ function PayrollPage({ showToast, initialRunId, onNavigate }) {
 }
 
 // ────────────────────────────────────────
+// Scheduling
+// ────────────────────────────────────────
+
+const SERVICE_COLORS = {
+    PCS:   { color: '#3B82F6', bg: '#EFF6FF', label: 'PCA' },
+    S5125: { color: '#22C55E', bg: '#F0FDF4', label: 'Attendant Care' },
+    S5130: { color: '#8B5CF6', bg: '#F5F3FF', label: 'Homemaker' },
+    SDPC:  { color: '#F59E0B', bg: '#FFFBEB', label: 'SDPC' },
+    S5135: { color: '#EC4899', bg: '#FDF2F8', label: 'Companion' },
+    S5150: { color: '#06B6D4', bg: '#ECFEFF', label: 'Respite' },
+};
+
+function ShiftFormModal({ shift, clients, employees, onSave, onClose, defaultDate }) {
+    const [clientId, setClientId] = useState(shift?.clientId || '');
+    const [employeeId, setEmployeeId] = useState(shift?.employeeId || '');
+    const [serviceCode, setServiceCode] = useState(shift?.serviceCode || 'PCS');
+    const [shiftDate, setShiftDate] = useState(shift?.shiftDate ? new Date(shift.shiftDate).toISOString().slice(0, 10) : (defaultDate || ''));
+    const [startTime, setStartTime] = useState(shift?.startTime || '09:00');
+    const [endTime, setEndTime] = useState(shift?.endTime || '17:00');
+    const [notes, setNotes] = useState(shift?.notes || '');
+    const [status, setStatus] = useState(shift?.status || 'scheduled');
+    const [saving, setSaving] = useState(false);
+
+    const computeHours = () => {
+        if (!startTime || !endTime) return { hours: 0, units: 0 };
+        const [sh, sm] = startTime.split(':').map(Number);
+        const [eh, em] = endTime.split(':').map(Number);
+        let startMin = sh * 60 + sm;
+        let endMin = eh * 60 + em;
+        if (endMin <= startMin) endMin += 24 * 60;
+        const hours = Math.round(((endMin - startMin) / 60) * 100) / 100;
+        return { hours, units: Math.round(hours * 4) };
+    };
+
+    const { hours, units } = computeHours();
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setSaving(true);
+        try {
+            const data = { clientId: Number(clientId), employeeId: Number(employeeId), serviceCode, shiftDate, startTime, endTime, notes };
+            if (shift) data.status = status;
+            await onSave(data);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <Modal onClose={onClose}>
+            <h2 className="modal__title">{shift ? 'Edit Shift' : 'Create Shift'}</h2>
+            <p className="modal__desc">{shift ? 'Update the shift details below.' : 'Schedule a new caregiver shift.'}</p>
+            <form onSubmit={handleSubmit}>
+                <div className="form-grid-2">
+                    <div className="form-group">
+                        <label htmlFor="shiftClient">Client</label>
+                        <select id="shiftClient" value={clientId} onChange={e => setClientId(e.target.value)} required>
+                            <option value="">Select client…</option>
+                            {clients.map(c => <option key={c.id} value={c.id}>{c.clientName}</option>)}
+                        </select>
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="shiftEmployee">Employee</label>
+                        <select id="shiftEmployee" value={employeeId} onChange={e => setEmployeeId(e.target.value)} required>
+                            <option value="">Select employee…</option>
+                            {employees.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                        </select>
+                    </div>
+                </div>
+                <div className="form-grid-2">
+                    <div className="form-group">
+                        <label htmlFor="shiftService">Service Code</label>
+                        <select id="shiftService" value={serviceCode} onChange={e => setServiceCode(e.target.value)}>
+                            {Object.entries(SERVICE_COLORS).map(([code, info]) => (
+                                <option key={code} value={code}>{code} — {info.label}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="shiftDate">Date</label>
+                        <input id="shiftDate" type="date" value={shiftDate} onChange={e => setShiftDate(e.target.value)} required />
+                    </div>
+                </div>
+                <div className="form-grid-2">
+                    <div className="form-group">
+                        <label htmlFor="shiftStart">Start Time</label>
+                        <input id="shiftStart" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} required />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="shiftEnd">End Time</label>
+                        <input id="shiftEnd" type="time" value={endTime} onChange={e => setEndTime(e.target.value)} required />
+                    </div>
+                </div>
+                <div style={{ padding: '4px 0 8px', fontSize: 14, color: 'hsl(var(--muted-foreground))' }}>
+                    {hours} hours / {units} units
+                </div>
+                {shift && (
+                    <div className="form-group">
+                        <label htmlFor="shiftStatus">Status</label>
+                        <select id="shiftStatus" value={status} onChange={e => setStatus(e.target.value)}>
+                            <option value="scheduled">Scheduled</option>
+                            <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                    </div>
+                )}
+                <div className="form-group">
+                    <label htmlFor="shiftNotes">Notes</label>
+                    <input id="shiftNotes" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes…" />
+                </div>
+                <div className="form-actions">
+                    <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving…' : shift ? 'Update Shift' : 'Create Shift'}</button>
+                </div>
+            </form>
+        </Modal>
+    );
+}
+
+function UnitSummaryBar({ unitSummary }) {
+    if (!unitSummary || Object.keys(unitSummary).length === 0) return null;
+    return (
+        <div className="sched-unit-summary">
+            {Object.entries(unitSummary).map(([code, data]) => {
+                const colorInfo = SERVICE_COLORS[code] || { color: '#6B7280', label: code };
+                const overUsed = data.remaining < 0;
+                return (
+                    <div key={code} className="sched-unit-summary__item">
+                        <span className="sched-unit-summary__dot" style={{ background: colorInfo.color }} />
+                        <span className="sched-unit-summary__code">{code}</span>
+                        <span className="sched-unit-summary__numbers">
+                            {data.scheduled}/{data.authorized}u
+                        </span>
+                        <span className={`sched-unit-summary__remaining ${overUsed ? 'sched-unit-summary__remaining--over' : ''}`}>
+                            ({data.remaining >= 0 ? data.remaining : data.remaining} left)
+                        </span>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+function ScheduleWeekGrid({ shifts, weekStart, onAddShift, onEditShift }) {
+    const days = [];
+    const ws = new Date(weekStart + 'T00:00:00');
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(ws);
+        d.setDate(ws.getDate() + i);
+        days.push(d);
+    }
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    return (
+        <div className="sched-week-grid">
+            {days.map((day, i) => {
+                const dateStr = day.toISOString().slice(0, 10);
+                const dayShifts = shifts.filter(s => new Date(s.shiftDate).toISOString().slice(0, 10) === dateStr);
+                const isToday = dateStr === new Date().toISOString().slice(0, 10);
+                return (
+                    <div key={i} className={`sched-week-grid__day ${isToday ? 'sched-week-grid__day--today' : ''}`}>
+                        <div className="sched-week-grid__day-header">
+                            <span className="sched-week-grid__day-name">{dayNames[i]}</span>
+                            <span className="sched-week-grid__day-date">{day.getMonth() + 1}/{day.getDate()}</span>
+                        </div>
+                        <div className="sched-week-grid__shifts">
+                            {dayShifts.map(s => {
+                                const colorInfo = SERVICE_COLORS[s.serviceCode] || { color: '#6B7280', bg: '#F3F4F6' };
+                                return (
+                                    <button key={s.id} className={`sched-shift-block ${s.status === 'cancelled' ? 'sched-shift-block--cancelled' : ''}`}
+                                        style={{ borderLeftColor: colorInfo.color, background: colorInfo.bg }}
+                                        onClick={() => onEditShift(s)} title={`${s.serviceCode} — ${s.employee?.name || 'Unassigned'}`}>
+                                        <div className="sched-shift-block__time">{hhmm12(s.startTime)} - {hhmm12(s.endTime)}</div>
+                                        <div className="sched-shift-block__info">{s.client?.clientName || 'Client'}</div>
+                                        <div className="sched-shift-block__employee">{s.employee?.name || ''}</div>
+                                    </button>
+                                );
+                            })}
+                            <button className="sched-add-btn" onClick={() => onAddShift(dateStr)} title="Add shift">
+                                {Icons.plus}
+                            </button>
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+function SchedulingPage({ showToast, clients, onRefreshClients }) {
+    const [shifts, setShifts] = useState([]);
+    const [overlaps, setOverlaps] = useState([]);
+    const [unitSummaries, setUnitSummaries] = useState({});
+    const [employees, setEmployees] = useState([]);
+    const [weekStart, setWeekStart] = useState(() => {
+        const d = new Date();
+        const day = d.getDay();
+        d.setDate(d.getDate() - day);
+        return d.toISOString().slice(0, 10);
+    });
+    const [loading, setLoading] = useState(true);
+    const [modal, setModal] = useState(null);
+    const [viewBy, setViewBy] = useState('overview'); // overview | client | employee
+    const [selectedClientId, setSelectedClientId] = useState('');
+    const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+
+    const fetchEmployees = useCallback(async () => {
+        try {
+            const data = await api.getUsers();
+            setEmployees(data);
+        } catch (err) { showToast(err.message, 'error'); }
+    }, [showToast]);
+
+    const fetchShifts = useCallback(async () => {
+        try {
+            setLoading(true);
+            const filters = {};
+            if (viewBy === 'client' && selectedClientId) filters.clientId = selectedClientId;
+            if (viewBy === 'employee' && selectedEmployeeId) filters.employeeId = selectedEmployeeId;
+            const data = await api.getShifts(weekStart, filters);
+            setShifts(data.shifts || []);
+            setOverlaps(data.overlaps || []);
+            setUnitSummaries(data.unitSummaries || {});
+        } catch (err) { showToast(err.message, 'error'); }
+        finally { setLoading(false); }
+    }, [weekStart, viewBy, selectedClientId, selectedEmployeeId, showToast]);
+
+    useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
+    useEffect(() => { fetchShifts(); }, [fetchShifts]);
+
+    const navigateWeek = (dir) => {
+        const d = new Date(weekStart + 'T00:00:00');
+        d.setDate(d.getDate() + dir * 7);
+        setWeekStart(d.toISOString().slice(0, 10));
+    };
+
+    const goToday = () => {
+        const d = new Date();
+        d.setDate(d.getDate() - d.getDay());
+        setWeekStart(d.toISOString().slice(0, 10));
+    };
+
+    const weekEndDate = (() => {
+        const d = new Date(weekStart + 'T00:00:00');
+        d.setDate(d.getDate() + 6);
+        return d;
+    })();
+
+    const handleSaveShift = async (data) => {
+        try {
+            if (modal.shift) {
+                await api.updateShift(modal.shift.id, data);
+                showToast('Shift updated');
+            } else {
+                await api.createShift(data);
+                showToast('Shift created');
+            }
+            setModal(null);
+            fetchShifts();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleDeleteShift = async (shiftId) => {
+        try {
+            await api.deleteShift(shiftId);
+            showToast('Shift deleted');
+            setModal(null);
+            fetchShifts();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleAddShift = (dateStr) => {
+        setModal({ type: 'shift', shift: null, defaultDate: dateStr });
+    };
+
+    const handleEditShift = (shift) => {
+        setModal({ type: 'shift', shift });
+    };
+
+    // Group shifts by day for the overview table
+    const shiftsByDay = useMemo(() => {
+        const map = {};
+        for (const s of shifts) {
+            const d = new Date(s.shiftDate).toISOString().slice(0, 10);
+            if (!map[d]) map[d] = [];
+            map[d].push(s);
+        }
+        return map;
+    }, [shifts]);
+
+    const overlapIds = useMemo(() => {
+        const set = new Set();
+        for (const o of overlaps) { set.add(o.shiftA); set.add(o.shiftB); }
+        return set;
+    }, [overlaps]);
+
+    const formatWeekLabel = () => {
+        const ws = new Date(weekStart + 'T00:00:00');
+        const opts = { month: 'short', day: 'numeric' };
+        return `${ws.toLocaleDateString('en-US', opts)} — ${weekEndDate.toLocaleDateString('en-US', { ...opts, year: 'numeric' })}`;
+    };
+
+    // Combined unit summary for all clients in view
+    const combinedUnitSummary = useMemo(() => {
+        const combined = {};
+        for (const clientId of Object.keys(unitSummaries)) {
+            const summary = unitSummaries[clientId];
+            for (const code of Object.keys(summary)) {
+                if (!combined[code]) combined[code] = { authorized: 0, scheduled: 0, remaining: 0 };
+                combined[code].authorized += summary[code].authorized;
+                combined[code].scheduled += summary[code].scheduled;
+                combined[code].remaining += summary[code].remaining;
+            }
+        }
+        return combined;
+    }, [unitSummaries]);
+
+    return (
+        <>
+            {/* Header */}
+            <div className="content-header">
+                <h1 className="content-header__title">Scheduling</h1>
+                <div className="content-header__actions">
+                    <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'shift', shift: null })}>
+                        {Icons.plus} New Shift
+                    </button>
+                </div>
+            </div>
+
+            <div className="page-content">
+                {/* Week Navigation */}
+                <div className="sched-week-nav">
+                    <button className="btn btn--outline btn--sm" onClick={() => navigateWeek(-1)}>{Icons.chevronLeft} Prev</button>
+                    <button className="btn btn--outline btn--sm" onClick={goToday}>Today</button>
+                    <span className="sched-week-nav__label">{formatWeekLabel()}</span>
+                    <button className="btn btn--outline btn--sm" onClick={() => navigateWeek(1)}>Next {Icons.chevronRight}</button>
+                </div>
+
+                {/* View Toggle */}
+                <div className="sched-view-toggle">
+                    <button className={`sched-view-toggle__btn ${viewBy === 'overview' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setViewBy('overview')}>Overview</button>
+                    <button className={`sched-view-toggle__btn ${viewBy === 'client' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setViewBy('client')}>By Client</button>
+                    <button className={`sched-view-toggle__btn ${viewBy === 'employee' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setViewBy('employee')}>By Employee</button>
+                </div>
+
+                {/* Filters for client/employee views */}
+                {viewBy === 'client' && (
+                    <div style={{ marginBottom: 16 }}>
+                        <select className="form-input" style={{ maxWidth: 300 }} value={selectedClientId} onChange={e => setSelectedClientId(e.target.value)}>
+                            <option value="">All Clients</option>
+                            {clients.map(c => <option key={c.id} value={c.id}>{c.clientName}</option>)}
+                        </select>
+                    </div>
+                )}
+                {viewBy === 'employee' && (
+                    <div style={{ marginBottom: 16 }}>
+                        <select className="form-input" style={{ maxWidth: 300 }} value={selectedEmployeeId} onChange={e => setSelectedEmployeeId(e.target.value)}>
+                            <option value="">All Employees</option>
+                            {employees.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                        </select>
+                    </div>
+                )}
+
+                {/* Overlap Warnings */}
+                {overlaps.length > 0 && (
+                    <div className="sched-overlap-warning">
+                        {Icons.alertTriangle}
+                        <span>{overlaps.length} overlap{overlaps.length > 1 ? 's' : ''} detected — {overlaps.map(o => `${o.employeeName} on ${o.date}`).join('; ')}</span>
+                    </div>
+                )}
+
+                {/* Unit Summary */}
+                {Object.keys(combinedUnitSummary).length > 0 && (
+                    <UnitSummaryBar unitSummary={combinedUnitSummary} />
+                )}
+
+                {/* Week Grid */}
+                {loading ? (
+                    <div style={{ textAlign: 'center', padding: 40, color: 'hsl(var(--muted-foreground))' }}>Loading shifts…</div>
+                ) : (
+                    <ScheduleWeekGrid
+                        shifts={shifts}
+                        weekStart={weekStart}
+                        onAddShift={handleAddShift}
+                        onEditShift={handleEditShift}
+                    />
+                )}
+
+                {/* Service Legend */}
+                <div className="sched-legend">
+                    {Object.entries(SERVICE_COLORS).map(([code, info]) => (
+                        <span key={code} className="sched-legend__item">
+                            <span className="sched-legend__dot" style={{ background: info.color }} />
+                            {code} — {info.label}
+                        </span>
+                    ))}
+                </div>
+
+                {/* Overview Table */}
+                {!loading && shifts.length > 0 && (
+                    <div className="sheet-card" style={{ marginTop: 24 }}>
+                        <div className="sheet-card__header">
+                            <div className="sheet-card__title">Weekly Shifts ({shifts.length})</div>
+                        </div>
+                        <div className="table-scroll">
+                            <table className="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Day</th>
+                                        <th>Client</th>
+                                        <th>Employee</th>
+                                        <th>Service</th>
+                                        <th>Time</th>
+                                        <th>Hours</th>
+                                        <th>Units</th>
+                                        <th>Status</th>
+                                        <th style={{ width: 80 }}>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {shifts.map(s => {
+                                        const colorInfo = SERVICE_COLORS[s.serviceCode] || { color: '#6B7280' };
+                                        const isOverlap = overlapIds.has(s.id);
+                                        const dateObj = new Date(s.shiftDate);
+                                        return (
+                                            <tr key={s.id} className={isOverlap ? 'sched-row--overlap' : ''}>
+                                                <td>{dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' })}</td>
+                                                <td>{s.client?.clientName || ''}</td>
+                                                <td>{s.employee?.name || ''}</td>
+                                                <td>
+                                                    <span className="sched-service-badge" style={{ background: colorInfo.color }}>
+                                                        {s.serviceCode}
+                                                    </span>
+                                                </td>
+                                                <td>{hhmm12(s.startTime)} - {hhmm12(s.endTime)}</td>
+                                                <td>{s.hours}</td>
+                                                <td>{s.units}</td>
+                                                <td>
+                                                    <span className={`sched-status sched-status--${s.status}`}>{s.status}</span>
+                                                </td>
+                                                <td>
+                                                    <div style={{ display: 'flex', gap: 4 }}>
+                                                        <button className="btn btn--outline btn--xs" onClick={() => handleEditShift(s)} title="Edit">{Icons.edit}</button>
+                                                        <button className="btn btn--outline btn--xs" onClick={() => handleDeleteShift(s.id)} title="Delete" style={{ color: 'hsl(0 84% 60%)' }}>{Icons.trash}</button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
+                {!loading && shifts.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: 40, color: 'hsl(var(--muted-foreground))' }}>
+                        No shifts scheduled for this week. Click "New Shift" to get started.
+                    </div>
+                )}
+            </div>
+
+            {/* Shift Modal */}
+            {modal?.type === 'shift' && (
+                <ShiftFormModal
+                    shift={modal.shift}
+                    defaultDate={modal.defaultDate}
+                    clients={clients}
+                    employees={employees}
+                    onSave={handleSaveShift}
+                    onClose={() => setModal(null)}
+                />
+            )}
+        </>
+    );
+}
+
+// ────────────────────────────────────────
 // Sidebar
 // ────────────────────────────────────────
 function Sidebar({ activePage, onNavigate, user, onLogout, collapsed, onToggleCollapse }) {
@@ -2428,6 +2921,11 @@ function Sidebar({ activePage, onNavigate, user, onLogout, collapsed, onToggleCo
                 <button className={`sidebar__nav-item ${activePage === 'timesheets' ? 'sidebar__nav-item--active' : ''}`} onClick={() => onNavigate('timesheets')} title="Timesheets">
                     {Icons.fileText} Timesheets
                 </button>
+                {isAdmin && (
+                    <button className={`sidebar__nav-item ${activePage === 'scheduling' ? 'sidebar__nav-item--active' : ''}`} onClick={() => onNavigate('scheduling')} title="Scheduling">
+                        {Icons.calendar} Scheduling
+                    </button>
+                )}
                 {isAdmin && (
                     <button className={`sidebar__nav-item ${activePage === 'payroll' ? 'sidebar__nav-item--active' : ''}`} onClick={() => onNavigate('payroll')} title="Payroll">
                         {Icons.dollarSign} Payroll
@@ -2752,6 +3250,8 @@ export default function App() {
                     <ServicesPage services={services} onRefresh={fetchServices} showToast={showToast} />
                 ) : activePage === 'timesheets' ? (
                     <TimesheetsListPage clients={clients} showToast={showToast} onNavigate={navigate} />
+                ) : activePage === 'scheduling' && isAdmin ? (
+                    <SchedulingPage showToast={showToast} clients={clients} onRefreshClients={fetchClients} />
                 ) : activePage === 'payroll' && isAdmin ? (
                     <PayrollPage showToast={showToast} initialRunId={route.runId} onNavigate={navigate} />
                 ) : (
