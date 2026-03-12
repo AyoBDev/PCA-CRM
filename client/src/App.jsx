@@ -2469,7 +2469,6 @@ function Sidebar({ activePage, onNavigate, user, onLogout, collapsed, onToggleCo
 // ────────────────────────────────────────
 // Main App
 // ────────────────────────────────────────
-const ROWS_PER_PAGE = 25;
 
 // ── Hash router helpers ─────────────────────────────────────
 // Hash scheme: #dashboard | #timesheets | #payroll | #payroll/runs/42 | ...
@@ -2494,7 +2493,6 @@ export default function App() {
         () => localStorage.getItem('sidebarCollapsed') === 'true'
     );
     const [statusFilter, setStatusFilter] = useState('All');
-    const [currentPage, setCurrentPage] = useState(1);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [route, setRoute] = useState(parseHash);   // { page, runId }
@@ -2685,9 +2683,7 @@ export default function App() {
         const matchesSearch = !searchLower || c.clientName.toLowerCase().includes(searchLower) || (c.medicaidId || '').toLowerCase().includes(searchLower);
         return matchesStatus && matchesSearch;
     });
-    const totalPages = Math.max(1, Math.ceil(filteredClients.length / ROWS_PER_PAGE));
-    const safePage = Math.min(currentPage, totalPages);
-    const paginatedClients = filteredClients.slice((safePage - 1) * ROWS_PER_PAGE, safePage * ROWS_PER_PAGE);
+    const displayedClients = filteredClients;
 
     const toggleSelect = (id) => {
         setSelectedIds((prev) => {
@@ -2698,18 +2694,17 @@ export default function App() {
     };
 
     const toggleSelectAll = () => {
-        const pageIds = paginatedClients.map(c => c.id);
-        const allSelected = pageIds.every(id => selectedIds.has(id));
+        const allIds = displayedClients.map(c => c.id);
+        const allSelected = allIds.every(id => selectedIds.has(id));
         setSelectedIds((prev) => {
             const next = new Set(prev);
-            pageIds.forEach(id => allSelected ? next.delete(id) : next.add(id));
+            allIds.forEach(id => allSelected ? next.delete(id) : next.add(id));
             return next;
         });
     };
 
     const handleFilterChange = (filter) => {
         setStatusFilter(filter);
-        setCurrentPage(1);
     };
 
     // Insurance type names for the client form dropdown
@@ -2765,7 +2760,7 @@ export default function App() {
                                     className="search-input"
                                     placeholder="Search clients…"
                                     value={searchQuery}
-                                    onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
                                 />
                                 <button className="btn btn--outline btn--sm" onClick={() => setModal({ type: 'bulkImport' })}>
                                     {Icons.download} Import
@@ -2878,7 +2873,7 @@ export default function App() {
                                                         <th style={{ width: 36 }}>
                                                             <input
                                                                 type="checkbox"
-                                                                checked={paginatedClients.length > 0 && paginatedClients.every(c => selectedIds.has(c.id))}
+                                                                checked={displayedClients.length > 0 && displayedClients.every(c => selectedIds.has(c.id))}
                                                                 onChange={toggleSelectAll}
                                                                 style={{ cursor: 'pointer' }}
                                                             />
@@ -2900,7 +2895,7 @@ export default function App() {
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {paginatedClients.map((client) => {
+                                                    {displayedClients.map((client) => {
                                                         const isOpen = expandedIds.has(client.id);
                                                         return (
                                                             <>
@@ -3038,45 +3033,9 @@ export default function App() {
                                         </div>
                                         <div className="table-info-bar">
                                             <span>
-                                                Showing {(safePage - 1) * ROWS_PER_PAGE + 1}–{Math.min(safePage * ROWS_PER_PAGE, filteredClients.length)} of {filteredClients.length} client(s)
+                                                Showing {filteredClients.length} client(s)
                                                 {statusFilter !== 'All' && ` (filtered: ${statusFilter})`}
                                             </span>
-                                            <div className="pagination">
-                                                <button
-                                                    className="btn btn--outline btn--sm"
-                                                    disabled={safePage <= 1}
-                                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                                >
-                                                    ← Prev
-                                                </button>
-                                                {Array.from({ length: totalPages }, (_, i) => i + 1)
-                                                    .filter(p => p === 1 || p === totalPages || Math.abs(p - safePage) <= 2)
-                                                    .reduce((acc, p, idx, arr) => {
-                                                        if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
-                                                        acc.push(p);
-                                                        return acc;
-                                                    }, [])
-                                                    .map((p, i) =>
-                                                        p === '...' ? (
-                                                            <span key={`dots-${i}`} className="pagination__dots">…</span>
-                                                        ) : (
-                                                            <button
-                                                                key={p}
-                                                                className={`btn btn--sm ${p === safePage ? 'btn--primary' : 'btn--outline'}`}
-                                                                onClick={() => setCurrentPage(p)}
-                                                            >
-                                                                {p}
-                                                            </button>
-                                                        )
-                                                    )}
-                                                <button
-                                                    className="btn btn--outline btn--sm"
-                                                    disabled={safePage >= totalPages}
-                                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                                >
-                                                    Next →
-                                                </button>
-                                            </div>
                                         </div>
                                     </>
                                 )}
