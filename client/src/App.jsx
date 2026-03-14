@@ -3417,6 +3417,7 @@ function Sidebar({ activePage, onNavigate, user, onLogout, collapsed, onToggleCo
 // ────────────────────────────────────────
 // Main App
 // ────────────────────────────────────────
+
 // ── Hash router helpers ─────────────────────────────────────
 // Hash scheme: #dashboard | #timesheets | #payroll | #payroll/runs/42 | ...
 function parseHash() {
