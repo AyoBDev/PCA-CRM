@@ -32,6 +32,12 @@ async function request(path, options = {}) {
     }
     if (!res.ok) {
         const body = await res.json().catch(() => ({}));
+        if (res.status === 409 && body.error === 'overlap') {
+            const err = new Error(body.message || 'Overlap detected');
+            err.isOverlap = true;
+            err.conflicts = body.conflicts || [];
+            throw err;
+        }
         throw new Error(body.error || body.errors?.join(', ') || `HTTP ${res.status}`);
     }
     if (res.status === 204) return null;
@@ -148,6 +154,32 @@ export const getPayrollRun    = (id)  => request(`/payroll/runs/${id}`);
 export const deletePayrollRun   = (id)  => request(`/payroll/runs/${id}`, { method: 'DELETE' });
 export const updatePayrollVisit = (id, data) =>
     request(`/payroll/visits/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+
+// ── Scheduling ──
+export const getShifts = (weekStart, filters = {}) => {
+    const params = new URLSearchParams();
+    if (weekStart) params.set('weekStart', weekStart);
+    if (filters.clientId) params.set('clientId', filters.clientId);
+    if (filters.employeeId) params.set('employeeId', filters.employeeId);
+    return request(`/shifts?${params.toString()}`);
+};
+export const createShift = (data) =>
+    request('/shifts', { method: 'POST', body: JSON.stringify(data) });
+export const updateShift = (id, data) =>
+    request(`/shifts/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const deleteShift = (id, { group } = {}) =>
+    request(`/shifts/${id}${group ? '?group=true' : ''}`, { method: 'DELETE' });
+export const deleteAllShifts = () =>
+    request('/shifts/all', { method: 'DELETE' });
+export const getClientSchedule = (clientId, weekStart) =>
+    request(`/shifts/client/${clientId}${weekStart ? '?weekStart=' + weekStart : ''}`);
+export const getEmployeeSchedule = (employeeId, weekStart) =>
+    request(`/shifts/employee/${employeeId}${weekStart ? '?weekStart=' + weekStart : ''}`);
+export const getEmployeeScheduleByName = (name, weekStart) => {
+    const params = new URLSearchParams({ name });
+    if (weekStart) params.set('weekStart', weekStart);
+    return request(`/shifts/employee-by-name?${params.toString()}`);
+};
 
 export const uploadPayrollRun = (formData) =>
     fetch(`${BASE}/payroll/runs`, {

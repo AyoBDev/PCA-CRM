@@ -41,14 +41,14 @@ async function getMe(req, res, next) {
     try {
         const user = await prisma.user.findUnique({ where: { id: req.user.id } });
         if (!user) return res.status(404).json({ error: 'User not found' });
-        res.json({ id: user.id, email: user.email, name: user.name, role: user.role });
+        res.json({ id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone });
     } catch (err) { next(err); }
 }
 
 // POST /api/auth/register  (admin only)
 async function register(req, res, next) {
     try {
-        const { email, password, name, role } = req.body;
+        const { email, password, name, role, phone } = req.body;
         if (!email || !password || !name) {
             return res.status(400).json({ error: 'Email, password, and name are required' });
         }
@@ -64,9 +64,10 @@ async function register(req, res, next) {
                 passwordHash,
                 name: name.trim(),
                 role: validRole,
+                phone: (phone || '').trim(),
             },
         });
-        res.status(201).json({ id: user.id, email: user.email, name: user.name, role: user.role });
+        res.status(201).json({ id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone });
     } catch (err) { next(err); }
 }
 
@@ -74,7 +75,7 @@ async function register(req, res, next) {
 async function listUsers(req, res, next) {
     try {
         const users = await prisma.user.findMany({
-            select: { id: true, email: true, name: true, role: true, createdAt: true },
+            select: { id: true, email: true, name: true, role: true, phone: true, createdAt: true },
             orderBy: { createdAt: 'desc' },
         });
         res.json(users);
