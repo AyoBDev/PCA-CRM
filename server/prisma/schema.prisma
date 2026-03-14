@@ -201,21 +201,23 @@ model PayrollVisit {
 }
 
 model Shift {
-  id          Int      @id @default(autoincrement())
-  clientId    Int      @map("client_id")
-  employeeId  Int      @map("employee_id")
-  serviceCode String   @map("service_code")
-  shiftDate   DateTime @map("shift_date")
-  startTime   String   @map("start_time")    // HH:MM 24h
-  endTime     String   @map("end_time")      // HH:MM 24h
-  hours       Float    @default(0)
-  units       Int      @default(0)
-  notes       String   @default("")
-  status      String   @default("scheduled") // scheduled | completed | cancelled
-  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  employee    User     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id               Int      @id @default(autoincrement())
+  clientId         Int      @map("client_id")
+  employeeId       Int?     @map("employee_id")
+  employeeName     String   @default("") @map("employee_name")
+  serviceCode      String   @map("service_code")
+  shiftDate        DateTime @map("shift_date")
+  startTime        String   @map("start_time")    // HH:MM 24h
+  endTime          String   @map("end_time")      // HH:MM 24h
+  hours            Float    @default(0)
+  units            Int      @default(0)
+  notes            String   @default("")
+  status           String   @default("scheduled") // scheduled | completed | cancelled
+  recurringGroupId String   @default("") @map("recurring_group_id") // groups recurring shifts for bulk delete
+  client           Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  employee         User?    @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@index([clientId])
   @@index([employeeId])

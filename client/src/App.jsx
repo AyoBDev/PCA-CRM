@@ -2423,16 +2423,21 @@ const SERVICE_COLORS = {
     S5150: { color: '#06B6D4', bg: '#ECFEFF', label: 'Respite' },
 };
 
-function ShiftFormModal({ shift, clients, employees, onSave, onClose, defaultDate }) {
-    const [clientId, setClientId] = useState(shift?.clientId || '');
-    const [employeeId, setEmployeeId] = useState(shift?.employeeId || '');
+function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, defaultDate, defaultClientId, defaultEmployeeId }) {
+    const [clientId, setClientId] = useState(shift?.clientId || defaultClientId || '');
+    const [employeeMode, setEmployeeMode] = useState(shift?.employeeId ? 'select' : (shift?.employeeName ? 'type' : 'select'));
+    const [employeeId, setEmployeeId] = useState(shift?.employeeId || defaultEmployeeId || '');
+    const [employeeName, setEmployeeName] = useState(shift?.displayEmployeeName || shift?.employeeName || '');
     const [serviceCode, setServiceCode] = useState(shift?.serviceCode || 'PCS');
-    const [shiftDate, setShiftDate] = useState(shift?.shiftDate ? new Date(shift.shiftDate).toISOString().slice(0, 10) : (defaultDate || ''));
+    const [shiftDate, setShiftDate] = useState(shift?.shiftDate ? toLocalDateStr(shift.shiftDate) : (defaultDate || ''));
     const [startTime, setStartTime] = useState(shift?.startTime || '09:00');
-    const [endTime, setEndTime] = useState(shift?.endTime || '17:00');
+    const [endTime, setEndTime] = useState(shift?.endTime || '13:00');
     const [notes, setNotes] = useState(shift?.notes || '');
     const [status, setStatus] = useState(shift?.status || 'scheduled');
+    const [recurring, setRecurring] = useState(false);
+    const [repeatUntil, setRepeatUntil] = useState('');
     const [saving, setSaving] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(false);
 
     const computeHours = () => {
         if (!startTime || !endTime) return { hours: 0, units: 0 };
@@ -2446,13 +2451,39 @@ function ShiftFormModal({ shift, clients, employees, onSave, onClose, defaultDat
     };
 
     const { hours, units } = computeHours();
+    const colorInfo = SERVICE_COLORS[serviceCode] || { color: '#6B7280', label: serviceCode };
+
+    // Compute how many total shifts the recurring option will create (including original)
+    const recurringCount = (() => {
+        if (!recurring || !repeatUntil || !shiftDate) return 0;
+        const start = new Date(shiftDate + 'T12:00:00Z');
+        const end = new Date(repeatUntil + 'T12:00:00Z');
+        if (end < start) return 0;
+        return Math.floor((end - start) / (7 * 24 * 60 * 60 * 1000)) + 1;
+    })();
+    // Min date for repeat-until: at least 7 days after shiftDate
+    const repeatUntilMin = (() => {
+        if (!shiftDate) return '';
+        const d = new Date(shiftDate + 'T12:00:00Z');
+        d.setDate(d.getDate() + 7);
+        return d.toISOString().slice(0, 10);
+    })();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSaving(true);
         try {
-            const data = { clientId: Number(clientId), employeeId: Number(employeeId), serviceCode, shiftDate, startTime, endTime, notes };
+            const data = { clientId: Number(clientId), serviceCode, shiftDate, startTime, endTime, notes };
+            if (employeeMode === 'select' && employeeId) {
+                data.employeeId = Number(employeeId);
+                // Also store the name for display
+                const emp = employees.find(u => String(u.id) === String(employeeId));
+                data.employeeName = emp?.name || '';
+            } else {
+                data.employeeName = employeeName;
+            }
             if (shift) data.status = status;
+            if (!shift && recurring && repeatUntil) data.repeatUntil = repeatUntil;
             await onSave(data);
         } finally {
             setSaving(false);
@@ -2474,20 +2505,31 @@ function ShiftFormModal({ shift, clients, employees, onSave, onClose, defaultDat
                     </div>
                     <div className="form-group">
                         <label htmlFor="shiftEmployee">Employee</label>
-                        <select id="shiftEmployee" value={employeeId} onChange={e => setEmployeeId(e.target.value)} required>
-                            <option value="">Select employee…</option>
-                            {employees.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                        </select>
+                        <div className="sched-emp-toggle">
+                            <button type="button" className={`sched-emp-toggle__btn ${employeeMode === 'select' ? 'sched-emp-toggle__btn--active' : ''}`} onClick={() => setEmployeeMode('select')}>Select</button>
+                            <button type="button" className={`sched-emp-toggle__btn ${employeeMode === 'type' ? 'sched-emp-toggle__btn--active' : ''}`} onClick={() => setEmployeeMode('type')}>Type name</button>
+                        </div>
+                        {employeeMode === 'select' ? (
+                            <select id="shiftEmployee" value={employeeId} onChange={e => { setEmployeeId(e.target.value); const emp = employees.find(u => String(u.id) === e.target.value); setEmployeeName(emp?.name || ''); }} required>
+                                <option value="">Select employee…</option>
+                                {employees.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                            </select>
+                        ) : (
+                            <input id="shiftEmployee" type="text" value={employeeName} onChange={e => { setEmployeeName(e.target.value); setEmployeeId(''); }} placeholder="Type employee name…" required />
+                        )}
                     </div>
                 </div>
                 <div className="form-grid-2">
                     <div className="form-group">
-                        <label htmlFor="shiftService">Service Code</label>
-                        <select id="shiftService" value={serviceCode} onChange={e => setServiceCode(e.target.value)}>
-                            {Object.entries(SERVICE_COLORS).map(([code, info]) => (
-                                <option key={code} value={code}>{code} — {info.label}</option>
-                            ))}
-                        </select>
+                        <label htmlFor="shiftService">Service</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ width: 12, height: 12, borderRadius: '50%', background: colorInfo.color, flexShrink: 0 }} />
+                            <select id="shiftService" value={serviceCode} onChange={e => setServiceCode(e.target.value)} style={{ flex: 1 }}>
+                                {Object.entries(SERVICE_COLORS).map(([code, info]) => (
+                                    <option key={code} value={code}>{info.label} ({code})</option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
                     <div className="form-group">
                         <label htmlFor="shiftDate">Date</label>
@@ -2504,9 +2546,46 @@ function ShiftFormModal({ shift, clients, employees, onSave, onClose, defaultDat
                         <input id="shiftEnd" type="time" value={endTime} onChange={e => setEndTime(e.target.value)} required />
                     </div>
                 </div>
-                <div style={{ padding: '4px 0 8px', fontSize: 14, color: 'hsl(var(--muted-foreground))' }}>
-                    {hours} hours / {units} units
+                <div className="sched-hours-display" style={{ borderLeftColor: colorInfo.color }}>
+                    <span className="sched-hours-display__value">{hours}</span>
+                    <span className="sched-hours-display__label">hours</span>
+                    <span className="sched-hours-display__sep">/</span>
+                    <span className="sched-hours-display__value">{units}</span>
+                    <span className="sched-hours-display__label">units</span>
                 </div>
+                {!shift && (
+                    <div className="sched-recurring">
+                        <label className="sched-recurring__toggle">
+                            <input type="checkbox" checked={recurring} onChange={e => setRecurring(e.target.checked)} />
+                            <span>Repeat weekly</span>
+                        </label>
+                        {recurring && (
+                            <div className="sched-recurring__options">
+                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                    <label htmlFor="repeatUntil">Repeat until</label>
+                                    <input
+                                        id="repeatUntil"
+                                        type="date"
+                                        value={repeatUntil}
+                                        onChange={e => setRepeatUntil(e.target.value)}
+                                        min={repeatUntilMin || shiftDate}
+                                        required={recurring}
+                                    />
+                                </div>
+                                {recurringCount > 1 && (
+                                    <div className="sched-recurring__preview">
+                                        Will create <strong>{recurringCount} total shifts</strong> (1 original + {recurringCount - 1} repeat{recurringCount - 1 > 1 ? 's' : ''}) — {recurringCount * units} total units
+                                    </div>
+                                )}
+                                {recurring && repeatUntil && recurringCount <= 1 && (
+                                    <div className="sched-recurring__preview" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                                        Select a date at least 1 week after the shift date.
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
                 {shift && (
                     <div className="form-group">
                         <label htmlFor="shiftStatus">Status</label>
@@ -2522,6 +2601,23 @@ function ShiftFormModal({ shift, clients, employees, onSave, onClose, defaultDat
                     <input id="shiftNotes" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes…" />
                 </div>
                 <div className="form-actions">
+                    {shift && !confirmDelete && (
+                        <button type="button" className="btn btn--outline" style={{ color: 'hsl(0 84% 60%)', borderColor: 'hsl(0 84% 80%)', marginRight: 'auto' }} onClick={() => setConfirmDelete(true)}>
+                            {Icons.trash} Delete
+                        </button>
+                    )}
+                    {shift && confirmDelete && (
+                        <div style={{ display: 'flex', gap: 6, marginRight: 'auto' }}>
+                            <button type="button" className="btn" style={{ background: 'hsl(0 84% 60%)', color: '#fff' }} onClick={() => onDelete(shift.id, false)}>
+                                Delete This Shift
+                            </button>
+                            {shift.recurringGroupId && (
+                                <button type="button" className="btn" style={{ background: 'hsl(0 60% 45%)', color: '#fff' }} onClick={() => onDelete(shift.id, true)}>
+                                    Delete All in Series
+                                </button>
+                            )}
+                        </div>
+                    )}
                     <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
                     <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving…' : shift ? 'Update Shift' : 'Create Shift'}</button>
                 </div>
@@ -2530,31 +2626,80 @@ function ShiftFormModal({ shift, clients, employees, onSave, onClose, defaultDat
     );
 }
 
-function UnitSummaryBar({ unitSummary }) {
-    if (!unitSummary || Object.keys(unitSummary).length === 0) return null;
+function ScheduleCard({ title, icon, headerActions, children }) {
     return (
-        <div className="sched-unit-summary">
+        <div className="sched-card">
+            <div className="sched-card__header">
+                <div className="sched-card__header-left">
+                    <span className="sched-card__header-icon">{icon}</span>
+                    <span className="sched-card__header-title">{title}</span>
+                </div>
+                {headerActions && <div className="sched-card__header-actions">{headerActions}</div>}
+            </div>
+            <div className="sched-card__body">{children}</div>
+        </div>
+    );
+}
+
+function AuthSummaryBar({ unitSummary }) {
+    if (!unitSummary || Object.keys(unitSummary).length === 0) return null;
+    let totalAuth = 0, totalSched = 0;
+    for (const data of Object.values(unitSummary)) {
+        totalAuth += data.authorized || 0;
+        totalSched += data.scheduled || 0;
+    }
+    const totalAuthHrs = Math.round((totalAuth / 4) * 100) / 100;
+    const totalSchedHrs = Math.round((totalSched / 4) * 100) / 100;
+    const remainHrs = Math.round((totalAuthHrs - totalSchedHrs) * 100) / 100;
+    return (
+        <div className="sched-auth-bar">
+            <div className="sched-auth-bar__item">
+                <span className="sched-auth-bar__label">Authorized Hours</span>
+                <span className="sched-auth-bar__value">{totalAuthHrs} hrs</span>
+            </div>
+            <div className="sched-auth-bar__sep" />
+            <div className="sched-auth-bar__item">
+                <span className="sched-auth-bar__label">Scheduled Hours</span>
+                <span className="sched-auth-bar__value sched-auth-bar__value--sched">{totalSchedHrs} hrs</span>
+            </div>
+            <div className="sched-auth-bar__sep" />
+            <div className="sched-auth-bar__item">
+                <span className="sched-auth-bar__label">Hours Remaining</span>
+                <span className={`sched-auth-bar__value ${remainHrs < 0 ? 'sched-auth-bar__value--over' : 'sched-auth-bar__value--remain'}`}>{remainHrs} hrs</span>
+            </div>
             {Object.entries(unitSummary).map(([code, data]) => {
                 const colorInfo = SERVICE_COLORS[code] || { color: '#6B7280', label: code };
-                const overUsed = data.remaining < 0;
                 return (
-                    <div key={code} className="sched-unit-summary__item">
-                        <span className="sched-unit-summary__dot" style={{ background: colorInfo.color }} />
-                        <span className="sched-unit-summary__code">{code}</span>
-                        <span className="sched-unit-summary__numbers">
-                            {data.scheduled}/{data.authorized}u
-                        </span>
-                        <span className={`sched-unit-summary__remaining ${overUsed ? 'sched-unit-summary__remaining--over' : ''}`}>
-                            ({data.remaining >= 0 ? data.remaining : data.remaining} left)
-                        </span>
-                    </div>
+                    <Fragment key={code}>
+                        <div className="sched-auth-bar__sep" />
+                        <div className="sched-auth-bar__item sched-auth-bar__item--service">
+                            <span className="sched-auth-bar__dot" style={{ background: colorInfo.color }} />
+                            <span className="sched-auth-bar__label">{colorInfo.label}</span>
+                            <span className="sched-auth-bar__value">{data.scheduled}/{data.authorized}u</span>
+                        </div>
+                    </Fragment>
                 );
             })}
         </div>
     );
 }
 
-function ScheduleWeekGrid({ shifts, weekStart, onAddShift, onEditShift }) {
+// Helper: get YYYY-MM-DD from a date value.
+// For ISO strings from the server (stored as UTC midnight), extract the UTC date portion
+// so a shift on "2026-03-15T00:00:00.000Z" always shows as March 15 regardless of timezone.
+// For local Date objects (like our days array), use local date.
+function toLocalDateStr(d) {
+    if (typeof d === 'string') {
+        // If it looks like an ISO string with 'T', extract YYYY-MM-DD from the string directly
+        const idx = d.indexOf('T');
+        if (idx === 10) return d.slice(0, 10);
+        return new Date(d).toISOString().slice(0, 10);
+    }
+    // For Date objects (our locally-constructed day array), use local date parts
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function ScheduleTimeGrid({ shifts, weekStart, onAddShift, onEditShift, viewMode, overlapIds }) {
     const days = [];
     const ws = new Date(weekStart + 'T00:00:00');
     for (let i = 0; i < 7; i++) {
@@ -2562,37 +2707,122 @@ function ScheduleWeekGrid({ shifts, weekStart, onAddShift, onEditShift }) {
         d.setDate(ws.getDate() + i);
         days.push(d);
     }
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dayAbbr = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const todayStr = toLocalDateStr(new Date());
+
+    // Determine visible hour range from shifts (default 7 AM – 9 PM)
+    let minHour = 7, maxHour = 21;
+    for (const s of shifts) {
+        if (s.status === 'cancelled') continue;
+        const [sh] = (s.startTime || '09:00').split(':').map(Number);
+        const [eh, em] = (s.endTime || '13:00').split(':').map(Number);
+        const endH = em > 0 ? eh + 1 : eh;
+        if (sh < minHour) minHour = sh;
+        if (endH > maxHour) maxHour = endH;
+    }
+    minHour = Math.max(0, minHour - 1);
+    maxHour = Math.min(24, maxHour + 1);
+    const hours = [];
+    for (let h = minHour; h < maxHour; h++) hours.push(h);
+    const totalMinutes = (maxHour - minHour) * 60;
+
+    const toPercent = (timeStr) => {
+        const [h, m] = timeStr.split(':').map(Number);
+        const mins = h * 60 + m - minHour * 60;
+        return Math.max(0, Math.min(100, (mins / totalMinutes) * 100));
+    };
+
+    const fmtHour = (h) => h === 0 ? '12a' : h < 12 ? `${h}a` : h === 12 ? '12p' : `${h - 12}p`;
 
     return (
-        <div className="sched-week-grid">
+        <div className="sched-tg">
+            {/* Header: hour labels across the top */}
+            <div className="sched-tg__header">
+                <div className="sched-tg__day-gutter" />
+                <div className="sched-tg__hour-strip">
+                    {hours.map(h => (
+                        <span key={h} className="sched-tg__hour-label" style={{ left: `${((h - minHour) / (maxHour - minHour)) * 100}%` }}>
+                            {fmtHour(h)}
+                        </span>
+                    ))}
+                </div>
+            </div>
+
+            {/* Rows: one per day */}
             {days.map((day, i) => {
-                const dateStr = day.toISOString().slice(0, 10);
-                const dayShifts = shifts.filter(s => new Date(s.shiftDate).toISOString().slice(0, 10) === dateStr);
-                const isToday = dateStr === new Date().toISOString().slice(0, 10);
+                const dateStr = toLocalDateStr(day);
+                const isToday = dateStr === todayStr;
+                const dayShifts = shifts.filter(s => toLocalDateStr(s.shiftDate) === dateStr);
+
                 return (
-                    <div key={i} className={`sched-week-grid__day ${isToday ? 'sched-week-grid__day--today' : ''}`}>
-                        <div className="sched-week-grid__day-header">
-                            <span className="sched-week-grid__day-name">{dayNames[i]}</span>
-                            <span className="sched-week-grid__day-date">{day.getMonth() + 1}/{day.getDate()}</span>
+                    <div key={i} className={`sched-tg__row ${isToday ? 'sched-tg__row--today' : ''}`}>
+                        {/* Day label */}
+                        <div className="sched-tg__day-gutter" onClick={() => onAddShift(dateStr)} title="Add shift">
+                            <span className="sched-tg__day-abbr">{dayAbbr[i]}</span>
+                            <span className="sched-tg__day-num">{day.getMonth() + 1}/{day.getDate()}</span>
                         </div>
-                        <div className="sched-week-grid__shifts">
-                            {dayShifts.map(s => {
-                                const colorInfo = SERVICE_COLORS[s.serviceCode] || { color: '#6B7280', bg: '#F3F4F6' };
-                                return (
-                                    <button key={s.id} className={`sched-shift-block ${s.status === 'cancelled' ? 'sched-shift-block--cancelled' : ''}`}
-                                        style={{ borderLeftColor: colorInfo.color, background: colorInfo.bg }}
-                                        onClick={() => onEditShift(s)} title={`${s.serviceCode} — ${s.employee?.name || 'Unassigned'}`}>
-                                        <div className="sched-shift-block__time">{hhmm12(s.startTime)} - {hhmm12(s.endTime)}</div>
-                                        <div className="sched-shift-block__info">{s.client?.clientName || 'Client'}</div>
-                                        <div className="sched-shift-block__employee">{s.employee?.name || ''}</div>
-                                    </button>
-                                );
-                            })}
-                            <button className="sched-add-btn" onClick={() => onAddShift(dateStr)} title="Add shift">
-                                {Icons.plus}
-                            </button>
-                        </div>
+
+                        {/* Timeline area */}
+                        {(() => {
+                            // Pre-compute stacking depths to size the timeline
+                            const blocks = dayShifts.map((s, si) => {
+                                const left = toPercent(s.startTime || '09:00');
+                                let right = toPercent(s.endTime || '13:00');
+                                if (right <= left) right = 100;
+                                return { left, right, width: Math.max(right - left, 2) };
+                            });
+                            let maxStack = 0;
+                            for (let si = 0; si < blocks.length; si++) {
+                                let depth = 0;
+                                for (let oi = 0; oi < si; oi++) {
+                                    if (blocks[si].left < blocks[oi].left + blocks[oi].width && blocks[oi].left < blocks[si].left + blocks[si].width) depth++;
+                                }
+                                if (depth > maxStack) maxStack = depth;
+                            }
+                            const timelineHeight = Math.max(48, 4 + (maxStack + 1) * 30);
+
+                            return (
+                                <div className="sched-tg__timeline" style={{ minHeight: timelineHeight + 'px' }} onClick={(e) => { if (e.target === e.currentTarget) onAddShift(dateStr); }}>
+                                    {hours.map(h => (
+                                        <div key={h} className="sched-tg__vline" style={{ left: `${((h - minHour) / (maxHour - minHour)) * 100}%` }} />
+                                    ))}
+                                    {dayShifts.map((s, si) => {
+                                        const colorInfo = SERVICE_COLORS[s.serviceCode] || { color: '#6B7280', bg: '#F3F4F6', label: s.serviceCode };
+                                        const isOverlap = overlapIds && overlapIds.has(s.id);
+                                        const isCancelled = s.status === 'cancelled';
+                                        const { left, width } = blocks[si];
+
+                                        let depth = 0;
+                                        for (let oi = 0; oi < si; oi++) {
+                                            if (left < blocks[oi].left + blocks[oi].width && blocks[oi].left < left + width) depth++;
+                                        }
+                                        const topOffset = depth * 30;
+
+                                        return (
+                                            <button
+                                                key={s.id}
+                                                className={`sched-tg__block ${isCancelled ? 'sched-tg__block--cancelled' : ''} ${isOverlap ? 'sched-tg__block--overlap' : ''}`}
+                                                style={{
+                                                    left: left + '%',
+                                                    width: width + '%',
+                                                    top: 2 + topOffset + 'px',
+                                                    '--block-color': colorInfo.color,
+                                                    '--block-bg': isOverlap ? 'hsl(0 84% 97%)' : colorInfo.bg,
+                                                }}
+                                                onClick={(e) => { e.stopPropagation(); onEditShift(s); }}
+                                                title={`${colorInfo.label} — ${hhmm12(s.startTime)} - ${hhmm12(s.endTime)} (${s.hours}h)`}
+                                            >
+                                                <span className="sched-tg__block-badge" style={{ background: colorInfo.color }}>{colorInfo.label}</span>
+                                                <span className="sched-tg__block-time">{hhmm12(s.startTime)}-{hhmm12(s.endTime)}</span>
+                                                {viewMode === 'client' && <span className="sched-tg__block-label">{s.displayEmployeeName || 'Unassigned'}</span>}
+                                                {viewMode === 'employee' && <span className="sched-tg__block-label">{s.client?.clientName || ''}</span>}
+                                                {viewMode === 'overview' && <span className="sched-tg__block-label">{s.client?.clientName || ''}</span>}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })()}
                     </div>
                 );
             })}
@@ -2600,20 +2830,73 @@ function ScheduleWeekGrid({ shifts, weekStart, onAddShift, onEditShift }) {
     );
 }
 
+function ScheduleOverviewTable({ shifts, overlapIds, onEditShift }) {
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const sorted = [...shifts].sort((a, b) => {
+        const da = new Date(a.shiftDate).getTime();
+        const db = new Date(b.shiftDate).getTime();
+        if (da !== db) return da - db;
+        return (a.startTime || '').localeCompare(b.startTime || '');
+    });
+
+    return (
+        <div className="sched-overview-table-wrap">
+            <table className="sched-overview-table">
+                <thead>
+                    <tr>
+                        <th>Day</th>
+                        <th>Client</th>
+                        <th>Employee</th>
+                        <th>Service</th>
+                        <th>Time</th>
+                        <th>Hours</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {sorted.length === 0 && (
+                        <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24, color: 'hsl(var(--muted-foreground))' }}>No shifts this week</td></tr>
+                    )}
+                    {sorted.map(s => {
+                        const colorInfo = SERVICE_COLORS[s.serviceCode] || { color: '#6B7280', label: s.serviceCode };
+                        const isOverlap = overlapIds && overlapIds.has(s.id);
+                        const dateStr = toLocalDateStr(s.shiftDate);
+                        const dayIdx = new Date(dateStr + 'T00:00:00').getDay();
+                        return (
+                            <tr key={s.id} className={`sched-overview-table__row ${isOverlap ? 'sched-overview-table__row--overlap' : ''} ${s.status === 'cancelled' ? 'sched-overview-table__row--cancelled' : ''}`} onClick={() => onEditShift(s)} style={{ cursor: 'pointer' }}>
+                                <td>{dayNames[dayIdx]}</td>
+                                <td>{s.client?.clientName || '—'}</td>
+                                <td>{s.displayEmployeeName || '—'}</td>
+                                <td><span className="sched-service-badge" style={{ background: colorInfo.color }}>{colorInfo.label}</span></td>
+                                <td className="sched-overview-table__time">{hhmm12(s.startTime)} - {hhmm12(s.endTime)}</td>
+                                <td>{s.hours}h</td>
+                                <td><span className={`sched-status sched-status--${s.status}`}>{s.status}</span></td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
 function SchedulingPage({ showToast, clients, onRefreshClients }) {
     const [shifts, setShifts] = useState([]);
     const [overlaps, setOverlaps] = useState([]);
+    const [unitSummary, setUnitSummary] = useState({});
     const [unitSummaries, setUnitSummaries] = useState({});
     const [employees, setEmployees] = useState([]);
+    const [freeTextNames, setFreeTextNames] = useState([]);
+    const [clientInfo, setClientInfo] = useState(null);
+    const [employeeInfo, setEmployeeInfo] = useState(null);
     const [weekStart, setWeekStart] = useState(() => {
         const d = new Date();
-        const day = d.getDay();
-        d.setDate(d.getDate() - day);
-        return d.toISOString().slice(0, 10);
+        d.setDate(d.getDate() - d.getDay());
+        return toLocalDateStr(d);
     });
     const [loading, setLoading] = useState(true);
     const [modal, setModal] = useState(null);
-    const [viewBy, setViewBy] = useState('overview'); // overview | client | employee
+    const [viewMode, setViewMode] = useState('overview');
     const [selectedClientId, setSelectedClientId] = useState('');
     const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
 
@@ -2624,33 +2907,74 @@ function SchedulingPage({ showToast, clients, onRefreshClients }) {
         } catch (err) { showToast(err.message, 'error'); }
     }, [showToast]);
 
-    const fetchShifts = useCallback(async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
-            const filters = {};
-            if (viewBy === 'client' && selectedClientId) filters.clientId = selectedClientId;
-            if (viewBy === 'employee' && selectedEmployeeId) filters.employeeId = selectedEmployeeId;
-            const data = await api.getShifts(weekStart, filters);
-            setShifts(data.shifts || []);
-            setOverlaps(data.overlaps || []);
-            setUnitSummaries(data.unitSummaries || {});
+            if (viewMode === 'client' && selectedClientId) {
+                const data = await api.getClientSchedule(selectedClientId, weekStart);
+                setShifts(data.shifts || []);
+                setOverlaps(data.overlaps || []);
+                setUnitSummary(data.unitSummary || {});
+                setUnitSummaries({});
+                setClientInfo(data.client || null);
+                setEmployeeInfo(null);
+            } else if (viewMode === 'employee' && selectedEmployeeId) {
+                // Free-text employee: value starts with "name:"
+                const isFreeText = selectedEmployeeId.startsWith('name:');
+                let data;
+                if (isFreeText) {
+                    const empName = selectedEmployeeId.slice(5);
+                    data = await api.getEmployeeScheduleByName(empName, weekStart);
+                } else {
+                    data = await api.getEmployeeSchedule(selectedEmployeeId, weekStart);
+                }
+                setShifts(data.shifts || []);
+                setOverlaps(data.overlaps || []);
+                setUnitSummary({});
+                setUnitSummaries({});
+                setClientInfo(null);
+                setEmployeeInfo(data.employee || null);
+            } else {
+                const data = await api.getShifts(weekStart, {});
+                setShifts(data.shifts || []);
+                setOverlaps(data.overlaps || []);
+                setUnitSummary({});
+                setUnitSummaries(data.unitSummaries || {});
+                setClientInfo(null);
+                setEmployeeInfo(null);
+                // Extract unique free-text employee names (shifts with no employeeId)
+                const names = new Set();
+                for (const s of (data.shifts || [])) {
+                    if (!s.employeeId && s.employeeName) names.add(s.employeeName);
+                    else if (!s.employeeId && s.displayEmployeeName) names.add(s.displayEmployeeName);
+                }
+                setFreeTextNames([...names].sort());
+            }
         } catch (err) { showToast(err.message, 'error'); }
         finally { setLoading(false); }
-    }, [weekStart, viewBy, selectedClientId, selectedEmployeeId, showToast]);
+    }, [weekStart, viewMode, selectedClientId, selectedEmployeeId, showToast]);
 
     useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
-    useEffect(() => { fetchShifts(); }, [fetchShifts]);
+    useEffect(() => { fetchData(); }, [fetchData]);
+
+    useEffect(() => {
+        setSelectedClientId('');
+        setSelectedEmployeeId('');
+        setClientInfo(null);
+        setEmployeeInfo(null);
+        setUnitSummary({});
+    }, [viewMode]);
 
     const navigateWeek = (dir) => {
         const d = new Date(weekStart + 'T00:00:00');
         d.setDate(d.getDate() + dir * 7);
-        setWeekStart(d.toISOString().slice(0, 10));
+        setWeekStart(toLocalDateStr(d));
     };
 
     const goToday = () => {
         const d = new Date();
         d.setDate(d.getDate() - d.getDay());
-        setWeekStart(d.toISOString().slice(0, 10));
+        setWeekStart(toLocalDateStr(d));
     };
 
     const weekEndDate = (() => {
@@ -2665,20 +2989,53 @@ function SchedulingPage({ showToast, clients, onRefreshClients }) {
                 await api.updateShift(modal.shift.id, data);
                 showToast('Shift updated');
             } else {
-                await api.createShift(data);
-                showToast('Shift created');
+                const result = await api.createShift(data);
+                if (result.count) showToast(`${result.count} recurring shifts created`);
+                else showToast('Shift created');
             }
             setModal(null);
-            fetchShifts();
+            fetchData();
+        } catch (err) {
+            if (err.isOverlap) {
+                setModal(prev => ({ ...prev, overlapWarning: err.message, overlapData: data, overlapConflicts: err.conflicts }));
+            } else {
+                showToast(err.message, 'error');
+            }
+        }
+    };
+
+    const handleForceSaveShift = async () => {
+        if (!modal?.overlapData) return;
+        try {
+            const data = { ...modal.overlapData, force: true };
+            if (modal.shift) {
+                await api.updateShift(modal.shift.id, data);
+                showToast('Shift updated (overlap allowed)');
+            } else {
+                const result = await api.createShift(data);
+                if (result.count) showToast(`${result.count} recurring shifts created (overlaps allowed)`);
+                else showToast('Shift created (overlap allowed)');
+            }
+            setModal(null);
+            fetchData();
         } catch (err) { showToast(err.message, 'error'); }
     };
 
-    const handleDeleteShift = async (shiftId) => {
+    const handleDeleteShift = async (shiftId, deleteGroup = false) => {
         try {
-            await api.deleteShift(shiftId);
-            showToast('Shift deleted');
+            const result = await api.deleteShift(shiftId, { group: deleteGroup });
+            const count = result?.deleted || 1;
+            showToast(count > 1 ? `${count} shifts deleted` : 'Shift deleted');
             setModal(null);
-            fetchShifts();
+            fetchData();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleDeleteAllShifts = async () => {
+        try {
+            const result = await api.deleteAllShifts();
+            showToast(`${result.deleted} shift${result.deleted !== 1 ? 's' : ''} deleted`);
+            fetchData();
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -2689,17 +3046,6 @@ function SchedulingPage({ showToast, clients, onRefreshClients }) {
     const handleEditShift = (shift) => {
         setModal({ type: 'shift', shift });
     };
-
-    // Group shifts by day for the overview table
-    const shiftsByDay = useMemo(() => {
-        const map = {};
-        for (const s of shifts) {
-            const d = new Date(s.shiftDate).toISOString().slice(0, 10);
-            if (!map[d]) map[d] = [];
-            map[d].push(s);
-        }
-        return map;
-    }, [shifts]);
 
     const overlapIds = useMemo(() => {
         const set = new Set();
@@ -2713,20 +3059,30 @@ function SchedulingPage({ showToast, clients, onRefreshClients }) {
         return `${ws.toLocaleDateString('en-US', opts)} — ${weekEndDate.toLocaleDateString('en-US', { ...opts, year: 'numeric' })}`;
     };
 
-    // Combined unit summary for all clients in view
-    const combinedUnitSummary = useMemo(() => {
-        const combined = {};
-        for (const clientId of Object.keys(unitSummaries)) {
-            const summary = unitSummaries[clientId];
-            for (const code of Object.keys(summary)) {
-                if (!combined[code]) combined[code] = { authorized: 0, scheduled: 0, remaining: 0 };
-                combined[code].authorized += summary[code].authorized;
-                combined[code].scheduled += summary[code].scheduled;
-                combined[code].remaining += summary[code].remaining;
+    const displayUnitSummary = useMemo(() => {
+        if (viewMode === 'client' && Object.keys(unitSummary).length > 0) return unitSummary;
+        if (viewMode === 'overview' && Object.keys(unitSummaries).length > 0) {
+            const combined = {};
+            for (const cid of Object.keys(unitSummaries)) {
+                const s = unitSummaries[cid];
+                for (const code of Object.keys(s)) {
+                    if (!combined[code]) combined[code] = { authorized: 0, scheduled: 0, remaining: 0 };
+                    combined[code].authorized += s[code].authorized;
+                    combined[code].scheduled += s[code].scheduled;
+                    combined[code].remaining += s[code].remaining;
+                }
             }
+            return combined;
         }
-        return combined;
-    }, [unitSummaries]);
+        return {};
+    }, [viewMode, unitSummary, unitSummaries]);
+
+    const weekStats = useMemo(() => {
+        const totalHours = shifts.reduce((sum, s) => sum + (s.status !== 'cancelled' ? (s.hours || 0) : 0), 0);
+        const totalUnits = shifts.reduce((sum, s) => sum + (s.status !== 'cancelled' ? (s.units || 0) : 0), 0);
+        const activeShifts = shifts.filter(s => s.status !== 'cancelled').length;
+        return { totalHours: Math.round(totalHours * 100) / 100, totalUnits, activeShifts };
+    }, [shifts]);
 
     return (
         <>
@@ -2734,69 +3090,173 @@ function SchedulingPage({ showToast, clients, onRefreshClients }) {
             <div className="content-header">
                 <h1 className="content-header__title">Scheduling</h1>
                 <div className="content-header__actions">
+                    {shifts.length > 0 && (
+                        <button className="btn btn--outline btn--sm" style={{ color: 'hsl(0 84% 60%)', borderColor: 'hsl(0 84% 80%)' }} onClick={() => setModal({ type: 'confirmDeleteAll' })}>
+                            {Icons.trash} Delete All
+                        </button>
+                    )}
+                    <button className="btn btn--outline btn--sm" title="Send Schedule (Coming Soon)" disabled>
+                        {Icons.share} Send Schedule
+                    </button>
                     <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'shift', shift: null })}>
-                        {Icons.plus} New Shift
+                        {Icons.plus} Add Shift
                     </button>
                 </div>
             </div>
 
             <div className="page-content">
-                {/* Week Navigation */}
-                <div className="sched-week-nav">
-                    <button className="btn btn--outline btn--sm" onClick={() => navigateWeek(-1)}>{Icons.chevronLeft} Prev</button>
-                    <button className="btn btn--outline btn--sm" onClick={goToday}>Today</button>
-                    <span className="sched-week-nav__label">{formatWeekLabel()}</span>
-                    <button className="btn btn--outline btn--sm" onClick={() => navigateWeek(1)}>Next {Icons.chevronRight}</button>
-                </div>
-
-                {/* View Toggle */}
-                <div className="sched-view-toggle">
-                    <button className={`sched-view-toggle__btn ${viewBy === 'overview' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setViewBy('overview')}>Overview</button>
-                    <button className={`sched-view-toggle__btn ${viewBy === 'client' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setViewBy('client')}>By Client</button>
-                    <button className={`sched-view-toggle__btn ${viewBy === 'employee' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setViewBy('employee')}>By Employee</button>
-                </div>
-
-                {/* Filters for client/employee views */}
-                {viewBy === 'client' && (
-                    <div style={{ marginBottom: 16 }}>
-                        <select className="form-input" style={{ maxWidth: 300 }} value={selectedClientId} onChange={e => setSelectedClientId(e.target.value)}>
-                            <option value="">All Clients</option>
-                            {clients.map(c => <option key={c.id} value={c.id}>{c.clientName}</option>)}
-                        </select>
+                {/* Week Nav + View Toggle Row */}
+                <div className="sched-toolbar">
+                    <div className="sched-week-nav">
+                        <button className="btn btn--outline btn--sm" onClick={() => navigateWeek(-1)}>{Icons.chevronLeft}</button>
+                        <button className="btn btn--outline btn--sm" onClick={goToday}>Today</button>
+                        <span className="sched-week-nav__label">{formatWeekLabel()}</span>
+                        <button className="btn btn--outline btn--sm" onClick={() => navigateWeek(1)}>{Icons.chevronRight}</button>
                     </div>
-                )}
-                {viewBy === 'employee' && (
-                    <div style={{ marginBottom: 16 }}>
-                        <select className="form-input" style={{ maxWidth: 300 }} value={selectedEmployeeId} onChange={e => setSelectedEmployeeId(e.target.value)}>
-                            <option value="">All Employees</option>
-                            {employees.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                        </select>
+                    <div className="sched-view-toggle">
+                        <button className={`sched-view-toggle__btn ${viewMode === 'overview' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setViewMode('overview')}>
+                            {Icons.calendar} Overview
+                        </button>
+                        <button className={`sched-view-toggle__btn ${viewMode === 'client' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setViewMode('client')}>
+                            {Icons.user} Client
+                        </button>
+                        <button className={`sched-view-toggle__btn ${viewMode === 'employee' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setViewMode('employee')}>
+                            {Icons.users} Employee
+                        </button>
                     </div>
-                )}
+                </div>
 
                 {/* Overlap Warnings */}
                 {overlaps.length > 0 && (
                     <div className="sched-overlap-warning">
                         {Icons.alertTriangle}
-                        <span>{overlaps.length} overlap{overlaps.length > 1 ? 's' : ''} detected — {overlaps.map(o => `${o.employeeName} on ${o.date}`).join('; ')}</span>
+                        <div>
+                            <strong>Overlap{overlaps.length > 1 ? 's' : ''} Detected ({overlaps.length})</strong>
+                            <div>{overlaps.map((o, i) => <div key={i}>{o.employeeName} — {o.date}</div>)}</div>
+                        </div>
                     </div>
                 )}
 
-                {/* Unit Summary */}
-                {Object.keys(combinedUnitSummary).length > 0 && (
-                    <UnitSummaryBar unitSummary={combinedUnitSummary} />
+                {/* Client View */}
+                {viewMode === 'client' && (
+                    <ScheduleCard
+                        title="Client Schedule"
+                        icon={Icons.user}
+                        headerActions={
+                            <select className="sched-card__select" value={selectedClientId} onChange={e => setSelectedClientId(e.target.value)}>
+                                <option value="">Select a client…</option>
+                                {clients.map(c => <option key={c.id} value={c.id}>{c.clientName}</option>)}
+                            </select>
+                        }
+                    >
+                        {!selectedClientId ? (
+                            <div className="sched-prompt">
+                                {Icons.user}
+                                <div>Select a client to view their weekly schedule and authorization tracking.</div>
+                            </div>
+                        ) : loading ? (
+                            <div className="sched-prompt">Loading…</div>
+                        ) : (
+                            <>
+                                {clientInfo && (
+                                    <div className="sched-client-info">
+                                        <div className="sched-client-info__details">
+                                            {clientInfo.address && <span className="sched-client-info__tag">{Icons.layoutDashboard} {clientInfo.address}</span>}
+                                            {clientInfo.phone && <span className="sched-client-info__tag">{Icons.user} {clientInfo.phone}</span>}
+                                            {clientInfo.gateCode && <span className="sched-client-info__tag sched-client-info__tag--gate">Gate: {clientInfo.gateCode}</span>}
+                                        </div>
+                                        {clientInfo.notes && <div className="sched-client-info__notes">{clientInfo.notes}</div>}
+                                    </div>
+                                )}
+                                <AuthSummaryBar unitSummary={displayUnitSummary} />
+                                <ScheduleTimeGrid shifts={shifts} weekStart={weekStart} onAddShift={handleAddShift} onEditShift={handleEditShift} viewMode="client" overlapIds={overlapIds} />
+                            </>
+                        )}
+                    </ScheduleCard>
                 )}
 
-                {/* Week Grid */}
-                {loading ? (
-                    <div style={{ textAlign: 'center', padding: 40, color: 'hsl(var(--muted-foreground))' }}>Loading shifts…</div>
-                ) : (
-                    <ScheduleWeekGrid
-                        shifts={shifts}
-                        weekStart={weekStart}
-                        onAddShift={handleAddShift}
-                        onEditShift={handleEditShift}
-                    />
+                {/* Employee View */}
+                {viewMode === 'employee' && (
+                    <ScheduleCard
+                        title="Employee Schedule"
+                        icon={Icons.users}
+                        headerActions={
+                            <select className="sched-card__select" value={selectedEmployeeId} onChange={e => setSelectedEmployeeId(e.target.value)}>
+                                <option value="">Select an employee…</option>
+                                {employees.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                {freeTextNames.length > 0 && <option disabled>── Free-text employees ──</option>}
+                                {freeTextNames.map(n => <option key={'name:' + n} value={'name:' + n}>{n}</option>)}
+                            </select>
+                        }
+                    >
+                        {!selectedEmployeeId ? (
+                            <div className="sched-prompt">
+                                {Icons.users}
+                                <div>Select an employee to view their schedule and detect overlaps.</div>
+                            </div>
+                        ) : loading ? (
+                            <div className="sched-prompt">Loading…</div>
+                        ) : (
+                            <>
+                                {employeeInfo && (
+                                    <div className="sched-employee-info">
+                                        <strong>{employeeInfo.name}</strong>
+                                        {employeeInfo.phone && <span> — {employeeInfo.phone}</span>}
+                                        {employeeInfo.email && <span> — {employeeInfo.email}</span>}
+                                    </div>
+                                )}
+                                <ScheduleTimeGrid shifts={shifts} weekStart={weekStart} onAddShift={handleAddShift} onEditShift={handleEditShift} viewMode="employee" overlapIds={overlapIds} />
+                            </>
+                        )}
+                    </ScheduleCard>
+                )}
+
+                {/* Overview: Week Stats + Schedule Table + Data Table */}
+                {viewMode === 'overview' && (
+                    <>
+                        {!loading && shifts.length > 0 && (
+                            <div className="sched-stats-bar">
+                                <div className="sched-stats-bar__item">
+                                    <span className="sched-stats-bar__value">{weekStats.activeShifts}</span>
+                                    <span className="sched-stats-bar__label">shifts</span>
+                                </div>
+                                <div className="sched-stats-bar__item">
+                                    <span className="sched-stats-bar__value">{weekStats.totalHours}</span>
+                                    <span className="sched-stats-bar__label">hours</span>
+                                </div>
+                                <div className="sched-stats-bar__item">
+                                    <span className="sched-stats-bar__value">{weekStats.totalUnits}</span>
+                                    <span className="sched-stats-bar__label">units</span>
+                                </div>
+                                {overlaps.length > 0 && (
+                                    <div className="sched-stats-bar__item sched-stats-bar__item--warn">
+                                        <span className="sched-stats-bar__value">{overlaps.length}</span>
+                                        <span className="sched-stats-bar__label">overlap{overlaps.length > 1 ? 's' : ''}</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        <AuthSummaryBar unitSummary={displayUnitSummary} />
+                        {loading ? (
+                            <div style={{ textAlign: 'center', padding: 40, color: 'hsl(var(--muted-foreground))' }}>Loading shifts…</div>
+                        ) : (
+                            <>
+                                <ScheduleTimeGrid shifts={shifts} weekStart={weekStart} onAddShift={handleAddShift} onEditShift={handleEditShift} viewMode="overview" overlapIds={overlapIds} />
+                                {shifts.length === 0 && (
+                                    <div style={{ textAlign: 'center', padding: 32, color: 'hsl(var(--muted-foreground))' }}>
+                                        No shifts scheduled this week. Click + on any day to get started.
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {/* Weekly Schedule Overview Table */}
+                        {!loading && shifts.length > 0 && (
+                            <ScheduleCard title="Weekly Schedule Overview" icon={Icons.table}>
+                                <ScheduleOverviewTable shifts={shifts} overlapIds={overlapIds} onEditShift={handleEditShift} />
+                            </ScheduleCard>
+                        )}
+                    </>
                 )}
 
                 {/* Service Legend */}
@@ -2804,85 +3264,75 @@ function SchedulingPage({ showToast, clients, onRefreshClients }) {
                     {Object.entries(SERVICE_COLORS).map(([code, info]) => (
                         <span key={code} className="sched-legend__item">
                             <span className="sched-legend__dot" style={{ background: info.color }} />
-                            {code} — {info.label}
+                            {info.label}
                         </span>
                     ))}
                 </div>
-
-                {/* Overview Table */}
-                {!loading && shifts.length > 0 && (
-                    <div className="sheet-card" style={{ marginTop: 24 }}>
-                        <div className="sheet-card__header">
-                            <div className="sheet-card__title">Weekly Shifts ({shifts.length})</div>
-                        </div>
-                        <div className="table-scroll">
-                            <table className="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Day</th>
-                                        <th>Client</th>
-                                        <th>Employee</th>
-                                        <th>Service</th>
-                                        <th>Time</th>
-                                        <th>Hours</th>
-                                        <th>Units</th>
-                                        <th>Status</th>
-                                        <th style={{ width: 80 }}>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {shifts.map(s => {
-                                        const colorInfo = SERVICE_COLORS[s.serviceCode] || { color: '#6B7280' };
-                                        const isOverlap = overlapIds.has(s.id);
-                                        const dateObj = new Date(s.shiftDate);
-                                        return (
-                                            <tr key={s.id} className={isOverlap ? 'sched-row--overlap' : ''}>
-                                                <td>{dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' })}</td>
-                                                <td>{s.client?.clientName || ''}</td>
-                                                <td>{s.employee?.name || ''}</td>
-                                                <td>
-                                                    <span className="sched-service-badge" style={{ background: colorInfo.color }}>
-                                                        {s.serviceCode}
-                                                    </span>
-                                                </td>
-                                                <td>{hhmm12(s.startTime)} - {hhmm12(s.endTime)}</td>
-                                                <td>{s.hours}</td>
-                                                <td>{s.units}</td>
-                                                <td>
-                                                    <span className={`sched-status sched-status--${s.status}`}>{s.status}</span>
-                                                </td>
-                                                <td>
-                                                    <div style={{ display: 'flex', gap: 4 }}>
-                                                        <button className="btn btn--outline btn--xs" onClick={() => handleEditShift(s)} title="Edit">{Icons.edit}</button>
-                                                        <button className="btn btn--outline btn--xs" onClick={() => handleDeleteShift(s.id)} title="Delete" style={{ color: 'hsl(0 84% 60%)' }}>{Icons.trash}</button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
-
-                {!loading && shifts.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: 40, color: 'hsl(var(--muted-foreground))' }}>
-                        No shifts scheduled for this week. Click "New Shift" to get started.
-                    </div>
-                )}
             </div>
 
             {/* Shift Modal */}
-            {modal?.type === 'shift' && (
+            {modal?.type === 'shift' && !modal.overlapWarning && (
                 <ShiftFormModal
                     shift={modal.shift}
                     defaultDate={modal.defaultDate}
+                    defaultClientId={viewMode === 'client' ? selectedClientId : ''}
+                    defaultEmployeeId={viewMode === 'employee' ? selectedEmployeeId : ''}
                     clients={clients}
                     employees={employees}
                     onSave={handleSaveShift}
+                    onDelete={handleDeleteShift}
                     onClose={() => setModal(null)}
                 />
+            )}
+
+            {/* Overlap Confirmation Modal */}
+            {modal?.type === 'shift' && modal.overlapWarning && (
+                <Modal onClose={() => setModal(prev => ({ ...prev, overlapWarning: null, overlapData: null, overlapConflicts: null }))}>
+                    <h2 className="modal__title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ color: 'hsl(38 92% 50%)' }}>{Icons.alertTriangle}</span> Overlap Detected
+                    </h2>
+                    <div className="sched-overlap-confirm">
+                        <p className="sched-overlap-confirm__msg">{modal.overlapWarning}</p>
+                        {modal.overlapConflicts && modal.overlapConflicts.length > 0 && (
+                            <div className="sched-overlap-confirm__list">
+                                {modal.overlapConflicts.map((c, i) => (
+                                    <div key={i} className="sched-overlap-confirm__item">
+                                        <strong>{c.date}</strong> — conflicts with {c.conflictWith.clientName} ({hhmm12(c.conflictWith.startTime)} - {hhmm12(c.conflictWith.endTime)})
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', margin: '12px 0 0' }}>
+                            Do you want to create this shift anyway?
+                        </p>
+                    </div>
+                    <div className="form-actions">
+                        <button className="btn btn--outline" onClick={() => setModal(prev => ({ ...prev, overlapWarning: null, overlapData: null, overlapConflicts: null }))}>
+                            Go Back
+                        </button>
+                        <button className="btn" style={{ background: 'hsl(38 92% 50%)', color: '#fff' }} onClick={handleForceSaveShift}>
+                            Create Anyway
+                        </button>
+                    </div>
+                </Modal>
+            )}
+
+            {/* Delete All Confirmation Modal */}
+            {modal?.type === 'confirmDeleteAll' && (
+                <Modal onClose={() => setModal(null)}>
+                    <h2 className="modal__title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ color: 'hsl(0 84% 60%)' }}>{Icons.alertTriangle}</span> Delete All Shifts
+                    </h2>
+                    <p style={{ fontSize: 14, color: 'hsl(var(--foreground))', margin: '8px 0 16px' }}>
+                        This will permanently delete <strong>all {shifts.length} shift{shifts.length !== 1 ? 's' : ''}</strong>. This action cannot be undone.
+                    </p>
+                    <div className="form-actions">
+                        <button className="btn btn--outline" onClick={() => setModal(null)}>Cancel</button>
+                        <button className="btn" style={{ background: 'hsl(0 84% 60%)', color: '#fff' }} onClick={() => { handleDeleteAllShifts(); setModal(null); }}>
+                            Delete All Shifts
+                        </button>
+                    </div>
+                </Modal>
             )}
         </>
     );
@@ -2967,8 +3417,6 @@ function Sidebar({ activePage, onNavigate, user, onLogout, collapsed, onToggleCo
 // ────────────────────────────────────────
 // Main App
 // ────────────────────────────────────────
-const ROWS_PER_PAGE = 25;
-
 // ── Hash router helpers ─────────────────────────────────────
 // Hash scheme: #dashboard | #timesheets | #payroll | #payroll/runs/42 | ...
 function parseHash() {
@@ -2992,7 +3440,6 @@ export default function App() {
         () => localStorage.getItem('sidebarCollapsed') === 'true'
     );
     const [statusFilter, setStatusFilter] = useState('All');
-    const [currentPage, setCurrentPage] = useState(1);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [route, setRoute] = useState(parseHash);   // { page, runId }
@@ -3183,9 +3630,7 @@ export default function App() {
         const matchesSearch = !searchLower || c.clientName.toLowerCase().includes(searchLower) || (c.medicaidId || '').toLowerCase().includes(searchLower);
         return matchesStatus && matchesSearch;
     });
-    const totalPages = Math.max(1, Math.ceil(filteredClients.length / ROWS_PER_PAGE));
-    const safePage = Math.min(currentPage, totalPages);
-    const paginatedClients = filteredClients.slice((safePage - 1) * ROWS_PER_PAGE, safePage * ROWS_PER_PAGE);
+    const displayedClients = filteredClients;
 
     const toggleSelect = (id) => {
         setSelectedIds((prev) => {
@@ -3196,18 +3641,17 @@ export default function App() {
     };
 
     const toggleSelectAll = () => {
-        const pageIds = paginatedClients.map(c => c.id);
-        const allSelected = pageIds.every(id => selectedIds.has(id));
+        const allIds = displayedClients.map(c => c.id);
+        const allSelected = allIds.every(id => selectedIds.has(id));
         setSelectedIds((prev) => {
             const next = new Set(prev);
-            pageIds.forEach(id => allSelected ? next.delete(id) : next.add(id));
+            allIds.forEach(id => allSelected ? next.delete(id) : next.add(id));
             return next;
         });
     };
 
     const handleFilterChange = (filter) => {
         setStatusFilter(filter);
-        setCurrentPage(1);
     };
 
     // Insurance type names for the client form dropdown
@@ -3265,7 +3709,7 @@ export default function App() {
                                     className="search-input"
                                     placeholder="Search clients…"
                                     value={searchQuery}
-                                    onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
                                 />
                                 <button className="btn btn--outline btn--sm" onClick={() => setModal({ type: 'bulkImport' })}>
                                     {Icons.download} Import
@@ -3378,7 +3822,7 @@ export default function App() {
                                                         <th style={{ width: 36 }}>
                                                             <input
                                                                 type="checkbox"
-                                                                checked={paginatedClients.length > 0 && paginatedClients.every(c => selectedIds.has(c.id))}
+                                                                checked={displayedClients.length > 0 && displayedClients.every(c => selectedIds.has(c.id))}
                                                                 onChange={toggleSelectAll}
                                                                 style={{ cursor: 'pointer' }}
                                                             />
@@ -3400,7 +3844,7 @@ export default function App() {
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {paginatedClients.map((client) => {
+                                                    {displayedClients.map((client) => {
                                                         const isOpen = expandedIds.has(client.id);
                                                         return (
                                                             <>
@@ -3538,45 +3982,9 @@ export default function App() {
                                         </div>
                                         <div className="table-info-bar">
                                             <span>
-                                                Showing {(safePage - 1) * ROWS_PER_PAGE + 1}–{Math.min(safePage * ROWS_PER_PAGE, filteredClients.length)} of {filteredClients.length} client(s)
+                                                Showing {filteredClients.length} client(s)
                                                 {statusFilter !== 'All' && ` (filtered: ${statusFilter})`}
                                             </span>
-                                            <div className="pagination">
-                                                <button
-                                                    className="btn btn--outline btn--sm"
-                                                    disabled={safePage <= 1}
-                                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                                >
-                                                    ← Prev
-                                                </button>
-                                                {Array.from({ length: totalPages }, (_, i) => i + 1)
-                                                    .filter(p => p === 1 || p === totalPages || Math.abs(p - safePage) <= 2)
-                                                    .reduce((acc, p, idx, arr) => {
-                                                        if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
-                                                        acc.push(p);
-                                                        return acc;
-                                                    }, [])
-                                                    .map((p, i) =>
-                                                        p === '...' ? (
-                                                            <span key={`dots-${i}`} className="pagination__dots">…</span>
-                                                        ) : (
-                                                            <button
-                                                                key={p}
-                                                                className={`btn btn--sm ${p === safePage ? 'btn--primary' : 'btn--outline'}`}
-                                                                onClick={() => setCurrentPage(p)}
-                                                            >
-                                                                {p}
-                                                            </button>
-                                                        )
-                                                    )}
-                                                <button
-                                                    className="btn btn--outline btn--sm"
-                                                    disabled={safePage >= totalPages}
-                                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                                >
-                                                    Next →
-                                                </button>
-                                            </div>
                                         </div>
                                     </>
                                 )}

@@ -63,6 +63,8 @@ const {
     deleteShift,
     getClientSchedule,
     getEmployeeSchedule,
+    getEmployeeScheduleByName,
+    deleteAllShifts,
 } = require('../controllers/schedulingController');
 const { authenticate, requireRole } = require('../middleware/authMiddleware');
 
@@ -131,9 +133,11 @@ router.patch('/payroll/visits/:id',        requireRole('admin'), updatePayrollVi
 // Scheduling (admin only)
 router.get('/shifts',                       requireRole('admin'), listShifts);
 router.get('/shifts/client/:clientId',      requireRole('admin'), getClientSchedule);
+router.get('/shifts/employee-by-name',       requireRole('admin'), getEmployeeScheduleByName);
 router.get('/shifts/employee/:employeeId',  requireRole('admin'), getEmployeeSchedule);
 router.post('/shifts',                      requireRole('admin'), createShift);
 router.put('/shifts/:id',                   requireRole('admin'), updateShift);
+router.delete('/shifts/all',                requireRole('admin'), deleteAllShifts);
 router.delete('/shifts/:id',                requireRole('admin'), deleteShift);
 
 module.exports = router;

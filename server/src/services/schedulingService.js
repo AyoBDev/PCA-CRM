@@ -30,12 +30,27 @@ function computeShiftHours(startTime, endTime) {
  * Detect overlapping shifts for the same employee on the same date.
  * Returns array of { shiftA: id, shiftB: id, employeeName, date }.
  */
+/**
+ * Get display name for an employee from a shift record.
+ * Prefers linked user name, falls back to employeeName field.
+ */
+function getEmployeeDisplayName(shift) {
+    return shift.employee?.name || shift.employeeName || '';
+}
+
+/**
+ * Detect overlapping shifts for the same employee on the same date.
+ * Groups by employeeId (if linked) or employeeName (if free-text).
+ * Returns array of { shiftA: id, shiftB: id, employeeName, date }.
+ */
 function detectOverlaps(shifts) {
     const overlaps = [];
-    // Group by employeeId + shiftDate
     const groups = {};
     for (const s of shifts) {
-        const key = `${s.employeeId}_${new Date(s.shiftDate).toISOString().slice(0, 10)}`;
+        // Group by employeeId if present, otherwise by normalized employeeName
+        const empKey = s.employeeId ? `id_${s.employeeId}` : `name_${(s.employeeName || '').toLowerCase().trim()}`;
+        if (!empKey || empKey === 'name_') continue; // skip if no employee info
+        const key = `${empKey}_${new Date(s.shiftDate).toISOString().slice(0, 10)}`;
         if (!groups[key]) groups[key] = [];
         groups[key].push(s);
     }
@@ -50,7 +65,7 @@ function detectOverlaps(shifts) {
                     overlaps.push({
                         shiftA: a.id,
                         shiftB: b.id,
-                        employeeName: a.employee?.name || '',
+                        employeeName: getEmployeeDisplayName(a),
                         date: new Date(a.shiftDate).toISOString().slice(0, 10),
                     });
                 }
@@ -97,12 +112,13 @@ function computeUnitSummary(shifts, authorizations) {
  * Get week range (Sunday to Saturday) from a date string.
  */
 function getWeekRange(dateStr) {
-    const d = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
-    const day = d.getDay(); // 0=Sun
+    // Use UTC to avoid timezone shifts that move the date by a day
+    const d = dateStr ? new Date(dateStr + 'T00:00:00.000Z') : new Date();
+    const day = d.getUTCDay(); // 0=Sun
     const weekStart = new Date(d);
-    weekStart.setDate(d.getDate() - day);
+    weekStart.setUTCDate(d.getUTCDate() - day);
     const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
     return {
         weekStart: weekStart.toISOString().slice(0, 10),
         weekEnd: weekEnd.toISOString().slice(0, 10),
@@ -119,6 +135,7 @@ function enrichShift(shift) {
         serviceColor: colorInfo.color,
         serviceBg: colorInfo.bg,
         serviceLabel: colorInfo.label,
+        displayEmployeeName: shift.employee?.name || shift.employeeName || '',
     };
 }
 
@@ -126,6 +143,7 @@ module.exports = {
     SERVICE_COLOR_MAP,
     computeShiftHours,
     detectOverlaps,
+    getEmployeeDisplayName,
     computeUnitSummary,
     getWeekRange,
     enrichShift,
