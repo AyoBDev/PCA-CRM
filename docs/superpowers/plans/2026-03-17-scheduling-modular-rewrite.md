@@ -109,6 +109,19 @@ export function daysClass(days) {
     if (days <= 60) return 'days-soon';
     return 'days-ok';
 }
+
+export function getWeekRange(dateStr) {
+    const d = dateStr ? new Date(dateStr + 'T00:00:00Z') : new Date();
+    const day = d.getUTCDay();
+    const sunday = new Date(d);
+    sunday.setUTCDate(d.getUTCDate() - day);
+    const saturday = new Date(sunday);
+    saturday.setUTCDate(sunday.getUTCDate() + 6);
+    return {
+        weekStart: sunday.toISOString().split('T')[0],
+        weekEnd: saturday.toISOString().split('T')[0],
+    };
+}
 ```
 
 - [ ] **Step 2: Create `client/src/utils/time.js`**
@@ -129,6 +142,15 @@ export function hhmm12(t) {
 export function statusLabel(s) {
     if (!s) return '';
     return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+export function visitRowClass(visit) {
+    if (visit.needsReview) return 'payroll-row--needs-review';
+    if (visit.voidFlag) return 'payroll-row--void';
+    if (visit.isIncomplete) return 'payroll-row--incomplete';
+    if (visit.isUnauthorized) return 'payroll-row--unauthorized';
+    if (visit.overlapId) return 'payroll-row--overlap';
+    return '';
 }
 ```
 
@@ -408,6 +430,8 @@ export default function Sidebar() {
 
 **Critical:** Do NOT add `style={{ position: 'relative' }}` to the `<aside>` element. The sidebar uses CSS `position: fixed`.
 
+**Nav order update:** Update sidebar navigation items to match the new order: Dashboard, Scheduling, Timesheets, Payroll, Clients, Employees, Insurance Types, Services, Users. Add "Clients" and "Employees" as new nav items (Clients was previously embedded in Dashboard, Employees is entirely new).
+
 - [ ] **Step 2: Create `client/src/components/layout/Layout.jsx`**
 
 ```jsx
@@ -433,6 +457,39 @@ Note: The `app` div needs the `app--sidebar-collapsed` class toggled. Read the S
 
 ```bash
 git add client/src/components/layout/ && git commit -m "refactor: extract Sidebar and Layout components"
+```
+
+---
+
+### Task 5b: Extract Pagination component
+
+**Files:**
+- Create: `client/src/components/common/Pagination.jsx`
+- Source: Pagination logic used in client list, timesheets list, etc. in `client/src/App.jsx`
+
+- [ ] **Step 1: Create `client/src/components/common/Pagination.jsx`**
+
+Extract any shared pagination logic (25 rows per page, page navigation buttons) into a reusable component:
+
+```jsx
+export default function Pagination({ page, totalPages, onPageChange }) {
+    if (totalPages <= 1) return null;
+    return (
+        <div className="pagination">
+            <button disabled={page <= 1} onClick={() => onPageChange(page - 1)}>Prev</button>
+            <span>Page {page} of {totalPages}</span>
+            <button disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Next</button>
+        </div>
+    );
+}
+```
+
+Verify exact markup against existing pagination in App.jsx before writing — copy the exact pattern used.
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add client/src/components/common/Pagination.jsx && git commit -m "refactor: extract Pagination component"
 ```
 
 ---
@@ -2643,6 +2700,126 @@ Change the Save button: if `authInfo.remaining < units`, show "Save Anyway" inst
 
 ```bash
 git add client/src/pages/scheduling/ShiftFormModal.jsx && git commit -m "feat: add real-time auth validation to ShiftFormModal"
+```
+
+---
+
+### Task 32b: Add auto-notification on caregiver swap and cancellation
+
+**Files:**
+- Modify: `server/src/controllers/schedulingController.js`
+
+- [ ] **Step 1: Add auto-notify logic to updateShift**
+
+In `updateShift`, when `employeeId` changes (caregiver swap), auto-create ScheduleNotification records for both old and new employee:
+
+```js
+// After successful shift update, check if employee changed
+if (oldShift.employeeId !== updatedShift.employeeId) {
+    // Notify old employee
+    await autoNotify(oldShift.employeeId, updatedShift.shiftDate, req);
+    // Notify new employee
+    await autoNotify(updatedShift.employeeId, updatedShift.shiftDate, req);
+}
+```
+
+- [ ] **Step 2: Add auto-notify logic to deleteShift**
+
+In `deleteShift`, when a shift is cancelled or deleted, auto-create a ScheduleNotification for the affected employee:
+
+```js
+// Before deleting, capture employee info
+const shift = await prisma.shift.findUnique({ where: { id }, include: { employee: true } });
+// After delete
+await autoNotify(shift.employeeId, shift.shiftDate, req);
+```
+
+- [ ] **Step 3: Create autoNotify helper**
+
+```js
+async function autoNotify(employeeId, shiftDate, req) {
+    const { isSmsConfigured, isEmailConfigured, sendSms, sendEmail } = require('../services/notificationService');
+    const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+    if (!employee) return;
+
+    const { weekStart: ws } = getWeekRange(shiftDate.toISOString().split('T')[0]);
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+
+    if (isSmsConfigured() && employee.phone) {
+        const notification = await prisma.scheduleNotification.create({
+            data: { employeeId, weekStart: new Date(ws), method: 'sms', destination: employee.phone },
+        });
+        const confirmUrl = `${baseUrl}/schedule/confirm/${notification.confirmationToken}`;
+        try {
+            await sendSms(employee.phone, `NV Best PCA - Your schedule has been updated. View: ${confirmUrl}`);
+            await prisma.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'sent', sentAt: new Date() } });
+        } catch (err) {
+            await prisma.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'failed', failureReason: err.message } });
+        }
+    }
+
+    if (isEmailConfigured() && employee.email) {
+        const notification = await prisma.scheduleNotification.create({
+            data: { employeeId, weekStart: new Date(ws), method: 'email', destination: employee.email },
+        });
+        const confirmUrl = `${baseUrl}/schedule/confirm/${notification.confirmationToken}`;
+        try {
+            await sendEmail(employee.email, 'Schedule Updated', `<p>Your schedule has been updated. <a href="${confirmUrl}">View & Confirm</a></p>`, `Schedule updated: ${confirmUrl}`);
+            await prisma.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'sent', sentAt: new Date() } });
+        } catch (err) {
+            await prisma.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'failed', failureReason: err.message } });
+        }
+    }
+}
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add server/src/controllers/schedulingController.js && git commit -m "feat: auto-notify employees on caregiver swap and shift cancellation"
+```
+
+---
+
+### Task 32c: Finalize Shift schema — make employeeId required, remove employeeName
+
+**Files:**
+- Modify: `server/prisma/schema.prisma`
+
+This task should only be run AFTER the migration script (Task 20) has been executed and all shifts are linked to Employee records.
+
+- [ ] **Step 1: Update Shift model in schema**
+
+Change `employeeId` from `Int?` to `Int` (required). Remove `employeeName` field entirely.
+
+```prisma
+model Shift {
+  // ...
+  employeeId       Int       @map("employee_id")
+  employee         Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  // Remove: employeeName  String  @default("") @map("employee_name")
+  // ...
+}
+```
+
+- [ ] **Step 2: Run migration**
+
+```bash
+cd server && npx prisma migrate dev --name finalize_shift_employee_fk
+```
+
+- [ ] **Step 3: Verify no data loss**
+
+```bash
+cd server && node -e "const p = require('./src/lib/prisma'); p.shift.findMany({ where: { employeeId: null } }).then(s => console.log('Orphaned shifts:', s.length)).then(() => p.\$disconnect())"
+```
+
+Expected: `Orphaned shifts: 0`
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add server/prisma/ && git commit -m "schema: make Shift.employeeId required, remove employeeName"
 ```
 
 ---
