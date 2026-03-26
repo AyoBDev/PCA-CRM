@@ -24,3 +24,10 @@ export function getWeekRange(dateStr) {
         weekEnd: saturday.toISOString().split('T')[0],
     };
 }
+
+export function formatWeek(dateStr) {
+    const s = new Date(dateStr + 'T00:00:00');
+    const e = new Date(s); e.setDate(s.getDate() + 6);
+    const fmt = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `${fmt(s)} – ${fmt(e)}, ${s.getFullYear()}`;
+}
