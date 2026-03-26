@@ -1,0 +1,762 @@
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
+import * as api from '../api';
+import * as XLSX from 'xlsx';
+import Icons from '../components/common/Icons';
+import Modal from '../components/common/Modal';
+import ConfirmModal from '../components/common/ConfirmModal';
+import { fmtDate, daysClass } from '../utils/dates';
+import { statusLabel } from '../utils/status';
+
+// ── Client Form Modal ──
+function ClientFormModal({ client, onSave, onClose, insuranceTypeNames }) {
+    const [name, setName] = useState(client?.clientName || '');
+    const [medicaidId, setMedicaidId] = useState(client?.medicaidId || '');
+    const [insuranceType, setInsuranceType] = useState(client?.insuranceType || 'MEDICAID');
+    const isEdit = !!client;
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if (name.trim()) onSave({ clientName: name.trim(), medicaidId: medicaidId.trim(), insuranceType });
+    };
+
+    return (
+        <Modal onClose={onClose}>
+            <h2 className="modal__title">{isEdit ? 'Edit Client' : 'Add New Client'}</h2>
+            <p className="modal__desc">{isEdit ? 'Update the client details below.' : 'Fill in the details to create a new client.'}</p>
+            <form onSubmit={handleSubmit}>
+                <div className="form-group">
+                    <label htmlFor="clientName">Client Name</label>
+                    <input id="clientName" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter client name…" autoFocus required />
+                </div>
+                <div className="form-group">
+                    <label htmlFor="medicaidId">Medicaid ID</label>
+                    <input id="medicaidId" type="text" value={medicaidId} onChange={(e) => setMedicaidId(e.target.value)} placeholder="e.g. MED-001" />
+                </div>
+                <div className="form-group">
+                    <label htmlFor="insuranceType">Insurance Type</label>
+                    <select id="insuranceType" value={insuranceType} onChange={(e) => setInsuranceType(e.target.value)}>
+                        {insuranceTypeNames.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                </div>
+                <div className="form-actions">
+                    <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn--primary">{isEdit ? 'Save Changes' : 'Add Client'}</button>
+                </div>
+            </form>
+        </Modal>
+    );
+}
+
+// ── Authorization Form Modal ──
+function AuthFormModal({ auth, clientId, onSave, onClose }) {
+    const [serviceCategory, setServiceCategory] = useState(auth?.serviceCategory || '');
+    const [serviceCode, setServiceCode] = useState(auth?.serviceCode || 'PCS');
+    const [serviceName, setServiceName] = useState(auth?.serviceName || '');
+    const [authorizedUnits, setAuthorizedUnits] = useState(auth?.authorizedUnits || '');
+    const [startDate, setStartDate] = useState(
+        auth?.authorizationStartDate ? new Date(auth.authorizationStartDate).toISOString().split('T')[0] : ''
+    );
+    const [endDate, setEndDate] = useState(
+        auth?.authorizationEndDate ? new Date(auth.authorizationEndDate).toISOString().split('T')[0] : ''
+    );
+    const [notes, setNotes] = useState(auth?.notes || '');
+    const isEdit = !!auth;
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onSave({
+            serviceCategory,
+            serviceCode,
+            serviceName,
+            authorizedUnits: parseInt(authorizedUnits) || 0,
+            authorizationStartDate: startDate || null,
+            authorizationEndDate: endDate || null,
+            notes,
+        });
+    };
+
+    return (
+        <Modal onClose={onClose} wide>
+            <h2 className="modal__title">{isEdit ? 'Edit Authorization' : 'Add Authorization'}</h2>
+            <p className="modal__desc">{isEdit ? 'Update the authorization details below.' : 'Fill in the service and date details.'}</p>
+            <form onSubmit={handleSubmit}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="form-group">
+                        <label>Service Category</label>
+                        <input type="text" value={serviceCategory} onChange={(e) => setServiceCategory(e.target.value)} placeholder="PCS, WAIVER 58…" />
+                    </div>
+                    <div className="form-group">
+                        <label>Service Code</label>
+                        <select value={serviceCode} onChange={(e) => setServiceCode(e.target.value)}>
+                            <option value="PCS">PCS</option>
+                            <option value="SDPC">SDPC</option>
+                            <option value="TIMESHEETS">TIMESHEETS</option>
+                            <option value="S5125">S5125 — Attendant Care</option>
+                            <option value="S5130">S5130 — Homemaker</option>
+                            <option value="S5135">S5135 — Companion</option>
+                            <option value="S5150">S5150 — Respite</option>
+                        </select>
+                    </div>
+                </div>
+                <div className="form-group">
+                    <label>Service Name</label>
+                    <input type="text" value={serviceName} onChange={(e) => setServiceName(e.target.value)} placeholder="Personal Care Services" />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                    <div className="form-group">
+                        <label>Auth Units</label>
+                        <input type="number" value={authorizedUnits} onChange={(e) => setAuthorizedUnits(e.target.value)} placeholder="0" />
+                    </div>
+                    <div className="form-group">
+                        <label>Auth Start</label>
+                        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                        <label>Auth End</label>
+                        <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
+                    </div>
+                </div>
+                <div className="form-group">
+                    <label>Notes</label>
+                    <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes…" />
+                </div>
+                <div className="form-actions">
+                    <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn--primary">{isEdit ? 'Save Changes' : 'Add Authorization'}</button>
+                </div>
+            </form>
+        </Modal>
+    );
+}
+
+// ── Bulk Import Modal ──
+function BulkImportModal({ onImport, onClose }) {
+    const fileRef = useRef(null);
+    const [preview, setPreview] = useState(null);
+    const [error, setError] = useState('');
+    const [fileName, setFileName] = useState('');
+
+    const excelDateToString = (v) => {
+        if (!v && v !== 0) return '';
+        if (typeof v === 'number') {
+            const d = XLSX.SSF.parse_date_code(v);
+            if (d) return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`;
+        }
+        const str = String(v).trim();
+        if (!str) return '';
+        const dt = new Date(str);
+        return isNaN(dt.getTime()) ? '' : dt.toISOString().slice(0, 10);
+    };
+
+    const parseParentChildRows = (rawRows) => {
+        const clients = [];
+        let current = null;
+
+        for (let i = 1; i < rawRows.length; i++) {
+            const row = rawRows[i];
+            const hasContent = row.some(cell => cell !== '' && cell !== undefined && cell !== null);
+            if (!hasContent) continue;
+
+            const clientName = String(row[1] || '').trim();
+            const medicaidId = String(row[2] || '').trim();
+            const insuranceType = String(row[3] || '').trim();
+            const serviceCategory = String(row[4] || '').trim();
+            const serviceCode = String(row[5] || '').trim();
+            const serviceName = String(row[6] || '').trim();
+            const authorizedUnits = row[7];
+            const authStart = row[8];
+            const authEnd = row[9];
+            const notes = String(row[12] || '').trim();
+
+            if (clientName) {
+                if (current) clients.push(current);
+                current = {
+                    clientName,
+                    medicaidId,
+                    insuranceType: insuranceType || 'MEDICAID',
+                    authorizations: [],
+                };
+                continue;
+            }
+
+            if (current && serviceCode) {
+                current.authorizations.push({
+                    serviceCategory,
+                    serviceCode,
+                    serviceName: serviceName || serviceCode,
+                    authorizedUnits: parseInt(authorizedUnits, 10) || 0,
+                    authorizationStartDate: excelDateToString(authStart),
+                    authorizationEndDate: excelDateToString(authEnd),
+                    notes,
+                });
+            }
+        }
+        if (current) clients.push(current);
+        return clients;
+    };
+
+    const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setFileName(file.name);
+        const ext = file.name.split('.').pop().toLowerCase();
+
+        if (ext === 'json') {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                try {
+                    const parsed = JSON.parse(evt.target.result);
+                    if (!Array.isArray(parsed)) throw new Error('JSON must be an array');
+                    setPreview(parsed);
+                    setError('');
+                } catch (err) { setError('Invalid JSON: ' + err.message); setPreview(null); }
+            };
+            reader.readAsText(file);
+        } else if (['csv', 'xlsx', 'xls'].includes(ext)) {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                try {
+                    const wb = XLSX.read(evt.target.result, { type: 'array', cellDates: false });
+                    const sheet = wb.Sheets[wb.SheetNames[0]];
+                    const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true });
+                    if (!rawRows.length) throw new Error('Spreadsheet is empty');
+                    const clients = parseParentChildRows(rawRows);
+                    if (!clients.length) throw new Error('No valid client rows found. Make sure column B has client names.');
+                    setPreview(clients);
+                    setError('');
+                } catch (err) { setError(err.message); setPreview(null); }
+            };
+            reader.readAsArrayBuffer(file);
+        } else {
+            setError('Unsupported file type. Please use .csv, .xlsx, .xls, or .json');
+            setPreview(null);
+        }
+    };
+
+    const handleSubmit = () => {
+        if (!preview) return;
+        onImport(preview);
+    };
+
+    return (
+        <Modal onClose={onClose} wide>
+            <h2 className="modal__title">Import Clients</h2>
+            <p className="modal__desc">
+                Upload a <strong>CSV</strong>, <strong>XLSX</strong>, or <strong>JSON</strong> file. Spreadsheets should have columns like: Client Name, Medicaid ID, Insurance Type, Service Code, Service Name, Authorized Units, Auth Start, Auth End.
+            </p>
+
+            <div className="form-group">
+                <label>Choose File</label>
+                <input
+                    ref={fileRef}
+                    type="file"
+                    accept=".csv,.xlsx,.xls,.json"
+                    onChange={handleFileUpload}
+                    style={{ fontSize: 13 }}
+                />
+            </div>
+
+            {fileName && !error && !preview && <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>Parsing {fileName}…</p>}
+
+            {error && <p style={{ color: 'hsl(0 84% 60%)', fontSize: 13, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>{Icons.alertCircle} {error}</p>}
+
+            {preview && (
+                <div style={{ marginBottom: 12 }}>
+                    <p style={{ color: 'hsl(142 71% 45%)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                        {Icons.checkCircle} {preview.length} client(s) ready to import ({preview.reduce((s, c) => s + (c.authorizations?.length || 0), 0)} authorization(s))
+                    </p>
+                    <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)', fontSize: 12 }}>
+                        <table className="data-table" style={{ fontSize: 12 }}>
+                            <thead><tr><th>Client Name</th><th>Medicaid ID</th><th>Insurance</th><th>Authorizations</th></tr></thead>
+                            <tbody>
+                                {preview.slice(0, 20).map((c, i) => (
+                                    <tr key={i}><td>{c.clientName}</td><td>{c.medicaidId}</td><td>{c.insuranceType}</td><td>{c.authorizations?.length || 0}</td></tr>
+                                ))}
+                                {preview.length > 20 && <tr><td colSpan={4} style={{ textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>…and {preview.length - 20} more</td></tr>}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
+            <div className="form-actions">
+                <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
+                <button
+                    className="btn btn--primary"
+                    onClick={handleSubmit}
+                    disabled={!preview}
+                    style={{ opacity: preview ? 1 : 0.5 }}
+                >
+                    {Icons.upload} Import Data
+                </button>
+            </div>
+        </Modal>
+    );
+}
+
+// ── Clients Page ──
+export default function ClientsPage({ showToast, insuranceTypes }) {
+    const [clients, setClients] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [expandedIds, setExpandedIds] = useState(new Set());
+    const [modal, setModal] = useState(null);
+    const [statusFilter, setStatusFilter] = useState('All');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedIds, setSelectedIds] = useState(new Set());
+
+    const fetchClients = useCallback(async () => {
+        try {
+            const data = await api.getClients();
+            setClients(data);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setLoading(false);
+        }
+    }, [showToast]);
+
+    useEffect(() => { fetchClients(); }, [fetchClients]);
+
+    const toggleExpand = (id) => {
+        setExpandedIds((prev) => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    };
+
+    const handleSaveClient = async (data) => {
+        try {
+            if (modal.client) {
+                await api.updateClient(modal.client.id, data.clientName, data);
+                showToast('Client updated');
+            } else {
+                await api.createClient(data.clientName, data);
+                showToast('Client created');
+            }
+            setModal(null);
+            fetchClients();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleDeleteClient = async (client) => {
+        try {
+            await api.deleteClient(client.id);
+            showToast('Client deleted');
+            setModal(null);
+            fetchClients();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleSaveAuth = async (data) => {
+        try {
+            if (modal.auth) {
+                await api.updateAuthorization(modal.auth.id, data);
+                showToast('Authorization updated');
+            } else {
+                await api.createAuthorization(modal.clientId, data);
+                showToast('Authorization added');
+            }
+            setModal(null);
+            fetchClients();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleDeleteAuth = async (auth) => {
+        try {
+            await api.deleteAuthorization(auth.id);
+            showToast('Authorization deleted');
+            setModal(null);
+            fetchClients();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleBulkImport = async (rows) => {
+        try {
+            const result = await api.bulkImport(rows);
+            showToast(`Imported ${result.imported} client(s)`);
+            setClients(result.clients);
+            setModal(null);
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleBulkDelete = async () => {
+        try {
+            const ids = [...selectedIds];
+            await api.bulkDeleteClients(ids);
+            showToast(`Deleted ${ids.length} client(s)`);
+            setSelectedIds(new Set());
+            setModal(null);
+            fetchClients();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    // Stats
+    const totalAuths = clients.reduce((s, c) => s + c.authorizations.length, 0);
+    const expiredCount = clients.filter((c) => c.overallStatus === 'Expired').length;
+    const renewalCount = clients.filter((c) => c.overallStatus === 'Renewal Reminder').length;
+    const okCount = clients.filter((c) => c.overallStatus === 'OK').length;
+
+    // Filter + Search
+    const searchLower = searchQuery.toLowerCase().trim();
+    const filteredClients = clients.filter((c) => {
+        const matchesStatus = statusFilter === 'All' || c.overallStatus === statusFilter;
+        const matchesSearch = !searchLower || c.clientName.toLowerCase().includes(searchLower) || (c.medicaidId || '').toLowerCase().includes(searchLower);
+        return matchesStatus && matchesSearch;
+    });
+    const displayedClients = filteredClients;
+
+    const toggleSelect = (id) => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        const allIds = displayedClients.map(c => c.id);
+        const allSelected = allIds.every(id => selectedIds.has(id));
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            allIds.forEach(id => allSelected ? next.delete(id) : next.add(id));
+            return next;
+        });
+    };
+
+    const handleFilterChange = (filter) => {
+        setStatusFilter(filter);
+    };
+
+    const insuranceTypeNames = insuranceTypes.length > 0
+        ? insuranceTypes.map((t) => t.name)
+        : ['MEDICAID'];
+
+    return (
+        <>
+            <div className="content-header">
+                <h1 className="content-header__title">Clients</h1>
+                <div className="content-header__actions">
+                    <input
+                        type="text"
+                        className="search-input"
+                        placeholder="Search clients…"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    <button className="btn btn--outline btn--sm" onClick={() => setModal({ type: 'bulkImport' })}>
+                        {Icons.download} Import
+                    </button>
+                    <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'client' })}>
+                        {Icons.plus} Add Client
+                    </button>
+                </div>
+            </div>
+
+            <div className="page-content">
+                {/* Stats Cards */}
+                <div className="stats-grid">
+                    <div className="card">
+                        <div className="card__header">
+                            <span className="card__title">Total Clients</span>
+                            <span className="card__trend card__trend--up">{Icons.trendingUp}</span>
+                        </div>
+                        <div className="card__value">{clients.length}</div>
+                        <div className="card__description">Active client records</div>
+                    </div>
+                    <div className="card">
+                        <div className="card__header">
+                            <span className="card__title">Authorizations</span>
+                            <span className="card__trend card__trend--up">{Icons.trendingUp}</span>
+                        </div>
+                        <div className="card__value">{totalAuths}</div>
+                        <div className="card__description">Total service authorizations</div>
+                    </div>
+                    <div className="card">
+                        <div className="card__header">
+                            <span className="card__title">Expired</span>
+                            {expiredCount > 0 && <span className="card__trend card__trend--down">{Icons.trendingDown} Needs attention</span>}
+                        </div>
+                        <div className="card__value" style={{ color: expiredCount > 0 ? 'hsl(0 84.2% 60.2%)' : undefined }}>{expiredCount}</div>
+                        <div className="card__description">Clients with expired auths</div>
+                    </div>
+                    <div className="card">
+                        <div className="card__header">
+                            <span className="card__title">Active / OK</span>
+                            <span className="card__trend card__trend--up">{Icons.trendingUp}</span>
+                        </div>
+                        <div className="card__value" style={{ color: okCount > 0 ? 'hsl(142 71% 45%)' : undefined }}>{okCount}</div>
+                        <div className="card__description">{renewalCount > 0 ? `${renewalCount} renewal(s) due` : 'All auths current'}</div>
+                    </div>
+                </div>
+
+                {/* Master Sheet Table */}
+                <div className="sheet-card">
+                    <div className="sheet-card__header">
+                        <div className="sheet-card__title">
+                            {Icons.table} Master Sheet
+                        </div>
+                        <div className="sheet-card__actions" />
+                    </div>
+
+                    {/* Status Filter Tabs */}
+                    <div className="filter-bar">
+                        {['All', 'OK', 'Renewal Reminder', 'Expired'].map((f) => {
+                            const count = f === 'All' ? clients.length
+                                : f === 'OK' ? okCount
+                                    : f === 'Renewal Reminder' ? renewalCount
+                                        : expiredCount;
+                            return (
+                                <button
+                                    key={f}
+                                    className={`filter-btn ${statusFilter === f ? 'filter-btn--active' : ''} ${f === 'Expired' ? 'filter-btn--danger' : f === 'Renewal Reminder' ? 'filter-btn--warning' : ''}`}
+                                    onClick={() => handleFilterChange(f)}
+                                >
+                                    {f} <span className="filter-btn__count">{count}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {selectedIds.size > 0 && (
+                        <div className="bulk-action-bar">
+                            <span>{selectedIds.size} client(s) selected</span>
+                            <button
+                                className="btn btn--danger btn--sm"
+                                onClick={() => setModal({ type: 'confirmBulkDelete' })}
+                            >
+                                {Icons.trash} Delete Selected
+                            </button>
+                            <button
+                                className="btn btn--outline btn--sm"
+                                onClick={() => setSelectedIds(new Set())}
+                            >
+                                Clear Selection
+                            </button>
+                        </div>
+                    )}
+
+                    {loading ? (
+                        <div style={{ padding: 16 }}>
+                            {[1, 2, 3, 4].map((i) => <div key={i} className="skeleton skeleton-row" style={{ marginBottom: 4 }} />)}
+                        </div>
+                    ) : filteredClients.length === 0 ? (
+                        <div className="empty-state">
+                            <div className="empty-state__icon">{Icons.clipboard}</div>
+                            <div className="empty-state__title">No clients yet</div>
+                            <div className="empty-state__desc">Use "Import" to upload data or "Add Client" to create one.</div>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="sheet-table-wrap">
+                                <table className="sheet-table">
+                                    <thead>
+                                        <tr>
+                                            <th style={{ width: 36 }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={displayedClients.length > 0 && displayedClients.every(c => selectedIds.has(c.id))}
+                                                    onChange={toggleSelectAll}
+                                                    style={{ cursor: 'pointer' }}
+                                                />
+                                            </th>
+                                            <th style={{ width: 36 }}></th>
+                                            <th>Client Name</th>
+                                            <th>Medicaid ID</th>
+                                            <th>Insurance Type</th>
+                                            <th>Service Category</th>
+                                            <th>Service Code</th>
+                                            <th>Service Name</th>
+                                            <th>Auth Units</th>
+                                            <th>Auth Start</th>
+                                            <th>Auth End</th>
+                                            <th>Status</th>
+                                            <th>Days to Expire</th>
+                                            <th>Notes</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {displayedClients.map((client) => {
+                                            const isOpen = expandedIds.has(client.id);
+                                            return (
+                                                <Fragment key={client.id}>
+                                                    {/* Client (parent) row */}
+                                                    <tr
+                                                        className={`row-client row-client--${client.statusColor}`}
+                                                        onClick={() => toggleExpand(client.id)}
+                                                    >
+                                                        <td onClick={(e) => e.stopPropagation()}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedIds.has(client.id)}
+                                                                onChange={() => toggleSelect(client.id)}
+                                                                style={{ cursor: 'pointer' }}
+                                                            />
+                                                        </td>
+                                                        <td>
+                                                            <span className={`row-client__toggle ${isOpen ? 'row-client__toggle--open' : ''}`}>
+                                                                {Icons.chevronRight}
+                                                            </span>
+                                                        </td>
+                                                        <td>
+                                                            <span className="row-client__client-name">{client.clientName}</span>
+                                                        </td>
+                                                        <td style={{ color: 'hsl(240 3.8% 46.1%)', fontSize: 12 }}>{client.medicaidId || '—'}</td>
+                                                        <td>
+                                                            <span className="insurance-badge">
+                                                                {client.insuranceType}
+                                                            </span>
+                                                        </td>
+                                                        <td>
+                                                            <div className="service-chips">
+                                                                {[...new Set(client.authorizations.map(a => a.serviceCode))].map((c) => (
+                                                                    <span key={c} className="service-chip">{c}</span>
+                                                                ))}
+                                                            </div>
+                                                        </td>
+                                                        <td></td>
+                                                        <td></td>
+                                                        <td style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'hsl(240 3.8% 46.1%)' }}>
+                                                            {client.authorizations.reduce((s, a) => s + (a.authorizedUnits || 0), 0) || '—'}
+                                                        </td>
+                                                        <td></td>
+                                                        <td></td>
+                                                        <td>
+                                                            <span className={`status-cell status-cell--${client.statusColor}`}>
+                                                                {statusLabel(client.overallStatus)}
+                                                            </span>
+                                                        </td>
+                                                        <td>
+                                                            <span className="days-summary">{client.daysSummary}</span>
+                                                        </td>
+                                                        <td></td>
+                                                        <td>
+                                                            <div className="row-actions" onClick={(e) => e.stopPropagation()}>
+                                                                <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'client', client })} title="Edit client">
+                                                                    {Icons.edit}
+                                                                </button>
+                                                                <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDeleteClient', client })} title="Delete client">
+                                                                    {Icons.trash}
+                                                                </button>
+                                                                <button className="btn btn--ghost btn--xs" onClick={() => { setExpandedIds(prev => new Set([...prev, client.id])); setModal({ type: 'auth', clientId: client.id }); }} title="Add authorization">
+                                                                    {Icons.plus} Add
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+
+                                                    {/* Authorization (child) rows */}
+                                                    {isOpen && client.authorizations.map((auth) => (
+                                                        <tr key={`a-${auth.id}`} className="row-auth">
+                                                            <td></td>
+                                                            <td></td>
+                                                            <td className="row-auth__indent">└─</td>
+                                                            <td></td>
+                                                            <td></td>
+                                                            <td style={{ fontSize: 13 }}>{auth.serviceCategory || '—'}</td>
+                                                            <td style={{ fontWeight: 600, color: 'hsl(240 10% 3.9%)' }}>{auth.serviceCode}</td>
+                                                            <td style={{ fontSize: 13 }}>{auth.serviceName || '—'}</td>
+                                                            <td style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{auth.authorizedUnits || '—'}</td>
+                                                            <td style={{ fontSize: 13 }}>{fmtDate(auth.authorizationStartDate)}</td>
+                                                            <td style={{ fontSize: 13 }}>{fmtDate(auth.authorizationEndDate)}</td>
+                                                            <td>
+                                                                <span className={`status-cell status-cell--${auth.statusColor}`}>
+                                                                    {statusLabel(auth.status)}
+                                                                </span>
+                                                            </td>
+                                                            <td>
+                                                                <span className={`days-cell ${daysClass(auth.daysToExpire)}`}>
+                                                                    {auth.daysToExpire ?? '—'}
+                                                                </span>
+                                                            </td>
+                                                            <td style={{ fontSize: 12, color: 'hsl(240 3.8% 46.1%)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis' }}>{auth.notes || '—'}</td>
+                                                            <td>
+                                                                <div className="row-actions">
+                                                                    <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'auth', auth, clientId: auth.clientId })} title="Edit authorization">
+                                                                        {Icons.edit}
+                                                                    </button>
+                                                                    <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDeleteAuth', auth })} title="Delete authorization">
+                                                                        {Icons.trash}
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+
+                                                    {/* Add Service row */}
+                                                    {isOpen && (
+                                                        <tr className="row-auth">
+                                                            <td></td>
+                                                            <td></td>
+                                                            <td colSpan={12} style={{ paddingLeft: 48 }}>
+                                                                <button
+                                                                    className="btn btn--outline btn--sm"
+                                                                    onClick={() => setModal({ type: 'auth', clientId: client.id })}
+                                                                    style={{ margin: '4px 0' }}
+                                                                >
+                                                                    {Icons.plus} Add New Service / Authorization
+                                                                </button>
+                                                                {client.authorizations.length === 0 && (
+                                                                    <span style={{ marginLeft: 12, color: 'hsl(240 3.8% 46.1%)', fontSize: 12, fontStyle: 'italic' }}>
+                                                                        No services yet
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                            <td></td>
+                                                        </tr>
+                                                    )}
+                                                </Fragment>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="table-info-bar">
+                                <span>
+                                    Showing {filteredClients.length} client(s)
+                                    {statusFilter !== 'All' && ` (filtered: ${statusFilter})`}
+                                </span>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+
+            {/* Modals */}
+            {modal?.type === 'client' && (
+                <ClientFormModal client={modal.client} onSave={handleSaveClient} onClose={() => setModal(null)} insuranceTypeNames={insuranceTypeNames} />
+            )}
+            {modal?.type === 'auth' && (
+                <AuthFormModal auth={modal.auth} clientId={modal.clientId} onSave={handleSaveAuth} onClose={() => setModal(null)} />
+            )}
+            {modal?.type === 'bulkImport' && (
+                <BulkImportModal onImport={handleBulkImport} onClose={() => setModal(null)} />
+            )}
+            {modal?.type === 'confirmDeleteClient' && (
+                <ConfirmModal
+                    title="Delete Client"
+                    message={`This will permanently delete "${modal.client.clientName}" and all associated authorizations. This action cannot be undone.`}
+                    onConfirm={() => handleDeleteClient(modal.client)}
+                    onClose={() => setModal(null)}
+                />
+            )}
+            {modal?.type === 'confirmBulkDelete' && (
+                <ConfirmModal
+                    title="Delete Selected Clients"
+                    message={`This will permanently delete ${selectedIds.size} client(s) and all their associated authorizations. This action cannot be undone.`}
+                    onConfirm={handleBulkDelete}
+                    onClose={() => setModal(null)}
+                />
+            )}
+            {modal?.type === 'confirmDeleteAuth' && (
+                <ConfirmModal
+                    title="Delete Authorization"
+                    message={`This will permanently delete this ${modal.auth.serviceCode} authorization. This action cannot be undone.`}
+                    onConfirm={() => handleDeleteAuth(modal.auth)}
+                    onClose={() => setModal(null)}
+                />
+            )}
+        </>
+    );
+}
