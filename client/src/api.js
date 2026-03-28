@@ -177,12 +177,6 @@ export const getClientSchedule = (clientId, weekStart) =>
     request(`/shifts/client/${clientId}${weekStart ? '?weekStart=' + weekStart : ''}`);
 export const getEmployeeSchedule = (employeeId, weekStart) =>
     request(`/shifts/employee/${employeeId}${weekStart ? '?weekStart=' + weekStart : ''}`);
-export const getEmployeeScheduleByName = (name, weekStart) => {
-    const params = new URLSearchParams({ name });
-    if (weekStart) params.set('weekStart', weekStart);
-    return request(`/shifts/employee-by-name?${params.toString()}`);
-};
-
 // ── Employees ──
 export const getEmployees = (params = {}) => {
     const qs = new URLSearchParams(params).toString();
