@@ -1,22 +1,28 @@
-import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import * as api from '../api';
 import * as XLSX from 'xlsx';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import DrawerPanel from '../components/common/DrawerPanel';
 import { fmtDate, daysClass } from '../utils/dates';
 import { statusLabel } from '../utils/status';
+import { useToast } from '../hooks/useToast';
 
 // ── Client Form Modal ──
 function ClientFormModal({ client, onSave, onClose, insuranceTypeNames }) {
     const [name, setName] = useState(client?.clientName || '');
     const [medicaidId, setMedicaidId] = useState(client?.medicaidId || '');
     const [insuranceType, setInsuranceType] = useState(client?.insuranceType || 'MEDICAID');
+    const [address, setAddress] = useState(client?.address || '');
+    const [phone, setPhone] = useState(client?.phone || '');
+    const [gateCode, setGateCode] = useState(client?.gateCode || '');
+    const [clientNotes, setClientNotes] = useState(client?.notes || '');
     const isEdit = !!client;
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (name.trim()) onSave({ clientName: name.trim(), medicaidId: medicaidId.trim(), insuranceType });
+        if (name.trim()) onSave({ clientName: name.trim(), medicaidId: medicaidId.trim(), insuranceType, address, phone, gateCode, notes: clientNotes });
     };
 
     return (
@@ -37,6 +43,24 @@ function ClientFormModal({ client, onSave, onClose, insuranceTypeNames }) {
                     <select id="insuranceType" value={insuranceType} onChange={(e) => setInsuranceType(e.target.value)}>
                         {insuranceTypeNames.map((t) => <option key={t} value={t}>{t}</option>)}
                     </select>
+                </div>
+                <div className="form-grid-2">
+                    <div className="form-group">
+                        <label htmlFor="clientAddress">Address</label>
+                        <input id="clientAddress" value={address} onChange={e => setAddress(e.target.value)} placeholder="Address…" />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="clientPhone">Phone</label>
+                        <input id="clientPhone" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone…" />
+                    </div>
+                </div>
+                <div className="form-group">
+                    <label htmlFor="clientGateCode">Gate Code</label>
+                    <input id="clientGateCode" value={gateCode} onChange={e => setGateCode(e.target.value)} placeholder="Gate code…" />
+                </div>
+                <div className="form-group">
+                    <label htmlFor="clientNotes">Notes</label>
+                    <textarea id="clientNotes" value={clientNotes} onChange={e => setClientNotes(e.target.value)} placeholder="Notes…" rows={3} />
                 </div>
                 <div className="form-actions">
                     <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
@@ -294,15 +318,69 @@ function BulkImportModal({ onImport, onClose }) {
     );
 }
 
+// ── Client Notes Section (for Drawer) ──
+function ClientNotesSection({ client, onSaved }) {
+    const [address, setAddress] = useState(client.address || '');
+    const [phone, setPhone] = useState(client.phone || '');
+    const [gateCode, setGateCode] = useState(client.gateCode || '');
+    const [notes, setNotes] = useState(client.notes || '');
+    const [saving, setSaving] = useState(false);
+    const { showToast } = useToast();
+
+    const hasChanges = address !== (client.address || '') || phone !== (client.phone || '')
+        || gateCode !== (client.gateCode || '') || notes !== (client.notes || '');
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const updated = await api.patchClient(client.id, { address, phone, gateCode, notes });
+            showToast('Client details saved');
+            onSaved(updated);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="drawer-section">
+            <h3 className="drawer-section__title">Client Details</h3>
+            <div className="drawer-field">
+                <label className="drawer-field__label">Address</label>
+                <input className="drawer-field__input" value={address} onChange={e => setAddress(e.target.value)} placeholder="Address…" />
+            </div>
+            <div className="drawer-field">
+                <label className="drawer-field__label">Phone</label>
+                <input className="drawer-field__input" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone…" />
+            </div>
+            <div className="drawer-field">
+                <label className="drawer-field__label">Gate Code</label>
+                <input className="drawer-field__input" value={gateCode} onChange={e => setGateCode(e.target.value)} placeholder="Gate code…" />
+            </div>
+            <div className="drawer-field">
+                <label className="drawer-field__label">Notes</label>
+                <textarea className="drawer-field__input drawer-field__textarea" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes…" />
+            </div>
+            {hasChanges && (
+                <button className="btn btn--primary btn--sm" onClick={handleSave} disabled={saving}>
+                    {saving ? 'Saving…' : 'Save Details'}
+                </button>
+            )}
+        </div>
+    );
+}
+
 // ── Clients Page ──
-export default function ClientsPage({ showToast, insuranceTypes }) {
+export default function ClientsPage() {
+    const { showToast } = useToast();
     const [clients, setClients] = useState([]);
+    const [insuranceTypes, setInsuranceTypes] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [expandedIds, setExpandedIds] = useState(new Set());
     const [modal, setModal] = useState(null);
     const [statusFilter, setStatusFilter] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedIds, setSelectedIds] = useState(new Set());
+    const [drawerClient, setDrawerClient] = useState(null);
 
     const fetchClients = useCallback(async () => {
         try {
@@ -315,21 +393,21 @@ export default function ClientsPage({ showToast, insuranceTypes }) {
         }
     }, [showToast]);
 
-    useEffect(() => { fetchClients(); }, [fetchClients]);
+    const fetchInsuranceTypes = useCallback(async () => {
+        try { setInsuranceTypes(await api.getInsuranceTypes()); }
+        catch (_) { /* silent */ }
+    }, []);
 
-    const toggleExpand = (id) => {
-        setExpandedIds((prev) => {
-            const next = new Set(prev);
-            next.has(id) ? next.delete(id) : next.add(id);
-            return next;
-        });
-    };
+    useEffect(() => { fetchInsuranceTypes(); }, [fetchInsuranceTypes]);
+
+    useEffect(() => { fetchClients(); }, [fetchClients]);
 
     const handleSaveClient = async (data) => {
         try {
             if (modal.client) {
-                await api.updateClient(modal.client.id, data.clientName, data);
+                const updated = await api.updateClient(modal.client.id, data.clientName, data);
                 showToast('Client updated');
+                if (drawerClient?.id === modal.client.id) setDrawerClient(updated);
             } else {
                 await api.createClient(data.clientName, data);
                 showToast('Client created');
@@ -358,7 +436,12 @@ export default function ClientsPage({ showToast, insuranceTypes }) {
                 showToast('Authorization added');
             }
             setModal(null);
-            fetchClients();
+            const refreshed = await api.getClients();
+            setClients(refreshed);
+            if (drawerClient) {
+                const updated = refreshed.find(c => c.id === drawerClient.id);
+                if (updated) setDrawerClient(updated);
+            }
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -367,7 +450,12 @@ export default function ClientsPage({ showToast, insuranceTypes }) {
             await api.deleteAuthorization(auth.id);
             showToast('Authorization deleted');
             setModal(null);
-            fetchClients();
+            const refreshed = await api.getClients();
+            setClients(refreshed);
+            if (drawerClient) {
+                const updated = refreshed.find(c => c.id === drawerClient.id);
+                if (updated) setDrawerClient(updated);
+            }
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -377,17 +465,6 @@ export default function ClientsPage({ showToast, insuranceTypes }) {
             showToast(`Imported ${result.imported} client(s)`);
             setClients(result.clients);
             setModal(null);
-        } catch (err) { showToast(err.message, 'error'); }
-    };
-
-    const handleBulkDelete = async () => {
-        try {
-            const ids = [...selectedIds];
-            await api.bulkDeleteClients(ids);
-            showToast(`Deleted ${ids.length} client(s)`);
-            setSelectedIds(new Set());
-            setModal(null);
-            fetchClients();
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -405,28 +482,6 @@ export default function ClientsPage({ showToast, insuranceTypes }) {
         return matchesStatus && matchesSearch;
     });
     const displayedClients = filteredClients;
-
-    const toggleSelect = (id) => {
-        setSelectedIds((prev) => {
-            const next = new Set(prev);
-            next.has(id) ? next.delete(id) : next.add(id);
-            return next;
-        });
-    };
-
-    const toggleSelectAll = () => {
-        const allIds = displayedClients.map(c => c.id);
-        const allSelected = allIds.every(id => selectedIds.has(id));
-        setSelectedIds((prev) => {
-            const next = new Set(prev);
-            allIds.forEach(id => allSelected ? next.delete(id) : next.add(id));
-            return next;
-        });
-    };
-
-    const handleFilterChange = (filter) => {
-        setStatusFilter(filter);
-    };
 
     const insuranceTypeNames = insuranceTypes.length > 0
         ? insuranceTypes.map((t) => t.name)
@@ -510,31 +565,13 @@ export default function ClientsPage({ showToast, insuranceTypes }) {
                                 <button
                                     key={f}
                                     className={`filter-btn ${statusFilter === f ? 'filter-btn--active' : ''} ${f === 'Expired' ? 'filter-btn--danger' : f === 'Renewal Reminder' ? 'filter-btn--warning' : ''}`}
-                                    onClick={() => handleFilterChange(f)}
+                                    onClick={() => setStatusFilter(f)}
                                 >
                                     {f} <span className="filter-btn__count">{count}</span>
                                 </button>
                             );
                         })}
                     </div>
-
-                    {selectedIds.size > 0 && (
-                        <div className="bulk-action-bar">
-                            <span>{selectedIds.size} client(s) selected</span>
-                            <button
-                                className="btn btn--danger btn--sm"
-                                onClick={() => setModal({ type: 'confirmBulkDelete' })}
-                            >
-                                {Icons.trash} Delete Selected
-                            </button>
-                            <button
-                                className="btn btn--outline btn--sm"
-                                onClick={() => setSelectedIds(new Set())}
-                            >
-                                Clear Selection
-                            </button>
-                        </div>
-                    )}
 
                     {loading ? (
                         <div style={{ padding: 16 }}>
@@ -552,161 +589,50 @@ export default function ClientsPage({ showToast, insuranceTypes }) {
                                 <table className="sheet-table">
                                     <thead>
                                         <tr>
-                                            <th style={{ width: 36 }}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={displayedClients.length > 0 && displayedClients.every(c => selectedIds.has(c.id))}
-                                                    onChange={toggleSelectAll}
-                                                    style={{ cursor: 'pointer' }}
-                                                />
-                                            </th>
-                                            <th style={{ width: 36 }}></th>
                                             <th>Client Name</th>
                                             <th>Medicaid ID</th>
                                             <th>Insurance Type</th>
-                                            <th>Service Category</th>
-                                            <th>Service Code</th>
-                                            <th>Service Name</th>
-                                            <th>Auth Units</th>
-                                            <th>Auth Start</th>
-                                            <th>Auth End</th>
                                             <th>Status</th>
                                             <th>Days to Expire</th>
-                                            <th>Notes</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {displayedClients.map((client) => {
-                                            const isOpen = expandedIds.has(client.id);
+                                            const minDays = client.authorizations.length > 0
+                                                ? Math.min(...client.authorizations.map(a => a.daysToExpire).filter(d => d != null))
+                                                : null;
                                             return (
-                                                <Fragment key={client.id}>
-                                                    {/* Client (parent) row */}
-                                                    <tr
-                                                        className={`row-client row-client--${client.statusColor}`}
-                                                        onClick={() => toggleExpand(client.id)}
-                                                    >
-                                                        <td onClick={(e) => e.stopPropagation()}>
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={selectedIds.has(client.id)}
-                                                                onChange={() => toggleSelect(client.id)}
-                                                                style={{ cursor: 'pointer' }}
-                                                            />
-                                                        </td>
-                                                        <td>
-                                                            <span className={`row-client__toggle ${isOpen ? 'row-client__toggle--open' : ''}`}>
-                                                                {Icons.chevronRight}
-                                                            </span>
-                                                        </td>
-                                                        <td>
-                                                            <span className="row-client__client-name">{client.clientName}</span>
-                                                        </td>
-                                                        <td style={{ color: 'hsl(240 3.8% 46.1%)', fontSize: 12 }}>{client.medicaidId || '—'}</td>
-                                                        <td>
-                                                            <span className="insurance-badge">
-                                                                {client.insuranceType}
-                                                            </span>
-                                                        </td>
-                                                        <td>
-                                                            <div className="service-chips">
-                                                                {[...new Set(client.authorizations.map(a => a.serviceCode))].map((c) => (
-                                                                    <span key={c} className="service-chip">{c}</span>
-                                                                ))}
-                                                            </div>
-                                                        </td>
-                                                        <td></td>
-                                                        <td></td>
-                                                        <td style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'hsl(240 3.8% 46.1%)' }}>
-                                                            {client.authorizations.reduce((s, a) => s + (a.authorizedUnits || 0), 0) || '—'}
-                                                        </td>
-                                                        <td></td>
-                                                        <td></td>
-                                                        <td>
-                                                            <span className={`status-cell status-cell--${client.statusColor}`}>
-                                                                {statusLabel(client.overallStatus)}
-                                                            </span>
-                                                        </td>
-                                                        <td>
-                                                            <span className="days-summary">{client.daysSummary}</span>
-                                                        </td>
-                                                        <td></td>
-                                                        <td>
-                                                            <div className="row-actions" onClick={(e) => e.stopPropagation()}>
-                                                                <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'client', client })} title="Edit client">
-                                                                    {Icons.edit}
-                                                                </button>
-                                                                <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDeleteClient', client })} title="Delete client">
-                                                                    {Icons.trash}
-                                                                </button>
-                                                                <button className="btn btn--ghost btn--xs" onClick={() => { setExpandedIds(prev => new Set([...prev, client.id])); setModal({ type: 'auth', clientId: client.id }); }} title="Add authorization">
-                                                                    {Icons.plus} Add
-                                                                </button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-
-                                                    {/* Authorization (child) rows */}
-                                                    {isOpen && client.authorizations.map((auth) => (
-                                                        <tr key={`a-${auth.id}`} className="row-auth">
-                                                            <td></td>
-                                                            <td></td>
-                                                            <td className="row-auth__indent">└─</td>
-                                                            <td></td>
-                                                            <td></td>
-                                                            <td style={{ fontSize: 13 }}>{auth.serviceCategory || '—'}</td>
-                                                            <td style={{ fontWeight: 600, color: 'hsl(240 10% 3.9%)' }}>{auth.serviceCode}</td>
-                                                            <td style={{ fontSize: 13 }}>{auth.serviceName || '—'}</td>
-                                                            <td style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{auth.authorizedUnits || '—'}</td>
-                                                            <td style={{ fontSize: 13 }}>{fmtDate(auth.authorizationStartDate)}</td>
-                                                            <td style={{ fontSize: 13 }}>{fmtDate(auth.authorizationEndDate)}</td>
-                                                            <td>
-                                                                <span className={`status-cell status-cell--${auth.statusColor}`}>
-                                                                    {statusLabel(auth.status)}
-                                                                </span>
-                                                            </td>
-                                                            <td>
-                                                                <span className={`days-cell ${daysClass(auth.daysToExpire)}`}>
-                                                                    {auth.daysToExpire ?? '—'}
-                                                                </span>
-                                                            </td>
-                                                            <td style={{ fontSize: 12, color: 'hsl(240 3.8% 46.1%)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis' }}>{auth.notes || '—'}</td>
-                                                            <td>
-                                                                <div className="row-actions">
-                                                                    <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'auth', auth, clientId: auth.clientId })} title="Edit authorization">
-                                                                        {Icons.edit}
-                                                                    </button>
-                                                                    <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDeleteAuth', auth })} title="Delete authorization">
-                                                                        {Icons.trash}
-                                                                    </button>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-
-                                                    {/* Add Service row */}
-                                                    {isOpen && (
-                                                        <tr className="row-auth">
-                                                            <td></td>
-                                                            <td></td>
-                                                            <td colSpan={12} style={{ paddingLeft: 48 }}>
-                                                                <button
-                                                                    className="btn btn--outline btn--sm"
-                                                                    onClick={() => setModal({ type: 'auth', clientId: client.id })}
-                                                                    style={{ margin: '4px 0' }}
-                                                                >
-                                                                    {Icons.plus} Add New Service / Authorization
-                                                                </button>
-                                                                {client.authorizations.length === 0 && (
-                                                                    <span style={{ marginLeft: 12, color: 'hsl(240 3.8% 46.1%)', fontSize: 12, fontStyle: 'italic' }}>
-                                                                        No services yet
-                                                                    </span>
-                                                                )}
-                                                            </td>
-                                                            <td></td>
-                                                        </tr>
-                                                    )}
-                                                </Fragment>
+                                                <tr
+                                                    key={client.id}
+                                                    className={`row-client row-client--${client.statusColor}`}
+                                                    onClick={() => setDrawerClient(client)}
+                                                    style={{ cursor: 'pointer' }}
+                                                >
+                                                    <td><span className="row-client__client-name">{client.clientName}</span></td>
+                                                    <td style={{ color: 'hsl(240 3.8% 46.1%)', fontSize: 12 }}>{client.medicaidId || '—'}</td>
+                                                    <td><span className="insurance-badge">{client.insuranceType}</span></td>
+                                                    <td>
+                                                        <span className={`status-cell status-cell--${client.statusColor}`}>
+                                                            {statusLabel(client.overallStatus)}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <span className={`days-cell ${daysClass(minDays)}`}>
+                                                            {minDays != null && isFinite(minDays) ? minDays : '—'}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <div className="row-actions" onClick={(e) => e.stopPropagation()}>
+                                                            <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'client', client })} title="Edit client">
+                                                                {Icons.edit}
+                                                            </button>
+                                                            <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDeleteClient', client })} title="Delete client">
+                                                                {Icons.trash}
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
                                             );
                                         })}
                                     </tbody>
@@ -741,14 +667,6 @@ export default function ClientsPage({ showToast, insuranceTypes }) {
                     onClose={() => setModal(null)}
                 />
             )}
-            {modal?.type === 'confirmBulkDelete' && (
-                <ConfirmModal
-                    title="Delete Selected Clients"
-                    message={`This will permanently delete ${selectedIds.size} client(s) and all their associated authorizations. This action cannot be undone.`}
-                    onConfirm={handleBulkDelete}
-                    onClose={() => setModal(null)}
-                />
-            )}
             {modal?.type === 'confirmDeleteAuth' && (
                 <ConfirmModal
                     title="Delete Authorization"
@@ -756,6 +674,64 @@ export default function ClientsPage({ showToast, insuranceTypes }) {
                     onConfirm={() => handleDeleteAuth(modal.auth)}
                     onClose={() => setModal(null)}
                 />
+            )}
+
+            {/* Drawer Panel */}
+            {drawerClient && (
+                <DrawerPanel onClose={() => setDrawerClient(null)}>
+                    <div className="drawer-header">
+                        <h2 className="drawer-header__name">{drawerClient.clientName}</h2>
+                        <div className="drawer-header__meta">
+                            <span>{drawerClient.medicaidId}</span>
+                            <span className="insurance-badge">{drawerClient.insuranceType}</span>
+                        </div>
+                        <button className="btn btn--outline btn--sm" style={{ marginTop: 8 }}
+                            onClick={() => { setModal({ type: 'client', client: drawerClient }); }}>
+                            {Icons.edit} Edit Client
+                        </button>
+                    </div>
+
+                    <ClientNotesSection client={drawerClient} onSaved={(updated) => {
+                        setDrawerClient(updated);
+                        fetchClients();
+                    }} />
+
+                    <div className="drawer-section">
+                        <h3 className="drawer-section__title">Authorizations</h3>
+                        {(drawerClient.authorizations || []).length === 0 ? (
+                            <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', fontStyle: 'italic' }}>No authorizations yet.</p>
+                        ) : (
+                            <table className="drawer-auth-table">
+                                <thead>
+                                    <tr>
+                                        <th>Service</th><th>Code</th><th>Units</th>
+                                        <th>Start</th><th>End</th><th>Status</th><th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {(drawerClient.authorizations || []).map(auth => (
+                                        <tr key={auth.id}>
+                                            <td>{auth.serviceCategory || '—'}</td>
+                                            <td>{auth.serviceCode}</td>
+                                            <td>{auth.authorizedUnits}</td>
+                                            <td>{auth.authorizationStartDate ? new Date(auth.authorizationStartDate).toLocaleDateString() : '—'}</td>
+                                            <td>{auth.authorizationEndDate ? new Date(auth.authorizationEndDate).toLocaleDateString() : '—'}</td>
+                                            <td><span className={`status-cell status-cell--${auth.statusColor}`}>{statusLabel(auth.status)}</span></td>
+                                            <td>
+                                                <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'auth', auth, clientId: drawerClient.id })} title="Edit">{Icons.edit}</button>
+                                                <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDeleteAuth', auth })} title="Delete" style={{ marginLeft: 4 }}>{Icons.trash}</button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                        <button className="btn btn--outline btn--sm" style={{ marginTop: 10 }}
+                            onClick={() => setModal({ type: 'auth', clientId: drawerClient.id })}>
+                            + Add Authorization
+                        </button>
+                    </div>
+                </DrawerPanel>
             )}
         </>
     );
