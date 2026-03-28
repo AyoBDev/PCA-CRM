@@ -8,17 +8,52 @@ datasource db {
 }
 
 model User {
-  id           Int      @id @default(autoincrement())
-  email        String   @unique
-  passwordHash String   @map("password_hash")
+  id           Int       @id @default(autoincrement())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
   name         String
-  role         String   @default("pca")
-  phone        String   @default("") @map("phone")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-  shifts       Shift[]
+  role         String    @default("pca")
+  phone        String    @default("") @map("phone")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  employee     Employee?
 
   @@map("users")
+}
+
+model Employee {
+  id            Int                    @id @default(autoincrement())
+  name          String
+  phone         String                 @default("") @map("phone")
+  email         String                 @default("") @map("email")
+  active        Boolean                @default(true) @map("active")
+  userId        Int?                   @unique @map("user_id")
+  user          User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  shifts        Shift[]
+  notifications ScheduleNotification[]
+  createdAt     DateTime               @default(now()) @map("created_at")
+  updatedAt     DateTime               @updatedAt @map("updated_at")
+
+  @@map("employees")
+}
+
+model ScheduleNotification {
+  id                 Int       @id @default(autoincrement())
+  employeeId         Int       @map("employee_id")
+  employee           Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  weekStart          DateTime  @map("week_start")
+  method             String    @map("method")
+  destination        String    @map("destination")
+  status             String    @default("pending") @map("status")
+  confirmationToken  String    @unique @default(uuid()) @map("confirmation_token")
+  confirmedAt        DateTime? @map("confirmed_at")
+  sentAt             DateTime? @map("sent_at")
+  failureReason      String    @default("") @map("failure_reason")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  @@index([employeeId])
+  @@index([weekStart])
+  @@map("schedule_notifications")
 }
 
 model Client {
@@ -201,23 +236,24 @@ model PayrollVisit {
 }
 
 model Shift {
-  id               Int      @id @default(autoincrement())
-  clientId         Int      @map("client_id")
-  employeeId       Int?     @map("employee_id")
-  employeeName     String   @default("") @map("employee_name")
-  serviceCode      String   @map("service_code")
-  shiftDate        DateTime @map("shift_date")
-  startTime        String   @map("start_time")    // HH:MM 24h
-  endTime          String   @map("end_time")      // HH:MM 24h
-  hours            Float    @default(0)
-  units            Int      @default(0)
-  notes            String   @default("")
-  status           String   @default("scheduled") // scheduled | completed | cancelled
-  recurringGroupId String   @default("") @map("recurring_group_id") // groups recurring shifts for bulk delete
-  client           Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  employee         User?    @relation(fields: [employeeId], references: [id], onDelete: SetNull)
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  id               Int       @id @default(autoincrement())
+  clientId         Int       @map("client_id")
+  employeeId       Int       @map("employee_id")
+  serviceCode      String    @map("service_code")
+  shiftDate        DateTime  @map("shift_date")
+  startTime        String    @map("start_time")    // HH:MM 24h
+  endTime          String    @map("end_time")      // HH:MM 24h
+  hours            Float     @default(0)
+  units            Int       @default(0)
+  notes            String    @default("")
+  status           String    @default("scheduled") // scheduled | completed | cancelled
+  recurringGroupId String    @default("") @map("recurring_group_id") // groups recurring shifts for bulk delete
+  accountNumber    String    @default("") @map("account_number")
+  sandataClientId  String    @default("") @map("sandata_client_id")
+  client           Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  employee         Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
   @@index([clientId])
   @@index([employeeId])
