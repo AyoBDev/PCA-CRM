@@ -44,6 +44,15 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
     const [saving, setSaving] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [authInfo, setAuthInfo] = useState(null);
+    const [accountNumber, setAccountNumber] = useState(shift?.accountNumber || '');
+    const [sandataClientId, setSandataClientId] = useState(shift?.sandataClientId || '');
+
+    // Client details (pre-filled when client selected)
+    const selectedClient = clients.find(c => c.id === Number(clientId));
+    const [clientAddress, setClientAddress] = useState(selectedClient?.address || '');
+    const [clientPhone, setClientPhone] = useState(selectedClient?.phone || '');
+    const [clientGateCode, setClientGateCode] = useState(selectedClient?.gateCode || '');
+    const [clientNotes, setClientNotes] = useState(selectedClient?.notes || '');
 
     useEffect(() => {
         if (clientId && serviceCode && shiftDate) {
@@ -54,6 +63,16 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
             setAuthInfo(null);
         }
     }, [clientId, serviceCode, shiftDate]);
+
+    useEffect(() => {
+        const c = clients.find(cl => cl.id === Number(clientId));
+        if (c) {
+            setClientAddress(c.address || '');
+            setClientPhone(c.phone || '');
+            setClientGateCode(c.gateCode || '');
+            setClientNotes(c.notes || '');
+        }
+    }, [clientId, clients]);
 
     const computeHours = () => {
         if (!startTime || !endTime) return { hours: 0, units: 0 };
@@ -89,9 +108,28 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
         e.preventDefault();
         setSaving(true);
         try {
-            const data = { clientId: Number(clientId), employeeId: Number(employeeId), serviceCode, shiftDate, startTime, endTime, notes };
+            const data = {
+                clientId: Number(clientId), employeeId: Number(employeeId), serviceCode, shiftDate, startTime, endTime, notes,
+                accountNumber, sandataClientId,
+            };
             if (shift) data.status = status;
             if (!shift && recurring && repeatUntil) data.repeatUntil = repeatUntil;
+
+            // Patch client details if changed
+            if (clientId) {
+                const c = clients.find(cl => cl.id === Number(clientId));
+                if (c) {
+                    const patch = {};
+                    if (clientAddress !== (c.address || '')) patch.address = clientAddress;
+                    if (clientPhone !== (c.phone || '')) patch.phone = clientPhone;
+                    if (clientGateCode !== (c.gateCode || '')) patch.gateCode = clientGateCode;
+                    if (clientNotes !== (c.notes || '')) patch.notes = clientNotes;
+                    if (Object.keys(patch).length > 0) {
+                        await api.patchClient(Number(clientId), patch);
+                    }
+                }
+            }
+
             await onSave(data);
         } finally {
             setSaving(false);
@@ -134,6 +172,22 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                     <div className="form-group">
                         <label htmlFor="shiftDate">Date</label>
                         <input id="shiftDate" type="date" value={shiftDate} onChange={e => setShiftDate(e.target.value)} required />
+                    </div>
+                </div>
+                <div className="form-grid-2">
+                    <div className="form-group">
+                        <label htmlFor="shiftAccountNumber">Account Number</label>
+                        <select id="shiftAccountNumber" value={accountNumber} onChange={e => setAccountNumber(e.target.value)} required={!shift}>
+                            <option value="">Select account…</option>
+                            <option value="71040">71040</option>
+                            <option value="71119">71119</option>
+                            <option value="71120">71120</option>
+                            <option value="71635">71635</option>
+                        </select>
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="shiftSandataId">SANDATA Client ID</label>
+                        <input id="shiftSandataId" value={sandataClientId} onChange={e => setSandataClientId(e.target.value)} placeholder="Optional…" />
                     </div>
                 </div>
                 <div className="form-grid-2">
@@ -217,6 +271,31 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                     <label htmlFor="shiftNotes">Notes</label>
                     <input id="shiftNotes" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes…" />
                 </div>
+                {clientId && (
+                    <fieldset style={{ border: '1px solid hsl(var(--border))', borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
+                        <legend style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))', padding: '0 6px' }}>
+                            Client Details (saved to client record)
+                        </legend>
+                        <div className="form-grid-2">
+                            <div className="form-group">
+                                <label htmlFor="clientAddress">Address</label>
+                                <input id="clientAddress" value={clientAddress} onChange={e => setClientAddress(e.target.value)} placeholder="Address…" />
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="clientPhone">Phone</label>
+                                <input id="clientPhone" value={clientPhone} onChange={e => setClientPhone(e.target.value)} placeholder="Phone…" />
+                            </div>
+                        </div>
+                        <div className="form-group">
+                            <label htmlFor="clientGateCode">Gate Code</label>
+                            <input id="clientGateCode" value={clientGateCode} onChange={e => setClientGateCode(e.target.value)} placeholder="Gate code…" />
+                        </div>
+                        <div className="form-group">
+                            <label htmlFor="clientNotesField">Notes</label>
+                            <textarea id="clientNotesField" value={clientNotes} onChange={e => setClientNotes(e.target.value)} placeholder="Notes about this client…" rows={2} />
+                        </div>
+                    </fieldset>
+                )}
                 <div className="form-actions">
                     {shift && !confirmDelete && (
                         <button type="button" className="btn btn--outline" style={{ color: 'hsl(0 84% 60%)', borderColor: 'hsl(0 84% 80%)', marginRight: 'auto' }} onClick={() => setConfirmDelete(true)}>
