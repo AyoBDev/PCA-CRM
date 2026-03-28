@@ -72,6 +72,8 @@ export const createClient = (clientName, extra = {}) =>
     request('/clients', { method: 'POST', body: JSON.stringify({ clientName, ...extra }) });
 export const updateClient = (id, clientName, extra = {}) =>
     request(`/clients/${id}`, { method: 'PUT', body: JSON.stringify({ clientName, ...extra }) });
+export const patchClient = (id, data) =>
+    request(`/clients/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 export const deleteClient = (id) =>
     request(`/clients/${id}`, { method: 'DELETE' });
 
@@ -180,6 +182,50 @@ export const getEmployeeScheduleByName = (name, weekStart) => {
     if (weekStart) params.set('weekStart', weekStart);
     return request(`/shifts/employee-by-name?${params.toString()}`);
 };
+
+// ── Employees ──
+export const getEmployees = (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/employees${qs ? '?' + qs : ''}`);
+};
+export const getEmployee = (id) => request(`/employees/${id}`);
+export const createEmployee = (data) => request('/employees', { method: 'POST', body: JSON.stringify(data) });
+export const updateEmployee = (id, data) => request(`/employees/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const deleteEmployee = (id) => request(`/employees/${id}`, { method: 'DELETE' });
+
+// ── Dashboard ──
+export const getDashboardStats = () => request('/dashboard/stats');
+
+// ── Auth Check ──
+export const getAuthCheck = (params) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/shifts/auth-check?${qs}`);
+};
+
+// ── Schedule Notifications ──
+export const sendScheduleNotifications = (data) => request('/schedule-notifications/send', { method: 'POST', body: JSON.stringify(data) });
+export const getNotificationStatus = (weekStart) => request(`/schedule-notifications/status?weekStart=${weekStart}`);
+
+export const getScheduleConfirm = (token) =>
+    fetch(`${BASE}/schedule/confirm/${token}`).then(async (res) => {
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.error || `HTTP ${res.status}`);
+        }
+        return res.json();
+    });
+
+export const confirmSchedule = (token) =>
+    fetch(`${BASE}/schedule/confirm/${token}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+    }).then(async (res) => {
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.error || `HTTP ${res.status}`);
+        }
+        return res.json();
+    });
 
 export const uploadPayrollRun = (formData) =>
     fetch(`${BASE}/payroll/runs`, {
