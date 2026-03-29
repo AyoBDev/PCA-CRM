@@ -238,7 +238,7 @@ model PayrollVisit {
 model Shift {
   id               Int       @id @default(autoincrement())
   clientId         Int       @map("client_id")
-  employeeId       Int       @map("employee_id")
+  employeeId       Int?      @map("employee_id")
   serviceCode      String    @map("service_code")
   shiftDate        DateTime  @map("shift_date")
   startTime        String    @map("start_time")    // HH:MM 24h
@@ -251,7 +251,7 @@ model Shift {
   accountNumber    String    @default("") @map("account_number")
   sandataClientId  String    @default("") @map("sandata_client_id")
   client           Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  employee         Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  employee         Employee? @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 

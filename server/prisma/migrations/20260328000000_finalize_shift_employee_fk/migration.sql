@@ -4,7 +4,7 @@ PRAGMA foreign_keys=OFF;
 CREATE TABLE "new_shifts" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "client_id" INTEGER NOT NULL,
-    "employee_id" INTEGER NOT NULL,
+    "employee_id" INTEGER,
     "service_code" TEXT NOT NULL,
     "shift_date" DATETIME NOT NULL,
     "start_time" TEXT NOT NULL,
@@ -17,7 +17,7 @@ CREATE TABLE "new_shifts" (
     "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" DATETIME NOT NULL,
     CONSTRAINT "shifts_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "shifts_employee_id_fkey" FOREIGN KEY ("employee_id") REFERENCES "employees" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    CONSTRAINT "shifts_employee_id_fkey" FOREIGN KEY ("employee_id") REFERENCES "employees" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 INSERT INTO "new_shifts" ("id", "client_id", "employee_id", "service_code", "shift_date", "start_time", "end_time", "hours", "units", "notes", "status", "recurring_group_id", "created_at", "updated_at") SELECT "id", "client_id", "employee_id", "service_code", "shift_date", "start_time", "end_time", "hours", "units", "notes", "status", "recurring_group_id", "created_at", "updated_at" FROM "shifts";
 DROP TABLE "shifts";
