@@ -1,3 +1,6 @@
+-- Clean up leftover table from previous failed attempt
+DROP TABLE IF EXISTS "new_shifts";
+
 -- RedefineTables
 PRAGMA defer_foreign_keys=ON;
 PRAGMA foreign_keys=OFF;
