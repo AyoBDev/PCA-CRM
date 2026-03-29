@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
@@ -43,6 +43,13 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
     const [repeatUntil, setRepeatUntil] = useState('');
     const [saving, setSaving] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [empSearch, setEmpSearch] = useState(() => {
+        if (shift?.employeeId) { const e = employees.find(e => e.id === shift.employeeId); return e ? e.name : ''; }
+        if (defaultEmployeeId) { const e = employees.find(e => e.id === Number(defaultEmployeeId)); return e ? e.name : ''; }
+        return '';
+    });
+    const [empDropdownOpen, setEmpDropdownOpen] = useState(false);
+    const empRef = useRef(null);
     const [authInfo, setAuthInfo] = useState(null);
     const [accountNumber, setAccountNumber] = useState(shift?.accountNumber || '');
     const [sandataClientId, setSandataClientId] = useState(shift?.sandataClientId || '');
@@ -73,6 +80,18 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
             setClientNotes(c.notes || '');
         }
     }, [clientId, clients]);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (empRef.current && !empRef.current.contains(e.target)) setEmpDropdownOpen(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const filteredEmployees = employees.filter(e =>
+        e.name.toLowerCase().includes(empSearch.toLowerCase())
+    );
 
     const computeHours = () => {
         if (!startTime || !endTime) return { hours: 0, units: 0 };
@@ -106,10 +125,18 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!empSearch.trim()) return;
         setSaving(true);
         try {
+            // If no employee selected from list, create a new one
+            let resolvedEmployeeId = employeeId;
+            if (!resolvedEmployeeId && empSearch.trim()) {
+                const newEmp = await api.createEmployee({ name: empSearch.trim() });
+                resolvedEmployeeId = String(newEmp.id);
+                setEmployeeId(resolvedEmployeeId);
+            }
             const data = {
-                clientId: Number(clientId), employeeId: Number(employeeId), serviceCode, shiftDate, startTime, endTime, notes,
+                clientId: Number(clientId), employeeId: Number(resolvedEmployeeId), serviceCode, shiftDate, startTime, endTime, notes,
                 accountNumber, sandataClientId,
             };
             if (shift) data.status = status;
@@ -149,12 +176,51 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                             {clients.map(c => <option key={c.id} value={c.id}>{c.clientName}</option>)}
                         </select>
                     </div>
-                    <div className="form-group">
+                    <div className="form-group" ref={empRef} style={{ position: 'relative' }}>
                         <label htmlFor="shiftEmployee">Employee</label>
-                        <select id="shiftEmployee" value={employeeId} onChange={e => setEmployeeId(e.target.value)} required>
-                            <option value="">Select employee…</option>
-                            {employees.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                        </select>
+                        <input
+                            id="shiftEmployee"
+                            value={empSearch}
+                            onChange={e => { setEmpSearch(e.target.value); setEmployeeId(''); setEmpDropdownOpen(true); }}
+                            onFocus={() => setEmpDropdownOpen(true)}
+                            placeholder="Type to search or add new…"
+                            autoComplete="off"
+                            required
+                        />
+                        {employeeId && (
+                            <input type="hidden" name="employeeId" value={employeeId} />
+                        )}
+                        {empDropdownOpen && (
+                            <ul style={{
+                                position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
+                                background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))',
+                                borderRadius: 'var(--radius)', maxHeight: 180, overflowY: 'auto',
+                                margin: 0, padding: 0, listStyle: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                            }}>
+                                {filteredEmployees.length === 0 && empSearch.trim() && (
+                                    <li
+                                        onClick={() => { setEmployeeId(''); setEmpDropdownOpen(false); }}
+                                        style={{ padding: '8px 12px', fontSize: 13, color: 'hsl(142 71% 45%)', cursor: 'pointer' }}
+                                    >
+                                        + Create "{empSearch.trim()}" as new employee
+                                    </li>
+                                )}
+                                {filteredEmployees.map(e => (
+                                    <li
+                                        key={e.id}
+                                        onClick={() => { setEmployeeId(String(e.id)); setEmpSearch(e.name); setEmpDropdownOpen(false); }}
+                                        style={{
+                                            padding: '8px 12px', cursor: 'pointer', fontSize: 13,
+                                            background: String(e.id) === String(employeeId) ? 'hsl(var(--muted))' : undefined,
+                                        }}
+                                        onMouseEnter={ev => ev.currentTarget.style.background = 'hsl(var(--muted))'}
+                                        onMouseLeave={ev => ev.currentTarget.style.background = String(e.id) === String(employeeId) ? 'hsl(var(--muted))' : ''}
+                                    >
+                                        {e.name}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
                     </div>
                 </div>
                 <div className="form-grid-2">
@@ -713,6 +779,7 @@ export default function SchedulingPage() {
             }
             setModal(null);
             fetchData();
+            fetchEmployees();
         } catch (err) {
             if (err.isOverlap) {
                 setModal(prev => ({ ...prev, overlapWarning: err.message, overlapData: data, overlapConflicts: err.conflicts }));
@@ -736,6 +803,7 @@ export default function SchedulingPage() {
             }
             setModal(null);
             fetchData();
+            fetchEmployees();
         } catch (err) { showToast(err.message, 'error'); }
     };
 
