@@ -106,40 +106,6 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
-                {/* Recent Payroll Runs */}
-                {stats.recentPayrollRuns && stats.recentPayrollRuns.length > 0 && (
-                    <div className="dash-section" style={{ marginTop: 24 }}>
-                        <h2 className="dash-section__title">{Icons.dollarSign} Recent Payroll Runs</h2>
-                        <div className="sheet-table-wrap">
-                            <table className="sheet-table" style={{ fontSize: 13 }}>
-                                <thead>
-                                    <tr>
-                                        <th>Name</th>
-                                        <th>Status</th>
-                                        <th>Visits</th>
-                                        <th>Payable Units</th>
-                                        <th>Date</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {stats.recentPayrollRuns.map((run) => (
-                                        <tr key={run.id}>
-                                            <td style={{ fontWeight: 500 }}>{run.name}</td>
-                                            <td>
-                                                <span className={`status-cell status-cell--${run.status === 'complete' ? 'green' : run.status === 'processing' ? 'yellow' : 'red'}`}>
-                                                    {run.status}
-                                                </span>
-                                            </td>
-                                            <td>{run.totalVisits}</td>
-                                            <td>{run.totalPayable}</td>
-                                            <td style={{ color: 'hsl(var(--muted-foreground))' }}>{new Date(run.createdAt).toLocaleDateString()}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
             </div>
         </>
     );
