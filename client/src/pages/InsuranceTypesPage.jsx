@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import { useToast } from '../hooks/useToast';
 
 function InsuranceTypeFormModal({ insuranceType, onSave, onClose }) {
     const [name, setName] = useState(insuranceType?.name || '');
@@ -52,8 +53,17 @@ function InsuranceTypeFormModal({ insuranceType, onSave, onClose }) {
     );
 }
 
-export default function InsuranceTypesPage({ insuranceTypes, onRefresh, showToast }) {
+export default function InsuranceTypesPage() {
+    const { showToast } = useToast();
+    const [insuranceTypes, setInsuranceTypes] = useState([]);
     const [modal, setModal] = useState(null);
+
+    const fetchInsuranceTypes = useCallback(async () => {
+        try { setInsuranceTypes(await api.getInsuranceTypes()); }
+        catch (err) { showToast(err.message, 'error'); }
+    }, [showToast]);
+
+    useEffect(() => { fetchInsuranceTypes(); }, [fetchInsuranceTypes]);
 
     const handleSave = async (data) => {
         try {
@@ -65,7 +75,7 @@ export default function InsuranceTypesPage({ insuranceTypes, onRefresh, showToas
                 showToast('Insurance type created');
             }
             setModal(null);
-            onRefresh();
+            fetchInsuranceTypes();
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -74,7 +84,7 @@ export default function InsuranceTypesPage({ insuranceTypes, onRefresh, showToas
             await api.deleteInsuranceType(type.id);
             showToast('Insurance type deleted');
             setModal(null);
-            onRefresh();
+            fetchInsuranceTypes();
         } catch (err) { showToast(err.message, 'error'); }
     };
 

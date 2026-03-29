@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
 import * as api from '../api';
 import * as XLSX from 'xlsx';
 import Icons from '../components/common/Icons';
@@ -381,6 +381,7 @@ export default function ClientsPage() {
     const [statusFilter, setStatusFilter] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [drawerClient, setDrawerClient] = useState(null);
+    const [expandedIds, setExpandedIds] = useState(new Set());
 
     const fetchClients = useCallback(async () => {
         try {
@@ -602,37 +603,91 @@ export default function ClientsPage() {
                                             const minDays = client.authorizations.length > 0
                                                 ? Math.min(...client.authorizations.map(a => a.daysToExpire).filter(d => d != null))
                                                 : null;
+                                            const isOpen = expandedIds.has(client.id);
                                             return (
-                                                <tr
-                                                    key={client.id}
-                                                    className={`row-client row-client--${client.statusColor}`}
-                                                    onClick={() => setDrawerClient(client)}
-                                                    style={{ cursor: 'pointer' }}
-                                                >
-                                                    <td><span className="row-client__client-name">{client.clientName}</span></td>
-                                                    <td style={{ color: 'hsl(240 3.8% 46.1%)', fontSize: 12 }}>{client.medicaidId || '—'}</td>
-                                                    <td><span className="insurance-badge">{client.insuranceType}</span></td>
-                                                    <td>
-                                                        <span className={`status-cell status-cell--${client.statusColor}`}>
-                                                            {statusLabel(client.overallStatus)}
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <span className={`days-cell ${daysClass(minDays)}`}>
-                                                            {minDays != null && isFinite(minDays) ? minDays : '—'}
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <div className="row-actions" onClick={(e) => e.stopPropagation()}>
-                                                            <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'client', client })} title="Edit client">
-                                                                {Icons.edit}
-                                                            </button>
-                                                            <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDeleteClient', client })} title="Delete client">
-                                                                {Icons.trash}
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
+                                                <Fragment key={client.id}>
+                                                    <tr
+                                                        className={`row-client row-client--${client.statusColor}`}
+                                                        style={{ cursor: 'pointer' }}
+                                                        onClick={() => setDrawerClient(client)}
+                                                    >
+                                                        <td>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                <button
+                                                                    className={`row-client__toggle ${isOpen ? 'row-client__toggle--open' : ''}`}
+                                                                    onClick={(e) => { e.stopPropagation(); setExpandedIds(prev => { const next = new Set(prev); next.has(client.id) ? next.delete(client.id) : next.add(client.id); return next; }); }}
+                                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', color: 'hsl(var(--muted-foreground))' }}
+                                                                    title={isOpen ? 'Collapse' : 'Expand services'}
+                                                                >
+                                                                    {Icons.chevronRight}
+                                                                </button>
+                                                                <span className="row-client__client-name">{client.clientName}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td style={{ color: 'hsl(240 3.8% 46.1%)', fontSize: 12 }}>{client.medicaidId || '—'}</td>
+                                                        <td><span className="insurance-badge">{client.insuranceType}</span></td>
+                                                        <td>
+                                                            <span className={`status-cell status-cell--${client.statusColor}`}>
+                                                                {statusLabel(client.overallStatus)}
+                                                            </span>
+                                                        </td>
+                                                        <td>
+                                                            <span className={`days-cell ${daysClass(minDays)}`}>
+                                                                {minDays != null && isFinite(minDays) ? minDays : '—'}
+                                                            </span>
+                                                        </td>
+                                                        <td>
+                                                            <div className="row-actions" onClick={(e) => e.stopPropagation()}>
+                                                                <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'client', client })} title="Edit client">
+                                                                    {Icons.edit}
+                                                                </button>
+                                                                <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDeleteClient', client })} title="Delete client">
+                                                                    {Icons.trash}
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                    {isOpen && client.authorizations.map((auth) => (
+                                                        <tr key={`a-${auth.id}`} className="row-auth">
+                                                            <td style={{ paddingLeft: 36 }}>
+                                                                <span style={{ color: 'hsl(var(--muted-foreground))', marginRight: 6 }}>└</span>
+                                                                <span style={{ fontWeight: 600 }}>{auth.serviceCode}</span>
+                                                                {auth.serviceName ? <span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12, marginLeft: 6 }}>{auth.serviceName}</span> : null}
+                                                            </td>
+                                                            <td style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>{auth.authorizedUnits || 0} units</td>
+                                                            <td style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
+                                                                {fmtDate(auth.authorizationStartDate)} – {fmtDate(auth.authorizationEndDate)}
+                                                            </td>
+                                                            <td>
+                                                                <span className={`status-cell status-cell--${auth.statusColor}`}>
+                                                                    {statusLabel(auth.status)}
+                                                                </span>
+                                                            </td>
+                                                            <td>
+                                                                <span className={`days-cell ${daysClass(auth.daysToExpire)}`}>
+                                                                    {auth.daysToExpire ?? '—'}
+                                                                </span>
+                                                            </td>
+                                                            <td>
+                                                                <div className="row-actions">
+                                                                    <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'auth', auth, clientId: client.id })} title="Edit authorization">
+                                                                        {Icons.edit}
+                                                                    </button>
+                                                                    <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDeleteAuth', auth })} title="Delete authorization">
+                                                                        {Icons.trash}
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                    {isOpen && client.authorizations.length === 0 && (
+                                                        <tr className="row-auth">
+                                                            <td colSpan={6} style={{ paddingLeft: 36, color: 'hsl(var(--muted-foreground))', fontStyle: 'italic', fontSize: 13 }}>
+                                                                No services yet
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </Fragment>
                                             );
                                         })}
                                     </tbody>

@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import { useToast } from '../hooks/useToast';
 
 function ServiceFormModal({ service, onSave, onClose }) {
     const [category, setCategory] = useState(service?.category || '');
@@ -41,8 +42,17 @@ function ServiceFormModal({ service, onSave, onClose }) {
     );
 }
 
-export default function ServicesPage({ services, onRefresh, showToast }) {
+export default function ServicesPage() {
+    const { showToast } = useToast();
+    const [services, setServices] = useState([]);
     const [modal, setModal] = useState(null);
+
+    const fetchServices = useCallback(async () => {
+        try { setServices(await api.getServices()); }
+        catch (err) { showToast(err.message, 'error'); }
+    }, [showToast]);
+
+    useEffect(() => { fetchServices(); }, [fetchServices]);
 
     const handleSave = async (data) => {
         try {
@@ -54,7 +64,7 @@ export default function ServicesPage({ services, onRefresh, showToast }) {
                 showToast('Service created');
             }
             setModal(null);
-            onRefresh();
+            fetchServices();
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -63,7 +73,7 @@ export default function ServicesPage({ services, onRefresh, showToast }) {
             await api.deleteService(svc.id);
             showToast('Service deleted');
             setModal(null);
-            onRefresh();
+            fetchServices();
         } catch (err) { showToast(err.message, 'error'); }
     };
 

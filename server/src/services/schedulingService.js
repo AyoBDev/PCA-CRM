@@ -35,7 +35,7 @@ function computeShiftHours(startTime, endTime) {
  * Prefers linked user name, falls back to employeeName field.
  */
 function getEmployeeDisplayName(shift) {
-    return shift.employee?.name || shift.employeeName || '';
+    return shift.employee?.name || '';
 }
 
 /**
@@ -47,9 +47,8 @@ function detectOverlaps(shifts) {
     const overlaps = [];
     const groups = {};
     for (const s of shifts) {
-        // Group by employeeId if present, otherwise by normalized employeeName
-        const empKey = s.employeeId ? `id_${s.employeeId}` : `name_${(s.employeeName || '').toLowerCase().trim()}`;
-        if (!empKey || empKey === 'name_') continue; // skip if no employee info
+        const empKey = `id_${s.employeeId}`;
+        if (!s.employeeId) continue;
         const key = `${empKey}_${new Date(s.shiftDate).toISOString().slice(0, 10)}`;
         if (!groups[key]) groups[key] = [];
         groups[key].push(s);
@@ -135,7 +134,7 @@ function enrichShift(shift) {
         serviceColor: colorInfo.color,
         serviceBg: colorInfo.bg,
         serviceLabel: colorInfo.label,
-        displayEmployeeName: shift.employee?.name || shift.employeeName || '',
+        displayEmployeeName: shift.employee?.name || '',
     };
 }
 

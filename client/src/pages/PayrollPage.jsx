@@ -1,0 +1,823 @@
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import * as api from '../api';
+import Icons from '../components/common/Icons';
+import Modal from '../components/common/Modal';
+import ConfirmModal from '../components/common/ConfirmModal';
+import { fmtDate } from '../utils/dates';
+import { hhmm12 } from '../utils/time';
+import { visitRowClass } from '../utils/status';
+import { useToast } from '../hooks/useToast';
+
+// ────────────────────────────────────────
+// PayrollUploadModal
+// ────────────────────────────────────────
+function PayrollUploadModal({ onUpload, onClose }) {
+    const [name, setName]               = useState('');
+    const [periodStart, setPeriodStart] = useState('');
+    const [periodEnd, setPeriodEnd]     = useState('');
+    const [file, setFile]               = useState(null);
+    const [loading, setLoading]         = useState(false);
+    const [error, setError]             = useState('');
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!file) { setError('Please select an XLSX file.'); return; }
+        setLoading(true);
+        setError('');
+        try {
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('name', name.trim() || file.name);
+            if (periodStart) fd.append('periodStart', periodStart);
+            if (periodEnd)   fd.append('periodEnd',   periodEnd);
+            const run = await api.uploadPayrollRun(fd);
+            onUpload(run);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <Modal onClose={onClose}>
+            <h2 className="modal__title">New Payroll Run</h2>
+            <p className="modal__desc">Upload an XLSX export from the scheduling system to process payroll.</p>
+            <form onSubmit={handleSubmit}>
+                <div className="form-group">
+                    <label htmlFor="payrollRunName">Run Name</label>
+                    <input id="payrollRunName" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Feb 2026 Week 1" />
+                </div>
+                <div className="form-group">
+                    <label htmlFor="periodStart">Period Start</label>
+                    <input id="periodStart" type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
+                </div>
+                <div className="form-group">
+                    <label htmlFor="periodEnd">Period End</label>
+                    <input id="periodEnd" type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
+                </div>
+                <div className="form-group">
+                    <label htmlFor="payrollFile">XLSX File <span style={{ color: 'hsl(var(--destructive))' }}>*</span></label>
+                    <input id="payrollFile" type="file" accept=".xlsx,.xls" required onChange={(e) => setFile(e.target.files[0] || null)} />
+                </div>
+                {error && <p style={{ color: 'hsl(var(--destructive))', fontSize: 13, marginBottom: 8 }}>{error}</p>}
+                <div className="form-actions">
+                    <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn--primary" disabled={loading}>
+                        {loading ? 'Processing…' : 'Upload & Process'}
+                    </button>
+                </div>
+            </form>
+        </Modal>
+    );
+}
+
+// ────────────────────────────────────────
+// PayrollClientGroup
+// ────────────────────────────────────────
+function PayrollClientGroup({ clientName, visits, onVisitChange, authMap, mergedOriginalsMap }) {
+    // Auth banner: show raw reported units (for claims review), not reduced payroll units
+    const authSummary = useMemo(() => {
+        const map = new Map();
+        for (const v of visits) {
+            if (v.needsReview) continue;
+            const code = v.serviceCode || '—';
+            map.set(code, (map.get(code) || 0) + (v.unitsRaw || 0));
+        }
+        return [...map.entries()];
+    }, [visits]);
+
+    const total = useMemo(() =>
+        visits.filter((v) => !v.voidFlag && !v.needsReview).reduce((s, v) => s + v.finalPayableUnits, 0),
+        [visits]
+    );
+
+    // Employee totals: grouped by normalized employeeName (case-insensitive), including void rows
+    const employeeTotals = useMemo(() => {
+        const map = new Map();       // normalized key → { displayName, units, voidUnits }
+        for (const v of visits) {
+            if (v.needsReview) continue;
+            const raw = v.employeeName || '(Unknown)';
+            const key = raw.toLowerCase().trim();
+            if (!map.has(key)) map.set(key, { displayName: raw, units: 0, voidUnits: 0 });
+            const entry = map.get(key);
+            if (v.voidFlag) {
+                entry.voidUnits += 1;
+            } else {
+                entry.units += v.finalPayableUnits;
+            }
+        }
+        return [...map.entries()]
+            .map(([, data]) => [data.displayName, { units: data.units, voidUnits: data.voidUnits }])
+            .sort((a, b) => a[0].localeCompare(b[0]));
+    }, [visits]);
+
+    // Assign a distinct left-border color to each employee (only when 2+ employees)
+    const EMP_COLORS = [
+        'hsl(221 83% 53%)',  // blue
+        'hsl(142 71% 35%)',  // green
+        'hsl(291 64% 42%)',  // purple
+        'hsl(24 95% 48%)',   // orange
+        'hsl(346 77% 49%)',  // red-pink
+        'hsl(187 71% 38%)',  // teal
+        'hsl(43 96% 46%)',   // amber
+        'hsl(262 52% 47%)',  // indigo
+    ];
+    const employeeColorMap = useMemo(() => {
+        const seen = [];  // normalized keys in insertion order
+        for (const v of visits) {
+            const emp = v.employeeName || '';
+            const key = emp.toLowerCase().trim();
+            if (key && !seen.includes(key)) seen.push(key);
+        }
+        if (seen.length < 2) return null;
+        const map = new Map();
+        seen.forEach((key, i) => map.set(key, EMP_COLORS[i % EMP_COLORS.length]));
+        return map;
+    }, [visits]);
+
+    // Match server normalizeName: lowercase, strip non-alphanumeric, sort words
+    const clientKey = (clientName || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').trim().split(/\s+/).filter(Boolean).sort().join(' ');
+    const clientAuthMap = (authMap && authMap[clientKey]) || {};
+
+    return (
+        <div className="payroll-client-group">
+            <div className="payroll-client-banner">
+                <span>{clientName || <em style={{ color: 'hsl(270 50% 40%)' }}>Unknown Client</em>}</span>
+                {authSummary.length > 0 && (
+                    <span className="payroll-client-banner__auths">
+                        {authSummary.map(([code, units], i) => {
+                            const authorized = clientAuthMap[code];
+                            let color = 'inherit';
+                            if (authorized != null) {
+                                color = units >= authorized ? 'hsl(142 71% 35%)' : 'hsl(0 72% 45%)';
+                            }
+                            return (
+                                <span key={code} style={{ color, marginLeft: i > 0 ? 12 : 0 }}>
+                                    {code}:{units}{authorized != null ? `/${authorized}` : ''}
+                                </span>
+                            );
+                        })}
+                    </span>
+                )}
+            </div>
+            <table className="payroll-visits-table">
+                <thead>
+                    <tr>
+                        <th>Client</th>
+                        <th>Employee</th>
+                        <th>Service</th>
+                        <th>Date</th>
+                        <th>In</th>
+                        <th>Out</th>
+                        <th>Status</th>
+                        <th>Units (Raw)</th>
+                        <th>Final Units</th>
+                        <th>Overlap</th>
+                        <th>Void / Review Reason</th>
+                        <th>Notes / Exceptions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {visits.map((v) => {
+                        const empColor = employeeColorMap?.get((v.employeeName || '').toLowerCase().trim());
+                        const originals = mergedOriginalsMap?.get(v.id);
+                        return (
+                        <Fragment key={v.id}>
+                        <tr className={visitRowClass(v)} style={empColor ? { borderLeft: `4px solid ${empColor}` } : undefined}>
+                            <td>
+                                <PayrollEditableText
+                                    value={v.clientName}
+                                    placeholder="missing client…"
+                                    highlight={!v.clientName}
+                                    onSave={async (val) => {
+                                        const updated = await api.updatePayrollVisit(v.id, { clientName: val });
+                                        onVisitChange(v.id, updated);
+                                    }}
+                                />
+                            </td>
+                            <td style={empColor ? { color: empColor, fontWeight: 600, whiteSpace: 'nowrap' } : undefined}>
+                                <PayrollEditableText
+                                    value={v.employeeName}
+                                    placeholder="missing employee…"
+                                    highlight={!v.employeeName || /^\d+$/.test(v.employeeName)}
+                                    onSave={async (val) => {
+                                        const updated = await api.updatePayrollVisit(v.id, { employeeName: val });
+                                        onVisitChange(v.id, updated);
+                                    }}
+                                />
+                            </td>
+                            <td>{v.service || '—'}</td>
+                            <td>{v.visitDate ? new Date(v.visitDate).toLocaleDateString('en-US', { timeZone: 'UTC' }) : <em style={{ color: 'hsl(270 50% 40%)' }}>missing</em>}</td>
+                            <td style={v.earlyCallIn ? { background: 'hsl(38 96% 88%)', fontWeight: 600 } : undefined}>
+                                <PayrollEditableText
+                                    value={v.callInTime}
+                                    displayValue={hhmm12(v.callInTime)}
+                                    placeholder="HH:MM"
+                                    highlight={!v.callInTime || v.callInTime === '00:00'}
+                                    onSave={async (val) => {
+                                        const updated = await api.updatePayrollVisit(v.id, { callInTime: val });
+                                        onVisitChange(v.id, updated);
+                                    }}
+                                    width={75}
+                                />
+                            </td>
+                            <td style={(v.lateCallOut || v.nextDayCallOut) ? { background: 'hsl(38 96% 88%)', fontWeight: 600 } : undefined}>
+                                <PayrollEditableText
+                                    value={v.callOutTime}
+                                    displayValue={hhmm12(v.callOutTime)}
+                                    placeholder="HH:MM"
+                                    highlight={!v.callOutTime || v.callOutTime === '00:00'}
+                                    onSave={async (val) => {
+                                        const updated = await api.updatePayrollVisit(v.id, { callOutTime: val });
+                                        onVisitChange(v.id, updated);
+                                    }}
+                                    width={75}
+                                />
+                            </td>
+                            <td>{v.visitStatus}</td>
+                            <td style={v.unitsRaw > 28 && !v.voidFlag && !v.needsReview ? { background: 'hsl(0 84% 92%)', fontWeight: 700 } : undefined}>{v.unitsRaw}</td>
+                            <td>
+                                <PayrollEditableUnits
+                                    visit={v}
+                                    onChange={(newUnits) => onVisitChange(v.id, { finalPayableUnits: newUnits })}
+                                />
+                            </td>
+                            <td>{v.overlapId || ''}</td>
+                            <td>
+                                {v.needsReview
+                                    ? <span style={{ color: 'hsl(270 50% 40%)', fontWeight: 600 }}>{v.reviewReason}</span>
+                                    : (v.voidReason || '')}
+                            </td>
+                            <td>
+                                <PayrollEditableNotes
+                                    visit={v}
+                                    onChange={(newNotes) => onVisitChange(v.id, { notes: newNotes })}
+                                />
+                            </td>
+                        </tr>
+                        {originals && originals.map((orig) => {
+                            const s = { color: 'hsl(240 3.8% 46.1%)', fontSize: 12 };
+                            return (
+                            <tr key={`orig-${orig.id}`} className="payroll-row--merged-original">
+                                <td style={{ paddingLeft: 24 }}>
+                                    <span style={s}>↳ {orig.clientName || ''}</span>
+                                </td>
+                                <td><span style={s}>{orig.employeeName || ''}</span></td>
+                                <td><span style={s}>{orig.service || '—'}</span></td>
+                                <td><span style={s}>{orig.visitDate ? new Date(orig.visitDate).toLocaleDateString('en-US', { timeZone: 'UTC' }) : ''}</span></td>
+                                <td><span style={s}>{hhmm12(orig.callInTime) || '—'}</span></td>
+                                <td><span style={s}>{hhmm12(orig.callOutTime) || '—'}</span></td>
+                                <td><span style={{ ...s, fontStyle: 'italic' }}>{orig.visitStatus || ''}</span></td>
+                                <td><span style={s}>{orig.unitsRaw || ''}</span></td>
+                                <td><span style={s}>{orig.finalPayableUnits || ''}</span></td>
+                                <td><span style={s}>{orig.overlapId || ''}</span></td>
+                                <td><span style={s}>{orig.reviewReason || ''}</span></td>
+                                <td><span style={s}>{orig.notes || ''}</span></td>
+                            </tr>
+                            );
+                        })}
+                        </Fragment>
+                        );
+                    })}
+                    <tr className="payroll-total-row">
+                        <td colSpan={8} style={{ textAlign: 'right' }}>TOTAL</td>
+                        <td>{total}</td>
+                        <td colSpan={3}></td>
+                    </tr>
+                    {employeeTotals.length > 0 && (
+                        <tr className="payroll-employee-totals-row">
+                            <td colSpan={12}>
+                                <span className="payroll-employee-totals__label">By Employee:</span>
+                                {employeeTotals.map(([emp, { units, voidUnits }]) => (
+                                    <span key={emp} className="payroll-employee-totals__item">
+                                        <span className="payroll-employee-totals__name" style={employeeColorMap?.get(emp.toLowerCase().trim()) ? { color: employeeColorMap.get(emp.toLowerCase().trim()) } : undefined}>{emp}</span>
+                                        <span className="payroll-employee-totals__units">{units} units · {(units / 4).toFixed(2)} hrs</span>
+                                        {voidUnits > 0 && <span className="payroll-employee-totals__void">{voidUnits} void</span>}
+                                    </span>
+                                ))}
+                            </td>
+                        </tr>
+                    )}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+// ────────────────────────────────────────
+// PayrollEditableText — generic inline text editor for any visit field
+// Used for clientName, employeeName, callInTime, callOutTime
+// ────────────────────────────────────────
+function PayrollEditableText({ value, displayValue, placeholder, highlight, onSave, width = 130 }) {
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft]     = useState(value || '');
+    const [saving, setSaving]   = useState(false);
+
+    // keep draft in sync if parent updates the value (e.g. after server recalc)
+    const prevValue = useRef(value);
+    if (prevValue.current !== value) {
+        prevValue.current = value;
+        if (!editing) setDraft(value || '');
+    }
+
+    const commit = async () => {
+        const trimmed = draft.trim();
+        if (trimmed === (value || '').trim()) { setEditing(false); return; }
+        setSaving(true);
+        try {
+            await onSave(trimmed);
+        } catch (_) {
+            setDraft(value || '');
+        } finally {
+            setSaving(false);
+            setEditing(false);
+        }
+    };
+
+    if (editing) {
+        return (
+            <input
+                type="text"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={commit}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter') commit();
+                    if (e.key === 'Escape') { setDraft(value || ''); setEditing(false); }
+                }}
+                autoFocus
+                placeholder={placeholder}
+                style={{ width, padding: '2px 6px', fontSize: 13 }}
+            />
+        );
+    }
+
+    const isEmpty = !value || value === '00:00';
+    return (
+        <span
+            title="Click to edit"
+            onClick={() => { setDraft(value || ''); setEditing(true); }}
+            style={{
+                cursor: 'pointer',
+                color: isEmpty || highlight ? 'hsl(270 50% 40%)' : 'inherit',
+                fontStyle: isEmpty ? 'italic' : 'normal',
+                fontWeight: highlight && !isEmpty ? 600 : 'normal',
+                borderBottom: '1px dashed hsl(var(--border))',
+                paddingBottom: 1,
+                opacity: saving ? 0.5 : 1,
+                whiteSpace: 'nowrap',
+            }}
+        >
+            {isEmpty ? placeholder : (displayValue ?? value)}
+        </span>
+    );
+}
+
+// ────────────────────────────────────────
+// PayrollEditableUnits — inline number editor
+// ────────────────────────────────────────
+function PayrollEditableUnits({ visit, onChange }) {
+    const [editing, setEditing] = useState(false);
+    const [value, setValue]     = useState(String(visit.finalPayableUnits));
+    const [saving, setSaving]   = useState(false);
+
+    const commit = async () => {
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 0 || n === visit.finalPayableUnits) {
+            setValue(String(visit.finalPayableUnits));
+            setEditing(false);
+            return;
+        }
+        setSaving(true);
+        try {
+            await api.updatePayrollVisit(visit.id, { finalPayableUnits: n });
+            onChange(n);
+        } catch (_) {
+            setValue(String(visit.finalPayableUnits));
+        } finally {
+            setSaving(false);
+            setEditing(false);
+        }
+    };
+
+    if (visit.voidFlag) return <span style={{ color: 'hsl(var(--destructive))' }}>VOID</span>;
+
+    if (editing) {
+        return (
+            <input
+                type="number" min="0" max="112"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                onBlur={commit}
+                onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setValue(String(visit.finalPayableUnits)); setEditing(false); } }}
+                autoFocus
+                style={{ width: 56, padding: '2px 4px', fontSize: 13, textAlign: 'center' }}
+            />
+        );
+    }
+
+    return (
+        <span
+            title="Click to edit"
+            onClick={() => { setValue(String(visit.finalPayableUnits)); setEditing(true); }}
+            style={{ cursor: 'pointer', borderBottom: '1px dashed hsl(var(--border))', paddingBottom: 1, opacity: saving ? 0.5 : 1 }}
+        >
+            {visit.finalPayableUnits}
+        </span>
+    );
+}
+
+// ────────────────────────────────────────
+// PayrollEditableNotes — inline text editor
+// ────────────────────────────────────────
+function PayrollEditableNotes({ visit, onChange }) {
+    const [editing, setEditing] = useState(false);
+    const [value, setValue]     = useState(visit.notes || '');
+    const [saving, setSaving]   = useState(false);
+
+    const commit = async () => {
+        const trimmed = value.trim();
+        if (trimmed === (visit.notes || '').trim()) { setEditing(false); return; }
+        setSaving(true);
+        try {
+            await api.updatePayrollVisit(visit.id, { notes: trimmed });
+            onChange(trimmed);
+        } catch (_) {
+            setValue(visit.notes || '');
+        } finally {
+            setSaving(false);
+            setEditing(false);
+        }
+    };
+
+    if (editing) {
+        return (
+            <input
+                type="text"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                onBlur={commit}
+                onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setValue(visit.notes || ''); setEditing(false); } }}
+                autoFocus
+                placeholder="Add note…"
+                style={{ width: 200, padding: '2px 6px', fontSize: 13 }}
+            />
+        );
+    }
+
+    return (
+        <span
+            title="Click to edit"
+            onClick={() => { setValue(visit.notes || ''); setEditing(true); }}
+            style={{ cursor: 'pointer', color: value ? 'inherit' : 'hsl(240 3.8% 46.1%)', fontStyle: value ? 'normal' : 'italic', borderBottom: '1px dashed hsl(var(--border))', paddingBottom: 1, opacity: saving ? 0.5 : 1, whiteSpace: 'nowrap' }}
+        >
+            {value || 'add note…'}
+        </span>
+    );
+}
+
+// ────────────────────────────────────────
+// PayrollRunDetail
+// ────────────────────────────────────────
+function PayrollRunDetail({ run, onVisitChange, authMap }) {
+    const [search, setSearch] = useState('');
+    const [legendFilter, setLegendFilter] = useState(null);
+
+    // Build lookup: mergedVisitId → [originalRows] for displaying originals under merged rows
+    const mergedOriginalsMap = useMemo(() => {
+        const map = new Map();
+        for (const v of run.visits) {
+            if (v.mergedInto != null) {
+                if (!map.has(v.mergedInto)) map.set(v.mergedInto, []);
+                map.get(v.mergedInto).push(v);
+            }
+        }
+        return map;
+    }, [run.visits]);
+
+    const visibleVisits = useMemo(() => {
+        // Exclude mergedInto reference rows — they are shown inline under their parent
+        const all = run.visits.filter((v) => v.mergedInto == null);
+
+        const byFilter = legendFilter ? all.filter((v) => {
+            if (legendFilter === 'void')        return v.voidFlag;
+            if (legendFilter === 'incomplete')  return v.isIncomplete;
+            if (legendFilter === 'unauthorized') return v.isUnauthorized;
+            if (legendFilter === 'overlap')     return !!v.overlapId;
+            if (legendFilter === 'overcap')     return v.unitsRaw > 28 && !v.voidFlag;
+            if (legendFilter === 'timeflag')    return v.earlyCallIn || v.lateCallOut || v.nextDayCallOut;
+            if (legendFilter === 'review')      return v.needsReview;
+            return true;
+        }) : all;
+
+        if (!search.trim()) return byFilter;
+        const q = search.trim().toLowerCase();
+        return byFilter.filter((v) =>
+            (v.clientName || '').toLowerCase().includes(q) ||
+            (v.employeeName || '').toLowerCase().includes(q)
+        );
+    }, [run.visits, search, legendFilter]);
+
+    // Service code sort order: PCS → S5125 → S5130 → S5150 → S5135 → SDPC
+    const svcOrder = { PCS: 0, S5125: 1, S5130: 2, S5150: 3, S5135: 4, SDPC: 5 };
+    const clientGroups = useMemo(() => {
+        const map = new Map();
+        for (const v of visibleVisits) {
+            const key = v.clientName || '(Unknown Client)';
+            if (!map.has(key)) map.set(key, []);
+            map.get(key).push(v);
+        }
+        // Sort visits within each group: by service code first, then by date
+        for (const [, arr] of map) {
+            arr.sort((a, b) => {
+                const sa = svcOrder[a.serviceCode] ?? 99;
+                const sb = svcOrder[b.serviceCode] ?? 99;
+                if (sa !== sb) return sa - sb;
+                const da = a.visitDate ? new Date(a.visitDate).getTime() : 0;
+                const db = b.visitDate ? new Date(b.visitDate).getTime() : 0;
+                return da - db;
+            });
+        }
+        // Sort client groups: real names first (alphabetical), then unknown/phone/needsReview at bottom
+        const isUnknownClient = (name) => !name || name === '(Unknown Client)' || /^\d/.test(name) || /^\(/.test(name);
+        const allNeedsReview = (visits) => visits.every((v) => v.needsReview);
+        return [...map.entries()].sort((a, b) => {
+            const aBottom = isUnknownClient(a[0]) || allNeedsReview(a[1]);
+            const bBottom = isUnknownClient(b[0]) || allNeedsReview(b[1]);
+            if (aBottom !== bBottom) return aBottom ? 1 : -1;
+            return a[0].localeCompare(b[0]);
+        });
+    }, [visibleVisits]);
+
+    return (
+        <div>
+            <div className="payroll-legend">
+                {[
+                    { key: 'void',         label: 'Void',                                                      cls: 'void' },
+                    { key: 'incomplete',   label: 'Incomplete',                                                cls: 'incomplete' },
+                    { key: 'unauthorized', label: 'Unauthorized',                                              cls: 'unauthorized' },
+                    { key: 'overlap',      label: 'Overlap',                                                   cls: 'overlap' },
+                    { key: 'overcap',      label: 'Over daily cap (28 units)',                                  cls: 'overcap' },
+                    { key: 'timeflag',     label: 'Time violation (In <4:30 AM / Out >11:30 PM / next day)',   cls: 'timeflag' },
+                    { key: 'review',       label: 'Needs Review',                                              cls: 'review' },
+                ].map(({ key, label, cls }) => (
+                    <button
+                        key={key}
+                        type="button"
+                        className={`payroll-legend__item payroll-legend__item--${cls}${legendFilter === key ? ' payroll-legend__item--active' : ''}`}
+                        onClick={() => setLegendFilter((f) => f === key ? null : key)}
+                        title={legendFilter === key ? 'Click to clear filter' : `Click to filter by: ${label}`}
+                    >
+                        {label}
+                    </button>
+                ))}
+            </div>
+
+            <div style={{ margin: '12px 0' }}>
+                <input
+                    type="search"
+                    placeholder="Search by client or employee…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    style={{ width: 280, padding: '6px 10px', fontSize: 13, borderRadius: 6, border: '1px solid hsl(var(--border))', background: 'hsl(var(--background))', color: 'hsl(var(--foreground))' }}
+                />
+                {search && (
+                    <span style={{ marginLeft: 10, fontSize: 12, color: 'hsl(240 3.8% 46.1%)' }}>
+                        {visibleVisits.length} visit{visibleVisits.length !== 1 ? 's' : ''} found
+                    </span>
+                )}
+            </div>
+
+            {clientGroups.map(([clientName, visits]) => (
+                <PayrollClientGroup key={clientName} clientName={clientName} visits={visits} onVisitChange={onVisitChange} authMap={authMap} mergedOriginalsMap={mergedOriginalsMap} />
+            ))}
+
+            {clientGroups.length === 0 && (
+                <p style={{ color: 'hsl(240 3.8% 46.1%)', fontStyle: 'italic' }}>
+                    {search ? `No visits match "${search}".` : 'No visit records in this run.'}
+                </p>
+            )}
+        </div>
+    );
+}
+
+// ────────────────────────────────────────
+// PayrollPage
+// ────────────────────────────────────────
+function PayrollPage() {
+    const { showToast } = useToast();
+    const { runId } = useParams();
+    const navigate = useNavigate();
+    const initialRunId = runId ? parseInt(runId, 10) : null;
+    const onNavigate = useCallback((path) => navigate('/' + path), [navigate]);
+    const [runs, setRuns]               = useState([]);
+    const [selectedRun, setSelectedRun] = useState(null);
+    const [loading, setLoading]         = useState(true);
+    const [modal, setModal]             = useState(null);
+    const [exporting, setExporting]     = useState(false);
+
+    // Optimistically update a visit field in selectedRun state after a successful PATCH
+    // patch may be a plain object (optimistic update) or a full visit from the server
+    const handleVisitChange = useCallback((visitId, patch) => {
+        setSelectedRun((prev) => {
+            if (!prev) return prev;
+            const visits = prev.visits.map((v) => v.id === visitId ? { ...v, ...patch } : v);
+            const totalPayable = visits.filter((v) => !v.voidFlag && !v.needsReview && v.mergedInto == null).reduce((s, v) => s + v.finalPayableUnits, 0);
+            return { ...prev, visits, totalPayable };
+        });
+    }, []);
+
+    const loadRuns = useCallback(async () => {
+        setLoading(true);
+        try {
+            const data = await api.getPayrollRuns();
+            setRuns(data);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setLoading(false);
+        }
+    }, [showToast]);
+
+    useEffect(() => { loadRuns(); }, [loadRuns]);
+
+    // On mount (or when initialRunId changes from URL), load that run
+    useEffect(() => {
+        if (!initialRunId) return;
+        api.getPayrollRun(initialRunId)
+            .then(setSelectedRun)
+            .catch(() => onNavigate('payroll')); // run not found — fall back to list
+    }, [initialRunId, onNavigate]);
+
+    const handleRunClick = async (run) => {
+        try {
+            const full = await api.getPayrollRun(run.id);
+            setSelectedRun(full);
+            onNavigate(`payroll/runs/${run.id}`);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    };
+
+    const handleUpload = (run) => {
+        setModal(null);
+        showToast('Payroll run processed successfully.', 'success');
+        loadRuns();
+        setSelectedRun(run);
+        onNavigate(`payroll/runs/${run.id}`);
+    };
+
+    const handleDelete = async (run) => {
+        try {
+            await api.deletePayrollRun(run.id);
+            showToast('Payroll run deleted.', 'success');
+            setModal(null);
+            if (selectedRun?.id === run.id) {
+                setSelectedRun(null);
+                onNavigate('payroll');
+            }
+            loadRuns();
+        } catch (err) {
+            showToast(err.message, 'error');
+            setModal(null);
+        }
+    };
+
+    const handleExport = async () => {
+        if (!selectedRun) return;
+        setExporting(true);
+        try {
+            const res = await fetch(`/api/payroll/runs/${selectedRun.id}/export`, {
+                headers: { Authorization: `Bearer ${api.getToken()}` },
+            });
+            if (!res.ok) {
+                const b = await res.json().catch(() => ({}));
+                throw new Error(b.error || `HTTP ${res.status}`);
+            }
+            const blob = await res.blob();
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            a.download = `payroll_${selectedRun.name.replace(/\s+/g, '_')}.xlsx`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setExporting(false);
+        }
+    };
+
+    if (selectedRun) {
+        return (
+            <div>
+                <div className="content-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <button className="btn btn--outline btn--sm" onClick={() => { setSelectedRun(null); onNavigate('payroll'); }}>
+                            ← Back
+                        </button>
+                        <h1 className="content-header__title">{selectedRun.name}</h1>
+                        <span style={{ fontSize: 12, color: 'hsl(240 3.8% 46.1%)' }}>
+                            {selectedRun.totalVisits} visits · {selectedRun.totalPayable} payable units
+                        </span>
+                    </div>
+                    <div className="content-header__actions">
+                        <button className="btn btn--primary btn--sm" onClick={handleExport} disabled={exporting}>
+                            {Icons.download} {exporting ? 'Exporting…' : 'Export XLSX'}
+                        </button>
+                    </div>
+                </div>
+                <div className="page-content">
+                    <PayrollRunDetail run={selectedRun} onVisitChange={handleVisitChange} authMap={selectedRun.authMap || {}} />
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div>
+            <div className="content-header">
+                <h1 className="content-header__title">Payroll Runs</h1>
+                <div className="content-header__actions">
+                    <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'upload' })}>
+                        {Icons.upload} New Run
+                    </button>
+                </div>
+            </div>
+            <div className="page-content">
+                {loading ? (
+                    <p style={{ color: 'hsl(240 3.8% 46.1%)' }}>Loading…</p>
+                ) : runs.length === 0 ? (
+                    <p style={{ color: 'hsl(240 3.8% 46.1%)', fontStyle: 'italic' }}>No payroll runs yet. Upload an XLSX to get started.</p>
+                ) : (
+                    <div className="table-wrapper">
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Run Name</th>
+                                    <th>File</th>
+                                    <th>Period</th>
+                                    <th>Visits</th>
+                                    <th>Payable Units</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {runs.map((run) => (
+                                    <tr key={run.id} style={{ cursor: 'pointer' }} onClick={() => handleRunClick(run)}>
+                                        <td style={{ fontWeight: 500 }}>{run.name}</td>
+                                        <td style={{ fontSize: 12, color: 'hsl(240 3.8% 46.1%)' }}>{run.fileName}</td>
+                                        <td style={{ fontSize: 12 }}>
+                                            {run.periodStart ? fmtDate(run.periodStart) : '—'}
+                                            {run.periodEnd   ? ` – ${fmtDate(run.periodEnd)}` : ''}
+                                        </td>
+                                        <td>{run.totalVisits}</td>
+                                        <td>{run.totalPayable}</td>
+                                        <td>
+                                            <span style={{
+                                                display: 'inline-block', padding: '2px 8px', borderRadius: 4,
+                                                fontSize: 11, fontWeight: 600,
+                                                background: run.status === 'done' ? 'hsl(142 76% 96%)' : run.status === 'error' ? 'hsl(0 93% 97%)' : 'hsl(38 100% 96%)',
+                                                color:      run.status === 'done' ? 'hsl(142 71% 35%)' : run.status === 'error' ? 'hsl(0 84% 45%)' : 'hsl(38 92% 35%)',
+                                            }}>
+                                                {run.status}
+                                            </span>
+                                        </td>
+                                        <td style={{ fontSize: 12 }}>{fmtDate(run.createdAt)}</td>
+                                        <td onClick={(e) => e.stopPropagation()}>
+                                            <button
+                                                className="btn btn--danger-ghost btn--icon"
+                                                title="Delete run"
+                                                onClick={() => setModal({ type: 'confirmDelete', run })}
+                                            >
+                                                {Icons.trash}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+
+            {modal?.type === 'upload' && (
+                <PayrollUploadModal onUpload={handleUpload} onClose={() => setModal(null)} />
+            )}
+            {modal?.type === 'confirmDelete' && (
+                <ConfirmModal
+                    title="Delete Payroll Run"
+                    message={`This will permanently delete the run "${modal.run.name}" and all ${modal.run.totalVisits} visit records. This action cannot be undone.`}
+                    onConfirm={() => handleDelete(modal.run)}
+                    onClose={() => setModal(null)}
+                />
+            )}
+        </div>
+    );
+}
+
+export default PayrollPage;

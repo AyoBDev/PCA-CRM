@@ -38,7 +38,7 @@ describe('getReminderWindow', () => {
     test('PCS = 60', () => expect(getReminderWindow('PCS')).toBe(60));
     test('SDPC = 30', () => expect(getReminderWindow('SDPC')).toBe(30));
     test('TIMESHEETS = 15', () => expect(getReminderWindow('TIMESHEETS')).toBe(15));
-    test('unknown throws', () => expect(() => getReminderWindow('UNKNOWN')).toThrow());
+    test('unknown returns default 30', () => expect(getReminderWindow('UNKNOWN')).toBe(30));
 });
 
 // ── computeStatus ──────────────────────────────

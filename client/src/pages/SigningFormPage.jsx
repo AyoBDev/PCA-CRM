@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
 import SignaturePad from '../components/common/SignaturePad';
@@ -6,7 +7,9 @@ import { formatWeek } from '../utils/dates';
 
 const DAY_SHORT = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
-export default function SigningFormPage({ token }) {
+export default function SigningFormPage({ token: tokenProp }) {
+    const params = useParams();
+    const token = tokenProp || params.token;
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [role, setRole] = useState(null);

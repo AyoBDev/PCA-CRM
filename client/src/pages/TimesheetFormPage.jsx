@@ -4,6 +4,7 @@ import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import SignaturePad from '../components/common/SignaturePad';
 import { formatWeek } from '../utils/dates';
+import { useToast } from '../hooks/useToast';
 
 // Timesheet constants
 const DAY_SHORT = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -53,7 +54,9 @@ function ActivityRow({ label, entries, section, activityKey, updateEntry, disabl
     );
 }
 
-export default function TimesheetFormPage({ timesheetId, clients, onBack, showToast }) {
+export default function TimesheetFormPage({ timesheetId, clients, onBack, showToast: showToastProp }) {
+    const { showToast: toastHook } = useToast();
+    const showToast = showToastProp || toastHook;
     const [ts, setTs] = useState(null);
     const [entries, setEntries] = useState([]);
     const [recipientSig, setRecipientSig] = useState('');

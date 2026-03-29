@@ -4,6 +4,7 @@ import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import TimesheetFormPage from './TimesheetFormPage';
 import { formatWeek } from '../utils/dates';
+import { useToast } from '../hooks/useToast';
 
 function getSunday(dateStr) {
     const d = new Date(dateStr + 'T00:00:00');
@@ -11,7 +12,9 @@ function getSunday(dateStr) {
     return d.toISOString().split('T')[0];
 }
 
-export default function TimesheetsListPage({ clients, showToast }) {
+export default function TimesheetsListPage() {
+    const { showToast } = useToast();
+    const [clients, setClients] = useState([]);
     const [timesheets, setTimesheets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState('');
@@ -22,6 +25,10 @@ export default function TimesheetsListPage({ clients, showToast }) {
     const [newWeekDate, setNewWeekDate] = useState(getSunday(new Date().toISOString().split('T')[0]));
     const [newClientPhone, setNewClientPhone] = useState('');
     const [newClientIdNumber, setNewClientIdNumber] = useState('');
+
+    useEffect(() => {
+        api.getClients().then(setClients).catch(() => {});
+    }, []);
 
     const fetchTimesheets = useCallback(async () => {
         try {

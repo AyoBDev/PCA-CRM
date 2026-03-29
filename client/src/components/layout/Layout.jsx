@@ -1,25 +1,24 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import Toast from './Toast';
 
-export default function Layout({ activePage, onNavigate, user, onLogout, children }) {
-    const [sidebarCollapsed] = useState(
+export default function Layout({ children }) {
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(
         () => localStorage.getItem('sidebarCollapsed') === 'true'
     );
 
-    // Listen for sidebar collapse changes via storage events
-    // The Sidebar component manages the collapsed state and writes to localStorage.
-    // This component reads it on mount for the wrapper class.
-    // A full sync will happen when we migrate to React Router with shared context.
+    // Sync when Sidebar toggles
+    useEffect(() => {
+        const handler = () => {
+            setSidebarCollapsed(localStorage.getItem('sidebarCollapsed') === 'true');
+        };
+        window.addEventListener('sidebarToggle', handler);
+        return () => window.removeEventListener('sidebarToggle', handler);
+    }, []);
 
     return (
         <div className={`app${sidebarCollapsed ? ' app--sidebar-collapsed' : ''}`}>
-            <Sidebar
-                activePage={activePage}
-                onNavigate={onNavigate}
-                user={user}
-                onLogout={onLogout}
-            />
+            <Sidebar />
             <main className="main-content">
                 {children}
             </main>

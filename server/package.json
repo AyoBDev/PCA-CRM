@@ -9,7 +9,8 @@
     "test": "jest --verbose",
     "db:migrate": "npx prisma migrate dev",
     "db:generate": "npx prisma generate",
-    "db:seed": "node prisma/seed.js"
+    "db:seed": "node prisma/seed.js",
+    "db:migrate-employees": "node prisma/migrate-employees.js"
   },
   "dependencies": {
     "@prisma/client": "^6.4.0",

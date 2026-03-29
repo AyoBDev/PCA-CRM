@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
+import { useToast } from '../hooks/useToast';
 
-export default function UsersPage({ showToast }) {
+export default function UsersPage() {
+    const { showToast } = useToast();
     const [users, setUsers] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [form, setForm] = useState({ name: '', email: '', password: '', role: 'pca' });

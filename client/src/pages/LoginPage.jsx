@@ -1,20 +1,24 @@
 import { useState } from 'react';
-import * as api from '../api';
+import { useNavigate } from 'react-router-dom';
 import Icons from '../components/common/Icons';
+import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../hooks/useToast';
 
-export default function LoginPage({ onLogin, showToast }) {
+export default function LoginPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
+    const { login } = useAuth();
+    const { showToast } = useToast();
+    const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!email || !password) return;
         setLoading(true);
         try {
-            const result = await api.login(email, password);
-            api.setToken(result.token);
-            onLogin(result.user);
+            const user = await login(email, password);
+            navigate(user.role === 'admin' ? '/dashboard' : '/timesheets', { replace: true });
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
