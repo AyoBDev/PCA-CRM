@@ -13,6 +13,9 @@ async function getDashboardStats(req, res) {
         weekShifts,
         unconfirmedNotifications,
         clients,
+        timesheetDraft,
+        timesheetSubmitted,
+        payrollRuns,
     ] = await Promise.all([
         prisma.client.count(),
         prisma.employee.count({ where: { active: true } }),
@@ -34,6 +37,13 @@ async function getDashboardStats(req, res) {
         }),
         prisma.client.findMany({
             include: { authorizations: true },
+        }),
+        prisma.timesheet.count({ where: { status: 'draft' } }),
+        prisma.timesheet.count({ where: { status: 'submitted' } }),
+        prisma.payrollRun.findMany({
+            orderBy: { createdAt: 'desc' },
+            take: 3,
+            select: { id: true, name: true, status: true, totalVisits: true, totalPayable: true, createdAt: true },
         }),
     ]);
 
@@ -64,6 +74,9 @@ async function getDashboardStats(req, res) {
         weekUnits,
         unconfirmedCount: unconfirmedNotifications,
         expiringAuths,
+        timesheetDraft,
+        timesheetSubmitted,
+        recentPayrollRuns: payrollRuns,
     });
 }
 

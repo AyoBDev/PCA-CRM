@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '../hooks/useToast';
 import Icons from '../components/common/Icons';
+import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import * as api from '../api';
 
@@ -16,48 +17,44 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
     };
 
     return (
-        <div className="modal-backdrop" onClick={onClose}>
-            <div className="modal" onClick={e => e.stopPropagation()}>
-                <div className="modal-header">
-                    <h3>{employee ? 'Edit Employee' : 'Add Employee'}</h3>
-                    <button className="modal-close" onClick={onClose}>&times;</button>
+        <Modal onClose={onClose}>
+            <h2 className="modal__title">{employee ? 'Edit Employee' : 'Add Employee'}</h2>
+            <p className="modal__desc">{employee ? 'Update the employee details below.' : 'Fill in the details to add a new employee.'}</p>
+            <form onSubmit={handleSubmit}>
+                <div className="form-group">
+                    <label htmlFor="empName">Name *</label>
+                    <input id="empName" value={name} onChange={e => setName(e.target.value)} required autoFocus />
                 </div>
-                <form onSubmit={handleSubmit}>
-                    <div className="modal-body">
-                        <div className="form-group">
-                            <label>Name *</label>
-                            <input value={name} onChange={e => setName(e.target.value)} required />
-                        </div>
-                        <div className="form-group">
-                            <label>Phone</label>
-                            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="(555) 123-4567" />
-                        </div>
-                        <div className="form-group">
-                            <label>Email</label>
-                            <input type="email" value={email} onChange={e => setEmail(e.target.value)} />
-                        </div>
-                        <div className="form-group">
-                            <label>Link to User Account (optional)</label>
-                            <select value={userId} onChange={e => setUserId(e.target.value)}>
-                                <option value="">— None —</option>
-                                {users.map(u => (
-                                    <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
-                                ))}
-                            </select>
-                        </div>
-                        {!phone && !email && (
-                            <div className="form-warning">
-                                No contact info — this employee won't receive schedule notifications.
-                            </div>
-                        )}
+                <div className="form-grid-2">
+                    <div className="form-group">
+                        <label htmlFor="empPhone">Phone</label>
+                        <input id="empPhone" value={phone} onChange={e => setPhone(e.target.value)} placeholder="(555) 123-4567" />
                     </div>
-                    <div className="modal-footer">
-                        <button type="button" className="btn btn--secondary" onClick={onClose}>Cancel</button>
-                        <button type="submit" className="btn btn--primary">Save</button>
+                    <div className="form-group">
+                        <label htmlFor="empEmail">Email</label>
+                        <input id="empEmail" type="email" value={email} onChange={e => setEmail(e.target.value)} />
                     </div>
-                </form>
-            </div>
-        </div>
+                </div>
+                <div className="form-group">
+                    <label htmlFor="empUser">Link to User Account (optional)</label>
+                    <select id="empUser" value={userId} onChange={e => setUserId(e.target.value)}>
+                        <option value="">— None —</option>
+                        {users.map(u => (
+                            <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                        ))}
+                    </select>
+                </div>
+                {!phone && !email && (
+                    <div className="form-warning">
+                        No contact info — this employee won't receive schedule notifications.
+                    </div>
+                )}
+                <div className="form-actions">
+                    <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn--primary">{employee ? 'Save Changes' : 'Add Employee'}</button>
+                </div>
+            </form>
+        </Modal>
     );
 }
 
@@ -128,60 +125,89 @@ export default function EmployeesPage() {
         e.name.toLowerCase().includes(search.toLowerCase())
     );
 
-    if (loading) return <div className="page-loading">Loading...</div>;
-
     return (
-        <div className="page">
-            <div className="page-header">
-                <h2>Employees</h2>
-                <button className="btn btn--primary" onClick={() => setModal({ type: 'form' })}>
-                    + Add Employee
-                </button>
+        <>
+            <div className="content-header">
+                <h1 className="content-header__title">Employees</h1>
+                <div className="content-header__actions">
+                    <input
+                        type="text"
+                        className="search-input"
+                        placeholder="Search employees…"
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                    />
+                    <select
+                        className="filter-select"
+                        value={filterActive}
+                        onChange={e => setFilterActive(e.target.value)}
+                    >
+                        <option value="true">Active</option>
+                        <option value="false">Inactive</option>
+                        <option value="">All</option>
+                    </select>
+                    <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'form' })}>
+                        {Icons.plus} Add Employee
+                    </button>
+                </div>
             </div>
 
-            <div className="toolbar">
-                <input
-                    className="search-input"
-                    placeholder="Search employees..."
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                />
-                <select value={filterActive} onChange={e => { setFilterActive(e.target.value); }}>
-                    <option value="true">Active</option>
-                    <option value="false">Inactive</option>
-                    <option value="">All</option>
-                </select>
+            <div className="page-content">
+                {loading ? (
+                    <div style={{ padding: 16 }}>
+                        {[1, 2, 3].map(i => <div key={i} className="skeleton skeleton-row" style={{ marginBottom: 4 }} />)}
+                    </div>
+                ) : filtered.length === 0 ? (
+                    <div className="empty-state">
+                        <div className="empty-state__icon">{Icons.users}</div>
+                        <div className="empty-state__title">No employees found</div>
+                        <div className="empty-state__desc">Add employees or adjust your filters.</div>
+                    </div>
+                ) : (
+                    <div className="sheet-card">
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Phone</th>
+                                    <th>Email</th>
+                                    <th>Linked Client</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filtered.map(emp => (
+                                    <tr key={emp.id}>
+                                        <td style={{ fontWeight: 500 }}>{emp.name}</td>
+                                        <td>{emp.phone || '—'}{!emp.phone && <span className="text-warn" title="No phone">&#x26A0;</span>}</td>
+                                        <td>{emp.email || '—'}{!emp.email && <span className="text-warn" title="No email">&#x26A0;</span>}</td>
+                                        <td>{emp.user ? emp.user.name : '—'}</td>
+                                        <td>
+                                            <span className={`ts-badge ts-badge--${emp.active ? 'submitted' : 'draft'}`}>
+                                                {emp.active ? 'Active' : 'Inactive'}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div className="row-actions">
+                                                <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'form', employee: emp })} title="Edit">
+                                                    {Icons.edit}
+                                                </button>
+                                                <button className="btn btn--ghost btn--icon" onClick={() => handleToggleActive(emp)} title={emp.active ? 'Deactivate' : 'Activate'}>
+                                                    {emp.active ? Icons.shieldCheck : Icons.checkCircle}
+                                                </button>
+                                                <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDelete', employee: emp })} title="Delete">
+                                                    {Icons.trash}
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
-
-            <table className="data-table">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Phone</th>
-                        <th>Email</th>
-                        <th>Linked User</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {filtered.map(emp => (
-                        <tr key={emp.id}>
-                            <td>{emp.name}</td>
-                            <td>{emp.phone || '—'}{!emp.phone && <span className="text-warn" title="No phone">&#x26A0;</span>}</td>
-                            <td>{emp.email || '—'}{!emp.email && <span className="text-warn" title="No email">&#x26A0;</span>}</td>
-                            <td>{emp.user ? emp.user.name : '—'}</td>
-                            <td><span className={`badge badge--${emp.active ? 'success' : 'muted'}`}>{emp.active ? 'Active' : 'Inactive'}</span></td>
-                            <td>
-                                <button className="btn btn--sm" onClick={() => setModal({ type: 'form', employee: emp })}>Edit</button>
-                                <button className="btn btn--sm btn--secondary" onClick={() => handleToggleActive(emp)}>
-                                    {emp.active ? 'Deactivate' : 'Activate'}
-                                </button>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
 
             {modal?.type === 'form' && (
                 <EmployeeFormModal
@@ -199,6 +225,6 @@ export default function EmployeesPage() {
                     onClose={() => setModal(null)}
                 />
             )}
-        </div>
+        </>
     );
 }
