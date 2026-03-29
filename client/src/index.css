@@ -590,7 +590,6 @@ body {
 
 .sheet-table {
   width: 100%;
-  min-width: 1200px;
   border-collapse: collapse;
 }
 
@@ -2259,8 +2258,8 @@ body {
     flex-shrink: 0;
 }
 
-/* ── Time Grid Calendar (x=hours, y=days) ── */
-.sched-tg {
+/* ── Week Grid Calendar (x=days, y=hours) ── */
+.sched-wg {
     border: 1px solid hsl(var(--border));
     border-radius: 8px;
     overflow: hidden;
@@ -2268,139 +2267,129 @@ body {
     background: hsl(var(--card));
 }
 
-/* Header: hour labels across the top */
-.sched-tg__header {
+.sched-wg__header {
     display: flex;
     border-bottom: 2px solid hsl(var(--border));
     background: hsl(var(--muted) / 0.4);
 }
-.sched-tg__header > .sched-tg__day-gutter {
-    width: 72px;
-    flex-shrink: 0;
-    border-right: 1px solid hsl(var(--border));
-}
-.sched-tg__hour-strip {
+.sched-wg__day-header {
     flex: 1;
-    position: relative;
-    height: 28px;
+    text-align: center;
+    padding: 8px 4px;
+    border-left: 1px solid hsl(var(--border));
 }
-.sched-tg__hour-label {
-    position: absolute;
-    top: 0;
-    transform: translateX(-50%);
-    font-size: 10px;
-    font-weight: 500;
-    color: hsl(var(--muted-foreground));
-    line-height: 28px;
-    white-space: nowrap;
-}
-
-/* Day rows */
-.sched-tg__row {
-    display: flex;
-    min-height: 48px;
-    border-bottom: 1px solid hsl(var(--border));
-}
-.sched-tg__row:last-child { border-bottom: none; }
-.sched-tg__row--today {
+.sched-wg__day-header--today {
     background: hsl(217 91% 98%);
 }
-
-/* Day gutter (left label) */
-.sched-tg__day-gutter {
-    width: 72px;
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 4px 6px;
-    border-right: 1px solid hsl(var(--border));
-    cursor: pointer;
-    transition: background 0.15s;
-}
-.sched-tg__day-gutter:hover {
-    background: hsl(var(--primary) / 0.06);
-}
-.sched-tg__day-abbr {
+.sched-wg__day-abbr {
+    display: block;
     font-size: 10px;
     font-weight: 600;
     text-transform: uppercase;
     color: hsl(var(--muted-foreground));
     letter-spacing: 0.5px;
-    line-height: 1.2;
 }
-.sched-tg__row--today .sched-tg__day-abbr {
+.sched-wg__day-header--today .sched-wg__day-abbr {
     color: hsl(217 91% 50%);
 }
-.sched-tg__day-num {
+.sched-wg__day-num {
+    display: block;
     font-size: 13px;
     font-weight: 700;
     color: hsl(var(--foreground));
-    line-height: 1.2;
 }
-.sched-tg__row--today .sched-tg__day-num {
+.sched-wg__day-header--today .sched-wg__day-num {
     color: hsl(217 91% 50%);
 }
 
-/* Timeline area (horizontal) */
-.sched-tg__timeline {
-    flex: 1;
+.sched-wg__body {
+    display: flex;
     position: relative;
-    min-height: 48px;
-    cursor: pointer;
-    overflow: visible;
+    overflow-y: auto;
 }
 
-/* Vertical hour gridlines */
-.sched-tg__vline {
+.sched-wg__gutter {
+    width: 60px;
+    flex-shrink: 0;
+    position: relative;
+    border-right: 1px solid hsl(var(--border));
+}
+.sched-wg__header > .sched-wg__gutter {
+    width: 60px;
+    flex-shrink: 0;
+    border-right: 1px solid hsl(var(--border));
+}
+.sched-wg__hour-label {
     position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 0;
-    border-left: 1px solid hsl(var(--border) / 0.5);
+    left: 0;
+    right: 0;
+    height: 60px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 2px;
+    font-size: 10px;
+    font-weight: 500;
+    color: hsl(var(--muted-foreground));
+}
+
+.sched-wg__day-col {
+    flex: 1;
+    position: relative;
+    border-left: 1px solid hsl(var(--border));
+    cursor: pointer;
+    min-height: 100%;
+}
+.sched-wg__day-col--today {
+    background: hsl(217 91% 98%);
+}
+
+.sched-wg__hline {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 0;
+    border-top: 1px solid hsl(var(--border) / 0.5);
     pointer-events: none;
     z-index: 0;
 }
 
-/* Shift blocks positioned horizontally */
-.sched-tg__block {
+.sched-wg__block {
     position: absolute;
-    height: 26px;
     border: none;
-    border-top: 3px solid var(--block-color, #6B7280);
-    border-radius: 0 0 4px 4px;
+    border-left: 3px solid var(--block-color, #6B7280);
+    border-radius: 0 4px 4px 0;
     background: var(--block-bg, hsl(var(--muted)));
     cursor: pointer;
     font-family: inherit;
-    padding: 2px 6px;
+    padding: 3px 6px;
     overflow: hidden;
     z-index: 1;
     text-align: left;
     display: flex;
-    align-items: center;
-    gap: 4px;
+    flex-direction: column;
+    gap: 1px;
     transition: opacity 0.15s, box-shadow 0.15s;
     box-sizing: border-box;
 }
-.sched-tg__block:hover {
+.sched-wg__block:hover {
     opacity: 0.9;
     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     z-index: 5;
 }
-.sched-tg__block--cancelled {
+.sched-wg__block--cancelled {
     opacity: 0.4;
     text-decoration: line-through;
 }
-.sched-tg__block--overlap {
-    border-top-color: hsl(0 84% 60%) !important;
-    animation: sched-tg-pulse 2s ease-in-out infinite;
+.sched-wg__block--overlap {
+    border-left-color: hsl(0 84% 60%) !important;
+    animation: sched-wg-pulse 2s ease-in-out infinite;
 }
-@keyframes sched-tg-pulse {
+@keyframes sched-wg-pulse {
     0%, 100% { box-shadow: 0 0 0 0 hsl(0 84% 60% / 0.15); }
     50% { box-shadow: 0 0 0 3px hsl(0 84% 60% / 0.15); }
 }
-.sched-tg__block-badge {
+.sched-wg__block-badge {
     padding: 1px 4px;
     border-radius: 4px;
     color: #fff;
@@ -2408,8 +2397,9 @@ body {
     font-weight: 700;
     flex-shrink: 0;
     line-height: 1.3;
+    align-self: flex-start;
 }
-.sched-tg__block-time {
+.sched-wg__block-time {
     font-size: 10px;
     font-weight: 600;
     color: hsl(var(--foreground));
@@ -2417,12 +2407,17 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
 }
-.sched-tg__block-label {
+.sched-wg__block-label {
     font-size: 10px;
     color: hsl(var(--foreground) / 0.75);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+.sched-wg__block-clip {
+    font-size: 10px;
+    color: hsl(var(--muted-foreground));
+    font-style: italic;
 }
 
 /* ── Client Info (inline in card) ── */
@@ -2673,15 +2668,149 @@ body {
 /* Responsive */
 @media (max-width: 768px) {
     .sched-toolbar { flex-direction: column; align-items: stretch; }
-    .sched-tg__day-gutter { width: 48px; }
-    .sched-tg__header > .sched-tg__day-gutter { width: 48px; }
-    .sched-tg__hour-label { font-size: 8px; }
-    .sched-tg__block-time { font-size: 8px; }
-    .sched-tg__block-label { display: none; }
-    .sched-tg__block-badge { font-size: 7px; }
-    .sched-tg__block { height: 22px; padding: 1px 3px; }
+    .sched-wg__gutter { width: 40px; }
+    .sched-wg__header > .sched-wg__gutter { width: 40px; }
+    .sched-wg__hour-label { font-size: 8px; }
+    .sched-wg__block-time { font-size: 8px; }
+    .sched-wg__block-label { display: none; }
+    .sched-wg__block-badge { font-size: 7px; }
     .sched-card__select { min-width: 140px; }
     .form-grid-2 { grid-template-columns: 1fr; }
     .sched-auth-bar { gap: 8px; padding: 8px 12px; }
 }
 .payroll-legend__item--review      { background: hsl(270 60% 96%); color: hsl(270 50% 40%); }
+
+/* ── Dashboard Stats ── */
+.dashboard-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.stat-card {
+    background: hsl(0 0% 100%);
+    border: 1px solid hsl(240 5.9% 90%);
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+}
+.stat-card__value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: hsl(240 10% 3.9%);
+}
+.stat-card__label {
+    font-size: 0.85rem;
+    color: hsl(240 3.8% 46.1%);
+    margin-top: 4px;
+}
+.dashboard-alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; }
+.dashboard-alert--warn { background: hsl(48 96.5% 88.8%); border: 1px solid hsl(48 96% 53%); color: hsl(32 95% 44%); }
+
+/* ── Auth Validation (ShiftFormModal) ── */
+.sched-auth-info { padding: 8px 12px; border-radius: 6px; background: hsl(142 76% 96%); border: 1px solid hsl(142 71% 45%); font-size: 0.85rem; margin-top: 8px; display: flex; gap: 12px; flex-wrap: wrap; }
+.sched-auth-info--warn { background: hsl(48 96% 89%); border-color: hsl(48 96% 53%); }
+.sched-auth-info--over { background: hsl(0 93% 94%); border-color: hsl(0 84% 60%); }
+.sched-auth-info__warning { width: 100%; color: hsl(0 84% 60%); font-weight: 500; }
+.sched-auth-info__warning--over { color: hsl(0 72% 51%); }
+
+/* ── Form Warning ── */
+.form-warning { padding: 8px 12px; border-radius: 6px; background: hsl(48 96% 89%); border: 1px solid hsl(48 96% 53%); color: hsl(32 95% 44%); font-size: 0.85rem; margin-top: 8px; }
+
+/* ── Text Warning ── */
+.text-warn { color: hsl(48 96% 53%); margin-left: 4px; }
+
+/* ── Drawer Panel ── */
+.drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 50;
+    display: flex;
+    justify-content: flex-end;
+}
+.drawer-panel {
+    width: 400px;
+    max-width: 100%;
+    height: 100%;
+    background: hsl(var(--card));
+    border-left: 1px solid hsl(var(--border));
+    overflow-y: auto;
+    padding: 24px;
+    position: relative;
+    animation: drawer-slide-in 0.2s ease-out;
+}
+@keyframes drawer-slide-in {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}
+.drawer-panel__close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: hsl(var(--muted-foreground));
+    padding: 4px;
+    border-radius: 4px;
+}
+.drawer-panel__close:hover {
+    background: hsl(var(--muted));
+    color: hsl(var(--foreground));
+}
+
+/* Drawer header */
+.drawer-header { margin-bottom: 20px; padding-right: 32px; }
+.drawer-header__name { font-size: 18px; font-weight: 700; color: hsl(var(--foreground)); margin: 0 0 4px; }
+.drawer-header__meta { font-size: 13px; color: hsl(var(--muted-foreground)); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* Drawer sections */
+.drawer-section { margin-bottom: 20px; }
+.drawer-section__title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: hsl(var(--muted-foreground));
+    margin: 0 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid hsl(var(--border));
+}
+
+/* Inline editable fields in drawer */
+.drawer-field { margin-bottom: 10px; }
+.drawer-field__label { display: block; font-size: 12px; font-weight: 500; color: hsl(var(--muted-foreground)); margin-bottom: 3px; }
+.drawer-field__input {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+}
+.drawer-field__input:focus { outline: none; border-color: hsl(var(--primary)); box-shadow: 0 0 0 2px hsl(var(--primary) / 0.15); }
+.drawer-field__textarea { resize: vertical; min-height: 60px; }
+
+/* Authorizations table in drawer */
+.drawer-auth-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.drawer-auth-table th {
+    text-align: left;
+    padding: 6px 8px;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    border-bottom: 2px solid hsl(var(--border));
+    white-space: nowrap;
+}
+.drawer-auth-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid hsl(var(--border));
+    color: hsl(var(--foreground));
+}
+.drawer-auth-table tr:hover { background: hsl(var(--muted) / 0.5); }
+
+@media (max-width: 700px) {
+    .drawer-panel { width: 100%; }
+}

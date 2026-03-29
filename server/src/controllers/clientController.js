@@ -82,6 +82,33 @@ async function updateClient(req, res, next) {
     }
 }
 
+// PATCH /api/clients/:id
+async function patchClient(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const { address, phone, gateCode, notes } = req.body;
+        const data = {};
+        if (address !== undefined) data.address = address;
+        if (phone !== undefined) data.phone = phone;
+        if (gateCode !== undefined) data.gateCode = gateCode;
+        if (notes !== undefined) data.notes = notes;
+
+        if (Object.keys(data).length === 0) {
+            return res.status(400).json({ error: 'No valid fields provided' });
+        }
+
+        const client = await prisma.client.update({
+            where: { id },
+            data,
+            include: { authorizations: true },
+        });
+        res.json(client);
+    } catch (err) {
+        if (err.code === 'P2025') return res.status(404).json({ error: 'Client not found' });
+        next(err);
+    }
+}
+
 // DELETE /api/clients/:id
 async function deleteClient(req, res, next) {
     try {
@@ -179,4 +206,4 @@ async function bulkImport(req, res, next) {
     }
 }
 
-module.exports = { listClients, getClient, createClient, updateClient, deleteClient, bulkDelete, bulkImport };
+module.exports = { listClients, getClient, createClient, updateClient, patchClient, deleteClient, bulkDelete, bulkImport };

@@ -6,6 +6,7 @@ const {
     getClient,
     createClient,
     updateClient,
+    patchClient,
     deleteClient,
     bulkDelete,
     bulkImport,
@@ -63,9 +64,18 @@ const {
     deleteShift,
     getClientSchedule,
     getEmployeeSchedule,
-    getEmployeeScheduleByName,
     deleteAllShifts,
+    authCheck,
 } = require('../controllers/schedulingController');
+const {
+    listEmployees,
+    getEmployee,
+    createEmployee,
+    updateEmployee,
+    deleteEmployee,
+} = require('../controllers/employeeController');
+const { getDashboardStats } = require('../controllers/dashboardController');
+const { sendSchedules, getNotificationStatus, getScheduleConfirm, confirmSchedule } = require('../controllers/scheduleNotificationController');
 const { authenticate, requireRole } = require('../middleware/authMiddleware');
 
 const router = express.Router();
@@ -74,6 +84,8 @@ const router = express.Router();
 router.post('/auth/login', login);
 router.get('/sign/:token', getSigningForm);
 router.put('/sign/:token', submitSigningForm);
+router.get('/schedule/confirm/:token', getScheduleConfirm);
+router.put('/schedule/confirm/:token', confirmSchedule);
 
 // ── All routes below require authentication ──
 router.use(authenticate);
@@ -86,6 +98,9 @@ router.post('/auth/register', requireRole('admin'), register);
 router.get('/auth/users', requireRole('admin'), listUsers);
 router.delete('/auth/users/:id', requireRole('admin'), deleteUser);
 
+// Dashboard (admin only)
+router.get('/dashboard/stats', requireRole('admin'), getDashboardStats);
+
 // Client routes (admin only)
 router.get('/clients', requireRole('admin'), listClients);
 router.get('/clients/:id', requireRole('admin'), getClient);
@@ -93,6 +108,7 @@ router.post('/clients', requireRole('admin'), createClient);
 router.post('/clients/bulk-import', requireRole('admin'), bulkImport);
 router.post('/clients/bulk-delete', requireRole('admin'), bulkDelete);
 router.put('/clients/:id', requireRole('admin'), updateClient);
+router.patch('/clients/:id', requireRole('admin'), patchClient);
 router.delete('/clients/:id', requireRole('admin'), deleteClient);
 
 // Authorization routes (admin only)
@@ -130,14 +146,25 @@ router.delete('/payroll/runs/:id',         requireRole('admin'), deletePayrollRu
 router.get('/payroll/runs/:id/export',     requireRole('admin'), exportPayrollRun);
 router.patch('/payroll/visits/:id',        requireRole('admin'), updatePayrollVisit);
 
+// Employees (admin only)
+router.get('/employees',       requireRole('admin'), listEmployees);
+router.get('/employees/:id',   requireRole('admin'), getEmployee);
+router.post('/employees',      requireRole('admin'), createEmployee);
+router.put('/employees/:id',   requireRole('admin'), updateEmployee);
+router.delete('/employees/:id', requireRole('admin'), deleteEmployee);
+
 // Scheduling (admin only)
 router.get('/shifts',                       requireRole('admin'), listShifts);
+router.get('/shifts/auth-check',            requireRole('admin'), authCheck);
 router.get('/shifts/client/:clientId',      requireRole('admin'), getClientSchedule);
-router.get('/shifts/employee-by-name',       requireRole('admin'), getEmployeeScheduleByName);
 router.get('/shifts/employee/:employeeId',  requireRole('admin'), getEmployeeSchedule);
 router.post('/shifts',                      requireRole('admin'), createShift);
 router.put('/shifts/:id',                   requireRole('admin'), updateShift);
 router.delete('/shifts/all',                requireRole('admin'), deleteAllShifts);
 router.delete('/shifts/:id',                requireRole('admin'), deleteShift);
+
+// Schedule Notifications (admin only)
+router.post('/schedule-notifications/send',   requireRole('admin'), sendSchedules);
+router.get('/schedule-notifications/status',  requireRole('admin'), getNotificationStatus);
 
 module.exports = router;

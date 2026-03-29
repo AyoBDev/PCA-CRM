@@ -7,6 +7,9 @@ const {
     enrichShift,
     getEmployeeDisplayName,
 } = require('../services/schedulingService');
+const { isSmsConfigured, isEmailConfigured, sendSms, sendEmail } = require('../services/notificationService');
+
+const VALID_ACCOUNT_NUMBERS = ['71040', '71119', '71120', '71635'];
 
 const shiftInclude = {
     client: { select: { id: true, clientName: true, address: true, phone: true, gateCode: true } },
@@ -17,23 +20,17 @@ const shiftInclude = {
  * Check if a proposed shift overlaps with existing shifts for the same employee on the same date.
  * Returns array of conflicting shifts (empty = no conflicts).
  */
-async function checkOverlaps({ employeeId, employeeName, shiftDate, startTime, endTime, excludeId }) {
-    if (!employeeId && !employeeName) return [];
+async function checkOverlaps({ employeeId, shiftDate, startTime, endTime, excludeId }) {
+    if (!employeeId) return [];
 
     const dateStart = new Date(shiftDate + 'T00:00:00.000Z');
     const dateEnd = new Date(shiftDate + 'T23:59:59.999Z');
 
     const where = {
+        employeeId: Number(employeeId),
         shiftDate: { gte: dateStart, lte: dateEnd },
         status: { not: 'cancelled' },
     };
-
-    // Match by employeeId or by employeeName (case-insensitive)
-    if (employeeId) {
-        where.employeeId = Number(employeeId);
-    } else {
-        where.employeeName = employeeName;
-    }
 
     if (excludeId) where.id = { not: Number(excludeId) };
 
@@ -52,6 +49,45 @@ async function checkOverlaps({ employeeId, employeeName, shiftDate, startTime, e
         }
     }
     return conflicts;
+}
+
+/**
+ * Auto-notify an employee when their schedule changes (swap/cancel).
+ * Silently skips if no notification services are configured or employee has no contact info.
+ */
+async function autoNotify(employeeId, shiftDate, req) {
+    if (!employeeId) return;
+    const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+    if (!employee) return;
+
+    const { weekStart: ws } = getWeekRange(shiftDate instanceof Date ? shiftDate.toISOString().split('T')[0] : shiftDate);
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+
+    if (isSmsConfigured() && employee.phone) {
+        const notification = await prisma.scheduleNotification.create({
+            data: { employeeId, weekStart: new Date(ws), method: 'sms', destination: employee.phone },
+        });
+        const confirmUrl = `${baseUrl}/schedule/confirm/${notification.confirmationToken}`;
+        try {
+            await sendSms(employee.phone, `NV Best PCA - Your schedule has been updated. View: ${confirmUrl}`);
+            await prisma.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'sent', sentAt: new Date() } });
+        } catch (err) {
+            await prisma.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'failed', failureReason: err.message } });
+        }
+    }
+
+    if (isEmailConfigured() && employee.email) {
+        const notification = await prisma.scheduleNotification.create({
+            data: { employeeId, weekStart: new Date(ws), method: 'email', destination: employee.email },
+        });
+        const confirmUrl = `${baseUrl}/schedule/confirm/${notification.confirmationToken}`;
+        try {
+            await sendEmail(employee.email, 'Schedule Updated', `<p>Your schedule has been updated. <a href="${confirmUrl}">View & Confirm</a></p>`, `Schedule updated: ${confirmUrl}`);
+            await prisma.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'sent', sentAt: new Date() } });
+        } catch (err) {
+            await prisma.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'failed', failureReason: err.message } });
+        }
+    }
 }
 
 // GET /api/shifts?weekStart=YYYY-MM-DD&clientId=&employeeId=
@@ -107,25 +143,26 @@ async function listShifts(req, res, next) {
 // POST /api/shifts
 async function createShift(req, res, next) {
     try {
-        const { clientId, employeeId, employeeName, serviceCode, shiftDate, startTime, endTime, notes, repeatUntil, force } = req.body;
-        if (!clientId || !serviceCode || !shiftDate || !startTime || !endTime) {
-            return res.status(400).json({ error: 'clientId, serviceCode, shiftDate, startTime, and endTime are required' });
+        const { clientId, employeeId, serviceCode, shiftDate, startTime, endTime, notes, repeatUntil, force, accountNumber, sandataClientId } = req.body;
+        if (!clientId || !employeeId || !serviceCode || !shiftDate || !startTime || !endTime) {
+            return res.status(400).json({ error: 'clientId, employeeId, serviceCode, shiftDate, startTime, and endTime are required' });
         }
-        if (!employeeId && !employeeName) {
-            return res.status(400).json({ error: 'Either employeeId or employeeName is required' });
+        if (accountNumber && !VALID_ACCOUNT_NUMBERS.includes(accountNumber)) {
+            return res.status(400).json({ error: `Invalid account number. Must be one of: ${VALID_ACCOUNT_NUMBERS.join(', ')}` });
         }
         const { hours, units } = computeShiftHours(startTime, endTime);
         const baseData = {
             clientId: Number(clientId),
+            employeeId: Number(employeeId),
             serviceCode,
             startTime,
             endTime,
             hours,
             units,
             notes: notes || '',
-            employeeName: employeeName || '',
+            accountNumber: accountNumber || '',
+            sandataClientId: sandataClientId || '',
         };
-        if (employeeId) baseData.employeeId = Number(employeeId);
 
         // Build list of dates (single or recurring weekly)
         // Uses noon UTC to avoid DST day-shift issues
@@ -146,8 +183,7 @@ async function createShift(req, res, next) {
             const allConflicts = [];
             for (const date of dates) {
                 const conflicts = await checkOverlaps({
-                    employeeId: employeeId ? Number(employeeId) : null,
-                    employeeName: employeeName || '',
+                    employeeId: Number(employeeId),
                     shiftDate: date,
                     startTime,
                     endTime,
@@ -165,7 +201,7 @@ async function createShift(req, res, next) {
                 }
             }
             if (allConflicts.length > 0) {
-                const empName = employeeName || (await prisma.user.findUnique({ where: { id: Number(employeeId) } }))?.name || '';
+                const empName = (await prisma.employee.findUnique({ where: { id: Number(employeeId) } }))?.name || '';
                 return res.status(409).json({
                     error: 'overlap',
                     message: `${empName} already has ${allConflicts.length} overlapping shift${allConflicts.length > 1 ? 's' : ''}`,
@@ -194,24 +230,27 @@ async function createShift(req, res, next) {
 async function updateShift(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const { clientId, employeeId, employeeName, serviceCode, shiftDate, startTime, endTime, notes, status, force } = req.body;
+        const { clientId, employeeId, serviceCode, shiftDate, startTime, endTime, notes, status, force, accountNumber, sandataClientId } = req.body;
 
         const existing = await prisma.shift.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Shift not found' });
 
         const data = {};
         if (clientId !== undefined) data.clientId = Number(clientId);
-        if (employeeName !== undefined) {
-            data.employeeName = employeeName;
-            if (!employeeId && employeeName) data.employeeId = null;
-        }
-        if (employeeId !== undefined) data.employeeId = employeeId ? Number(employeeId) : null;
+        if (employeeId !== undefined) data.employeeId = Number(employeeId);
         if (serviceCode !== undefined) data.serviceCode = serviceCode;
         if (shiftDate !== undefined) data.shiftDate = new Date(shiftDate + 'T00:00:00.000Z');
         if (startTime !== undefined) data.startTime = startTime;
         if (endTime !== undefined) data.endTime = endTime;
         if (notes !== undefined) data.notes = notes;
         if (status !== undefined) data.status = status;
+        if (accountNumber !== undefined) {
+            if (accountNumber && !VALID_ACCOUNT_NUMBERS.includes(accountNumber)) {
+                return res.status(400).json({ error: `Invalid account number. Must be one of: ${VALID_ACCOUNT_NUMBERS.join(', ')}` });
+            }
+            data.accountNumber = accountNumber;
+        }
+        if (sandataClientId !== undefined) data.sandataClientId = sandataClientId;
 
         // Recompute hours/units if times changed
         const st = startTime !== undefined ? startTime : existing.startTime;
@@ -225,20 +264,18 @@ async function updateShift(req, res, next) {
         // Check overlaps if employee/date/time changed (unless force=true)
         const finalStatus = status !== undefined ? status : existing.status;
         if (!force && finalStatus !== 'cancelled') {
-            const finalEmpId = employeeId !== undefined ? (employeeId ? Number(employeeId) : null) : existing.employeeId;
-            const finalEmpName = employeeName !== undefined ? employeeName : existing.employeeName;
+            const finalEmpId = employeeId !== undefined ? Number(employeeId) : existing.employeeId;
             const finalDate = shiftDate !== undefined ? shiftDate : existing.shiftDate.toISOString().slice(0, 10);
 
             const conflicts = await checkOverlaps({
                 employeeId: finalEmpId,
-                employeeName: finalEmpName,
                 shiftDate: finalDate,
                 startTime: st,
                 endTime: et,
                 excludeId: id,
             });
             if (conflicts.length > 0) {
-                const empName = finalEmpName || (finalEmpId ? (await prisma.user.findUnique({ where: { id: finalEmpId } }))?.name : '') || '';
+                const empName = (finalEmpId ? (await prisma.employee.findUnique({ where: { id: finalEmpId } }))?.name : '') || '';
                 return res.status(409).json({
                     error: 'overlap',
                     message: `${empName} already has an overlapping shift`,
@@ -255,6 +292,13 @@ async function updateShift(req, res, next) {
             data,
             include: shiftInclude,
         });
+
+        // Auto-notify if employee changed (caregiver swap)
+        if (existing.employeeId !== shift.employeeId) {
+            await autoNotify(existing.employeeId, shift.shiftDate, req);
+            await autoNotify(shift.employeeId, shift.shiftDate, req);
+        }
+
         res.json(enrichShift(shift));
     } catch (err) {
         if (err.code === 'P2025') return res.status(404).json({ error: 'Shift not found' });
@@ -268,16 +312,18 @@ async function deleteShift(req, res, next) {
         const id = Number(req.params.id);
         const deleteGroup = req.query.group === 'true';
 
-        if (deleteGroup) {
-            const shift = await prisma.shift.findUnique({ where: { id } });
-            if (!shift) return res.status(404).json({ error: 'Shift not found' });
-            if (shift.recurringGroupId) {
-                const result = await prisma.shift.deleteMany({ where: { recurringGroupId: shift.recurringGroupId } });
-                return res.json({ deleted: result.count });
-            }
+        // Capture shift info before deletion for auto-notify
+        const shiftToDelete = await prisma.shift.findUnique({ where: { id } });
+        if (!shiftToDelete) return res.status(404).json({ error: 'Shift not found' });
+
+        if (deleteGroup && shiftToDelete.recurringGroupId) {
+            const result = await prisma.shift.deleteMany({ where: { recurringGroupId: shiftToDelete.recurringGroupId } });
+            await autoNotify(shiftToDelete.employeeId, shiftToDelete.shiftDate, req);
+            return res.json({ deleted: result.count });
         }
 
         await prisma.shift.delete({ where: { id } });
+        await autoNotify(shiftToDelete.employeeId, shiftToDelete.shiftDate, req);
         res.json({ deleted: 1 });
     } catch (err) {
         if (err.code === 'P2025') return res.status(404).json({ error: 'Shift not found' });
@@ -321,19 +367,13 @@ async function getClientSchedule(req, res, next) {
         const unitSummary = computeUnitSummary(shifts, client.authorizations);
 
         // Detect overlaps: fetch ALL shifts this week for the employees in this client's shifts
-        const employeeIds = [...new Set(shifts.filter(s => s.employeeId).map(s => s.employeeId))];
-        const employeeNames = [...new Set(shifts.filter(s => !s.employeeId && s.employeeName).map(s => s.employeeName.toLowerCase().trim()))];
+        const employeeIds = [...new Set(shifts.map(s => s.employeeId))];
 
         let allEmpShifts = shifts;
-        if (employeeIds.length > 0 || employeeNames.length > 0) {
-            const or = [];
-            if (employeeIds.length > 0) or.push({ employeeId: { in: employeeIds } });
-            if (employeeNames.length > 0) {
-                for (const name of employeeNames) or.push({ employeeName: name });
-            }
+        if (employeeIds.length > 0) {
             allEmpShifts = await prisma.shift.findMany({
                 where: {
-                    OR: or,
+                    employeeId: { in: employeeIds },
                     shiftDate: {
                         gte: new Date(range.weekStart + 'T00:00:00.000Z'),
                         lte: new Date(range.weekEnd + 'T23:59:59.999Z'),
@@ -361,7 +401,7 @@ async function getEmployeeSchedule(req, res, next) {
         const employeeId = Number(req.params.employeeId);
         const range = getWeekRange(req.query.weekStart || undefined);
 
-        const employee = await prisma.user.findUnique({ where: { id: employeeId } });
+        const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
         if (!employee) return res.status(404).json({ error: 'Employee not found' });
 
         const shifts = await prisma.shift.findMany({
@@ -389,37 +429,47 @@ async function getEmployeeSchedule(req, res, next) {
     } catch (err) { next(err); }
 }
 
-// GET /api/shifts/employee-by-name?name=...&weekStart=
-async function getEmployeeScheduleByName(req, res, next) {
+// GET /api/shifts/auth-check?clientId=&serviceCode=&weekStart=
+async function authCheck(req, res, next) {
     try {
-        const { name, weekStart } = req.query;
-        if (!name) return res.status(400).json({ error: 'name query parameter is required' });
-        const range = getWeekRange(weekStart || undefined);
+        const { clientId, serviceCode, weekStart } = req.query;
+        if (!clientId || !serviceCode || !weekStart) {
+            return res.status(400).json({ error: 'clientId, serviceCode, and weekStart required' });
+        }
 
-        const shifts = await prisma.shift.findMany({
-            where: {
-                employeeName: name,
-                employeeId: null,
-                shiftDate: {
-                    gte: new Date(range.weekStart + 'T00:00:00.000Z'),
-                    lte: new Date(range.weekEnd + 'T23:59:59.999Z'),
+        const { weekStart: ws, weekEnd: we } = getWeekRange(weekStart);
+
+        const [auth, scheduledShifts] = await Promise.all([
+            prisma.authorization.findFirst({
+                where: {
+                    clientId: Number(clientId),
+                    serviceCode,
+                    authorizationStartDate: { lte: new Date(we) },
+                    authorizationEndDate: { gte: new Date(ws) },
                 },
-            },
-            include: shiftInclude,
-            orderBy: [{ shiftDate: 'asc' }, { startTime: 'asc' }],
-        });
+            }),
+            prisma.shift.findMany({
+                where: {
+                    clientId: Number(clientId),
+                    serviceCode,
+                    shiftDate: { gte: new Date(ws), lte: new Date(we) },
+                    status: { not: 'cancelled' },
+                },
+                select: { units: true },
+            }),
+        ]);
 
-        const enriched = shifts.map(enrichShift);
-        const overlaps = detectOverlaps(shifts);
+        const authorized = auth?.authorizedUnits || 0;
+        const scheduled = scheduledShifts.reduce((sum, s) => sum + s.units, 0);
 
         res.json({
-            employee: { id: null, name, email: null, phone: null },
-            shifts: enriched,
-            overlaps,
-            weekStart: range.weekStart,
-            weekEnd: range.weekEnd,
+            authorized,
+            scheduled,
+            remaining: authorized - scheduled,
+            serviceCode,
+            weekStart: ws,
         });
     } catch (err) { next(err); }
 }
 
-module.exports = { listShifts, createShift, updateShift, deleteShift, deleteAllShifts, getClientSchedule, getEmployeeSchedule, getEmployeeScheduleByName };
+module.exports = { listShifts, createShift, updateShift, deleteShift, deleteAllShifts, getClientSchedule, getEmployeeSchedule, authCheck };

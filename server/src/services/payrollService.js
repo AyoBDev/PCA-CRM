@@ -368,13 +368,25 @@ function applyDailyCap(visits) {
 }
 
 /**
+ * Return the Sunday (week start) for a given date as YYYY-MM-DD string.
+ */
+function getWeekKey(date) {
+    const d = new Date(date);
+    const day = d.getUTCDay();
+    const sunday = new Date(d);
+    sunday.setUTCDate(d.getUTCDate() - day);
+    return sunday.toISOString().split('T')[0];
+}
+
+/**
  * Deduct finalPayableUnits against authorization balances from the DB.
+ * Units are capped per week independently (each week gets a fresh budget).
  * No auth found    → mark isUnauthorized, keep payable (matches GAS continue).
  * Balance = 0      → void with "No authorized units remaining (void)".
  * Partial balance  → reduce, reason includes remaining count.
  */
 function applyAuthCap(visits, clientsWithAuths) {
-    // Balance keyed by normalized clientName || serviceCode — shared across all employees
+    // Build auth map: normalized clientName || serviceCode → weekly authorized units
     const authMap = new Map();
     for (const client of clientsWithAuths) {
         const normClient = normalizeName(client.clientName);
@@ -384,31 +396,41 @@ function applyAuthCap(visits, clientsWithAuths) {
         }
     }
 
-    const balanceMap = new Map(authMap);
-
+    // Group visits by week
+    const weekGroups = new Map();
     for (const v of visits) {
-        if (v.voidFlag || !v.serviceCode) continue;
+        if (v.voidFlag || !v.serviceCode || !v.visitDate) continue;
+        const weekKey = getWeekKey(v.visitDate);
+        if (!weekGroups.has(weekKey)) weekGroups.set(weekKey, []);
+        weekGroups.get(weekKey).push(v);
+    }
 
-        const key = `${normalizeName(v.clientName)}||${v.serviceCode}`;
+    // Apply cap per week independently
+    for (const [weekKey, weekVisits] of weekGroups) {
+        const balanceMap = new Map(authMap); // Fresh balance each week
 
-        if (!balanceMap.has(key)) {
-            v.isUnauthorized = true;
-            continue;
-        }
+        for (const v of weekVisits) {
+            const key = `${normalizeName(v.clientName)}||${v.serviceCode}`;
 
-        const balance = balanceMap.get(key);
+            if (!balanceMap.has(key)) {
+                v.isUnauthorized = true;
+                continue;
+            }
 
-        if (!isFinite(balance) || balance <= 0) {
-            v.voidFlag          = true;
-            v.voidReason        = 'No authorized units remaining (void)';
-            v.isUnauthorized    = true;
-            v.finalPayableUnits = 0;
-        } else if (v.finalPayableUnits > balance) {
-            v.voidReason        = `Reduced to remaining authorized units (${balance})`;
-            v.finalPayableUnits = balance;
-            balanceMap.set(key, 0);
-        } else {
-            balanceMap.set(key, balance - v.finalPayableUnits);
+            const balance = balanceMap.get(key);
+
+            if (!isFinite(balance) || balance <= 0) {
+                v.voidFlag          = true;
+                v.voidReason        = 'No authorized units remaining (void)';
+                v.isUnauthorized    = true;
+                v.finalPayableUnits = 0;
+            } else if (v.finalPayableUnits > balance) {
+                v.voidReason        = `Reduced to remaining authorized units (${balance})`;
+                v.finalPayableUnits = balance;
+                balanceMap.set(key, 0);
+            } else {
+                balanceMap.set(key, balance - v.finalPayableUnits);
+            }
         }
     }
 }
