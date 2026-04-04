@@ -150,6 +150,15 @@ export const submitSigningForm = (token, data) =>
         return res.json();
     });
 
+// Timesheet PDF Export
+export const exportTimesheetPdf = (id) =>
+    fetch(`${BASE}/timesheets/${id}/export-pdf`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    }).then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+    });
+
 // ── Payroll ──
 export const getPayrollRuns   = ()    => request('/payroll/runs');
 export const getPayrollRun    = (id)  => request(`/payroll/runs/${id}`);
