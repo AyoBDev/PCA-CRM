@@ -410,15 +410,26 @@ async function getPayrollRun(req, res, next) {
         if (!run) return res.status(404).json({ error: 'Payroll run not found.' });
 
         // Build authMap: normalizedClientName → { serviceCode → authorizedUnits }
+        // Build clientNotesMap: normalizedClientName → notes
         const clients = await prisma.client.findMany({ include: { authorizations: true } });
         const authMap = {};
+        const clientNotesMap = {};
         for (const client of clients) {
             const norm = normalizeName(client.clientName);
             if (!authMap[norm]) authMap[norm] = {};
+            if (client.notes) clientNotesMap[norm] = client.notes;
             for (const auth of client.authorizations) {
                 const code = auth.serviceCode || auth.service || '';
                 if (!code) continue;
                 authMap[norm][code] = (authMap[norm][code] || 0) + (auth.authorizedUnits || 0);
+            }
+        }
+
+        // Enrich visits: fill empty notes with client-level notes
+        for (const visit of run.visits) {
+            if (!visit.notes && visit.clientName) {
+                const norm = normalizeName(visit.clientName);
+                if (clientNotesMap[norm]) visit.notes = clientNotesMap[norm];
             }
         }
 

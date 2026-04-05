@@ -522,6 +522,24 @@ function PayrollRunDetail({ run, onVisitChange, authMap }) {
 
     // Service code sort order: PCS → S5125 → S5130 → S5150 → S5135 → SDPC
     const svcOrder = { PCS: 0, S5125: 1, S5130: 2, S5150: 3, S5135: 4, SDPC: 5 };
+    // Derive sort order from raw service name when serviceCode is empty (e.g. needsReview rows)
+    const svcNameRules = [
+        { terms: ['self', 'directed'],  order: 5 },
+        { terms: ['self', 'direct'],    order: 5 },
+        { terms: ['personal', 'care'],  order: 0 },
+        { terms: ['homemaker'],         order: 2 },
+        { terms: ['attendant'],         order: 1 },
+        { terms: ['companion'],         order: 4 },
+        { terms: ['respite'],           order: 3 },
+    ];
+    const getSvcSortOrder = (v) => {
+        if (v.serviceCode && svcOrder[v.serviceCode] != null) return svcOrder[v.serviceCode];
+        const lower = (v.service || '').toLowerCase();
+        for (const rule of svcNameRules) {
+            if (rule.terms.every((t) => lower.includes(t))) return rule.order;
+        }
+        return 99;
+    };
     const clientGroups = useMemo(() => {
         const map = new Map();
         for (const v of visibleVisits) {
@@ -530,22 +548,26 @@ function PayrollRunDetail({ run, onVisitChange, authMap }) {
             map.get(key).push(v);
         }
         // Sort visits within each group: by service code first, then by date
+        // If a visit has no service name/code (e.g. needsReview with missing service), sort purely by date
         for (const [, arr] of map) {
             arr.sort((a, b) => {
-                const sa = svcOrder[a.serviceCode] ?? 99;
-                const sb = svcOrder[b.serviceCode] ?? 99;
-                if (sa !== sb) return sa - sb;
+                const sa = getSvcSortOrder(a);
+                const sb = getSvcSortOrder(b);
+                const aNoSvc = sa === 99;
+                const bNoSvc = sb === 99;
                 const da = a.visitDate ? new Date(a.visitDate).getTime() : 0;
                 const db = b.visitDate ? new Date(b.visitDate).getTime() : 0;
+                // If either has no service, sort by date only
+                if (aNoSvc || bNoSvc) return da - db;
+                if (sa !== sb) return sa - sb;
                 return da - db;
             });
         }
-        // Sort client groups: real names first (alphabetical), then unknown/phone/needsReview at bottom
+        // Sort client groups: real names first (alphabetical), then unknown/phone at bottom
         const isUnknownClient = (name) => !name || name === '(Unknown Client)' || /^\d/.test(name) || /^\(/.test(name);
-        const allNeedsReview = (visits) => visits.every((v) => v.needsReview);
         return [...map.entries()].sort((a, b) => {
-            const aBottom = isUnknownClient(a[0]) || allNeedsReview(a[1]);
-            const bBottom = isUnknownClient(b[0]) || allNeedsReview(b[1]);
+            const aBottom = isUnknownClient(a[0]);
+            const bBottom = isUnknownClient(b[0]);
             if (aBottom !== bBottom) return aBottom ? 1 : -1;
             return a[0].localeCompare(b[0]);
         });
