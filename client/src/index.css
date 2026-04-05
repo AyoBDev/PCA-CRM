@@ -2828,3 +2828,91 @@ body {
 @media (max-width: 700px) {
     .drawer-panel { width: 100%; }
 }
+
+/* ── Signing Form — Highlighted Sections ── */
+.signing-highlight {
+    border-radius: 8px;
+    padding: 12px;
+}
+.signing-highlight--pca {
+    background: hsl(213 80% 95%);
+    border: 2px solid hsl(213 80% 75%);
+}
+.signing-highlight--client {
+    background: hsl(142 60% 93%);
+    border: 2px solid hsl(142 60% 70%);
+}
+.signing-highlight__label {
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 8px;
+    color: hsl(var(--foreground));
+}
+.signing-highlight__sublabel {
+    font-weight: 600;
+    font-size: 12px;
+    margin-bottom: 6px;
+    color: hsl(var(--muted-foreground));
+}
+.signing-signature-section {
+    margin-top: 16px;
+}
+.signing-activity-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 4px 12px;
+    margin-bottom: 8px;
+}
+.signing-activity-check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    cursor: pointer;
+}
+.signing-activity-check input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+.signing-section-label {
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 6px;
+    color: hsl(var(--foreground));
+    padding-bottom: 2px;
+    border-bottom: 1px solid hsl(var(--border));
+}
+.signing-totals {
+    display: flex;
+    justify-content: space-around;
+    padding: 12px;
+    background: hsl(var(--muted));
+    border-radius: 8px;
+    margin-top: 16px;
+    font-size: 14px;
+}
+.signing-missing {
+    background: hsl(38 96% 92%);
+    border: 1px solid hsl(38 96% 70%);
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 16px;
+    font-size: 13px;
+}
+.signing-missing ul {
+    margin: 6px 0 0 0;
+    padding-left: 20px;
+}
+.signing-missing li {
+    margin-bottom: 2px;
+}
+.btn--success {
+    background: hsl(142 71% 35%);
+    color: white;
+    border: none;
+    font-weight: 700;
+}
+.btn--success:hover {
+    background: hsl(142 71% 30%);
+}

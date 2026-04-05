@@ -382,6 +382,7 @@ export default function ClientsPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [drawerClient, setDrawerClient] = useState(null);
     const [expandedIds, setExpandedIds] = useState(new Set());
+    const [selectedIds, setSelectedIds] = useState(new Set());
 
     const fetchClients = useCallback(async () => {
         try {
@@ -425,6 +426,32 @@ export default function ClientsPage() {
             setModal(null);
             fetchClients();
         } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleBulkDelete = async () => {
+        try {
+            await api.bulkDeleteClients([...selectedIds]);
+            showToast(`${selectedIds.size} client(s) deleted`);
+            setSelectedIds(new Set());
+            setModal(null);
+            fetchClients();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const toggleSelect = (id) => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedIds.size === filteredClients.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(filteredClients.map((c) => c.id)));
+        }
     };
 
     const handleSaveAuth = async (data) => {
@@ -500,6 +527,11 @@ export default function ClientsPage() {
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
+                    {selectedIds.size > 0 && (
+                        <button className="btn btn--danger btn--sm" onClick={() => setModal({ type: 'confirmBulkDelete' })}>
+                            {Icons.trash} Delete {selectedIds.size}
+                        </button>
+                    )}
                     <button className="btn btn--outline btn--sm" onClick={() => setModal({ type: 'bulkImport' })}>
                         {Icons.download} Import
                     </button>
@@ -590,6 +622,9 @@ export default function ClientsPage() {
                                 <table className="sheet-table">
                                     <thead>
                                         <tr>
+                                            <th style={{ width: 36 }}>
+                                                <input type="checkbox" checked={selectedIds.size === filteredClients.length && filteredClients.length > 0} onChange={toggleSelectAll} />
+                                            </th>
                                             <th>Client Name</th>
                                             <th>Medicaid ID</th>
                                             <th>Insurance Type</th>
@@ -611,6 +646,9 @@ export default function ClientsPage() {
                                                         style={{ cursor: 'pointer' }}
                                                         onClick={() => setDrawerClient(client)}
                                                     >
+                                                        <td onClick={(e) => e.stopPropagation()}>
+                                                            <input type="checkbox" checked={selectedIds.has(client.id)} onChange={() => toggleSelect(client.id)} />
+                                                        </td>
                                                         <td>
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                                                 <button
@@ -719,6 +757,14 @@ export default function ClientsPage() {
                     title="Delete Client"
                     message={`This will permanently delete "${modal.client.clientName}" and all associated authorizations. This action cannot be undone.`}
                     onConfirm={() => handleDeleteClient(modal.client)}
+                    onClose={() => setModal(null)}
+                />
+            )}
+            {modal?.type === 'confirmBulkDelete' && (
+                <ConfirmModal
+                    title="Delete Selected Clients"
+                    message={`This will permanently delete ${selectedIds.size} client(s) and all their associated authorizations. This action cannot be undone.`}
+                    onConfirm={handleBulkDelete}
                     onClose={() => setModal(null)}
                 />
             )}

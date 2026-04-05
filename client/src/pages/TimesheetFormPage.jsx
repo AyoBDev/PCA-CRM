@@ -197,7 +197,20 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                 </div>
                 <div className="content-header__actions">
                     {submitted ? (
-                        <span className="ts-badge ts-badge--submitted">Submitted {ts.submittedAt ? new Date(ts.submittedAt).toLocaleString() : ''}</span>
+                        <>
+                            <span className="ts-badge ts-badge--submitted">Submitted {ts.submittedAt ? new Date(ts.submittedAt).toLocaleString() : ''}</span>
+                            <button className="btn btn--outline btn--sm" onClick={async () => {
+                                try {
+                                    const blob = await api.exportTimesheetPdf(ts.id);
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = `timesheet-${ts.id}.pdf`;
+                                    a.click();
+                                    URL.revokeObjectURL(url);
+                                } catch (err) { showToast(err.message, 'error'); }
+                            }}>{Icons.download || '↓'} Export PDF</button>
+                        </>
                     ) : (
                         <>
                             <button className="btn btn--outline btn--sm" onClick={handleShareLinks}>{Icons.share} Share</button>
@@ -253,22 +266,13 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
 
             {shareLinkModal && (
                 <Modal onClose={() => setShareLinkModal(null)}>
-                    <h2 className="modal__title"><span style={{ display: 'inline-block', width: 20, height: 20, verticalAlign: 'middle', marginRight: 6 }}>{Icons.share}</span>Signing Links</h2>
-                    <p className="modal__desc">Share these secure one-time links. Each link expires in 72 hours and can only be used once.</p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        <div className="share-link-group">
-                            <label style={{ fontWeight: 600, fontSize: 13, marginBottom: 4, display: 'block' }}>PCA Link</label>
-                            <div className="share-link-row">
-                                <input type="text" readOnly value={shareLinkModal.pcaLink} className="share-link-input" />
-                                <button className="btn btn--outline btn--sm" onClick={() => { navigator.clipboard.writeText(shareLinkModal.pcaLink); showToast('PCA link copied!'); }}>{Icons.copy} Copy</button>
-                            </div>
-                        </div>
-                        <div className="share-link-group">
-                            <label style={{ fontWeight: 600, fontSize: 13, marginBottom: 4, display: 'block' }}>Client / Guardian Link</label>
-                            <div className="share-link-row">
-                                <input type="text" readOnly value={shareLinkModal.clientLink} className="share-link-input" />
-                                <button className="btn btn--outline btn--sm" onClick={() => { navigator.clipboard.writeText(shareLinkModal.clientLink); showToast('Client link copied!'); }}>{Icons.copy} Copy</button>
-                            </div>
+                    <h2 className="modal__title"><span style={{ display: 'inline-block', width: 20, height: 20, verticalAlign: 'middle', marginRight: 6 }}>{Icons.share}</span>Signing Link</h2>
+                    <p className="modal__desc">Share this secure one-time link with the PCA. The link expires in 72 hours and can only be used once. The PCA will fill in their sections and collect the client signature on the same form.</p>
+                    <div className="share-link-group">
+                        <label style={{ fontWeight: 600, fontSize: 13, marginBottom: 4, display: 'block' }}>Signing Link (send to PCA)</label>
+                        <div className="share-link-row">
+                            <input type="text" readOnly value={shareLinkModal.link} className="share-link-input" />
+                            <button className="btn btn--outline btn--sm" onClick={() => { navigator.clipboard.writeText(shareLinkModal.link); showToast('Link copied!'); }}>{Icons.copy} Copy</button>
                         </div>
                     </div>
                 </Modal>
