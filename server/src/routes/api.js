@@ -36,6 +36,7 @@ const {
     updateTimesheet,
     submitTimesheet,
     deleteTimesheet,
+    exportTimesheetPdf,
 } = require('../controllers/timesheetController');
 const {
     login,
@@ -137,6 +138,7 @@ router.put('/timesheets/:id', updateTimesheet);
 router.put('/timesheets/:id/submit', submitTimesheet);
 router.post('/timesheets/:id/signing-links', requireRole('admin'), generateSigningLinks);
 router.delete('/timesheets/:id', deleteTimesheet);
+router.get('/timesheets/:id/export-pdf', requireRole('admin'), exportTimesheetPdf);
 
 // Payroll (admin only)
 router.get('/payroll/runs',                requireRole('admin'), listPayrollRuns);
