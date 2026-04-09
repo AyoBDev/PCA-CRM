@@ -57,7 +57,7 @@ async function getTimesheet(req, res, next) {
         const id = Number(req.params.id);
         const ts = await prisma.timesheet.findUnique({
             where: { id },
-            include: { client: { select: { id: true, clientName: true } }, entries: { orderBy: { dayOfWeek: 'asc' } } },
+            include: { client: true, entries: { orderBy: { dayOfWeek: 'asc' } } },
         });
         if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
         res.json(ts);
@@ -66,7 +66,7 @@ async function getTimesheet(req, res, next) {
 
 // GET /api/timesheets/activities  — return activity lists
 async function getActivities(req, res) {
-    res.json({ adl: ADL_ACTIVITIES, iadl: IADL_ACTIVITIES });
+    res.json({ adl: ADL_ACTIVITIES, iadl: IADL_ACTIVITIES, respite: IADL_ACTIVITIES });
 }
 
 // POST /api/timesheets
@@ -111,19 +111,24 @@ async function updateTimesheet(req, res, next) {
         const id = Number(req.params.id);
         const existing = await prisma.timesheet.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Timesheet not found' });
-        if (existing.status === 'submitted') return res.status(400).json({ error: 'Cannot edit a submitted timesheet' });
+        if (existing.status === 'submitted' && (!req.user || req.user.role !== 'admin')) {
+            return res.status(400).json({ error: 'Cannot edit a submitted timesheet' });
+        }
 
         const { entries, recipientName, recipientSignature, pcaSignature, pcaFullName, supervisorSignature, completionDate, clientPhone, clientIdNumber } = req.body;
 
         let totalPasHours = 0;
         let totalHmHours = 0;
+        let totalRespiteHours = 0;
 
         if (entries && Array.isArray(entries)) {
             for (const entry of entries) {
                 const adlHours = computeHours(entry.adlTimeIn, entry.adlTimeOut);
                 const iadlHours = computeHours(entry.iadlTimeIn, entry.iadlTimeOut);
+                const respiteHours = computeHours(entry.respiteTimeIn, entry.respiteTimeOut);
                 totalPasHours += adlHours;
                 totalHmHours += iadlHours;
+                totalRespiteHours += respiteHours;
 
                 await prisma.timesheetEntry.update({
                     where: { id: entry.id },
@@ -141,6 +146,12 @@ async function updateTimesheet(req, res, next) {
                         iadlHours,
                         iadlPcaInitials: (entry.iadlPcaInitials || '').trim(),
                         iadlClientInitials: (entry.iadlClientInitials || '').trim(),
+                        respiteActivities: typeof entry.respiteActivities === 'string' ? entry.respiteActivities : JSON.stringify(entry.respiteActivities || {}),
+                        respiteTimeIn: entry.respiteTimeIn || null,
+                        respiteTimeOut: entry.respiteTimeOut || null,
+                        respiteHours: computeHours(entry.respiteTimeIn, entry.respiteTimeOut),
+                        respitePcaInitials: (entry.respitePcaInitials || '').trim(),
+                        respiteClientInitials: (entry.respiteClientInitials || '').trim(),
                     },
                 });
             }
@@ -149,7 +160,8 @@ async function updateTimesheet(req, res, next) {
         const updateData = {
             totalPasHours,
             totalHmHours,
-            totalHours: totalPasHours + totalHmHours,
+            totalRespiteHours,
+            totalHours: totalPasHours + totalHmHours + totalRespiteHours,
         };
         if (recipientName !== undefined) updateData.recipientName = recipientName;
         if (recipientSignature !== undefined) updateData.recipientSignature = recipientSignature;
@@ -192,7 +204,9 @@ async function deleteTimesheet(req, res, next) {
         const id = Number(req.params.id);
         const existing = await prisma.timesheet.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Timesheet not found' });
-        if (existing.status === 'submitted') return res.status(400).json({ error: 'Cannot delete a submitted timesheet' });
+        if (existing.status !== 'draft' && (!req.user || req.user.role !== 'admin')) {
+            return res.status(400).json({ error: 'Only admins can delete submitted timesheets' });
+        }
         await prisma.timesheet.delete({ where: { id } });
         res.status(204).end();
     } catch (err) { next(err); }
@@ -304,12 +318,41 @@ async function exportTimesheetPdf(req, res, next) {
         drawRow('PCA Initials', ts.entries.map((e) => e.iadlPcaInitials || ''), { bg: '#e8f0ff' });
         drawRow('Client Initials', ts.entries.map((e) => e.iadlClientInitials || ''), { bg: '#e8ffe8' });
 
-        gridY += 10;
+        gridY += 6;
+
+        // ── Respite Section (only if any entry has respite data) ──
+        const hasRespite = ts.entries.some((e) => {
+            if (e.respiteHours > 0) return true;
+            try { const a = JSON.parse(e.respiteActivities || '{}'); return Object.values(a).some(Boolean); } catch (_) { return false; }
+        });
+        if (hasRespite) {
+            drawRow("Respite — Instrumental Activities of Daily Living", Array(7).fill(''), { bold: true, bg: '#f0f0f0' });
+
+            const respiteActs = ['Light Housekeeping', 'Medication Reminders', 'Laundry', 'Shopping', 'Meal Preparation B.L.D.', 'Eating/Feeding'];
+            for (const act of respiteActs) {
+                const vals = ts.entries.map((e) => {
+                    const activities = JSON.parse(e.respiteActivities || '{}');
+                    return activities[act] ? '\u2713' : '';
+                });
+                drawRow(act, vals);
+            }
+
+            drawRow('Time In', ts.entries.map((e) => e.respiteTimeIn || ''), { bg: '#f8f8f8' });
+            drawRow('Time Out', ts.entries.map((e) => e.respiteTimeOut || ''));
+            drawRow('Hours', ts.entries.map((e) => e.respiteHours > 0 ? e.respiteHours.toFixed(2) : ''), { bold: true });
+            drawRow('PCA Initials', ts.entries.map((e) => e.respitePcaInitials || ''), { bg: '#e8f0ff' });
+            drawRow('Client Initials', ts.entries.map((e) => e.respiteClientInitials || ''), { bg: '#e8ffe8' });
+
+            gridY += 6;
+        }
+
+        gridY += 4;
 
         // ── Totals ──
         doc.y = gridY;
         doc.fontSize(9).font('Helvetica-Bold');
-        doc.text(`Total PAS Hours: ${ts.totalPasHours.toFixed(2)}     Total HM Hours: ${ts.totalHmHours.toFixed(2)}     Total Hours: ${ts.totalHours.toFixed(2)}`, 30, gridY);
+        const totalRespiteHours = ts.totalRespiteHours || 0;
+        doc.text(`Total PAS Hours: ${ts.totalPasHours.toFixed(2)}     Total HM Hours: ${ts.totalHmHours.toFixed(2)}     Total Respite Hours: ${totalRespiteHours.toFixed(2)}     Total Hours: ${ts.totalHours.toFixed(2)}`, 30, gridY);
         gridY += 20;
 
         // ── Signatures ──
@@ -347,4 +390,24 @@ async function exportTimesheetPdf(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listTimesheets, getTimesheet, getActivities, createTimesheet, updateTimesheet, submitTimesheet, deleteTimesheet, exportTimesheetPdf };
+// PUT /api/timesheets/:id/status
+async function updateTimesheetStatus(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const { status } = req.body;
+        if (!['draft', 'submitted'].includes(status)) {
+            return res.status(400).json({ error: 'Invalid status' });
+        }
+        const ts = await prisma.timesheet.update({
+            where: { id },
+            data: { status, submittedAt: status === 'draft' ? null : new Date() },
+            include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
+        });
+        res.json(ts);
+    } catch (err) {
+        if (err.code === 'P2025') return res.status(404).json({ error: 'Timesheet not found' });
+        next(err);
+    }
+}
+
+module.exports = { listTimesheets, getTimesheet, getActivities, createTimesheet, updateTimesheet, submitTimesheet, deleteTimesheet, exportTimesheetPdf, updateTimesheetStatus };
