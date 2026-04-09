@@ -32,7 +32,7 @@ async function getClient(req, res, next) {
 // POST /api/clients
 async function createClient(req, res, next) {
     try {
-        const { clientName, medicaidId, insuranceType, address, phone, gateCode, notes } = req.body;
+        const { clientName, medicaidId, insuranceType, address, phone, gateCode, notes, enabledServices } = req.body;
         if (!clientName || typeof clientName !== 'string' || !clientName.trim()) {
             return res.status(400).json({ error: 'clientName is required' });
         }
@@ -45,6 +45,7 @@ async function createClient(req, res, next) {
                 phone: (phone || '').trim(),
                 gateCode: (gateCode || '').trim(),
                 notes: (notes || '').trim(),
+                enabledServices: enabledServices || '["PAS","Homemaker"]',
             },
             include: { authorizations: true },
         });
@@ -58,7 +59,7 @@ async function createClient(req, res, next) {
 async function updateClient(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const { clientName, medicaidId, insuranceType, address, phone, gateCode, notes } = req.body;
+        const { clientName, medicaidId, insuranceType, address, phone, gateCode, notes, enabledServices } = req.body;
         if (!clientName || typeof clientName !== 'string' || !clientName.trim()) {
             return res.status(400).json({ error: 'clientName is required' });
         }
@@ -72,6 +73,7 @@ async function updateClient(req, res, next) {
                 phone: (phone || '').trim(),
                 gateCode: (gateCode || '').trim(),
                 notes: (notes || '').trim(),
+                enabledServices: enabledServices || '["PAS","Homemaker"]',
             },
             include: { authorizations: { orderBy: { createdAt: 'asc' } } },
         });
