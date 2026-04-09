@@ -65,9 +65,11 @@ model Client {
   phone           String          @default("") @map("phone")
   gateCode        String          @default("") @map("gate_code")
   notes           String          @default("") @map("notes")
+  enabledServices String          @default("[\"PAS\",\"Homemaker\"]") @map("enabled_services")
   authorizations  Authorization[]
   timesheets      Timesheet[]
   shifts          Shift[]
+  permanentLinks  PermanentLink[]
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
@@ -124,6 +126,7 @@ model Timesheet {
   totalPasHours       Float            @default(0) @map("total_pas_hours")
   totalHmHours        Float            @default(0) @map("total_hm_hours")
   totalHours          Float            @default(0) @map("total_hours")
+  totalRespiteHours   Float            @default(0) @map("total_respite_hours")
   recipientName       String           @default("") @map("recipient_name")
   recipientSignature  String           @default("") @map("recipient_signature")
   pcaSignature        String           @default("") @map("pca_signature")
@@ -161,6 +164,13 @@ model TimesheetEntry {
   iadlHours           Float     @default(0) @map("iadl_hours")
   iadlPcaInitials     String    @default("") @map("iadl_pca_initials")
   iadlClientInitials  String    @default("") @map("iadl_client_initials")
+  // Respite section (mirrors IADL structure)
+  respiteActivities     String    @default("{}") @map("respite_activities")
+  respiteTimeIn         String?   @map("respite_time_in")
+  respiteTimeOut        String?   @map("respite_time_out")
+  respiteHours          Float     @default(0) @map("respite_hours")
+  respitePcaInitials    String    @default("") @map("respite_pca_initials")
+  respiteClientInitials String    @default("") @map("respite_client_initials")
   timesheet           Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
 
   @@map("timesheet_entries")
@@ -259,4 +269,18 @@ model Shift {
   @@index([employeeId])
   @@index([shiftDate])
   @@map("shifts")
+}
+
+model PermanentLink {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique @default(uuid())
+  clientId  Int      @map("client_id")
+  pcaName   String   @map("pca_name")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, pcaName])
+  @@map("permanent_links")
 }
