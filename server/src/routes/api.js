@@ -37,7 +37,10 @@ const {
     submitTimesheet,
     deleteTimesheet,
     exportTimesheetPdf,
+    updateTimesheetStatus,
 } = require('../controllers/timesheetController');
+const { createPermanentLink, listPermanentLinks, deletePermanentLink } = require('../controllers/permanentLinkController');
+const { getPcaForm, updatePcaForm } = require('../controllers/pcaFormController');
 const {
     login,
     getMe,
@@ -87,6 +90,8 @@ router.get('/sign/:token', getSigningForm);
 router.put('/sign/:token', submitSigningForm);
 router.get('/schedule/confirm/:token', getScheduleConfirm);
 router.put('/schedule/confirm/:token', confirmSchedule);
+router.get('/pca-form/:token', getPcaForm);
+router.put('/pca-form/:token', updatePcaForm);
 
 // ── All routes below require authentication ──
 router.use(authenticate);
@@ -139,6 +144,12 @@ router.put('/timesheets/:id/submit', submitTimesheet);
 router.post('/timesheets/:id/signing-links', requireRole('admin'), generateSigningLinks);
 router.delete('/timesheets/:id', deleteTimesheet);
 router.get('/timesheets/:id/export-pdf', requireRole('admin'), exportTimesheetPdf);
+router.put('/timesheets/:id/status', requireRole('admin'), updateTimesheetStatus);
+
+// Permanent link routes (admin only)
+router.get('/permanent-links', requireRole('admin'), listPermanentLinks);
+router.post('/permanent-links', requireRole('admin'), createPermanentLink);
+router.delete('/permanent-links/:id', requireRole('admin'), deletePermanentLink);
 
 // Payroll (admin only)
 router.get('/payroll/runs',                requireRole('admin'), listPayrollRuns);

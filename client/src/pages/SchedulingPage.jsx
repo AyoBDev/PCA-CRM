@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
@@ -418,205 +418,53 @@ function getUsageLabel(scheduled, authorized) {
     return `${remaining} units remaining`;
 }
 
-function AuthSummaryBar({ unitSummary }) {
-    if (!unitSummary || Object.keys(unitSummary).length === 0) return null;
-    let totalAuth = 0, totalSched = 0;
-    for (const data of Object.values(unitSummary)) {
-        totalAuth += data.authorized || 0;
-        totalSched += data.scheduled || 0;
+function HoursSummaryBar({ summaryViewBy, unitSummaries, shifts }) {
+    if (summaryViewBy === 'client') {
+        let totalAuth = 0, totalSched = 0;
+        for (const cid of Object.keys(unitSummaries || {})) {
+            for (const data of Object.values(unitSummaries[cid])) {
+                totalAuth += data.authorized || 0;
+                totalSched += data.scheduled || 0;
+            }
+        }
+        const totalAuthHrs = Math.round((totalAuth / 4) * 100) / 100;
+        const totalSchedHrs = Math.round((totalSched / 4) * 100) / 100;
+        const remainHrs = Math.round((totalAuthHrs - totalSchedHrs) * 100) / 100;
+        return (
+            <div className="sched-auth-bar">
+                <div className="sched-auth-bar__item">
+                    <span className="sched-auth-bar__label">Authorized Hours</span>
+                    <span className="sched-auth-bar__value">{totalAuthHrs} hrs</span>
+                </div>
+                <div className="sched-auth-bar__sep" />
+                <div className="sched-auth-bar__item">
+                    <span className="sched-auth-bar__label">Scheduled Hours</span>
+                    <span className="sched-auth-bar__value" style={{ color: getUsageColor(totalSched, totalAuth) }}>{totalSchedHrs} hrs</span>
+                </div>
+                <div className="sched-auth-bar__sep" />
+                <div className="sched-auth-bar__item">
+                    <span className="sched-auth-bar__label">Hours Remaining</span>
+                    <span className={`sched-auth-bar__value ${remainHrs < 0 ? 'sched-auth-bar__value--over' : 'sched-auth-bar__value--remain'}`}>{remainHrs} hrs</span>
+                </div>
+            </div>
+        );
     }
-    const totalAuthHrs = Math.round((totalAuth / 4) * 100) / 100;
-    const totalSchedHrs = Math.round((totalSched / 4) * 100) / 100;
-    const remainHrs = Math.round((totalAuthHrs - totalSchedHrs) * 100) / 100;
+
+    // Employee mode — no "authorized" concept. Show total scheduled + employee count.
+    const totalSchedHrs = Math.round(
+        shifts.filter(s => s.status !== 'cancelled').reduce((sum, s) => sum + (s.hours || 0), 0) * 100
+    ) / 100;
+    const employeeIds = new Set(shifts.filter(s => s.status !== 'cancelled' && s.employeeId).map(s => s.employeeId));
     return (
         <div className="sched-auth-bar">
             <div className="sched-auth-bar__item">
-                <span className="sched-auth-bar__label">Authorized Hours</span>
-                <span className="sched-auth-bar__value">{totalAuthHrs} hrs</span>
+                <span className="sched-auth-bar__label">Active Employees</span>
+                <span className="sched-auth-bar__value">{employeeIds.size}</span>
             </div>
             <div className="sched-auth-bar__sep" />
             <div className="sched-auth-bar__item">
                 <span className="sched-auth-bar__label">Scheduled Hours</span>
-                <span className="sched-auth-bar__value" style={{ color: getUsageColor(totalSched, totalAuth) }}>{totalSchedHrs} hrs</span>
-            </div>
-            <div className="sched-auth-bar__sep" />
-            <div className="sched-auth-bar__item">
-                <span className="sched-auth-bar__label">Hours Remaining</span>
-                <span className={`sched-auth-bar__value ${remainHrs < 0 ? 'sched-auth-bar__value--over' : 'sched-auth-bar__value--remain'}`}>{remainHrs} hrs</span>
-            </div>
-            {Object.entries(unitSummary).map(([code, data]) => {
-                const colorInfo = SERVICE_COLORS[code] || { color: '#6B7280', label: code };
-                const usageColor = getUsageColor(data.scheduled, data.authorized);
-                return (
-                    <Fragment key={code}>
-                        <div className="sched-auth-bar__sep" />
-                        <div className="sched-auth-bar__item sched-auth-bar__item--service" title={getUsageLabel(data.scheduled, data.authorized)}>
-                            <span className="sched-auth-bar__dot" style={{ background: colorInfo.color }} />
-                            <span className="sched-auth-bar__label">{colorInfo.label}</span>
-                            <span className="sched-auth-bar__value" style={{ color: usageColor }}>{data.scheduled}/{data.authorized}u</span>
-                            {data.scheduled >= data.authorized && data.authorized > 0 && <span style={{ color: '#ef4444', marginLeft: 4 }} title="At or over limit">&#x26A0;</span>}
-                        </div>
-                    </Fragment>
-                );
-            })}
-        </div>
-    );
-}
-
-const GRID_START_HOUR = 4;
-const GRID_END_HOUR = 24;
-const HOUR_HEIGHT = 60;
-
-function ScheduleWeekGrid({ shifts, weekStart, onAddShift, onEditShift, viewMode, overlapIds }) {
-    const days = [];
-    const ws = new Date(weekStart + 'T00:00:00');
-    for (let i = 0; i < 7; i++) {
-        const d = new Date(ws);
-        d.setDate(ws.getDate() + i);
-        days.push(d);
-    }
-    const dayAbbr = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const todayStr = toLocalDateStr(new Date());
-    const hours = [];
-    for (let h = GRID_START_HOUR; h < GRID_END_HOUR; h++) hours.push(h);
-    const totalHeight = hours.length * HOUR_HEIGHT;
-
-    const fmtHour = (h) => h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`;
-
-    // Group shifts by date string
-    const shiftsByDate = {};
-    for (const s of shifts) {
-        const d = toLocalDateStr(s.shiftDate);
-        if (!shiftsByDate[d]) shiftsByDate[d] = [];
-        shiftsByDate[d].push(s);
-    }
-
-    // Compute overlap columns for a set of shifts in one day
-    const computeColumns = (dayShifts) => {
-        const toMin = (t) => { const [h, m] = (t || '09:00').split(':').map(Number); return h * 60 + m; };
-        const sorted = [...dayShifts].sort((a, b) => toMin(a.startTime) - toMin(b.startTime));
-        const columns = [];
-        const active = [];
-
-        for (const s of sorted) {
-            let sStart = toMin(s.startTime);
-            let sEnd = toMin(s.endTime);
-            if (sEnd <= sStart) sEnd += 24 * 60;
-
-            let col = 0;
-            const usedCols = new Set();
-            for (const a of active) {
-                let aEnd = toMin(a.shift.endTime);
-                if (aEnd <= toMin(a.shift.startTime)) aEnd += 24 * 60;
-                if (sStart < aEnd) usedCols.add(a.col);
-            }
-            while (usedCols.has(col)) col++;
-            active.push({ shift: s, col });
-            columns.push({ shift: s, col });
-        }
-
-        const maxCol = columns.length > 0 ? Math.max(...columns.map(c => c.col)) + 1 : 1;
-        return columns.map(c => ({ ...c, totalCols: maxCol }));
-    };
-
-    const handleDayClick = (e, dateStr) => {
-        if (e.target !== e.currentTarget) return;
-        const rect = e.currentTarget.getBoundingClientRect();
-        const y = e.clientY - rect.top;
-        const hour = Math.floor(y / HOUR_HEIGHT) + GRID_START_HOUR;
-        const snapped = Math.max(GRID_START_HOUR, Math.min(GRID_END_HOUR - 1, hour));
-        const time = `${String(snapped).padStart(2, '0')}:00`;
-        onAddShift(dateStr, time);
-    };
-
-    return (
-        <div className="sched-wg">
-            <div className="sched-wg__header">
-                <div className="sched-wg__gutter" />
-                {days.map((day, i) => {
-                    const dateStr = toLocalDateStr(day);
-                    const isToday = dateStr === todayStr;
-                    return (
-                        <div key={i} className={`sched-wg__day-header ${isToday ? 'sched-wg__day-header--today' : ''}`}>
-                            <span className="sched-wg__day-abbr">{dayAbbr[i]}</span>
-                            <span className="sched-wg__day-num">{day.getMonth() + 1}/{day.getDate()}</span>
-                        </div>
-                    );
-                })}
-            </div>
-
-            <div className="sched-wg__body" style={{ height: totalHeight }}>
-                <div className="sched-wg__gutter">
-                    {hours.map(h => (
-                        <div key={h} className="sched-wg__hour-label" style={{ top: (h - GRID_START_HOUR) * HOUR_HEIGHT }}>
-                            {fmtHour(h)}
-                        </div>
-                    ))}
-                </div>
-
-                {days.map((day, i) => {
-                    const dateStr = toLocalDateStr(day);
-                    const isToday = dateStr === todayStr;
-                    const dayShifts = shiftsByDate[dateStr] || [];
-                    const positioned = computeColumns(dayShifts);
-
-                    return (
-                        <div
-                            key={i}
-                            className={`sched-wg__day-col ${isToday ? 'sched-wg__day-col--today' : ''}`}
-                            onClick={(e) => handleDayClick(e, dateStr)}
-                        >
-                            {hours.map(h => (
-                                <div key={h} className="sched-wg__hline" style={{ top: (h - GRID_START_HOUR) * HOUR_HEIGHT }} />
-                            ))}
-
-                            {positioned.map(({ shift: s, col, totalCols }) => {
-                                const colorInfo = SERVICE_COLORS[s.serviceCode] || { color: '#6B7280', bg: '#F3F4F6', label: s.serviceCode };
-                                const isOverlap = overlapIds && overlapIds.has(s.id);
-                                const isCancelled = s.status === 'cancelled';
-
-                                const [sh, sm] = (s.startTime || '09:00').split(':').map(Number);
-                                const [eh, em] = (s.endTime || '13:00').split(':').map(Number);
-                                let startMin = sh * 60 + sm;
-                                let endMin = eh * 60 + em;
-                                if (endMin <= startMin) endMin += 24 * 60;
-                                const gridStartMin = GRID_START_HOUR * 60;
-                                const gridEndMin = GRID_END_HOUR * 60;
-                                const clippedStart = Math.max(startMin, gridStartMin);
-                                const clippedEnd = Math.min(endMin, gridEndMin);
-                                const top = ((clippedStart - gridStartMin) / 60) * HOUR_HEIGHT;
-                                const height = Math.max(((clippedEnd - clippedStart) / 60) * HOUR_HEIGHT, 20);
-                                const isClipped = endMin > gridEndMin;
-
-                                const colWidth = 100 / totalCols;
-                                const left = col * colWidth;
-
-                                return (
-                                    <button
-                                        key={s.id}
-                                        className={`sched-wg__block ${isCancelled ? 'sched-wg__block--cancelled' : ''} ${isOverlap ? 'sched-wg__block--overlap' : ''}`}
-                                        style={{
-                                            top: top + 'px',
-                                            height: height + 'px',
-                                            left: left + '%',
-                                            width: colWidth + '%',
-                                            '--block-color': colorInfo.color,
-                                            '--block-bg': isOverlap ? 'hsl(0 84% 97%)' : colorInfo.bg,
-                                        }}
-                                        onClick={(e) => { e.stopPropagation(); onEditShift(s); }}
-                                        title={`${colorInfo.label} — ${hhmm12(s.startTime)} - ${hhmm12(s.endTime)} (${s.hours}h)`}
-                                    >
-                                        <span className="sched-wg__block-badge" style={{ background: colorInfo.color }}>{colorInfo.label}</span>
-                                        <span className="sched-wg__block-time">{hhmm12(s.startTime)}-{hhmm12(s.endTime)}</span>
-                                        {viewMode === 'client' && <span className="sched-wg__block-label">{s.displayEmployeeName || 'Unassigned'}</span>}
-                                        {viewMode !== 'client' && <span className="sched-wg__block-label">{s.client?.clientName || ''}</span>}
-                                        {isClipped && <span className="sched-wg__block-clip" title="Continues next day">...</span>}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    );
-                })}
+                <span className="sched-auth-bar__value sched-auth-bar__value--remain">{totalSchedHrs} hrs</span>
             </div>
         </div>
     );
@@ -641,13 +489,11 @@ function ScheduleOverviewTable({ shifts, overlapIds, onEditShift }) {
                         <th>Employee</th>
                         <th>Service</th>
                         <th>Time</th>
-                        <th>Hours</th>
-                        <th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
                     {sorted.length === 0 && (
-                        <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24, color: 'hsl(var(--muted-foreground))' }}>No shifts this week</td></tr>
+                        <tr><td colSpan={5} style={{ textAlign: 'center', padding: 24, color: 'hsl(var(--muted-foreground))' }}>No shifts this week</td></tr>
                     )}
                     {sorted.map(s => {
                         const colorInfo = SERVICE_COLORS[s.serviceCode] || { color: '#6B7280', label: s.serviceCode };
@@ -661,8 +507,6 @@ function ScheduleOverviewTable({ shifts, overlapIds, onEditShift }) {
                                 <td>{s.displayEmployeeName || '—'}</td>
                                 <td><span className="sched-service-badge" style={{ background: colorInfo.color }}>{colorInfo.label}</span></td>
                                 <td className="sched-overview-table__time">{hhmm12(s.startTime)} - {hhmm12(s.endTime)}</td>
-                                <td>{s.hours}h</td>
-                                <td><span className={`sched-status sched-status--${s.status}`}>{s.status}</span></td>
                             </tr>
                         );
                     })}
@@ -672,26 +516,139 @@ function ScheduleOverviewTable({ shifts, overlapIds, onEditShift }) {
     );
 }
 
+// Matrix view: rows = employee/client, columns = 7 days of the week, cells = shift chips
+function ScheduleMatrix({ shifts, weekStart, rowBy, onEditShift, overlapIds }) {
+    const dayAbbr = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const days = [];
+    const dayHeads = [];
+    const ws = new Date(weekStart + 'T00:00:00');
+    const todayStr = toLocalDateStr(new Date());
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(ws);
+        d.setDate(ws.getDate() + i);
+        const dateStr = toLocalDateStr(d);
+        days.push(dateStr);
+        dayHeads.push({ abbr: dayAbbr[i], date: d.getDate(), dateStr, isToday: dateStr === todayStr });
+    }
+
+    // Group shifts by row key → date → shifts
+    const rows = new Map(); // rowKey → { label, cells: { dateStr → shift[] } }
+    for (const s of shifts) {
+        const rowKey = rowBy === 'employee'
+            ? (s.displayEmployeeName || s.employeeName || 'Unassigned')
+            : (s.client?.clientName || 'Unknown');
+        if (!rows.has(rowKey)) {
+            rows.set(rowKey, { label: rowKey, cells: {} });
+        }
+        const row = rows.get(rowKey);
+        const dateStr = toLocalDateStr(s.shiftDate);
+        if (!row.cells[dateStr]) row.cells[dateStr] = [];
+        row.cells[dateStr].push(s);
+    }
+
+    const rowList = Array.from(rows.values()).sort((a, b) => a.label.localeCompare(b.label));
+
+    if (rowList.length === 0) {
+        return (
+            <div style={{ textAlign: 'center', padding: 24, color: 'hsl(var(--muted-foreground))' }}>
+                No shifts scheduled this week.
+            </div>
+        );
+    }
+
+    return (
+        <div className="sched-matrix-wrap">
+            <table className="sched-matrix">
+                <thead>
+                    <tr>
+                        <th className="sched-matrix__row-head">{rowBy === 'employee' ? 'Employee' : 'Client'}</th>
+                        {dayHeads.map((dh) => (
+                            <th key={dh.dateStr} className={`sched-matrix__day-head${dh.isToday ? ' sched-matrix__day-head--today' : ''}`}>
+                                <span className="sched-matrix__day-abbr">{dh.abbr}</span>
+                                <span className="sched-matrix__day-num">{dh.date}</span>
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {rowList.map((row) => (
+                        <tr key={row.label}>
+                            <td className="sched-matrix__row-label">{row.label}</td>
+                            {days.map((dateStr) => {
+                                const cellShifts = row.cells[dateStr] || [];
+                                const isToday = dateStr === todayStr;
+                                return (
+                                    <td key={dateStr} className={`sched-matrix__cell${isToday ? ' sched-matrix__cell--today' : ''}${cellShifts.length === 0 ? ' sched-matrix__cell--empty' : ''}`}>
+                                        {cellShifts.length === 0 ? (
+                                            <span className="sched-matrix__cell-placeholder">·</span>
+                                        ) : cellShifts.map((s) => {
+                                            const colorInfo = SERVICE_COLORS[s.serviceCode] || { color: '#6B7280', bg: '#F3F4F6', label: s.serviceCode };
+                                            const isOverlap = overlapIds && overlapIds.has(s.id);
+                                            const isCancelled = s.status === 'cancelled';
+                                            const label = rowBy === 'employee'
+                                                ? (s.client?.clientName || '—')
+                                                : (s.displayEmployeeName || 'Unassigned');
+                                            return (
+                                                <button
+                                                    key={s.id}
+                                                    className={`sched-matrix__chip ${isCancelled ? 'sched-matrix__chip--cancelled' : ''} ${isOverlap ? 'sched-matrix__chip--overlap' : ''}`}
+                                                    style={{
+                                                        '--chip-color': colorInfo.color,
+                                                    }}
+                                                    onClick={() => onEditShift(s)}
+                                                    title={`${label} — ${colorInfo.label} — ${hhmm12(s.startTime)} - ${hhmm12(s.endTime)}`}
+                                                >
+                                                    <span className="sched-matrix__chip-name">{label}</span>
+                                                    <span className="sched-matrix__chip-meta">
+                                                        <span className="sched-matrix__chip-time">{hhmm12(s.startTime)}–{hhmm12(s.endTime)}</span>
+                                                        <span className="sched-matrix__chip-service">{colorInfo.label}</span>
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
+                                    </td>
+                                );
+                            })}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
 export default function SchedulingPage() {
     const { showToast } = useToast();
     const [clients, setClients] = useState([]);
-    const [shifts, setShifts] = useState([]);
-    const [overlaps, setOverlaps] = useState([]);
-    const [unitSummary, setUnitSummary] = useState({});
-    const [unitSummaries, setUnitSummaries] = useState({});
     const [employees, setEmployees] = useState([]);
+
+    // Global week data (drives bottom overview table + summary)
+    const [allShifts, setAllShifts] = useState([]);
+    const [allOverlaps, setAllOverlaps] = useState([]);
+    const [unitSummaries, setUnitSummaries] = useState({});
+    const [loadingAll, setLoadingAll] = useState(true);
+
+    // Top-left: selected client's schedule
+    const [selectedClientId, setSelectedClientId] = useState('');
+    const [clientShifts, setClientShifts] = useState([]);
+    const [clientOverlaps, setClientOverlaps] = useState([]);
     const [clientInfo, setClientInfo] = useState(null);
+    const [loadingClient, setLoadingClient] = useState(false);
+
+    // Top-right: selected employee's schedule
+    const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+    const [employeeShifts, setEmployeeShifts] = useState([]);
+    const [employeeOverlaps, setEmployeeOverlaps] = useState([]);
     const [employeeInfo, setEmployeeInfo] = useState(null);
+    const [loadingEmployee, setLoadingEmployee] = useState(false);
+
     const [weekStart, setWeekStart] = useState(() => {
         const d = new Date();
         d.setDate(d.getDate() - d.getDay());
         return toLocalDateStr(d);
     });
-    const [loading, setLoading] = useState(true);
     const [modal, setModal] = useState(null);
-    const [viewMode, setViewMode] = useState('overview');
-    const [selectedClientId, setSelectedClientId] = useState('');
-    const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+    const [summaryViewBy, setSummaryViewBy] = useState('client');
 
     const fetchClients = useCallback(async () => {
         try { setClients(await api.getClients()); }
@@ -705,49 +662,62 @@ export default function SchedulingPage() {
         } catch (err) { showToast(err.message, 'error'); }
     }, [showToast]);
 
-    const fetchData = useCallback(async () => {
+    const fetchAllShifts = useCallback(async () => {
         try {
-            setLoading(true);
-            if (viewMode === 'client' && selectedClientId) {
-                const data = await api.getClientSchedule(selectedClientId, weekStart);
-                setShifts(data.shifts || []);
-                setOverlaps(data.overlaps || []);
-                setUnitSummary(data.unitSummary || {});
-                setUnitSummaries({});
-                setClientInfo(data.client || null);
-                setEmployeeInfo(null);
-            } else if (viewMode === 'employee' && selectedEmployeeId) {
-                const data = await api.getEmployeeSchedule(selectedEmployeeId, weekStart);
-                setShifts(data.shifts || []);
-                setOverlaps(data.overlaps || []);
-                setUnitSummary({});
-                setUnitSummaries({});
-                setClientInfo(null);
-                setEmployeeInfo(data.employee || null);
-            } else {
-                const data = await api.getShifts(weekStart, {});
-                setShifts(data.shifts || []);
-                setOverlaps(data.overlaps || []);
-                setUnitSummary({});
-                setUnitSummaries(data.unitSummaries || {});
-                setClientInfo(null);
-                setEmployeeInfo(null);
-            }
+            setLoadingAll(true);
+            const data = await api.getShifts(weekStart, {});
+            setAllShifts(data.shifts || []);
+            setAllOverlaps(data.overlaps || []);
+            setUnitSummaries(data.unitSummaries || {});
         } catch (err) { showToast(err.message, 'error'); }
-        finally { setLoading(false); }
-    }, [weekStart, viewMode, selectedClientId, selectedEmployeeId, showToast]);
+        finally { setLoadingAll(false); }
+    }, [weekStart, showToast]);
+
+    const fetchClientSchedule = useCallback(async () => {
+        if (!selectedClientId) {
+            setClientShifts([]);
+            setClientOverlaps([]);
+            setClientInfo(null);
+            return;
+        }
+        try {
+            setLoadingClient(true);
+            const data = await api.getClientSchedule(selectedClientId, weekStart);
+            setClientShifts(data.shifts || []);
+            setClientOverlaps(data.overlaps || []);
+            setClientInfo(data.client || null);
+        } catch (err) { showToast(err.message, 'error'); }
+        finally { setLoadingClient(false); }
+    }, [selectedClientId, weekStart, showToast]);
+
+    const fetchEmployeeSchedule = useCallback(async () => {
+        if (!selectedEmployeeId) {
+            setEmployeeShifts([]);
+            setEmployeeOverlaps([]);
+            setEmployeeInfo(null);
+            return;
+        }
+        try {
+            setLoadingEmployee(true);
+            const data = await api.getEmployeeSchedule(selectedEmployeeId, weekStart);
+            setEmployeeShifts(data.shifts || []);
+            setEmployeeOverlaps(data.overlaps || []);
+            setEmployeeInfo(data.employee || null);
+        } catch (err) { showToast(err.message, 'error'); }
+        finally { setLoadingEmployee(false); }
+    }, [selectedEmployeeId, weekStart, showToast]);
+
+    const refetchAll = useCallback(() => {
+        fetchAllShifts();
+        fetchClientSchedule();
+        fetchEmployeeSchedule();
+    }, [fetchAllShifts, fetchClientSchedule, fetchEmployeeSchedule]);
 
     useEffect(() => { fetchClients(); }, [fetchClients]);
     useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
-    useEffect(() => { fetchData(); }, [fetchData]);
-
-    useEffect(() => {
-        setSelectedClientId('');
-        setSelectedEmployeeId('');
-        setClientInfo(null);
-        setEmployeeInfo(null);
-        setUnitSummary({});
-    }, [viewMode]);
+    useEffect(() => { fetchAllShifts(); }, [fetchAllShifts]);
+    useEffect(() => { fetchClientSchedule(); }, [fetchClientSchedule]);
+    useEffect(() => { fetchEmployeeSchedule(); }, [fetchEmployeeSchedule]);
 
     const navigateWeek = (dir) => {
         const d = new Date(weekStart + 'T00:00:00');
@@ -778,7 +748,7 @@ export default function SchedulingPage() {
                 else showToast('Shift created');
             }
             setModal(null);
-            fetchData();
+            refetchAll();
             fetchEmployees();
         } catch (err) {
             if (err.isOverlap) {
@@ -802,7 +772,7 @@ export default function SchedulingPage() {
                 else showToast('Shift created (overlap allowed)');
             }
             setModal(null);
-            fetchData();
+            refetchAll();
             fetchEmployees();
         } catch (err) { showToast(err.message, 'error'); }
     };
@@ -813,7 +783,7 @@ export default function SchedulingPage() {
             const count = result?.deleted || 1;
             showToast(count > 1 ? `${count} shifts deleted` : 'Shift deleted');
             setModal(null);
-            fetchData();
+            refetchAll();
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -821,7 +791,7 @@ export default function SchedulingPage() {
         try {
             const result = await api.deleteAllShifts();
             showToast(`${result.deleted} shift${result.deleted !== 1 ? 's' : ''} deleted`);
-            fetchData();
+            refetchAll();
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -833,11 +803,23 @@ export default function SchedulingPage() {
         setModal({ type: 'shift', shift });
     };
 
-    const overlapIds = useMemo(() => {
+    const allOverlapIds = useMemo(() => {
         const set = new Set();
-        for (const o of overlaps) { set.add(o.shiftA); set.add(o.shiftB); }
+        for (const o of allOverlaps) { set.add(o.shiftA); set.add(o.shiftB); }
         return set;
-    }, [overlaps]);
+    }, [allOverlaps]);
+
+    const clientOverlapIds = useMemo(() => {
+        const set = new Set();
+        for (const o of clientOverlaps) { set.add(o.shiftA); set.add(o.shiftB); }
+        return set;
+    }, [clientOverlaps]);
+
+    const employeeOverlapIds = useMemo(() => {
+        const set = new Set();
+        for (const o of employeeOverlaps) { set.add(o.shiftA); set.add(o.shiftB); }
+        return set;
+    }, [employeeOverlaps]);
 
     const formatWeekLabel = () => {
         const ws = new Date(weekStart + 'T00:00:00');
@@ -845,38 +827,13 @@ export default function SchedulingPage() {
         return `${ws.toLocaleDateString('en-US', opts)} — ${weekEndDate.toLocaleDateString('en-US', { ...opts, year: 'numeric' })}`;
     };
 
-    const displayUnitSummary = useMemo(() => {
-        if (viewMode === 'client' && Object.keys(unitSummary).length > 0) return unitSummary;
-        if (viewMode === 'overview' && Object.keys(unitSummaries).length > 0) {
-            const combined = {};
-            for (const cid of Object.keys(unitSummaries)) {
-                const s = unitSummaries[cid];
-                for (const code of Object.keys(s)) {
-                    if (!combined[code]) combined[code] = { authorized: 0, scheduled: 0, remaining: 0 };
-                    combined[code].authorized += s[code].authorized;
-                    combined[code].scheduled += s[code].scheduled;
-                    combined[code].remaining += s[code].remaining;
-                }
-            }
-            return combined;
-        }
-        return {};
-    }, [viewMode, unitSummary, unitSummaries]);
-
-    const weekStats = useMemo(() => {
-        const totalHours = shifts.reduce((sum, s) => sum + (s.status !== 'cancelled' ? (s.hours || 0) : 0), 0);
-        const totalUnits = shifts.reduce((sum, s) => sum + (s.status !== 'cancelled' ? (s.units || 0) : 0), 0);
-        const activeShifts = shifts.filter(s => s.status !== 'cancelled').length;
-        return { totalHours: Math.round(totalHours * 100) / 100, totalUnits, activeShifts };
-    }, [shifts]);
-
     return (
         <>
             {/* Header */}
             <div className="content-header">
                 <h1 className="content-header__title">Scheduling</h1>
                 <div className="content-header__actions">
-                    {shifts.length > 0 && (
+                    {allShifts.length > 0 && (
                         <button className="btn btn--outline btn--sm" style={{ color: 'hsl(0 84% 60%)', borderColor: 'hsl(0 84% 80%)' }} onClick={() => setModal({ type: 'confirmDeleteAll' })}>
                             {Icons.trash} Delete All
                         </button>
@@ -891,7 +848,7 @@ export default function SchedulingPage() {
             </div>
 
             <div className="page-content">
-                {/* Week Nav + View Toggle Row */}
+                {/* Week Nav */}
                 <div className="sched-toolbar">
                     <div className="sched-week-nav">
                         <button className="btn btn--outline btn--sm" onClick={() => navigateWeek(-1)}>{Icons.chevronLeft}</button>
@@ -899,35 +856,24 @@ export default function SchedulingPage() {
                         <span className="sched-week-nav__label">{formatWeekLabel()}</span>
                         <button className="btn btn--outline btn--sm" onClick={() => navigateWeek(1)}>{Icons.chevronRight}</button>
                     </div>
-                    <div className="sched-view-toggle">
-                        <button className={`sched-view-toggle__btn ${viewMode === 'overview' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setViewMode('overview')}>
-                            {Icons.calendar} Overview
-                        </button>
-                        <button className={`sched-view-toggle__btn ${viewMode === 'client' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setViewMode('client')}>
-                            {Icons.user} Client
-                        </button>
-                        <button className={`sched-view-toggle__btn ${viewMode === 'employee' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setViewMode('employee')}>
-                            {Icons.users} Employee
-                        </button>
-                    </div>
                 </div>
 
                 {/* Overlap Warnings */}
-                {overlaps.length > 0 && (
+                {allOverlaps.length > 0 && (
                     <div className="sched-overlap-warning">
                         {Icons.alertTriangle}
                         <div>
-                            <strong>Overlap{overlaps.length > 1 ? 's' : ''} Detected ({overlaps.length})</strong>
-                            <div>{overlaps.map((o, i) => <div key={i}>{o.employeeName} — {o.date}</div>)}</div>
+                            <strong>Overlap{allOverlaps.length > 1 ? 's' : ''} Detected ({allOverlaps.length})</strong>
+                            <div>{allOverlaps.map((o, i) => <div key={i}>{o.employeeName} — {o.date}</div>)}</div>
                         </div>
                     </div>
                 )}
 
-                {/* Client View */}
-                {viewMode === 'client' && (
+                {/* Dashboard Row: Client Card + Employee Card side-by-side */}
+                <div className="sched-dashboard-row">
                     <ScheduleCard
                         title="Client Schedule"
-                        icon={Icons.user}
+                        icon={Icons.users}
                         headerActions={
                             <select className="sched-card__select" value={selectedClientId} onChange={e => setSelectedClientId(e.target.value)}>
                                 <option value="">Select a client…</option>
@@ -938,9 +884,9 @@ export default function SchedulingPage() {
                         {!selectedClientId ? (
                             <div className="sched-prompt">
                                 {Icons.user}
-                                <div>Select a client to view their weekly schedule and authorization tracking.</div>
+                                <div>Select a client to view their weekly schedule.</div>
                             </div>
-                        ) : loading ? (
+                        ) : loadingClient ? (
                             <div className="sched-prompt">Loading…</div>
                         ) : (
                             <>
@@ -954,18 +900,14 @@ export default function SchedulingPage() {
                                         {clientInfo.notes && <div className="sched-client-info__notes">{clientInfo.notes}</div>}
                                     </div>
                                 )}
-                                <AuthSummaryBar unitSummary={displayUnitSummary} />
-                                <ScheduleWeekGrid shifts={shifts} weekStart={weekStart} onAddShift={handleAddShift} onEditShift={handleEditShift} viewMode="client" overlapIds={overlapIds} />
+                                <ScheduleMatrix shifts={clientShifts} weekStart={weekStart} rowBy="employee" onEditShift={handleEditShift} overlapIds={clientOverlapIds} />
                             </>
                         )}
                     </ScheduleCard>
-                )}
 
-                {/* Employee View */}
-                {viewMode === 'employee' && (
                     <ScheduleCard
                         title="Employee Schedule"
-                        icon={Icons.users}
+                        icon={Icons.user}
                         headerActions={
                             <select className="sched-card__select" value={selectedEmployeeId} onChange={e => setSelectedEmployeeId(e.target.value)}>
                                 <option value="">Select an employee…</option>
@@ -976,9 +918,9 @@ export default function SchedulingPage() {
                         {!selectedEmployeeId ? (
                             <div className="sched-prompt">
                                 {Icons.users}
-                                <div>Select an employee to view their schedule and detect overlaps.</div>
+                                <div>Select an employee to view their weekly schedule.</div>
                             </div>
-                        ) : loading ? (
+                        ) : loadingEmployee ? (
                             <div className="sched-prompt">Loading…</div>
                         ) : (
                             <>
@@ -989,59 +931,43 @@ export default function SchedulingPage() {
                                         {employeeInfo.email && <span> — {employeeInfo.email}</span>}
                                     </div>
                                 )}
-                                <ScheduleWeekGrid shifts={shifts} weekStart={weekStart} onAddShift={handleAddShift} onEditShift={handleEditShift} viewMode="employee" overlapIds={overlapIds} />
+                                <ScheduleMatrix shifts={employeeShifts} weekStart={weekStart} rowBy="client" onEditShift={handleEditShift} overlapIds={employeeOverlapIds} />
                             </>
                         )}
                     </ScheduleCard>
-                )}
+                </div>
 
-                {/* Overview: Week Stats + Schedule Table + Data Table */}
-                {viewMode === 'overview' && (
-                    <>
-                        {!loading && shifts.length > 0 && (
-                            <div className="sched-stats-bar">
-                                <div className="sched-stats-bar__item">
-                                    <span className="sched-stats-bar__value">{weekStats.activeShifts}</span>
-                                    <span className="sched-stats-bar__label">shifts</span>
-                                </div>
-                                <div className="sched-stats-bar__item">
-                                    <span className="sched-stats-bar__value">{weekStats.totalHours}</span>
-                                    <span className="sched-stats-bar__label">hours</span>
-                                </div>
-                                <div className="sched-stats-bar__item">
-                                    <span className="sched-stats-bar__value">{weekStats.totalUnits}</span>
-                                    <span className="sched-stats-bar__label">units</span>
-                                </div>
-                                {overlaps.length > 0 && (
-                                    <div className="sched-stats-bar__item sched-stats-bar__item--warn">
-                                        <span className="sched-stats-bar__value">{overlaps.length}</span>
-                                        <span className="sched-stats-bar__label">overlap{overlaps.length > 1 ? 's' : ''}</span>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                        <AuthSummaryBar unitSummary={displayUnitSummary} />
-                        {loading ? (
-                            <div style={{ textAlign: 'center', padding: 40, color: 'hsl(var(--muted-foreground))' }}>Loading shifts…</div>
-                        ) : (
-                            <>
-                                <ScheduleWeekGrid shifts={shifts} weekStart={weekStart} onAddShift={handleAddShift} onEditShift={handleEditShift} viewMode="overview" overlapIds={overlapIds} />
-                                {shifts.length === 0 && (
-                                    <div style={{ textAlign: 'center', padding: 32, color: 'hsl(var(--muted-foreground))' }}>
-                                        No shifts scheduled this week. Click + on any day to get started.
-                                    </div>
-                                )}
-                            </>
-                        )}
-
-                        {/* Weekly Schedule Overview Table */}
-                        {!loading && shifts.length > 0 && (
-                            <ScheduleCard title="Weekly Schedule Overview" icon={Icons.table}>
-                                <ScheduleOverviewTable shifts={shifts} overlapIds={overlapIds} onEditShift={handleEditShift} />
-                            </ScheduleCard>
-                        )}
-                    </>
-                )}
+                {/* Weekly Schedule Overview (always global) */}
+                <ScheduleCard
+                    title="Weekly Schedule Overview"
+                    icon={Icons.table}
+                    headerActions={
+                        <div className="sched-view-toggle">
+                            <span className="sched-view-toggle__label">View By:</span>
+                            <button className={`sched-view-toggle__btn ${summaryViewBy === 'client' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setSummaryViewBy('client')}>
+                                Client
+                            </button>
+                            <button className={`sched-view-toggle__btn ${summaryViewBy === 'employee' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setSummaryViewBy('employee')}>
+                                Employee
+                            </button>
+                        </div>
+                    }
+                >
+                    <HoursSummaryBar
+                        summaryViewBy={summaryViewBy}
+                        unitSummaries={unitSummaries}
+                        shifts={allShifts}
+                    />
+                    {loadingAll ? (
+                        <div style={{ textAlign: 'center', padding: 40, color: 'hsl(var(--muted-foreground))' }}>Loading shifts…</div>
+                    ) : allShifts.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: 32, color: 'hsl(var(--muted-foreground))' }}>
+                            No shifts scheduled this week. Click + Add Shift to get started.
+                        </div>
+                    ) : (
+                        <ScheduleOverviewTable shifts={allShifts} overlapIds={allOverlapIds} onEditShift={handleEditShift} />
+                    )}
+                </ScheduleCard>
 
                 {/* Schedule Delivery */}
                 <ScheduleDelivery weekStart={weekStart} />
@@ -1063,8 +989,8 @@ export default function SchedulingPage() {
                     shift={modal.shift}
                     defaultDate={modal.defaultDate}
                     defaultStartTime={modal.defaultStartTime}
-                    defaultClientId={viewMode === 'client' ? selectedClientId : ''}
-                    defaultEmployeeId={viewMode === 'employee' ? selectedEmployeeId : ''}
+                    defaultClientId={selectedClientId || ''}
+                    defaultEmployeeId={selectedEmployeeId || ''}
                     clients={clients}
                     employees={employees}
                     onSave={handleSaveShift}
@@ -1112,7 +1038,7 @@ export default function SchedulingPage() {
                         <span style={{ color: 'hsl(0 84% 60%)' }}>{Icons.alertTriangle}</span> Delete All Shifts
                     </h2>
                     <p style={{ fontSize: 14, color: 'hsl(var(--foreground))', margin: '8px 0 16px' }}>
-                        This will permanently delete <strong>all {shifts.length} shift{shifts.length !== 1 ? 's' : ''}</strong>. This action cannot be undone.
+                        This will permanently delete <strong>all {allShifts.length} shift{allShifts.length !== 1 ? 's' : ''}</strong>. This action cannot be undone.
                     </p>
                     <div className="form-actions">
                         <button className="btn btn--outline" onClick={() => setModal(null)}>Cancel</button>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
@@ -117,42 +117,51 @@ function SectionBlock({ header, activities, section, entries, updateEntry, daily
     );
 }
 
-export default function SigningFormPage({ token: tokenProp }) {
-    const params = useParams();
-    const token = tokenProp || params.token;
+export default function PcaFormPage() {
+    const { token } = useParams();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [ts, setTs] = useState(null);
+    const [data, setData] = useState(null);
     const [entries, setEntries] = useState([]);
     const [pcaFullName, setPcaFullName] = useState('');
     const [pcaSig, setPcaSig] = useState('');
     const [recipientName, setRecipientName] = useState('');
     const [recipientSig, setRecipientSig] = useState('');
+    const [saving, setSaving] = useState(false);
     const [submitting, setSubmitting] = useState(false);
-    const [success, setSuccess] = useState(false);
     const [iadlTab, setIadlTab] = useState('iadl');
+    const [toast, setToast] = useState('');
 
-    useEffect(() => {
-        api.getSigningForm(token)
-            .then((data) => {
-                setTs(data.timesheet);
-                setEntries(data.timesheet.entries || []);
-                setPcaFullName(data.timesheet.pcaFullName || '');
-                setPcaSig(data.timesheet.pcaSignature || '');
-                setRecipientName(data.timesheet.recipientName || '');
-                setRecipientSig(data.timesheet.recipientSignature || '');
-                const enabled = data.timesheet.client?.enabledServices || [];
+    const showToast = useCallback((msg) => {
+        setToast(msg);
+        setTimeout(() => setToast(''), 3000);
+    }, []);
+
+    const loadForm = useCallback(() => {
+        setLoading(true);
+        api.getPcaForm(token)
+            .then((resp) => {
+                setData(resp);
+                setEntries(resp.timesheet.entries || []);
+                setPcaFullName(resp.timesheet.pcaFullName || resp.pcaName || '');
+                setPcaSig(resp.timesheet.pcaSignature || '');
+                setRecipientName(resp.timesheet.recipientName || '');
+                setRecipientSig(resp.timesheet.recipientSignature || '');
+                const enabled = resp.client?.enabledServices || [];
                 if (!enabled.includes('Homemaker') && enabled.includes('Respite')) setIadlTab('respite');
             })
             .catch((err) => setError(err.message))
             .finally(() => setLoading(false));
     }, [token]);
 
-    const enabledServices = ts?.client?.enabledServices || [];
+    useEffect(() => { loadForm(); }, [loadForm]);
+
+    const enabledServices = data?.client?.enabledServices || [];
     const pasEnabled = enabledServices.includes('PAS');
     const hmEnabled = enabledServices.includes('Homemaker');
     const respiteEnabled = enabledServices.includes('Respite');
     const iadlAnyEnabled = hmEnabled || respiteEnabled;
+    const submitted = data?.timesheet?.status === 'submitted';
 
     const updateEntry = (idx, field, value) => {
         setEntries((prev) => prev.map((e, i) => (i === idx ? { ...e, [field]: value } : e)));
@@ -166,8 +175,9 @@ export default function SigningFormPage({ token: tokenProp }) {
     const totalRespite = entries.reduce((s, e) => s + respiteHrs(e), 0);
     const totalAll = totalPas + totalHm + totalRespite;
 
+    // Validation for submit gating
     const validationError = useMemo(() => {
-        if (!ts) return 'Loading…';
+        if (!data) return 'Loading…';
         if (!pcaFullName.trim()) return 'Enter PCA full name';
         if (!pcaSig) return 'PCA signature required';
         if (!recipientName.trim()) return 'Enter recipient name';
@@ -187,6 +197,7 @@ export default function SigningFormPage({ token: tokenProp }) {
                     if (!e[`${sec}ClientInitials`]) return `Day ${DAY_SHORT[e.dayOfWeek]}: client initials required`;
                 }
             }
+            // Homemaker / Respite overlap
             if (hmEnabled && respiteEnabled && e.iadlTimeIn && e.iadlTimeOut && e.respiteTimeIn && e.respiteTimeOut) {
                 const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
                 const aS = toMin(e.iadlTimeIn), aE = toMin(e.iadlTimeOut);
@@ -195,59 +206,57 @@ export default function SigningFormPage({ token: tokenProp }) {
             }
         }
         return null;
-    }, [ts, entries, pcaFullName, pcaSig, recipientName, recipientSig, pasEnabled, hmEnabled, respiteEnabled]);
+    }, [data, entries, pcaFullName, pcaSig, recipientName, recipientSig, pasEnabled, hmEnabled, respiteEnabled]);
+
+    const buildPayload = (action) => ({
+        action,
+        entries: entries.map((e) => ({
+            id: e.id, dayOfWeek: e.dayOfWeek, dateOfService: e.dateOfService,
+            adlActivities: e.adlActivities || '{}', adlTimeIn: e.adlTimeIn || null, adlTimeOut: e.adlTimeOut || null,
+            adlPcaInitials: e.adlPcaInitials || '', adlClientInitials: e.adlClientInitials || '',
+            iadlActivities: e.iadlActivities || '{}', iadlTimeIn: e.iadlTimeIn || null, iadlTimeOut: e.iadlTimeOut || null,
+            iadlPcaInitials: e.iadlPcaInitials || '', iadlClientInitials: e.iadlClientInitials || '',
+            respiteActivities: e.respiteActivities || '{}', respiteTimeIn: e.respiteTimeIn || null, respiteTimeOut: e.respiteTimeOut || null,
+            respitePcaInitials: e.respitePcaInitials || '', respiteClientInitials: e.respiteClientInitials || '',
+        })),
+        pcaFullName,
+        pcaSignature: pcaSig,
+        recipientName,
+        recipientSignature: recipientSig,
+    });
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const resp = await api.updatePcaForm(token, buildPayload('save'));
+            setData(resp);
+            setEntries(resp.timesheet.entries || []);
+            showToast('Progress saved');
+        } catch (err) {
+            showToast(err.message);
+        }
+        setSaving(false);
+    };
 
     const handleSubmit = async () => {
-        if (validationError) return;
+        if (validationError) { showToast(validationError); return; }
         setSubmitting(true);
         try {
-            const today = new Date().toISOString().split('T')[0];
-            await api.submitSigningForm(token, {
-                entries: entries.map((e) => ({
-                    id: e.id, dayOfWeek: e.dayOfWeek, dateOfService: e.dateOfService,
-                    adlActivities: e.adlActivities || '{}', adlTimeIn: e.adlTimeIn || null, adlTimeOut: e.adlTimeOut || null,
-                    adlPcaInitials: e.adlPcaInitials || '', adlClientInitials: e.adlClientInitials || '',
-                    iadlActivities: e.iadlActivities || '{}', iadlTimeIn: e.iadlTimeIn || null, iadlTimeOut: e.iadlTimeOut || null,
-                    iadlPcaInitials: e.iadlPcaInitials || '', iadlClientInitials: e.iadlClientInitials || '',
-                    respiteActivities: e.respiteActivities || '{}', respiteTimeIn: e.respiteTimeIn || null, respiteTimeOut: e.respiteTimeOut || null,
-                    respitePcaInitials: e.respitePcaInitials || '', respiteClientInitials: e.respiteClientInitials || '',
-                })),
-                pcaFullName,
-                pcaSignature: pcaSig,
-                recipientName,
-                recipientSignature: recipientSig,
-                completionDate: today,
-            });
-            setSuccess(true);
-        } catch (err) { setError(err.message); }
+            const resp = await api.updatePcaForm(token, buildPayload('submit'));
+            setData(resp);
+            setEntries(resp.timesheet.entries || []);
+            showToast('Timesheet submitted!');
+        } catch (err) {
+            showToast(err.message);
+        }
         setSubmitting(false);
     };
 
-    if (loading) return (
-        <div className="signing-page">
-            <div className="signing-card"><p style={{ textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>Loading form...</p></div>
-        </div>
-    );
-    if (error) return (
-        <div className="signing-page">
-            <div className="signing-card signing-card--error">
-                <div className="signing-card__icon" style={{ color: 'hsl(0 84% 60%)' }}>{Icons.alertCircle}</div>
-                <h2>{error}</h2>
-                <p>This signing link is no longer valid. Please request a new link from your administrator.</p>
-            </div>
-        </div>
-    );
-    if (success) return (
-        <div className="signing-page">
-            <div className="signing-card signing-card--success">
-                <div className="signing-card__icon" style={{ color: 'hsl(142 76% 36%)' }}>{Icons.checkCircle}</div>
-                <h2>Thank you!</h2>
-                <p>The timesheet has been submitted successfully. You may close this page.</p>
-            </div>
-        </div>
-    );
+    if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading…</div>;
+    if (error) return <div style={{ padding: 40, textAlign: 'center', color: 'hsl(var(--destructive))' }}>{error}</div>;
+    if (!data) return null;
 
-    const weekLabel = formatWeek(ts.weekStart.split('T')[0]);
+    const weekLabel = formatWeek(data.timesheet.weekStart.split('T')[0]);
     const iadlSection = iadlTab === 'respite' ? 'respite' : 'iadl';
     const iadlHoursFn = iadlTab === 'respite' ? respiteHrs : iadlHrs;
 
@@ -264,14 +273,14 @@ export default function SigningFormPage({ token: tokenProp }) {
             <button
                 type="button"
                 className={`sdr-section-tag ${hmEnabled ? (iadlTab === 'iadl' ? 'sdr-section-tag--active' : 'sdr-section-tag--available') : 'sdr-section-tag--disabled'}`}
-                disabled={!hmEnabled}
+                disabled={!hmEnabled || submitted}
                 onClick={() => hmEnabled && setIadlTab('iadl')}
                 title={hmEnabled ? 'Log Homemaker time' : 'Not approved for this client'}
             >HOMEMAKER (HM)</button>
             <button
                 type="button"
                 className={`sdr-section-tag ${respiteEnabled ? (iadlTab === 'respite' ? 'sdr-section-tag--active' : 'sdr-section-tag--available') : 'sdr-section-tag--disabled'}`}
-                disabled={!respiteEnabled}
+                disabled={!respiteEnabled || submitted}
                 onClick={() => respiteEnabled && setIadlTab('respite')}
                 title={respiteEnabled ? 'Log Respite time' : 'Not approved for this client'}
             >RESPITE (RP)</button>
@@ -284,8 +293,9 @@ export default function SigningFormPage({ token: tokenProp }) {
                 <h1>PCA Service Delivery Record</h1>
                 <p className="pca-form-week">{weekLabel}</p>
                 <div className="pca-form-meta">
-                    <span><strong>Client:</strong> {ts.client?.clientName}</span>
-                    <span><strong>PCA:</strong> {ts.pcaName}</span>
+                    <span><strong>Client:</strong> {data.client.clientName}</span>
+                    <span><strong>PCA:</strong> {data.pcaName}</span>
+                    {submitted && <span className="ts-badge ts-badge--submitted">Submitted</span>}
                 </div>
             </div>
 
@@ -297,7 +307,7 @@ export default function SigningFormPage({ token: tokenProp }) {
                     entries={entries}
                     updateEntry={updateEntry}
                     dailyHoursFn={adlHrs}
-                    disabled={!pasEnabled}
+                    disabled={submitted || !pasEnabled}
                     sectionDisabled={!pasEnabled}
                 />
 
@@ -308,7 +318,7 @@ export default function SigningFormPage({ token: tokenProp }) {
                     entries={entries}
                     updateEntry={updateEntry}
                     dailyHoursFn={iadlHoursFn}
-                    disabled={!iadlAnyEnabled || (iadlTab === 'iadl' && !hmEnabled) || (iadlTab === 'respite' && !respiteEnabled)}
+                    disabled={submitted || !iadlAnyEnabled || (iadlTab === 'iadl' && !hmEnabled) || (iadlTab === 'respite' && !respiteEnabled)}
                     sectionDisabled={!iadlAnyEnabled}
                 />
                 {iadlAnyEnabled && hmEnabled && respiteEnabled && (
@@ -325,32 +335,30 @@ export default function SigningFormPage({ token: tokenProp }) {
                 <div className="sdr-section">
                     <div className="sdr-section-title">Acknowledgement and Required Signatures</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 16, padding: '0 16px' }}>
-                        <div className="form-group"><label>PCA Name (First, MI, Last)</label><input type="text" value={pcaFullName} onChange={(e) => setPcaFullName(e.target.value)} placeholder="Jane A. Doe" /></div>
-                        <div className="form-group"><label>Recipient Name (First, MI, Last)</label><input type="text" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} placeholder="John B. Client" /></div>
+                        <div className="form-group"><label>PCA Name (First, MI, Last)</label><input type="text" value={pcaFullName} onChange={(e) => setPcaFullName(e.target.value)} disabled={submitted} placeholder="Jane A. Doe" /></div>
+                        <div className="form-group"><label>Recipient Name (First, MI, Last)</label><input type="text" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} disabled={submitted} placeholder="John B. Client" /></div>
                     </div>
                     <div className="ts-signatures">
-                        <SignaturePad label="PCA Signature" value={pcaSig} onChange={setPcaSig} />
+                        <SignaturePad label="PCA Signature" value={pcaSig} onChange={setPcaSig} disabled={submitted} />
                     </div>
                     <div className="ts-signatures" style={{ paddingBottom: 16 }}>
-                        <SignaturePad label="Recipient / Responsible Party Signature" value={recipientSig} onChange={setRecipientSig} />
+                        <SignaturePad label="Recipient / Responsible Party Signature" value={recipientSig} onChange={setRecipientSig} disabled={submitted} />
                     </div>
                 </div>
 
-                <div className="pca-form-actions" style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', padding: 16 }}>
-                    <button
-                        className="btn btn--primary"
-                        onClick={handleSubmit}
-                        disabled={!!validationError || submitting}
-                        title={validationError || 'Submit timesheet'}
-                    >
-                        {submitting ? 'Submitting…' : 'Submit Timesheet'}
-                    </button>
-                </div>
-                {validationError && (
+                {!submitted && (
+                    <div className="pca-form-actions" style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', padding: 16 }}>
+                        <button className="btn btn--outline" onClick={handleSave} disabled={saving || submitting}>{saving ? 'Saving…' : 'Save Progress'}</button>
+                        <button className="btn btn--primary" onClick={handleSubmit} disabled={!!validationError || submitting || saving} title={validationError || 'Submit timesheet'}>{submitting ? 'Submitting…' : 'Submit Timesheet'}</button>
+                    </div>
+                )}
+                {!submitted && validationError && (
                     <div style={{ textAlign: 'right', padding: '0 16px 16px', fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>
                         {validationError}
                     </div>
                 )}
+
+                {toast && <div className="pca-form-toast" style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', padding: '12px 20px', background: 'hsl(var(--foreground))', color: 'hsl(var(--background))', borderRadius: 8, zIndex: 1000 }}>{toast}</div>}
             </div>
         </div>
     );

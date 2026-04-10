@@ -124,6 +124,10 @@ export const submitTimesheet = (id) =>
 export const deleteTimesheet = (id) =>
     request(`/timesheets/${id}`, { method: 'DELETE' });
 
+// Timesheet Status (admin revert)
+export const updateTimesheetStatus = (id, status) =>
+    request(`/timesheets/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) });
+
 // Signing Links
 export const generateSigningLinks = (timesheetId) =>
     request(`/timesheets/${timesheetId}/signing-links`, { method: 'POST' });
@@ -149,6 +153,34 @@ export const submitSigningForm = (token, data) =>
         }
         return res.json();
     });
+
+// Permanent Links
+export const getPermanentLinks = () => request('/permanent-links');
+export const createPermanentLink = (data) => request('/permanent-links', { method: 'POST', body: JSON.stringify(data) });
+export const deletePermanentLink = (id) => request(`/permanent-links/${id}`, { method: 'DELETE' });
+
+// PCA Form (public — no auth token)
+export async function getPcaForm(token) {
+  const res = await fetch(`${BASE}/pca-form/${token}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function updatePcaForm(token, data) {
+  const res = await fetch(`${BASE}/pca-form/${token}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
 
 // Timesheet PDF Export
 export const exportTimesheetPdf = (id) =>

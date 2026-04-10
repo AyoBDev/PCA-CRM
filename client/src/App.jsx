@@ -9,6 +9,8 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const ClientsPage = lazy(() => import('./pages/ClientsPage'));
 const TimesheetsListPage = lazy(() => import('./pages/TimesheetsListPage'));
 const SigningFormPage = lazy(() => import('./pages/SigningFormPage'));
+const PcaFormPage = lazy(() => import('./pages/PcaFormPage'));
+const PermanentLinksPage = lazy(() => import('./pages/PermanentLinksPage'));
 const InsuranceTypesPage = lazy(() => import('./pages/InsuranceTypesPage'));
 const ServicesPage = lazy(() => import('./pages/ServicesPage'));
 const UsersPage = lazy(() => import('./pages/UsersPage'));
@@ -36,12 +38,14 @@ function AppRoutes() {
                 {/* Public routes */}
                 <Route path="/login" element={!user ? <LoginPage /> : <Navigate to={isAdmin ? '/dashboard' : '/timesheets'} replace />} />
                 <Route path="/sign/:token" element={<SigningFormPage />} />
+                <Route path="/pca-form/:token" element={<PcaFormPage />} />
                 <Route path="/schedule/confirm/:token" element={<ScheduleConfirmPage />} />
 
                 {/* Protected routes with layout */}
                 <Route path="/dashboard" element={<ProtectedRoute adminOnly><Layout><DashboardPage /></Layout></ProtectedRoute>} />
                 <Route path="/clients" element={<ProtectedRoute adminOnly><Layout><ClientsPage /></Layout></ProtectedRoute>} />
                 <Route path="/timesheets" element={<ProtectedRoute><Layout><TimesheetsListPage /></Layout></ProtectedRoute>} />
+                <Route path="/permanent-links" element={<ProtectedRoute adminOnly><Layout><PermanentLinksPage /></Layout></ProtectedRoute>} />
                 <Route path="/scheduling" element={<ProtectedRoute adminOnly><Layout><SchedulingPage /></Layout></ProtectedRoute>} />
                 <Route path="/payroll" element={<ProtectedRoute adminOnly><Layout><PayrollPage /></Layout></ProtectedRoute>} />
                 <Route path="/payroll/runs/:runId" element={<ProtectedRoute adminOnly><Layout><PayrollPage /></Layout></ProtectedRoute>} />

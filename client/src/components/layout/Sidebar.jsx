@@ -8,6 +8,7 @@ const PATH_TO_PAGE = {
     '/dashboard': 'dashboard',
     '/clients': 'clients',
     '/timesheets': 'timesheets',
+    '/permanent-links': 'permanentLinks',
     '/scheduling': 'scheduling',
     '/payroll': 'payroll',
     '/employees': 'employees',

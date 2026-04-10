@@ -84,7 +84,7 @@ export default function TimesheetsListPage() {
                 ) : (
                     <div className="sheet-card">
                         <table className="data-table">
-                            <thead><tr><th>PCA Name</th><th>Client</th><th>Week</th><th>PAS Hrs</th><th>HM Hrs</th><th>Total</th><th>Status</th><th style={{ width: 80 }}>Actions</th></tr></thead>
+                            <thead><tr><th>PCA Name</th><th>Client</th><th>Week</th><th>PAS Hrs</th><th>HM Hrs</th><th>Respite Hrs</th><th>Total</th><th>Status</th><th style={{ width: 80 }}>Actions</th></tr></thead>
                             <tbody>
                                 {timesheets.map((ts) => (
                                     <tr key={ts.id} className="clickable-row" onClick={() => setActiveTimesheetId(ts.id)}>
@@ -93,10 +93,11 @@ export default function TimesheetsListPage() {
                                         <td style={{ fontSize: 13 }}>{formatWeek(ts.weekStart.split('T')[0])}</td>
                                         <td>{ts.totalPasHours.toFixed(2)}</td>
                                         <td>{ts.totalHmHours.toFixed(2)}</td>
+                                        <td>{(ts.totalRespiteHours || 0).toFixed(2)}</td>
                                         <td><strong>{ts.totalHours.toFixed(2)}</strong></td>
                                         <td><span className={`ts-badge ts-badge--${ts.status}`}>{ts.status}</span></td>
                                         <td onClick={(e) => e.stopPropagation()}>
-                                            {ts.status === 'draft' && <button className="btn btn--danger-ghost btn--icon" onClick={() => handleDelete(ts.id)} title="Delete">{Icons.trash}</button>}
+                                            <button className="btn btn--danger-ghost btn--icon" onClick={() => handleDelete(ts.id)} title="Delete">{Icons.trash}</button>
                                         </td>
                                     </tr>
                                 ))}
