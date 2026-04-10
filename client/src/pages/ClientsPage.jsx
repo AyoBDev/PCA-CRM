@@ -18,11 +18,35 @@ function ClientFormModal({ client, onSave, onClose, insuranceTypeNames }) {
     const [phone, setPhone] = useState(client?.phone || '');
     const [gateCode, setGateCode] = useState(client?.gateCode || '');
     const [clientNotes, setClientNotes] = useState(client?.notes || '');
+    const [enabledServices, setEnabledServices] = useState(() => {
+        if (client?.enabledServices) {
+            try {
+                const parsed = JSON.parse(client.enabledServices);
+                if (Array.isArray(parsed)) return parsed;
+            } catch {}
+        }
+        return ['PAS', 'Homemaker'];
+    });
     const isEdit = !!client;
+
+    const toggleService = (svc) => {
+        setEnabledServices((prev) =>
+            prev.includes(svc) ? prev.filter((s) => s !== svc) : [...prev, svc]
+        );
+    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (name.trim()) onSave({ clientName: name.trim(), medicaidId: medicaidId.trim(), insuranceType, address, phone, gateCode, notes: clientNotes });
+        if (name.trim()) onSave({
+            clientName: name.trim(),
+            medicaidId: medicaidId.trim(),
+            insuranceType,
+            address,
+            phone,
+            gateCode,
+            notes: clientNotes,
+            enabledServices: JSON.stringify(enabledServices),
+        });
     };
 
     return (
@@ -61,6 +85,21 @@ function ClientFormModal({ client, onSave, onClose, insuranceTypeNames }) {
                 <div className="form-group">
                     <label htmlFor="clientNotes">Notes</label>
                     <textarea id="clientNotes" value={clientNotes} onChange={e => setClientNotes(e.target.value)} placeholder="Notes…" rows={3} />
+                </div>
+                <div className="form-group">
+                    <label>Enabled Services</label>
+                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', paddingTop: 4 }}>
+                        {['PAS', 'Homemaker', 'Respite'].map((svc) => (
+                            <label key={svc} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 'normal' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={enabledServices.includes(svc)}
+                                    onChange={() => toggleService(svc)}
+                                />
+                                {svc}
+                            </label>
+                        ))}
+                    </div>
                 </div>
                 <div className="form-actions">
                     <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>

@@ -124,6 +124,10 @@ export const submitTimesheet = (id) =>
 export const deleteTimesheet = (id) =>
     request(`/timesheets/${id}`, { method: 'DELETE' });
 
+// Timesheet Status (admin revert)
+export const updateTimesheetStatus = (id, status) =>
+    request(`/timesheets/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) });
+
 // Signing Links
 export const generateSigningLinks = (timesheetId) =>
     request(`/timesheets/${timesheetId}/signing-links`, { method: 'POST' });

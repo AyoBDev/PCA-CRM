@@ -88,12 +88,13 @@ async function updateClient(req, res, next) {
 async function patchClient(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const { address, phone, gateCode, notes } = req.body;
+        const { address, phone, gateCode, notes, enabledServices } = req.body;
         const data = {};
         if (address !== undefined) data.address = address;
         if (phone !== undefined) data.phone = phone;
         if (gateCode !== undefined) data.gateCode = gateCode;
         if (notes !== undefined) data.notes = notes;
+        if (enabledServices !== undefined) data.enabledServices = enabledServices;
 
         if (Object.keys(data).length === 0) {
             return res.status(400).json({ error: 'No valid fields provided' });
