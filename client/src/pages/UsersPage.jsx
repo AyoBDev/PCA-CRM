@@ -81,6 +81,7 @@ export default function UsersPage() {
                             <label>Role</label>
                             <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
                                 <option value="pca">PCA (Caregiver)</option>
+                                <option value="user">User (Staff)</option>
                                 <option value="admin">Admin</option>
                             </select>
                         </div>

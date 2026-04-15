@@ -143,7 +143,71 @@ async function listShifts(req, res, next) {
 // POST /api/shifts
 async function createShift(req, res, next) {
     try {
-        const { clientId, employeeId, serviceCode, shiftDate, startTime, endTime, notes, repeatUntil, force, accountNumber, sandataClientId } = req.body;
+        const { clientId, employeeId, serviceCode, shiftDate, startTime, endTime, notes, repeatUntil, force, accountNumber, sandataClientId, shifts: bulkShifts } = req.body;
+
+        // Bulk mode: array of { serviceCode, shiftDate, startTime, endTime } entries
+        if (Array.isArray(bulkShifts) && bulkShifts.length > 0) {
+            if (!clientId || !employeeId) {
+                return res.status(400).json({ error: 'clientId and employeeId are required' });
+            }
+            if (accountNumber && !VALID_ACCOUNT_NUMBERS.includes(accountNumber)) {
+                return res.status(400).json({ error: `Invalid account number. Must be one of: ${VALID_ACCOUNT_NUMBERS.join(', ')}` });
+            }
+
+            // Check overlaps for all entries
+            if (!force) {
+                const allConflicts = [];
+                for (const entry of bulkShifts) {
+                    const conflicts = await checkOverlaps({
+                        employeeId: Number(employeeId),
+                        shiftDate: entry.shiftDate,
+                        startTime: entry.startTime,
+                        endTime: entry.endTime,
+                    });
+                    for (const c of conflicts) {
+                        allConflicts.push({
+                            date: entry.shiftDate,
+                            conflictWith: { id: c.id, clientName: c.client?.clientName || '', startTime: c.startTime, endTime: c.endTime },
+                        });
+                    }
+                }
+                if (allConflicts.length > 0) {
+                    const empName = (await prisma.employee.findUnique({ where: { id: Number(employeeId) } }))?.name || '';
+                    return res.status(409).json({
+                        error: 'overlap',
+                        message: `${empName} already has ${allConflicts.length} overlapping shift${allConflicts.length > 1 ? 's' : ''}`,
+                        conflicts: allConflicts,
+                    });
+                }
+            }
+
+            const groupId = bulkShifts.length > 1 ? `rg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` : '';
+            const created = [];
+            for (const entry of bulkShifts) {
+                const { hours, units } = computeShiftHours(entry.startTime, entry.endTime);
+                const shift = await prisma.shift.create({
+                    data: {
+                        clientId: Number(clientId),
+                        employeeId: Number(employeeId),
+                        serviceCode: entry.serviceCode,
+                        shiftDate: new Date(entry.shiftDate + 'T00:00:00.000Z'),
+                        startTime: entry.startTime,
+                        endTime: entry.endTime,
+                        hours,
+                        units,
+                        notes: notes || '',
+                        accountNumber: accountNumber || '',
+                        sandataClientId: sandataClientId || '',
+                        recurringGroupId: groupId,
+                    },
+                    include: shiftInclude,
+                });
+                created.push(enrichShift(shift));
+            }
+            return res.status(201).json({ shifts: created, count: created.length });
+        }
+
+        // Single-shift mode (original flow)
         if (!clientId || !employeeId || !serviceCode || !shiftDate || !startTime || !endTime) {
             return res.status(400).json({ error: 'clientId, employeeId, serviceCode, shiftDate, startTime, and endTime are required' });
         }

@@ -160,8 +160,9 @@ export const createPermanentLink = (data) => request('/permanent-links', { metho
 export const deletePermanentLink = (id) => request(`/permanent-links/${id}`, { method: 'DELETE' });
 
 // PCA Form (public — no auth token)
-export async function getPcaForm(token) {
-  const res = await fetch(`${BASE}/pca-form/${token}`);
+export async function getPcaForm(token, weekStart) {
+  const qs = weekStart ? `?weekStart=${weekStart}` : '';
+  const res = await fetch(`${BASE}/pca-form/${token}${qs}`);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `HTTP ${res.status}`);

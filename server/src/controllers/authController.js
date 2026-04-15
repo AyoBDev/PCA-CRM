@@ -52,7 +52,7 @@ async function register(req, res, next) {
         if (!email || !password || !name) {
             return res.status(400).json({ error: 'Email, password, and name are required' });
         }
-        const validRole = ['admin', 'pca'].includes(role) ? role : 'pca';
+        const validRole = ['admin', 'user', 'pca'].includes(role) ? role : 'pca';
         const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
         if (existing) {
             return res.status(409).json({ error: 'A user with this email already exists' });

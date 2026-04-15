@@ -8,6 +8,7 @@ import DrawerPanel from '../components/common/DrawerPanel';
 import { fmtDate, daysClass } from '../utils/dates';
 import { statusLabel } from '../utils/status';
 import { useToast } from '../hooks/useToast';
+import { useAuth } from '../hooks/useAuth';
 
 // ── Client Form Modal ──
 function ClientFormModal({ client, onSave, onClose, insuranceTypeNames }) {
@@ -412,6 +413,7 @@ function ClientNotesSection({ client, onSaved }) {
 
 // ── Clients Page ──
 export default function ClientsPage() {
+    const { isAdmin } = useAuth();
     const { showToast } = useToast();
     const [clients, setClients] = useState([]);
     const [insuranceTypes, setInsuranceTypes] = useState([]);
@@ -571,9 +573,11 @@ export default function ClientsPage() {
                             {Icons.trash} Delete {selectedIds.size}
                         </button>
                     )}
-                    <button className="btn btn--outline btn--sm" onClick={() => setModal({ type: 'bulkImport' })}>
-                        {Icons.download} Import
-                    </button>
+                    {isAdmin && (
+                        <button className="btn btn--outline btn--sm" onClick={() => setModal({ type: 'bulkImport' })}>
+                            {Icons.download} Import
+                        </button>
+                    )}
                     <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'client' })}>
                         {Icons.plus} Add Client
                     </button>

@@ -18,7 +18,7 @@ const PATH_TO_PAGE = {
 };
 
 export default function Sidebar() {
-    const { user, isAdmin, logout } = useAuth();
+    const { user, isAdmin, isStaff, logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const [collapsed, setCollapsed] = useState(
@@ -64,12 +64,12 @@ export default function Sidebar() {
 
             <nav className="sidebar__nav">
                 <div className="sidebar__section-label">Home</div>
-                {isAdmin && (
+                {isStaff && (
                     <button className={`sidebar__nav-item ${activePage === 'dashboard' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/dashboard')} title="Dashboard">
                         {Icons.layoutDashboard} Dashboard
                     </button>
                 )}
-                {isAdmin && (
+                {isStaff && (
                     <button className={`sidebar__nav-item ${activePage === 'clients' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/clients')} title="Clients">
                         {Icons.users} Clients
                     </button>
@@ -77,17 +77,17 @@ export default function Sidebar() {
                 <button className={`sidebar__nav-item ${activePage === 'timesheets' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/timesheets')} title="Timesheets">
                     {Icons.fileText} Timesheets
                 </button>
-                {isAdmin && (
+                {isStaff && (
                     <button className={`sidebar__nav-item ${activePage === 'scheduling' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/scheduling')} title="Scheduling">
                         {Icons.calendar} Scheduling
                     </button>
                 )}
-                {isAdmin && (
+                {isStaff && (
                     <button className={`sidebar__nav-item ${activePage === 'employees' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/employees')} title="Employees">
                         {Icons.user} Employees
                     </button>
                 )}
-                {isAdmin && (
+                {isStaff && (
                     <button className={`sidebar__nav-item ${activePage === 'payroll' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/payroll')} title="Payroll">
                         {Icons.dollarSign} Payroll
                     </button>
@@ -95,7 +95,7 @@ export default function Sidebar() {
             </nav>
 
             <div className="sidebar__footer">
-                {isAdmin && (
+                {isStaff && (
                     <>
                         <div className="sidebar__section-label">Settings</div>
                         <button className={`sidebar__nav-item ${activePage === 'insuranceTypes' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/insurance-types')} title="Insurance Types">
@@ -104,9 +104,11 @@ export default function Sidebar() {
                         <button className={`sidebar__nav-item ${activePage === 'services' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/services')} title="Services">
                             {Icons.fileText} Services
                         </button>
-                        <button className={`sidebar__nav-item ${activePage === 'users' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/users')} title="Users">
-                            {Icons.user} Users
-                        </button>
+                        {isAdmin && (
+                            <button className={`sidebar__nav-item ${activePage === 'users' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/users')} title="Users">
+                                {Icons.user} Users
+                            </button>
+                        )}
                     </>
                 )}
                 <div className="separator" style={{ margin: '8px 12px' }} />
