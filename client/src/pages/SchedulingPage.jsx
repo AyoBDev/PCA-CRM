@@ -30,19 +30,21 @@ function toLocalDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, defaultDate, defaultClientId, defaultEmployeeId, defaultStartTime }) {
+function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, defaultDate, defaultClientId, defaultEmployeeId, defaultStartTime, weekStart: propWeekStart }) {
+    const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const isEdit = !!shift;
+
+    // Shared fields
     const [clientId, setClientId] = useState(shift?.clientId || defaultClientId || '');
     const [employeeId, setEmployeeId] = useState(shift?.employeeId || defaultEmployeeId || '');
-    const [serviceCode, setServiceCode] = useState(shift?.serviceCode || 'PCS');
-    const [shiftDate, setShiftDate] = useState(shift?.shiftDate ? toLocalDateStr(shift.shiftDate) : (defaultDate || ''));
-    const [startTime, setStartTime] = useState(shift?.startTime || defaultStartTime || '09:00');
-    const [endTime, setEndTime] = useState(shift?.endTime || '13:00');
     const [notes, setNotes] = useState(shift?.notes || '');
     const [status, setStatus] = useState(shift?.status || 'scheduled');
-    const [recurring, setRecurring] = useState(false);
-    const [repeatUntil, setRepeatUntil] = useState('');
     const [saving, setSaving] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [accountNumber, setAccountNumber] = useState(shift?.accountNumber || '');
+    const [sandataClientId, setSandataClientId] = useState(shift?.sandataClientId || '');
+
+    // Employee search
     const [empSearch, setEmpSearch] = useState(() => {
         if (shift?.employeeId) { const e = employees.find(e => e.id === shift.employeeId); return e ? e.name : ''; }
         if (defaultEmployeeId) { const e = employees.find(e => e.id === Number(defaultEmployeeId)); return e ? e.name : ''; }
@@ -50,26 +52,64 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
     });
     const [empDropdownOpen, setEmpDropdownOpen] = useState(false);
     const empRef = useRef(null);
-    const [authInfo, setAuthInfo] = useState(null);
-    const [accountNumber, setAccountNumber] = useState(shift?.accountNumber || '');
-    const [sandataClientId, setSandataClientId] = useState(shift?.sandataClientId || '');
 
-    // Client details (pre-filled when client selected)
+    // Client details
     const selectedClient = clients.find(c => c.id === Number(clientId));
     const [clientAddress, setClientAddress] = useState(selectedClient?.address || '');
     const [clientPhone, setClientPhone] = useState(selectedClient?.phone || '');
     const [clientGateCode, setClientGateCode] = useState(selectedClient?.gateCode || '');
     const [clientNotes, setClientNotes] = useState(selectedClient?.notes || '');
 
+    // Edit mode: single day fields
+    const [serviceCode, setServiceCode] = useState(shift?.serviceCode || 'PCS');
+    const [shiftDate, setShiftDate] = useState(shift?.shiftDate ? toLocalDateStr(shift.shiftDate) : (defaultDate || ''));
+    const [startTime, setStartTime] = useState(shift?.startTime || defaultStartTime || '09:00');
+    const [endTime, setEndTime] = useState(shift?.endTime || '13:00');
+
+    // Create mode: multi-day schedule
+    // Each day entry: { enabled, serviceCode, startTime, endTime }
+    const wsDate = propWeekStart ? new Date(propWeekStart + 'T00:00:00') : (() => { const d = new Date(); d.setDate(d.getDate() - d.getDay()); return d; })();
+    const weekDates = [];
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(wsDate);
+        d.setDate(wsDate.getDate() + i);
+        weekDates.push(toLocalDateStr(d));
+    }
+
+    const [dayEntries, setDayEntries] = useState(() =>
+        DAY_NAMES.map((_, i) => ({
+            enabled: defaultDate ? weekDates[i] === defaultDate : false,
+            serviceCode: 'PCS',
+            startTime: defaultStartTime || '09:00',
+            endTime: '13:00',
+        }))
+    );
+
+    const [recurring, setRecurring] = useState(false);
+    const [repeatUntil, setRepeatUntil] = useState('');
+
+    const [authInfo, setAuthInfo] = useState(null);
+
+    const updateDayEntry = (idx, field, value) => {
+        setDayEntries(prev => prev.map((e, i) => i === idx ? { ...e, [field]: value } : e));
+    };
+
+    const enabledCount = dayEntries.filter(d => d.enabled).length;
+
+    // Apply same time/service to all enabled days
+    const applyToAll = (sourceIdx) => {
+        const src = dayEntries[sourceIdx];
+        setDayEntries(prev => prev.map((e, i) => e.enabled && i !== sourceIdx ? { ...e, serviceCode: src.serviceCode, startTime: src.startTime, endTime: src.endTime } : e));
+    };
+
     useEffect(() => {
-        if (clientId && serviceCode && shiftDate) {
+        if (isEdit && clientId && serviceCode && shiftDate) {
             api.getAuthCheck({ clientId, serviceCode, weekStart: shiftDate })
-                .then(setAuthInfo)
-                .catch(() => setAuthInfo(null));
+                .then(setAuthInfo).catch(() => setAuthInfo(null));
         } else {
             setAuthInfo(null);
         }
-    }, [clientId, serviceCode, shiftDate]);
+    }, [isEdit, clientId, serviceCode, shiftDate]);
 
     useEffect(() => {
         const c = clients.find(cl => cl.id === Number(clientId));
@@ -93,32 +133,45 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
         e.name.toLowerCase().includes(empSearch.toLowerCase())
     );
 
-    const computeHours = () => {
-        if (!startTime || !endTime) return { hours: 0, units: 0 };
-        const [sh, sm] = startTime.split(':').map(Number);
-        const [eh, em] = endTime.split(':').map(Number);
-        let startMin = sh * 60 + sm;
-        let endMin = eh * 60 + em;
+    const computeHrs = (sT, eT) => {
+        if (!sT || !eT) return { hours: 0, units: 0 };
+        const [sh, sm] = sT.split(':').map(Number);
+        const [eh, em] = eT.split(':').map(Number);
+        let startMin = sh * 60 + sm, endMin = eh * 60 + em;
         if (endMin <= startMin) endMin += 24 * 60;
         const hours = Math.round(((endMin - startMin) / 60) * 100) / 100;
         return { hours, units: Math.round(hours * 4) };
     };
 
-    const { hours, units } = computeHours();
-    const colorInfo = SERVICE_COLORS[serviceCode] || { color: '#6B7280', label: serviceCode };
+    // Edit mode hours
+    const { hours, units } = computeHrs(startTime, endTime);
+    const editColorInfo = SERVICE_COLORS[serviceCode] || { color: '#6B7280', label: serviceCode };
 
-    // Compute how many total shifts the recurring option will create (including original)
+    // Create mode totals
+    const totalCreateUnits = dayEntries.reduce((sum, d) => {
+        if (!d.enabled) return sum;
+        return sum + computeHrs(d.startTime, d.endTime).units;
+    }, 0);
+    const totalCreateHours = dayEntries.reduce((sum, d) => {
+        if (!d.enabled) return sum;
+        return sum + computeHrs(d.startTime, d.endTime).hours;
+    }, 0);
+
+    // Recurring count
     const recurringCount = (() => {
-        if (!recurring || !repeatUntil || !shiftDate) return 0;
-        const start = new Date(shiftDate + 'T12:00:00Z');
+        if (!recurring || !repeatUntil) return 0;
+        const firstEnabled = weekDates.find((_, i) => dayEntries[i].enabled);
+        if (!firstEnabled) return 0;
+        const start = new Date(firstEnabled + 'T12:00:00Z');
         const end = new Date(repeatUntil + 'T12:00:00Z');
         if (end < start) return 0;
         return Math.floor((end - start) / (7 * 24 * 60 * 60 * 1000)) + 1;
     })();
-    // Min date for repeat-until: at least 7 days after shiftDate
+
     const repeatUntilMin = (() => {
-        if (!shiftDate) return '';
-        const d = new Date(shiftDate + 'T12:00:00Z');
+        const firstEnabled = weekDates.find((_, i) => dayEntries[i].enabled);
+        if (!firstEnabled) return '';
+        const d = new Date(firstEnabled + 'T12:00:00Z');
         d.setDate(d.getDate() + 7);
         return d.toISOString().slice(0, 10);
     })();
@@ -128,19 +181,12 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
         if (!empSearch.trim()) return;
         setSaving(true);
         try {
-            // If no employee selected from list, create a new one
             let resolvedEmployeeId = employeeId;
             if (!resolvedEmployeeId && empSearch.trim()) {
                 const newEmp = await api.createEmployee({ name: empSearch.trim() });
                 resolvedEmployeeId = String(newEmp.id);
                 setEmployeeId(resolvedEmployeeId);
             }
-            const data = {
-                clientId: Number(clientId), employeeId: Number(resolvedEmployeeId), serviceCode, shiftDate, startTime, endTime, notes,
-                accountNumber, sandataClientId,
-            };
-            if (shift) data.status = status;
-            if (!shift && recurring && repeatUntil) data.repeatUntil = repeatUntil;
 
             // Patch client details if changed
             if (clientId) {
@@ -151,13 +197,42 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                     if (clientPhone !== (c.phone || '')) patch.phone = clientPhone;
                     if (clientGateCode !== (c.gateCode || '')) patch.gateCode = clientGateCode;
                     if (clientNotes !== (c.notes || '')) patch.notes = clientNotes;
-                    if (Object.keys(patch).length > 0) {
-                        await api.patchClient(Number(clientId), patch);
-                    }
+                    if (Object.keys(patch).length > 0) await api.patchClient(Number(clientId), patch);
                 }
             }
 
-            await onSave(data);
+            if (isEdit) {
+                // Single shift update
+                const data = {
+                    clientId: Number(clientId), employeeId: Number(resolvedEmployeeId),
+                    serviceCode, shiftDate, startTime, endTime, notes, status,
+                    accountNumber, sandataClientId,
+                };
+                await onSave(data);
+            } else {
+                // Multi-day bulk create
+                const bulkShifts = [];
+                for (let i = 0; i < 7; i++) {
+                    if (!dayEntries[i].enabled) continue;
+                    const entry = { serviceCode: dayEntries[i].serviceCode, shiftDate: weekDates[i], startTime: dayEntries[i].startTime, endTime: dayEntries[i].endTime };
+                    bulkShifts.push(entry);
+                    // If recurring, add weekly copies
+                    if (recurring && repeatUntil) {
+                        const weekMs = 7 * 24 * 60 * 60 * 1000;
+                        let cursorMs = new Date(weekDates[i] + 'T12:00:00Z').getTime() + weekMs;
+                        const endMs = new Date(repeatUntil + 'T12:00:00Z').getTime();
+                        while (cursorMs <= endMs) {
+                            bulkShifts.push({ ...entry, shiftDate: new Date(cursorMs).toISOString().slice(0, 10) });
+                            cursorMs += weekMs;
+                        }
+                    }
+                }
+                const data = {
+                    clientId: Number(clientId), employeeId: Number(resolvedEmployeeId),
+                    notes, accountNumber, sandataClientId, shifts: bulkShifts,
+                };
+                await onSave(data);
+            }
         } finally {
             setSaving(false);
         }
@@ -165,9 +240,10 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
 
     return (
         <Modal onClose={onClose}>
-            <h2 className="modal__title">{shift ? 'Edit Shift' : 'Create Shift'}</h2>
-            <p className="modal__desc">{shift ? 'Update the shift details below.' : 'Schedule a new caregiver shift.'}</p>
+            <h2 className="modal__title">{isEdit ? 'Edit Shift' : 'Create Weekly Schedule'}</h2>
+            <p className="modal__desc">{isEdit ? 'Update the shift details below.' : 'Select days, set service type and times for each.'}</p>
             <form onSubmit={handleSubmit}>
+                {/* Client + Employee row */}
                 <div className="form-grid-2">
                     <div className="form-group">
                         <label htmlFor="shiftClient">Client</label>
@@ -187,9 +263,6 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                             autoComplete="off"
                             required
                         />
-                        {employeeId && (
-                            <input type="hidden" name="employeeId" value={employeeId} />
-                        )}
                         {empDropdownOpen && (
                             <ul style={{
                                 position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
@@ -198,24 +271,17 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                                 margin: 0, padding: 0, listStyle: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                             }}>
                                 {filteredEmployees.length === 0 && empSearch.trim() && (
-                                    <li
-                                        onClick={() => { setEmployeeId(''); setEmpDropdownOpen(false); }}
-                                        style={{ padding: '8px 12px', fontSize: 13, color: 'hsl(142 71% 45%)', cursor: 'pointer' }}
-                                    >
+                                    <li onClick={() => { setEmployeeId(''); setEmpDropdownOpen(false); }}
+                                        style={{ padding: '8px 12px', fontSize: 13, color: 'hsl(142 71% 45%)', cursor: 'pointer' }}>
                                         + Create "{empSearch.trim()}" as new employee
                                     </li>
                                 )}
                                 {filteredEmployees.map(e => (
-                                    <li
-                                        key={e.id}
+                                    <li key={e.id}
                                         onClick={() => { setEmployeeId(String(e.id)); setEmpSearch(e.name); setEmpDropdownOpen(false); }}
-                                        style={{
-                                            padding: '8px 12px', cursor: 'pointer', fontSize: 13,
-                                            background: String(e.id) === String(employeeId) ? 'hsl(var(--muted))' : undefined,
-                                        }}
+                                        style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, background: String(e.id) === String(employeeId) ? 'hsl(var(--muted))' : undefined }}
                                         onMouseEnter={ev => ev.currentTarget.style.background = 'hsl(var(--muted))'}
-                                        onMouseLeave={ev => ev.currentTarget.style.background = String(e.id) === String(employeeId) ? 'hsl(var(--muted))' : ''}
-                                    >
+                                        onMouseLeave={ev => ev.currentTarget.style.background = String(e.id) === String(employeeId) ? 'hsl(var(--muted))' : ''}>
                                         {e.name}
                                     </li>
                                 ))}
@@ -223,27 +289,12 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                         )}
                     </div>
                 </div>
-                <div className="form-grid-2">
-                    <div className="form-group">
-                        <label htmlFor="shiftService">Service</label>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ width: 12, height: 12, borderRadius: '50%', background: colorInfo.color, flexShrink: 0 }} />
-                            <select id="shiftService" value={serviceCode} onChange={e => setServiceCode(e.target.value)} style={{ flex: 1 }}>
-                                {Object.entries(SERVICE_COLORS).map(([code, info]) => (
-                                    <option key={code} value={code}>{info.label} ({code})</option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="shiftDate">Date</label>
-                        <input id="shiftDate" type="date" value={shiftDate} onChange={e => setShiftDate(e.target.value)} required />
-                    </div>
-                </div>
+
+                {/* Account + Sandata row */}
                 <div className="form-grid-2">
                     <div className="form-group">
                         <label htmlFor="shiftAccountNumber">Account Number</label>
-                        <select id="shiftAccountNumber" value={accountNumber} onChange={e => setAccountNumber(e.target.value)} required={!shift}>
+                        <select id="shiftAccountNumber" value={accountNumber} onChange={e => setAccountNumber(e.target.value)} required={!isEdit}>
                             <option value="">Select account…</option>
                             <option value="71040">71040</option>
                             <option value="71119">71119</option>
@@ -256,87 +307,158 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                         <input id="shiftSandataId" value={sandataClientId} onChange={e => setSandataClientId(e.target.value)} placeholder="Optional…" />
                     </div>
                 </div>
-                <div className="form-grid-2">
-                    <div className="form-group">
-                        <label htmlFor="shiftStart">Start Time</label>
-                        <input id="shiftStart" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} required />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="shiftEnd">End Time</label>
-                        <input id="shiftEnd" type="time" value={endTime} onChange={e => setEndTime(e.target.value)} required />
-                    </div>
-                </div>
-                <div className="sched-hours-display" style={{ borderLeftColor: colorInfo.color }}>
-                    <span className="sched-hours-display__value">{hours}</span>
-                    <span className="sched-hours-display__label">hours</span>
-                    <span className="sched-hours-display__sep">/</span>
-                    <span className="sched-hours-display__value">{units}</span>
-                    <span className="sched-hours-display__label">units</span>
-                </div>
-                {authInfo && (
-                    <div className={`sched-auth-info ${authInfo.remaining < 0 ? 'sched-auth-info--over' : authInfo.remaining < units ? 'sched-auth-info--warn' : ''}`}>
-                        <span>Authorized: {authInfo.authorized} units/week</span>
-                        <span>Scheduled: {authInfo.scheduled} units</span>
-                        <span>Remaining: {authInfo.remaining} units</span>
-                        {authInfo.remaining < units && authInfo.remaining >= 0 && (
-                            <div className="sched-auth-info__warning">
-                                This shift uses {units} units but only {authInfo.remaining} remain
-                            </div>
-                        )}
-                        {authInfo.remaining < 0 && (
-                            <div className="sched-auth-info__warning sched-auth-info__warning--over">
-                                Authorization already exceeded by {Math.abs(authInfo.remaining)} units
-                            </div>
-                        )}
-                    </div>
-                )}
-                {!shift && (
-                    <div className="sched-recurring">
-                        <label className="sched-recurring__toggle">
-                            <input type="checkbox" checked={recurring} onChange={e => setRecurring(e.target.checked)} />
-                            <span>Repeat weekly</span>
-                        </label>
-                        {recurring && (
-                            <div className="sched-recurring__options">
-                                <div className="form-group" style={{ marginBottom: 0 }}>
-                                    <label htmlFor="repeatUntil">Repeat until</label>
-                                    <input
-                                        id="repeatUntil"
-                                        type="date"
-                                        value={repeatUntil}
-                                        onChange={e => setRepeatUntil(e.target.value)}
-                                        min={repeatUntilMin || shiftDate}
-                                        required={recurring}
-                                    />
+
+                {isEdit ? (
+                    /* ─── EDIT MODE: single day ─── */
+                    <>
+                        <div className="form-grid-2">
+                            <div className="form-group">
+                                <label htmlFor="shiftService">Service</label>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ width: 12, height: 12, borderRadius: '50%', background: editColorInfo.color, flexShrink: 0 }} />
+                                    <select id="shiftService" value={serviceCode} onChange={e => setServiceCode(e.target.value)} style={{ flex: 1 }}>
+                                        {Object.entries(SERVICE_COLORS).map(([code, info]) => (
+                                            <option key={code} value={code}>{info.label} ({code})</option>
+                                        ))}
+                                    </select>
                                 </div>
-                                {recurringCount > 1 && (
-                                    <div className="sched-recurring__preview">
-                                        Will create <strong>{recurringCount} total shifts</strong> (1 original + {recurringCount - 1} repeat{recurringCount - 1 > 1 ? 's' : ''}) — {recurringCount * units} total units
-                                    </div>
-                                )}
-                                {recurring && repeatUntil && recurringCount <= 1 && (
-                                    <div className="sched-recurring__preview" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                                        Select a date at least 1 week after the shift date.
-                                    </div>
-                                )}
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="shiftDate">Date</label>
+                                <input id="shiftDate" type="date" value={shiftDate} onChange={e => setShiftDate(e.target.value)} required />
+                            </div>
+                        </div>
+                        <div className="form-grid-2">
+                            <div className="form-group">
+                                <label htmlFor="shiftStart">Start Time</label>
+                                <input id="shiftStart" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} required />
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="shiftEnd">End Time</label>
+                                <input id="shiftEnd" type="time" value={endTime} onChange={e => setEndTime(e.target.value)} required />
+                            </div>
+                        </div>
+                        <div className="sched-hours-display" style={{ borderLeftColor: editColorInfo.color }}>
+                            <span className="sched-hours-display__value">{hours}</span>
+                            <span className="sched-hours-display__label">hours</span>
+                            <span className="sched-hours-display__sep">/</span>
+                            <span className="sched-hours-display__value">{units}</span>
+                            <span className="sched-hours-display__label">units</span>
+                        </div>
+                        {authInfo && (
+                            <div className={`sched-auth-info ${authInfo.remaining < 0 ? 'sched-auth-info--over' : authInfo.remaining < units ? 'sched-auth-info--warn' : ''}`}>
+                                <span>Authorized: {authInfo.authorized} units/week</span>
+                                <span>Scheduled: {authInfo.scheduled} units</span>
+                                <span>Remaining: {authInfo.remaining} units</span>
                             </div>
                         )}
-                    </div>
+                        <div className="form-group">
+                            <label htmlFor="shiftStatus">Status</label>
+                            <select id="shiftStatus" value={status} onChange={e => setStatus(e.target.value)}>
+                                <option value="scheduled">Scheduled</option>
+                                <option value="completed">Completed</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                    </>
+                ) : (
+                    /* ─── CREATE MODE: multi-day weekly ─── */
+                    <>
+                        <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Days of the Week</label>
+                        <div className="sched-day-grid">
+                            {DAY_NAMES.map((day, i) => {
+                                const entry = dayEntries[i];
+                                const dayColorInfo = SERVICE_COLORS[entry.serviceCode] || { color: '#6B7280', label: entry.serviceCode };
+                                const { hours: dH, units: dU } = computeHrs(entry.startTime, entry.endTime);
+                                return (
+                                    <div key={i} className={`sched-day-row ${entry.enabled ? 'sched-day-row--active' : ''}`}>
+                                        <div className="sched-day-row__header">
+                                            <label className="sched-day-row__toggle">
+                                                <input type="checkbox" checked={entry.enabled} onChange={e => updateDayEntry(i, 'enabled', e.target.checked)} />
+                                                <span className="sched-day-row__day">{day}</span>
+                                                <span className="sched-day-row__date">{weekDates[i].slice(5)}</span>
+                                            </label>
+                                            {entry.enabled && (
+                                                <span className="sched-day-row__badge" style={{ background: `color-mix(in srgb, ${dayColorInfo.color} 15%, white)`, color: dayColorInfo.color }}>
+                                                    {dH}h / {dU}u
+                                                </span>
+                                            )}
+                                        </div>
+                                        {entry.enabled && (
+                                            <div className="sched-day-row__fields">
+                                                <div className="sched-day-row__field">
+                                                    <label className="sched-day-row__field-label">Service</label>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: dayColorInfo.color, flexShrink: 0 }} />
+                                                        <select value={entry.serviceCode} onChange={e => updateDayEntry(i, 'serviceCode', e.target.value)} className="sched-day-row__input">
+                                                            {Object.entries(SERVICE_COLORS).map(([code, info]) => (
+                                                                <option key={code} value={code}>{info.label}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div className="sched-day-row__field">
+                                                    <label className="sched-day-row__field-label">Start</label>
+                                                    <input type="time" value={entry.startTime} onChange={e => updateDayEntry(i, 'startTime', e.target.value)} className="sched-day-row__input" required />
+                                                </div>
+                                                <div className="sched-day-row__field">
+                                                    <label className="sched-day-row__field-label">End</label>
+                                                    <input type="time" value={entry.endTime} onChange={e => updateDayEntry(i, 'endTime', e.target.value)} className="sched-day-row__input" required />
+                                                </div>
+                                                {enabledCount > 1 && (
+                                                    <button type="button" className="sched-day-row__apply" title="Apply this service and times to all selected days" onClick={() => applyToAll(i)}>
+                                                        Apply to all
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {enabledCount > 0 && (
+                            <div className="sched-hours-display" style={{ borderLeftColor: 'hsl(217 91% 50%)' }}>
+                                <span className="sched-hours-display__value">{enabledCount}</span>
+                                <span className="sched-hours-display__label">day{enabledCount !== 1 ? 's' : ''}</span>
+                                <span className="sched-hours-display__sep">/</span>
+                                <span className="sched-hours-display__value">{totalCreateHours}</span>
+                                <span className="sched-hours-display__label">hours</span>
+                                <span className="sched-hours-display__sep">/</span>
+                                <span className="sched-hours-display__value">{totalCreateUnits}</span>
+                                <span className="sched-hours-display__label">units</span>
+                            </div>
+                        )}
+
+                        <div className="sched-recurring">
+                            <label className="sched-recurring__toggle">
+                                <input type="checkbox" checked={recurring} onChange={e => setRecurring(e.target.checked)} />
+                                <span>Repeat weekly</span>
+                            </label>
+                            {recurring && (
+                                <div className="sched-recurring__options">
+                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                        <label htmlFor="repeatUntil">Repeat until</label>
+                                        <input id="repeatUntil" type="date" value={repeatUntil}
+                                            onChange={e => setRepeatUntil(e.target.value)}
+                                            min={repeatUntilMin} required={recurring} />
+                                    </div>
+                                    {recurringCount > 1 && enabledCount > 0 && (
+                                        <div className="sched-recurring__preview">
+                                            Will create <strong>{enabledCount * recurringCount} total shifts</strong> ({enabledCount} days × {recurringCount} weeks) — {totalCreateUnits * recurringCount} total units
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </>
                 )}
-                {shift && (
-                    <div className="form-group">
-                        <label htmlFor="shiftStatus">Status</label>
-                        <select id="shiftStatus" value={status} onChange={e => setStatus(e.target.value)}>
-                            <option value="scheduled">Scheduled</option>
-                            <option value="completed">Completed</option>
-                            <option value="cancelled">Cancelled</option>
-                        </select>
-                    </div>
-                )}
+
                 <div className="form-group">
                     <label htmlFor="shiftNotes">Notes</label>
                     <input id="shiftNotes" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes…" />
                 </div>
+
                 {clientId && (
                     <fieldset style={{ border: '1px solid hsl(var(--border))', borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
                         <legend style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))', padding: '0 6px' }}>
@@ -362,13 +484,14 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                         </div>
                     </fieldset>
                 )}
+
                 <div className="form-actions">
-                    {shift && !confirmDelete && (
+                    {isEdit && !confirmDelete && (
                         <button type="button" className="btn btn--outline" style={{ color: 'hsl(0 84% 60%)', borderColor: 'hsl(0 84% 80%)', marginRight: 'auto' }} onClick={() => setConfirmDelete(true)}>
                             {Icons.trash} Delete
                         </button>
                     )}
-                    {shift && confirmDelete && (
+                    {isEdit && confirmDelete && (
                         <div style={{ display: 'flex', gap: 6, marginRight: 'auto' }}>
                             <button type="button" className="btn" style={{ background: 'hsl(0 84% 60%)', color: '#fff' }} onClick={() => onDelete(shift.id, false)}>
                                 Delete This Shift
@@ -381,7 +504,9 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                         </div>
                     )}
                     <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving…' : authInfo && authInfo.remaining < units ? (shift ? 'Update Anyway' : 'Save Anyway') : (shift ? 'Update Shift' : 'Create Shift')}</button>
+                    <button type="submit" className="btn btn--primary" disabled={saving || (!isEdit && enabledCount === 0)}>
+                        {saving ? 'Saving…' : isEdit ? 'Update Shift' : `Create ${enabledCount} Shift${enabledCount !== 1 ? 's' : ''}`}
+                    </button>
                 </div>
             </form>
         </Modal>
@@ -744,7 +869,8 @@ export default function SchedulingPage() {
                 showToast('Shift updated');
             } else {
                 const result = await api.createShift(data);
-                if (result.count) showToast(`${result.count} recurring shifts created`);
+                const count = result.count || (result.shifts ? result.shifts.length : 0);
+                if (count > 1) showToast(`${count} shifts created`);
                 else showToast('Shift created');
             }
             setModal(null);
@@ -993,6 +1119,7 @@ export default function SchedulingPage() {
                     defaultEmployeeId={selectedEmployeeId || ''}
                     clients={clients}
                     employees={employees}
+                    weekStart={weekStart}
                     onSave={handleSaveShift}
                     onDelete={handleDeleteShift}
                     onClose={() => setModal(null)}

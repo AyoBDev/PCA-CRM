@@ -1673,6 +1673,52 @@ button.sdr-section-tag:hover:not(:disabled) {
   color: hsl(var(--muted-foreground));
 }
 
+/* Shift buttons */
+.sdr-add-shift-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  margin: 4px 0;
+  border: 1px dashed hsl(var(--primary));
+  border-radius: var(--radius);
+  background: transparent;
+  color: hsl(var(--primary));
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sdr-add-shift-btn:hover {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.sdr-remove-shift-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  border: none;
+  border-radius: 50%;
+  background: hsl(0 84% 60% / 0.12);
+  color: hsl(0 84% 60%);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s;
+  vertical-align: middle;
+}
+
+.sdr-remove-shift-btn:hover {
+  background: hsl(0 84% 60%);
+  color: white;
+}
+
 /* Total row */
 .sdr-total-row {
   background: hsl(var(--muted));
@@ -1735,6 +1781,55 @@ button.sdr-section-tag:hover:not(:disabled) {
   margin: 0;
   font-size: 22px;
   font-weight: 700;
+}
+
+.pca-form-week-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+
+.pca-form-week-nav__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--background));
+  font-size: 18px;
+  cursor: pointer;
+  color: hsl(var(--foreground));
+  transition: background 0.15s;
+}
+
+.pca-form-week-nav__btn:hover {
+  background: hsl(var(--muted));
+}
+
+.pca-form-week-nav__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pca-form-week-nav__input-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+
+.pca-form-week-nav__input {
+  padding: 4px 8px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  font-size: 14px;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
 }
 
 .pca-form-week {
@@ -2984,6 +3079,116 @@ button.sdr-section-tag:hover:not(:disabled) {
     background: hsl(var(--background));
     color: hsl(var(--foreground));
     box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+
+/* ── Multi-day schedule grid ── */
+.sched-day-grid {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 12px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 8px;
+    overflow: hidden;
+}
+.sched-day-row {
+    background: hsl(var(--card));
+    transition: background 0.15s ease;
+}
+.sched-day-row:not(:last-child) {
+    border-bottom: 1px solid hsl(var(--border) / 0.5);
+}
+.sched-day-row--active {
+    background: hsl(217 91% 97%);
+}
+.sched-day-row__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+}
+.sched-day-row__toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+.sched-day-row__toggle input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: hsl(217 91% 50%);
+    cursor: pointer;
+}
+.sched-day-row__day {
+    font-weight: 600;
+    font-size: 14px;
+    color: hsl(var(--foreground));
+    min-width: 36px;
+}
+.sched-day-row__date {
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+    font-variant-numeric: tabular-nums;
+}
+.sched-day-row__badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.sched-day-row__fields {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    padding: 0 14px 12px 42px;
+    flex-wrap: wrap;
+}
+.sched-day-row__field {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+    min-width: 80px;
+}
+.sched-day-row__field-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.sched-day-row__input {
+    font-size: 13px;
+    padding: 6px 8px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 6px;
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
+    width: 100%;
+    font-variant-numeric: tabular-nums;
+}
+.sched-day-row__input:focus {
+    outline: none;
+    border-color: hsl(217 91% 50%);
+    box-shadow: 0 0 0 2px hsl(217 91% 50% / 0.15);
+}
+.sched-day-row__apply {
+    font-size: 11px;
+    padding: 6px 12px;
+    border: 1px solid hsl(217 91% 80%);
+    border-radius: 6px;
+    background: hsl(var(--card));
+    color: hsl(217 91% 50%);
+    cursor: pointer;
+    white-space: nowrap;
+    font-weight: 500;
+    transition: background 0.15s ease;
+    align-self: flex-end;
+}
+.sched-day-row__apply:hover {
+    background: hsl(217 91% 95%);
+    border-color: hsl(217 91% 50%);
 }
 
 /* Recurring Shift Toggle */

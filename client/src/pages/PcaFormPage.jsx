@@ -30,6 +30,15 @@ function computeHours(timeIn, timeOut) {
     return diff > 0 ? Math.round((diff / 60) * 100) / 100 : 0;
 }
 
+function totalHoursWithBlocks(entry, section) {
+    let total = computeHours(entry[`${section}TimeIn`], entry[`${section}TimeOut`]);
+    try {
+        const blocks = JSON.parse(entry[`${section}TimeBlocks`] || '[]');
+        for (const b of blocks) total += computeHours(b.in, b.out);
+    } catch {}
+    return Math.round(total * 100) / 100;
+}
+
 function hasActivity(entry, section) {
     try {
         const acts = JSON.parse(entry[`${section}Activities`] || '{}');
@@ -39,7 +48,13 @@ function hasActivity(entry, section) {
     }
 }
 
-function SectionBlock({ header, activities, section, entries, updateEntry, dailyHoursFn, disabled, sectionDisabled }) {
+function getSunday(date) {
+    const d = new Date(date);
+    d.setDate(d.getDate() - d.getDay());
+    return d.toISOString().slice(0, 10);
+}
+
+function SectionBlock({ header, activities, section, entries, updateEntry, dailyHoursFn, disabled, sectionDisabled, onAddShift, onRemoveShift }) {
     return (
         <div className={`sdr-section ${sectionDisabled ? 'sdr-section--disabled' : ''}`}>
             <div className="sdr-section-title">{header}</div>
@@ -88,8 +103,9 @@ function SectionBlock({ header, activities, section, entries, updateEntry, daily
                     </div>
                 ))}
             </div>
+            {/* Shift 1: primary time in/out */}
             <div className="sdr-activity-row sdr-time-row">
-                <div className="sdr-activity-label">Time In</div>
+                <div className="sdr-activity-label">Shift 1 — In</div>
                 {entries.map((e, i) => (
                     <div key={i} className="sdr-activity-cell">
                         <input type="time" className="sdr-time-input" value={e[`${section}TimeIn`] || ''} disabled={disabled}
@@ -98,7 +114,7 @@ function SectionBlock({ header, activities, section, entries, updateEntry, daily
                 ))}
             </div>
             <div className="sdr-activity-row sdr-time-row">
-                <div className="sdr-activity-label">Time Out</div>
+                <div className="sdr-activity-label">Shift 1 — Out</div>
                 {entries.map((e, i) => (
                     <div key={i} className="sdr-activity-cell">
                         <input type="time" className="sdr-time-input" value={e[`${section}TimeOut`] || ''} disabled={disabled}
@@ -106,6 +122,74 @@ function SectionBlock({ header, activities, section, entries, updateEntry, daily
                     </div>
                 ))}
             </div>
+            {/* Extra shifts from timeBlocks */}
+            {(() => {
+                // Find the max number of time blocks across all entries for this section
+                let maxBlocks = 0;
+                for (const e of entries) {
+                    try {
+                        const blocks = JSON.parse(e[`${section}TimeBlocks`] || '[]');
+                        if (blocks.length > maxBlocks) maxBlocks = blocks.length;
+                    } catch {}
+                }
+                const rows = [];
+                for (let b = 0; b < maxBlocks; b++) {
+                    rows.push(
+                        <div key={`block-in-${b}`} className="sdr-activity-row sdr-time-row">
+                            <div className="sdr-activity-label">
+                                Shift {b + 2} — In
+                                {!disabled && b === maxBlocks - 1 && (
+                                    <button type="button" className="sdr-remove-shift-btn" title="Remove this shift"
+                                        onClick={() => onRemoveShift(section, b)}>×</button>
+                                )}
+                            </div>
+                            {entries.map((e, i) => {
+                                const blocks = (() => { try { return JSON.parse(e[`${section}TimeBlocks`] || '[]'); } catch { return []; } })();
+                                return (
+                                    <div key={i} className="sdr-activity-cell">
+                                        <input type="time" className="sdr-time-input" value={blocks[b]?.in || ''} disabled={disabled}
+                                            onChange={(ev) => {
+                                                const updated = [...blocks];
+                                                if (!updated[b]) updated[b] = { in: '', out: '' };
+                                                updated[b] = { ...updated[b], in: ev.target.value };
+                                                updateEntry(i, `${section}TimeBlocks`, JSON.stringify(updated));
+                                            }} />
+                                    </div>
+                                );
+                            })}
+                        </div>,
+                        <div key={`block-out-${b}`} className="sdr-activity-row sdr-time-row">
+                            <div className="sdr-activity-label">Shift {b + 2} — Out</div>
+                            {entries.map((e, i) => {
+                                const blocks = (() => { try { return JSON.parse(e[`${section}TimeBlocks`] || '[]'); } catch { return []; } })();
+                                return (
+                                    <div key={i} className="sdr-activity-cell">
+                                        <input type="time" className="sdr-time-input" value={blocks[b]?.out || ''} disabled={disabled}
+                                            onChange={(ev) => {
+                                                const updated = [...blocks];
+                                                if (!updated[b]) updated[b] = { in: '', out: '' };
+                                                updated[b] = { ...updated[b], out: ev.target.value };
+                                                updateEntry(i, `${section}TimeBlocks`, JSON.stringify(updated));
+                                            }} />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    );
+                }
+                return rows;
+            })()}
+            {/* Add Shift button */}
+            {!disabled && (
+                <div className="sdr-activity-row">
+                    <div className="sdr-activity-label">
+                        <button type="button" className="sdr-add-shift-btn" onClick={() => onAddShift(section)}>
+                            + Add Shift
+                        </button>
+                    </div>
+                    {entries.map((_, i) => <div key={i} className="sdr-activity-cell" />)}
+                </div>
+            )}
             <div className="sdr-activity-row sdr-total-row">
                 <div className="sdr-activity-label"><strong>Daily Totals</strong></div>
                 {entries.map((e, i) => {
@@ -131,15 +215,16 @@ export default function PcaFormPage() {
     const [submitting, setSubmitting] = useState(false);
     const [iadlTab, setIadlTab] = useState('iadl');
     const [toast, setToast] = useState('');
+    const [selectedWeekStart, setSelectedWeekStart] = useState('');
 
     const showToast = useCallback((msg) => {
         setToast(msg);
         setTimeout(() => setToast(''), 3000);
     }, []);
 
-    const loadForm = useCallback(() => {
+    const loadForm = useCallback((weekStart) => {
         setLoading(true);
-        api.getPcaForm(token)
+        api.getPcaForm(token, weekStart || undefined)
             .then((resp) => {
                 setData(resp);
                 setEntries(resp.timesheet.entries || []);
@@ -147,6 +232,8 @@ export default function PcaFormPage() {
                 setPcaSig(resp.timesheet.pcaSignature || '');
                 setRecipientName(resp.timesheet.recipientName || '');
                 setRecipientSig(resp.timesheet.recipientSignature || '');
+                const ws = resp.timesheet.weekStart?.split('T')[0] || '';
+                setSelectedWeekStart(ws);
                 const enabled = resp.client?.enabledServices || [];
                 if (!enabled.includes('Homemaker') && enabled.includes('Respite')) setIadlTab('respite');
             })
@@ -167,13 +254,43 @@ export default function PcaFormPage() {
         setEntries((prev) => prev.map((e, i) => (i === idx ? { ...e, [field]: value } : e)));
     };
 
-    const adlHrs = (e) => computeHours(e.adlTimeIn, e.adlTimeOut);
-    const iadlHrs = (e) => computeHours(e.iadlTimeIn, e.iadlTimeOut);
-    const respiteHrs = (e) => computeHours(e.respiteTimeIn, e.respiteTimeOut);
+    const handleAddShift = (section) => {
+        setEntries(prev => prev.map(e => {
+            const blocks = (() => { try { return JSON.parse(e[`${section}TimeBlocks`] || '[]'); } catch { return []; } })();
+            blocks.push({ in: '', out: '' });
+            return { ...e, [`${section}TimeBlocks`]: JSON.stringify(blocks) };
+        }));
+    };
+
+    const handleRemoveShift = (section, blockIdx) => {
+        setEntries(prev => prev.map(e => {
+            const blocks = (() => { try { return JSON.parse(e[`${section}TimeBlocks`] || '[]'); } catch { return []; } })();
+            blocks.splice(blockIdx, 1);
+            return { ...e, [`${section}TimeBlocks`]: JSON.stringify(blocks) };
+        }));
+    };
+
+    const adlHrs = (e) => totalHoursWithBlocks(e, 'adl');
+    const iadlHrs = (e) => totalHoursWithBlocks(e, 'iadl');
+    const respiteHrs = (e) => totalHoursWithBlocks(e, 'respite');
     const totalPas = entries.reduce((s, e) => s + adlHrs(e), 0);
     const totalHm = entries.reduce((s, e) => s + iadlHrs(e), 0);
     const totalRespite = entries.reduce((s, e) => s + respiteHrs(e), 0);
     const totalAll = totalPas + totalHm + totalRespite;
+
+    // Week navigation
+    const handleWeekChange = (sundayDate) => {
+        const snapped = getSunday(sundayDate);
+        setSelectedWeekStart(snapped);
+        loadForm(snapped);
+    };
+
+    const navigateWeek = (dir) => {
+        if (!selectedWeekStart) return;
+        const d = new Date(selectedWeekStart + 'T00:00:00');
+        d.setDate(d.getDate() + dir * 7);
+        handleWeekChange(d.toISOString().slice(0, 10));
+    };
 
     // Validation for submit gating
     const validationError = useMemo(() => {
@@ -197,7 +314,6 @@ export default function PcaFormPage() {
                     if (!e[`${sec}ClientInitials`]) return `Day ${DAY_SHORT[e.dayOfWeek]}: client initials required`;
                 }
             }
-            // Homemaker / Respite overlap
             if (hmEnabled && respiteEnabled && e.iadlTimeIn && e.iadlTimeOut && e.respiteTimeIn && e.respiteTimeOut) {
                 const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
                 const aS = toMin(e.iadlTimeIn), aE = toMin(e.iadlTimeOut);
@@ -210,14 +326,18 @@ export default function PcaFormPage() {
 
     const buildPayload = (action) => ({
         action,
+        weekStart: selectedWeekStart || undefined,
         entries: entries.map((e) => ({
             id: e.id, dayOfWeek: e.dayOfWeek, dateOfService: e.dateOfService,
             adlActivities: e.adlActivities || '{}', adlTimeIn: e.adlTimeIn || null, adlTimeOut: e.adlTimeOut || null,
             adlPcaInitials: e.adlPcaInitials || '', adlClientInitials: e.adlClientInitials || '',
+            adlTimeBlocks: e.adlTimeBlocks || '[]',
             iadlActivities: e.iadlActivities || '{}', iadlTimeIn: e.iadlTimeIn || null, iadlTimeOut: e.iadlTimeOut || null,
             iadlPcaInitials: e.iadlPcaInitials || '', iadlClientInitials: e.iadlClientInitials || '',
+            iadlTimeBlocks: e.iadlTimeBlocks || '[]',
             respiteActivities: e.respiteActivities || '{}', respiteTimeIn: e.respiteTimeIn || null, respiteTimeOut: e.respiteTimeOut || null,
             respitePcaInitials: e.respitePcaInitials || '', respiteClientInitials: e.respiteClientInitials || '',
+            respiteTimeBlocks: e.respiteTimeBlocks || '[]',
         })),
         pcaFullName,
         pcaSignature: pcaSig,
@@ -256,7 +376,7 @@ export default function PcaFormPage() {
     if (error) return <div style={{ padding: 40, textAlign: 'center', color: 'hsl(var(--destructive))' }}>{error}</div>;
     if (!data) return null;
 
-    const weekLabel = formatWeek(data.timesheet.weekStart.split('T')[0]);
+    const weekLabel = formatWeek(selectedWeekStart || data.timesheet.weekStart.split('T')[0]);
     const iadlSection = iadlTab === 'respite' ? 'respite' : 'iadl';
     const iadlHoursFn = iadlTab === 'respite' ? respiteHrs : iadlHrs;
 
@@ -291,6 +411,20 @@ export default function PcaFormPage() {
         <div className="pca-form-page">
             <div className="pca-form-header">
                 <h1>PCA Service Delivery Record</h1>
+                {/* Week selector */}
+                <div className="pca-form-week-nav">
+                    <button type="button" className="pca-form-week-nav__btn" onClick={() => navigateWeek(-1)} title="Previous week">&lsaquo;</button>
+                    <div className="pca-form-week-nav__label">
+                        <label className="pca-form-week-nav__input-label">Week of Sunday:</label>
+                        <input
+                            type="date"
+                            className="pca-form-week-nav__input"
+                            value={selectedWeekStart}
+                            onChange={(e) => handleWeekChange(e.target.value)}
+                        />
+                    </div>
+                    <button type="button" className="pca-form-week-nav__btn" onClick={() => navigateWeek(1)} title="Next week">&rsaquo;</button>
+                </div>
                 <p className="pca-form-week">{weekLabel}</p>
                 <div className="pca-form-meta">
                     <span><strong>Client:</strong> {data.client.clientName}</span>
@@ -309,6 +443,8 @@ export default function PcaFormPage() {
                     dailyHoursFn={adlHrs}
                     disabled={submitted || !pasEnabled}
                     sectionDisabled={!pasEnabled}
+                    onAddShift={handleAddShift}
+                    onRemoveShift={handleRemoveShift}
                 />
 
                 <SectionBlock
@@ -320,6 +456,8 @@ export default function PcaFormPage() {
                     dailyHoursFn={iadlHoursFn}
                     disabled={submitted || !iadlAnyEnabled || (iadlTab === 'iadl' && !hmEnabled) || (iadlTab === 'respite' && !respiteEnabled)}
                     sectionDisabled={!iadlAnyEnabled}
+                    onAddShift={handleAddShift}
+                    onRemoveShift={handleRemoveShift}
                 />
                 {iadlAnyEnabled && hmEnabled && respiteEnabled && (
                     <p className="pca-form-hint">Tip: switch between <strong>HOMEMAKER</strong> and <strong>RESPITE</strong> using the tags in the blue bar above. Only one can be logged per day in a given time block.</p>

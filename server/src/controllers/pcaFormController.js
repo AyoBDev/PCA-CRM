@@ -22,6 +22,17 @@ function computeHours(timeIn, timeOut) {
   return diff > 0 ? Math.round((diff / 60) * 100) / 100 : 0;
 }
 
+function computeTotalHoursWithBlocks(timeIn, timeOut, timeBlocksJson) {
+  let total = computeHours(timeIn, timeOut);
+  try {
+    const blocks = JSON.parse(timeBlocksJson || '[]');
+    for (const b of blocks) {
+      total += computeHours(b.in, b.out);
+    }
+  } catch {}
+  return Math.round(total * 100) / 100;
+}
+
 function getCurrentWeekStart() {
   const now = new Date();
   const day = now.getDay();
@@ -79,7 +90,7 @@ function filterByEnabledServices(entry, enabledServices) {
   return filtered;
 }
 
-// GET /api/pca-form/:token
+// GET /api/pca-form/:token?weekStart=YYYY-MM-DD
 async function getPcaForm(req, res, next) {
   try {
     const { token } = req.params;
@@ -91,7 +102,17 @@ async function getPcaForm(req, res, next) {
     if (!link) return res.status(404).json({ error: 'Invalid link' });
     if (!link.active) return res.status(403).json({ error: 'This link has been deactivated' });
 
-    const weekStart = getCurrentWeekStart();
+    let weekStart;
+    if (req.query.weekStart) {
+      // Parse the provided Sunday date
+      const d = new Date(req.query.weekStart + 'T00:00:00');
+      // Snap to Sunday if needed
+      d.setDate(d.getDate() - d.getDay());
+      d.setHours(0, 0, 0, 0);
+      weekStart = d;
+    } else {
+      weekStart = getCurrentWeekStart();
+    }
     let timesheet = await prisma.timesheet.findFirst({
       where: { clientId: link.clientId, pcaName: link.pcaName, weekStart },
       include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
@@ -146,7 +167,15 @@ async function updatePcaForm(req, res, next) {
     if (!link) return res.status(404).json({ error: 'Invalid link' });
     if (!link.active) return res.status(403).json({ error: 'This link has been deactivated' });
 
-    const weekStart = getCurrentWeekStart();
+    let weekStart;
+    if (req.body.weekStart) {
+      const d = new Date(req.body.weekStart + 'T00:00:00');
+      d.setDate(d.getDate() - d.getDay());
+      d.setHours(0, 0, 0, 0);
+      weekStart = d;
+    } else {
+      weekStart = getCurrentWeekStart();
+    }
     const timesheet = await prisma.timesheet.findFirst({
       where: { clientId: link.clientId, pcaName: link.pcaName, weekStart },
       include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
@@ -213,9 +242,9 @@ async function updatePcaForm(req, res, next) {
       if (!entry.id) continue;
       const filtered = filterByEnabledServices(entry, enabledServices);
 
-      const adlHours = computeHours(filtered.adlTimeIn, filtered.adlTimeOut);
-      const iadlHours = computeHours(filtered.iadlTimeIn, filtered.iadlTimeOut);
-      const respiteHours = computeHours(filtered.respiteTimeIn, filtered.respiteTimeOut);
+      const adlHours = computeTotalHoursWithBlocks(filtered.adlTimeIn, filtered.adlTimeOut, filtered.adlTimeBlocks);
+      const iadlHours = computeTotalHoursWithBlocks(filtered.iadlTimeIn, filtered.iadlTimeOut, filtered.iadlTimeBlocks);
+      const respiteHours = computeTotalHoursWithBlocks(filtered.respiteTimeIn, filtered.respiteTimeOut, filtered.respiteTimeBlocks);
 
       totalPasHours += adlHours;
       totalHmHours += iadlHours;
@@ -230,18 +259,21 @@ async function updatePcaForm(req, res, next) {
           adlHours,
           adlPcaInitials: filtered.adlPcaInitials || '',
           adlClientInitials: filtered.adlClientInitials || '',
+          adlTimeBlocks: filtered.adlTimeBlocks || '[]',
           iadlActivities: filtered.iadlActivities || '{}',
           iadlTimeIn: filtered.iadlTimeIn || null,
           iadlTimeOut: filtered.iadlTimeOut || null,
           iadlHours,
           iadlPcaInitials: filtered.iadlPcaInitials || '',
           iadlClientInitials: filtered.iadlClientInitials || '',
+          iadlTimeBlocks: filtered.iadlTimeBlocks || '[]',
           respiteActivities: filtered.respiteActivities || '{}',
           respiteTimeIn: filtered.respiteTimeIn || null,
           respiteTimeOut: filtered.respiteTimeOut || null,
           respiteHours,
           respitePcaInitials: filtered.respitePcaInitials || '',
           respiteClientInitials: filtered.respiteClientInitials || '',
+          respiteTimeBlocks: filtered.respiteTimeBlocks || '[]',
         },
       });
     }

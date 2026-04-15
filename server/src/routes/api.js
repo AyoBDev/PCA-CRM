@@ -99,40 +99,40 @@ router.use(authenticate);
 // Auth (authenticated)
 router.get('/auth/me', getMe);
 
-// Auth (admin only)
+// Auth — user management (admin only)
 router.post('/auth/register', requireRole('admin'), register);
 router.get('/auth/users', requireRole('admin'), listUsers);
 router.delete('/auth/users/:id', requireRole('admin'), deleteUser);
 
-// Dashboard (admin only)
-router.get('/dashboard/stats', requireRole('admin'), getDashboardStats);
+// Dashboard
+router.get('/dashboard/stats', requireRole('admin', 'user'), getDashboardStats);
 
-// Client routes (admin only)
-router.get('/clients', requireRole('admin'), listClients);
-router.get('/clients/:id', requireRole('admin'), getClient);
-router.post('/clients', requireRole('admin'), createClient);
+// Client routes — bulk import is admin only, everything else is admin + user
+router.get('/clients', requireRole('admin', 'user'), listClients);
+router.get('/clients/:id', requireRole('admin', 'user'), getClient);
+router.post('/clients', requireRole('admin', 'user'), createClient);
 router.post('/clients/bulk-import', requireRole('admin'), bulkImport);
-router.post('/clients/bulk-delete', requireRole('admin'), bulkDelete);
-router.put('/clients/:id', requireRole('admin'), updateClient);
-router.patch('/clients/:id', requireRole('admin'), patchClient);
-router.delete('/clients/:id', requireRole('admin'), deleteClient);
+router.post('/clients/bulk-delete', requireRole('admin', 'user'), bulkDelete);
+router.put('/clients/:id', requireRole('admin', 'user'), updateClient);
+router.patch('/clients/:id', requireRole('admin', 'user'), patchClient);
+router.delete('/clients/:id', requireRole('admin', 'user'), deleteClient);
 
-// Authorization routes (admin only)
-router.post('/clients/:clientId/authorizations', requireRole('admin'), createAuthorization);
-router.put('/authorizations/:id', requireRole('admin'), updateAuthorization);
-router.delete('/authorizations/:id', requireRole('admin'), deleteAuthorization);
+// Authorization routes
+router.post('/clients/:clientId/authorizations', requireRole('admin', 'user'), createAuthorization);
+router.put('/authorizations/:id', requireRole('admin', 'user'), updateAuthorization);
+router.delete('/authorizations/:id', requireRole('admin', 'user'), deleteAuthorization);
 
-// Insurance Type routes (admin only)
-router.get('/insurance-types', requireRole('admin'), listInsuranceTypes);
-router.post('/insurance-types', requireRole('admin'), createInsuranceType);
-router.put('/insurance-types/:id', requireRole('admin'), updateInsuranceType);
-router.delete('/insurance-types/:id', requireRole('admin'), deleteInsuranceType);
+// Insurance Type routes
+router.get('/insurance-types', requireRole('admin', 'user'), listInsuranceTypes);
+router.post('/insurance-types', requireRole('admin', 'user'), createInsuranceType);
+router.put('/insurance-types/:id', requireRole('admin', 'user'), updateInsuranceType);
+router.delete('/insurance-types/:id', requireRole('admin', 'user'), deleteInsuranceType);
 
-// Service routes (admin only)
-router.get('/services', requireRole('admin'), listServices);
-router.post('/services', requireRole('admin'), createService);
-router.put('/services/:id', requireRole('admin'), updateService);
-router.delete('/services/:id', requireRole('admin'), deleteService);
+// Service routes
+router.get('/services', requireRole('admin', 'user'), listServices);
+router.post('/services', requireRole('admin', 'user'), createService);
+router.put('/services/:id', requireRole('admin', 'user'), updateService);
+router.delete('/services/:id', requireRole('admin', 'user'), deleteService);
 
 // Timesheet routes (all authenticated users)
 router.get('/timesheets/activities', getActivities);
@@ -141,43 +141,43 @@ router.get('/timesheets/:id', getTimesheet);
 router.post('/timesheets', createTimesheet);
 router.put('/timesheets/:id', updateTimesheet);
 router.put('/timesheets/:id/submit', submitTimesheet);
-router.post('/timesheets/:id/signing-links', requireRole('admin'), generateSigningLinks);
+router.post('/timesheets/:id/signing-links', requireRole('admin', 'user'), generateSigningLinks);
 router.delete('/timesheets/:id', deleteTimesheet);
-router.get('/timesheets/:id/export-pdf', requireRole('admin'), exportTimesheetPdf);
-router.put('/timesheets/:id/status', requireRole('admin'), updateTimesheetStatus);
+router.get('/timesheets/:id/export-pdf', requireRole('admin', 'user'), exportTimesheetPdf);
+router.put('/timesheets/:id/status', requireRole('admin', 'user'), updateTimesheetStatus);
 
-// Permanent link routes (admin only)
-router.get('/permanent-links', requireRole('admin'), listPermanentLinks);
-router.post('/permanent-links', requireRole('admin'), createPermanentLink);
-router.delete('/permanent-links/:id', requireRole('admin'), deletePermanentLink);
+// Permanent link routes
+router.get('/permanent-links', requireRole('admin', 'user'), listPermanentLinks);
+router.post('/permanent-links', requireRole('admin', 'user'), createPermanentLink);
+router.delete('/permanent-links/:id', requireRole('admin', 'user'), deletePermanentLink);
 
-// Payroll (admin only)
-router.get('/payroll/runs',                requireRole('admin'), listPayrollRuns);
-router.post('/payroll/runs',               requireRole('admin'), upload.single('file'), uploadPayrollRun);
-router.get('/payroll/runs/:id',            requireRole('admin'), getPayrollRun);
-router.delete('/payroll/runs/:id',         requireRole('admin'), deletePayrollRun);
-router.get('/payroll/runs/:id/export',     requireRole('admin'), exportPayrollRun);
-router.patch('/payroll/visits/:id',        requireRole('admin'), updatePayrollVisit);
+// Payroll
+router.get('/payroll/runs',                requireRole('admin', 'user'), listPayrollRuns);
+router.post('/payroll/runs',               requireRole('admin', 'user'), upload.single('file'), uploadPayrollRun);
+router.get('/payroll/runs/:id',            requireRole('admin', 'user'), getPayrollRun);
+router.delete('/payroll/runs/:id',         requireRole('admin', 'user'), deletePayrollRun);
+router.get('/payroll/runs/:id/export',     requireRole('admin', 'user'), exportPayrollRun);
+router.patch('/payroll/visits/:id',        requireRole('admin', 'user'), updatePayrollVisit);
 
-// Employees (admin only)
-router.get('/employees',       requireRole('admin'), listEmployees);
-router.get('/employees/:id',   requireRole('admin'), getEmployee);
-router.post('/employees',      requireRole('admin'), createEmployee);
-router.put('/employees/:id',   requireRole('admin'), updateEmployee);
-router.delete('/employees/:id', requireRole('admin'), deleteEmployee);
+// Employees
+router.get('/employees',       requireRole('admin', 'user'), listEmployees);
+router.get('/employees/:id',   requireRole('admin', 'user'), getEmployee);
+router.post('/employees',      requireRole('admin', 'user'), createEmployee);
+router.put('/employees/:id',   requireRole('admin', 'user'), updateEmployee);
+router.delete('/employees/:id', requireRole('admin', 'user'), deleteEmployee);
 
-// Scheduling (admin only)
-router.get('/shifts',                       requireRole('admin'), listShifts);
-router.get('/shifts/auth-check',            requireRole('admin'), authCheck);
-router.get('/shifts/client/:clientId',      requireRole('admin'), getClientSchedule);
-router.get('/shifts/employee/:employeeId',  requireRole('admin'), getEmployeeSchedule);
-router.post('/shifts',                      requireRole('admin'), createShift);
-router.put('/shifts/:id',                   requireRole('admin'), updateShift);
-router.delete('/shifts/all',                requireRole('admin'), deleteAllShifts);
-router.delete('/shifts/:id',                requireRole('admin'), deleteShift);
+// Scheduling
+router.get('/shifts',                       requireRole('admin', 'user'), listShifts);
+router.get('/shifts/auth-check',            requireRole('admin', 'user'), authCheck);
+router.get('/shifts/client/:clientId',      requireRole('admin', 'user'), getClientSchedule);
+router.get('/shifts/employee/:employeeId',  requireRole('admin', 'user'), getEmployeeSchedule);
+router.post('/shifts',                      requireRole('admin', 'user'), createShift);
+router.put('/shifts/:id',                   requireRole('admin', 'user'), updateShift);
+router.delete('/shifts/all',                requireRole('admin', 'user'), deleteAllShifts);
+router.delete('/shifts/:id',                requireRole('admin', 'user'), deleteShift);
 
-// Schedule Notifications (admin only)
-router.post('/schedule-notifications/send',   requireRole('admin'), sendSchedules);
-router.get('/schedule-notifications/status',  requireRole('admin'), getNotificationStatus);
+// Schedule Notifications
+router.post('/schedule-notifications/send',   requireRole('admin', 'user'), sendSchedules);
+router.get('/schedule-notifications/status',  requireRole('admin', 'user'), getNotificationStatus);
 
 module.exports = router;

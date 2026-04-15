@@ -157,6 +157,7 @@ model TimesheetEntry {
   adlHours            Float     @default(0) @map("adl_hours")
   adlPcaInitials      String    @default("") @map("adl_pca_initials")
   adlClientInitials   String    @default("") @map("adl_client_initials")
+  adlTimeBlocks       String    @default("[]") @map("adl_time_blocks")       // JSON: [{"in":"HH:MM","out":"HH:MM"}]
   // IADL / HM section
   iadlActivities      String    @default("{}") @map("iadl_activities")
   iadlTimeIn          String?   @map("iadl_time_in")
@@ -164,6 +165,7 @@ model TimesheetEntry {
   iadlHours           Float     @default(0) @map("iadl_hours")
   iadlPcaInitials     String    @default("") @map("iadl_pca_initials")
   iadlClientInitials  String    @default("") @map("iadl_client_initials")
+  iadlTimeBlocks      String    @default("[]") @map("iadl_time_blocks")      // JSON: [{"in":"HH:MM","out":"HH:MM"}]
   // Respite section (mirrors IADL structure)
   respiteActivities     String    @default("{}") @map("respite_activities")
   respiteTimeIn         String?   @map("respite_time_in")
@@ -171,6 +173,7 @@ model TimesheetEntry {
   respiteHours          Float     @default(0) @map("respite_hours")
   respitePcaInitials    String    @default("") @map("respite_pca_initials")
   respiteClientInitials String    @default("") @map("respite_client_initials")
+  respiteTimeBlocks     String    @default("[]") @map("respite_time_blocks") // JSON: [{"in":"HH:MM","out":"HH:MM"}]
   timesheet           Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
 
   @@map("timesheet_entries")
