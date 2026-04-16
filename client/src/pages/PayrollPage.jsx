@@ -76,17 +76,59 @@ function PayrollUploadModal({ onUpload, onClose }) {
 // ────────────────────────────────────────
 // PayrollClientGroup
 // ────────────────────────────────────────
+// Derive service code from service name (mirrors server SERVICE_CODE_RULES)
+function deriveServiceCode(serviceName) {
+    if (!serviceName) return '';
+    const lower = serviceName.toLowerCase();
+    const rules = [
+        { terms: ['self', 'directed'],  code: 'SDPC'  },
+        { terms: ['self', 'direct'],    code: 'SDPC'  },
+        { terms: ['personal', 'care'],  code: 'PCS'   },
+        { terms: ['homemaker'],         code: 'S5130' },
+        { terms: ['attendant'],         code: 'S5125' },
+        { terms: ['companion'],         code: 'S5135' },
+        { terms: ['respite'],           code: 'S5150' },
+    ];
+    for (const rule of rules) {
+        if (rule.terms.every(t => lower.includes(t))) return rule.code;
+    }
+    return '';
+}
+
 function PayrollClientGroup({ clientName, visits, onVisitChange, authMap, mergedOriginalsMap }) {
-    // Auth banner: show raw reported units (for claims review), not reduced payroll units
+    // Match server normalizeName: lowercase, strip non-alphanumeric, sort words
+    const clientKey = (clientName || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').trim().split(/\s+/).filter(Boolean).sort().join(' ');
+    const clientAuthMap = (authMap && authMap[clientKey]) || {};
+
+    // Auth banner: authorization-driven — show every authorized service code,
+    // matched against reported units from the payroll visits
     const authSummary = useMemo(() => {
-        const map = new Map();
+        // Sum reported units by service code — ALL visits regardless of status
+        const reportedMap = new Map();
         for (const v of visits) {
-            if (v.needsReview) continue;
-            const code = v.serviceCode || '—';
-            map.set(code, (map.get(code) || 0) + (v.unitsRaw || 0));
+            const code = v.serviceCode || deriveServiceCode(v.service);
+            if (!code) continue;
+            reportedMap.set(code, (reportedMap.get(code) || 0) + (v.unitsRaw || 0));
         }
-        return [...map.entries()];
-    }, [visits]);
+
+        // Build summary from authorizations first (so all authorized codes show)
+        const result = new Map();
+        for (const [code, authorized] of Object.entries(clientAuthMap)) {
+            const reported = reportedMap.get(code) || 0;
+            result.set(code, { reported, authorized });
+        }
+
+        // Add any reported codes that don't have an authorization (unmatched)
+        for (const [code, reported] of reportedMap) {
+            if (!result.has(code)) {
+                result.set(code, { reported, authorized: null });
+            }
+        }
+
+        // Sort: PCS → S5125 → S5130 → S5150 → S5135 → SDPC
+        const svcOrder = { PCS: 0, S5125: 1, S5130: 2, S5150: 3, S5135: 4, SDPC: 5 };
+        return [...result.entries()].sort((a, b) => (svcOrder[a[0]] ?? 99) - (svcOrder[b[0]] ?? 99));
+    }, [visits, clientAuthMap]);
 
     const total = useMemo(() =>
         visits.filter((v) => !v.voidFlag && !v.needsReview).reduce((s, v) => s + v.finalPayableUnits, 0),
@@ -137,25 +179,20 @@ function PayrollClientGroup({ clientName, visits, onVisitChange, authMap, merged
         return map;
     }, [visits]);
 
-    // Match server normalizeName: lowercase, strip non-alphanumeric, sort words
-    const clientKey = (clientName || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').trim().split(/\s+/).filter(Boolean).sort().join(' ');
-    const clientAuthMap = (authMap && authMap[clientKey]) || {};
-
     return (
         <div className="payroll-client-group">
             <div className="payroll-client-banner">
                 <span>{clientName || <em style={{ color: 'hsl(270 50% 40%)' }}>Unknown Client</em>}</span>
                 {authSummary.length > 0 && (
                     <span className="payroll-client-banner__auths">
-                        {authSummary.map(([code, units], i) => {
-                            const authorized = clientAuthMap[code];
+                        {authSummary.map(([code, { reported, authorized }], i) => {
                             let color = 'inherit';
                             if (authorized != null) {
-                                color = units >= authorized ? 'hsl(142 71% 35%)' : 'hsl(0 72% 45%)';
+                                color = reported >= authorized ? 'hsl(142 71% 35%)' : 'hsl(0 72% 45%)';
                             }
                             return (
                                 <span key={code} style={{ color, marginLeft: i > 0 ? 12 : 0 }}>
-                                    {code}:{units}{authorized != null ? `/${authorized}` : ''}
+                                    {code}:{reported}{authorized != null ? `/${authorized}` : ''}
                                 </span>
                             );
                         })}
@@ -520,25 +557,25 @@ function PayrollRunDetail({ run, onVisitChange, authMap }) {
         );
     }, [run.visits, search, legendFilter]);
 
-    // Service code sort order: PCS → S5125 → S5130 → S5150 → S5135 → SDPC
-    const svcOrder = { PCS: 0, S5125: 1, S5130: 2, S5150: 3, S5135: 4, SDPC: 5 };
-    // Derive sort order from raw service name when serviceCode is empty (e.g. needsReview rows)
+    // Service code sort order: PCS → S5125/S5130 (interleaved by date) → S5150 → S5135 → SDPC
+    // S5125 (Attendant) and S5130 (Homemaker) share priority — they pair on the same day in EVV
+    const svcOrder = { PCS: 0, S5125: 1, S5130: 1, S5150: 2, S5135: 3, SDPC: 4 };
     const svcNameRules = [
-        { terms: ['self', 'directed'],  order: 5 },
-        { terms: ['self', 'direct'],    order: 5 },
+        { terms: ['self', 'directed'],  order: 4 },
+        { terms: ['self', 'direct'],    order: 4 },
         { terms: ['personal', 'care'],  order: 0 },
-        { terms: ['homemaker'],         order: 2 },
+        { terms: ['homemaker'],         order: 1 },
         { terms: ['attendant'],         order: 1 },
-        { terms: ['companion'],         order: 4 },
-        { terms: ['respite'],           order: 3 },
+        { terms: ['companion'],         order: 3 },
+        { terms: ['respite'],           order: 2 },
     ];
-    const getSvcSortOrder = (v) => {
+    const getKnownSvcOrder = (v) => {
         if (v.serviceCode && svcOrder[v.serviceCode] != null) return svcOrder[v.serviceCode];
         const lower = (v.service || '').toLowerCase();
         for (const rule of svcNameRules) {
             if (rule.terms.every((t) => lower.includes(t))) return rule.order;
         }
-        return 99;
+        return null; // truly unknown service
     };
     const clientGroups = useMemo(() => {
         const map = new Map();
@@ -547,21 +584,52 @@ function PayrollRunDetail({ run, onVisitChange, authMap }) {
             if (!map.has(key)) map.set(key, []);
             map.get(key).push(v);
         }
-        // Sort visits within each group: by service code first, then by date
-        // If a visit has no service name/code (e.g. needsReview with missing service), sort purely by date
+        // Sort: service group → date → time-in
+        // No-service rows attach to the service group that has the most entries
+        // on the same date; if no same-date match, defaults to PCS (group 0)
         for (const [, arr] of map) {
-            arr.sort((a, b) => {
-                const sa = getSvcSortOrder(a);
-                const sb = getSvcSortOrder(b);
-                const aNoSvc = sa === 99;
-                const bNoSvc = sb === 99;
-                const da = a.visitDate ? new Date(a.visitDate).getTime() : 0;
-                const db = b.visitDate ? new Date(b.visitDate).getTime() : 0;
-                // If either has no service, sort by date only
-                if (aNoSvc || bNoSvc) return da - db;
-                if (sa !== sb) return sa - sb;
-                return da - db;
+            const orders = arr.map(v => getKnownSvcOrder(v));
+
+            // Resolve unknown service orders by matching to same-date group
+            for (let i = 0; i < orders.length; i++) {
+                if (orders[i] != null) continue;
+                const vDateStr = arr[i].visitDate ? new Date(arr[i].visitDate).toISOString().slice(0, 10) : '';
+                // Count how many known visits each service group has on the same date
+                const groupCounts = new Map();
+                for (let j = 0; j < arr.length; j++) {
+                    if (j === i || orders[j] == null) continue;
+                    const jDateStr = arr[j].visitDate ? new Date(arr[j].visitDate).toISOString().slice(0, 10) : '';
+                    if (jDateStr === vDateStr) {
+                        groupCounts.set(orders[j], (groupCounts.get(orders[j]) || 0) + 1);
+                    }
+                }
+                if (groupCounts.size > 0) {
+                    // Pick the group with the most entries on this date
+                    let best = 0, bestCount = 0;
+                    for (const [grp, cnt] of groupCounts) {
+                        if (cnt > bestCount || (cnt === bestCount && grp < best)) {
+                            best = grp;
+                            bestCount = cnt;
+                        }
+                    }
+                    orders[i] = best;
+                } else {
+                    orders[i] = 0; // default to PCS group
+                }
+            }
+
+            const sortKeys = arr.map((v, i) => ({
+                v,
+                svc: orders[i],
+                date: v.visitDate ? new Date(v.visitDate).getTime() : 0,
+                time: v.callInTime || '',
+            }));
+            sortKeys.sort((a, b) => {
+                if (a.svc !== b.svc) return a.svc - b.svc;
+                if (a.date !== b.date) return a.date - b.date;
+                return a.time.localeCompare(b.time);
             });
+            for (let i = 0; i < arr.length; i++) arr[i] = sortKeys[i].v;
         }
         // Sort client groups: real names first (alphabetical), then unknown/phone at bottom
         const isUnknownClient = (name) => !name || name === '(Unknown Client)' || /^\d/.test(name) || /^\(/.test(name);
