@@ -758,6 +758,7 @@ export default function SchedulingPage() {
     const [clientShifts, setClientShifts] = useState([]);
     const [clientOverlaps, setClientOverlaps] = useState([]);
     const [clientInfo, setClientInfo] = useState(null);
+    const [clientUnitSummary, setClientUnitSummary] = useState({});
     const [loadingClient, setLoadingClient] = useState(false);
 
     // Top-right: selected employee's schedule
@@ -803,6 +804,7 @@ export default function SchedulingPage() {
             setClientShifts([]);
             setClientOverlaps([]);
             setClientInfo(null);
+            setClientUnitSummary({});
             return;
         }
         try {
@@ -811,6 +813,7 @@ export default function SchedulingPage() {
             setClientShifts(data.shifts || []);
             setClientOverlaps(data.overlaps || []);
             setClientInfo(data.client || null);
+            setClientUnitSummary(data.unitSummary || {});
         } catch (err) { showToast(err.message, 'error'); }
         finally { setLoadingClient(false); }
     }, [selectedClientId, weekStart, showToast]);
@@ -1026,6 +1029,35 @@ export default function SchedulingPage() {
                                         {clientInfo.notes && <div className="sched-client-info__notes">{clientInfo.notes}</div>}
                                     </div>
                                 )}
+                                {Object.keys(clientUnitSummary).length > 0 && (
+                                    <div className="sched-client-auth-summary">
+                                        {Object.entries(clientUnitSummary).map(([code, data]) => {
+                                            const colorInfo = SERVICE_COLORS[code] || { color: '#6B7280', label: code };
+                                            const authHrs = Math.round((data.authorized / 4) * 100) / 100;
+                                            const schedHrs = Math.round((data.scheduled / 4) * 100) / 100;
+                                            const remainHrs = Math.round(((data.authorized - data.scheduled) / 4) * 100) / 100;
+                                            const pct = data.authorized > 0 ? Math.min((data.scheduled / data.authorized) * 100, 100) : 0;
+                                            return (
+                                                <div key={code} className="sched-client-auth-row">
+                                                    <div className="sched-client-auth-row__header">
+                                                        <span className="sched-client-auth-row__dot" style={{ background: colorInfo.color }} />
+                                                        <span className="sched-client-auth-row__code">{colorInfo.label || code}</span>
+                                                    </div>
+                                                    <div className="sched-client-auth-row__bar">
+                                                        <div className="sched-client-auth-row__bar-fill" style={{ width: `${pct}%`, background: getUsageColor(data.scheduled, data.authorized) }} />
+                                                    </div>
+                                                    <div className="sched-client-auth-row__nums">
+                                                        <span>Auth: <strong>{authHrs}h</strong> ({data.authorized}u)</span>
+                                                        <span>Sched: <strong>{schedHrs}h</strong> ({data.scheduled}u)</span>
+                                                        <span style={{ color: remainHrs < 0 ? 'hsl(0 84% 60%)' : 'hsl(142 71% 35%)' }}>
+                                                            Remain: <strong>{remainHrs}h</strong> ({data.remaining}u)
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                                 <ScheduleMatrix shifts={clientShifts} weekStart={weekStart} rowBy="employee" onEditShift={handleEditShift} overlapIds={clientOverlapIds} />
                             </>
                         )}
@@ -1057,6 +1089,58 @@ export default function SchedulingPage() {
                                         {employeeInfo.email && <span> — {employeeInfo.email}</span>}
                                     </div>
                                 )}
+                                {employeeShifts.length > 0 && (() => {
+                                    const activeShifts = employeeShifts.filter(s => s.status !== 'cancelled');
+                                    const weeklyHrs = Math.round(activeShifts.reduce((sum, s) => sum + (s.hours || 0), 0) * 100) / 100;
+
+                                    // Daily totals
+                                    const ws = new Date(weekStart + 'T00:00:00');
+                                    const dayAbbr = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                                    const dailyTotals = [];
+                                    for (let i = 0; i < 7; i++) {
+                                        const d = new Date(ws);
+                                        d.setDate(ws.getDate() + i);
+                                        const dateStr = toLocalDateStr(d);
+                                        const dayHrs = activeShifts.filter(s => toLocalDateStr(s.shiftDate) === dateStr).reduce((sum, s) => sum + (s.hours || 0), 0);
+                                        dailyTotals.push({ abbr: dayAbbr[i], hrs: Math.round(dayHrs * 100) / 100 });
+                                    }
+
+                                    // Per-client breakdown
+                                    const clientMap = new Map();
+                                    for (const s of activeShifts) {
+                                        const name = s.client?.clientName || 'Unknown';
+                                        clientMap.set(name, (clientMap.get(name) || 0) + (s.hours || 0));
+                                    }
+                                    const clientBreakdown = [...clientMap.entries()].sort((a, b) => b[1] - a[1]).map(([name, hrs]) => ({ name, hrs: Math.round(hrs * 100) / 100 }));
+
+                                    return (
+                                        <div className="sched-emp-totals">
+                                            <div className="sched-emp-totals__weekly">
+                                                <span className="sched-emp-totals__weekly-label">Weekly Total</span>
+                                                <span className="sched-emp-totals__weekly-value">{weeklyHrs} hrs</span>
+                                            </div>
+                                            <div className="sched-emp-totals__daily">
+                                                {dailyTotals.map(d => (
+                                                    <div key={d.abbr} className={`sched-emp-totals__day ${d.hrs > 0 ? 'sched-emp-totals__day--active' : ''}`}>
+                                                        <span className="sched-emp-totals__day-name">{d.abbr}</span>
+                                                        <span className="sched-emp-totals__day-hrs">{d.hrs > 0 ? `${d.hrs}h` : '—'}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            {clientBreakdown.length > 0 && (
+                                                <div className="sched-emp-totals__clients">
+                                                    <span className="sched-emp-totals__clients-label">Per Client</span>
+                                                    {clientBreakdown.map(c => (
+                                                        <div key={c.name} className="sched-emp-totals__client-row">
+                                                            <span>{c.name}</span>
+                                                            <span className="sched-emp-totals__client-hrs">{c.hrs} hrs</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                                 <ScheduleMatrix shifts={employeeShifts} weekStart={weekStart} rowBy="client" onEditShift={handleEditShift} overlapIds={employeeOverlapIds} />
                             </>
                         )}
@@ -1079,11 +1163,6 @@ export default function SchedulingPage() {
                         </div>
                     }
                 >
-                    <HoursSummaryBar
-                        summaryViewBy={summaryViewBy}
-                        unitSummaries={unitSummaries}
-                        shifts={allShifts}
-                    />
                     {loadingAll ? (
                         <div style={{ textAlign: 'center', padding: 40, color: 'hsl(var(--muted-foreground))' }}>Loading shifts…</div>
                     ) : allShifts.length === 0 ? (
