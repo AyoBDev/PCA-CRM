@@ -60,6 +60,18 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
     const [clientGateCode, setClientGateCode] = useState(selectedClient?.gateCode || '');
     const [clientNotes, setClientNotes] = useState(selectedClient?.notes || '');
 
+    // Authorized service codes for the selected client (from master sheet)
+    const authorizedServices = useMemo(() => {
+        if (!selectedClient?.authorizations?.length) return [];
+        const now = new Date();
+        const codes = new Set();
+        for (const auth of selectedClient.authorizations) {
+            if (auth.authorizationEndDate && new Date(auth.authorizationEndDate) < now) continue;
+            if (auth.serviceCode) codes.add(auth.serviceCode);
+        }
+        return [...codes];
+    }, [selectedClient]);
+
     // Edit mode: single day fields
     const [serviceCode, setServiceCode] = useState(shift?.serviceCode || 'PCS');
     const [shiftDate, setShiftDate] = useState(shift?.shiftDate ? toLocalDateStr(shift.shiftDate) : (defaultDate || ''));
@@ -120,6 +132,19 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
             setClientNotes(c.notes || '');
         }
     }, [clientId, clients]);
+
+    // Reset service code when client changes if current selection isn't authorized
+    useEffect(() => {
+        if (authorizedServices.length > 0 && !authorizedServices.includes(serviceCode)) {
+            setServiceCode(authorizedServices[0]);
+        }
+        if (authorizedServices.length > 0) {
+            setDayEntries(prev => prev.map(e => ({
+                ...e,
+                serviceCode: authorizedServices.includes(e.serviceCode) ? e.serviceCode : authorizedServices[0],
+            })));
+        }
+    }, [authorizedServices]);
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -251,6 +276,9 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                             <option value="">Select client…</option>
                             {clients.map(c => <option key={c.id} value={c.id}>{c.clientName}</option>)}
                         </select>
+                        {clientId && authorizedServices.length === 0 && (
+                            <p style={{ color: '#ef4444', fontSize: 12, margin: '4px 0 0' }}>This client has no active authorizations. Cannot create shifts.</p>
+                        )}
                     </div>
                     <div className="form-group" ref={empRef} style={{ position: 'relative' }}>
                         <label htmlFor="shiftEmployee">Employee</label>
@@ -317,9 +345,15 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <span style={{ width: 12, height: 12, borderRadius: '50%', background: editColorInfo.color, flexShrink: 0 }} />
                                     <select id="shiftService" value={serviceCode} onChange={e => setServiceCode(e.target.value)} style={{ flex: 1 }}>
-                                        {Object.entries(SERVICE_COLORS).map(([code, info]) => (
-                                            <option key={code} value={code}>{info.label} ({code})</option>
-                                        ))}
+                                        {clientId && authorizedServices.length > 0
+                                            ? authorizedServices.map(code => {
+                                                const info = SERVICE_COLORS[code] || { label: code };
+                                                return <option key={code} value={code}>{info.label} ({code})</option>;
+                                            })
+                                            : Object.entries(SERVICE_COLORS).map(([code, info]) => (
+                                                <option key={code} value={code}>{info.label} ({code})</option>
+                                            ))
+                                        }
                                     </select>
                                 </div>
                             </div>
@@ -391,9 +425,15 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                         <span style={{ width: 10, height: 10, borderRadius: '50%', background: dayColorInfo.color, flexShrink: 0 }} />
                                                         <select value={entry.serviceCode} onChange={e => updateDayEntry(i, 'serviceCode', e.target.value)} className="sched-day-row__input">
-                                                            {Object.entries(SERVICE_COLORS).map(([code, info]) => (
-                                                                <option key={code} value={code}>{info.label}</option>
-                                                            ))}
+                                                            {clientId && authorizedServices.length > 0
+                                                                ? authorizedServices.map(code => {
+                                                                    const info = SERVICE_COLORS[code] || { label: code };
+                                                                    return <option key={code} value={code}>{info.label}</option>;
+                                                                })
+                                                                : Object.entries(SERVICE_COLORS).map(([code, info]) => (
+                                                                    <option key={code} value={code}>{info.label}</option>
+                                                                ))
+                                                            }
                                                         </select>
                                                     </div>
                                                 </div>
@@ -504,7 +544,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                         </div>
                     )}
                     <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn--primary" disabled={saving || (!isEdit && enabledCount === 0)}>
+                    <button type="submit" className="btn btn--primary" disabled={saving || (!isEdit && enabledCount === 0) || (clientId && authorizedServices.length === 0)}>
                         {saving ? 'Saving…' : isEdit ? 'Update Shift' : `Create ${enabledCount} Shift${enabledCount !== 1 ? 's' : ''}`}
                     </button>
                 </div>
@@ -1030,33 +1070,37 @@ export default function SchedulingPage() {
                                     </div>
                                 )}
                                 {Object.keys(clientUnitSummary).length > 0 && (
-                                    <div className="sched-client-auth-summary">
-                                        {Object.entries(clientUnitSummary).map(([code, data]) => {
-                                            const colorInfo = SERVICE_COLORS[code] || { color: '#6B7280', label: code };
-                                            const authHrs = Math.round((data.authorized / 4) * 100) / 100;
-                                            const schedHrs = Math.round((data.scheduled / 4) * 100) / 100;
-                                            const remainHrs = Math.round(((data.authorized - data.scheduled) / 4) * 100) / 100;
-                                            const pct = data.authorized > 0 ? Math.min((data.scheduled / data.authorized) * 100, 100) : 0;
-                                            return (
-                                                <div key={code} className="sched-client-auth-row">
-                                                    <div className="sched-client-auth-row__header">
-                                                        <span className="sched-client-auth-row__dot" style={{ background: colorInfo.color }} />
-                                                        <span className="sched-client-auth-row__code">{colorInfo.label || code}</span>
-                                                    </div>
-                                                    <div className="sched-client-auth-row__bar">
-                                                        <div className="sched-client-auth-row__bar-fill" style={{ width: `${pct}%`, background: getUsageColor(data.scheduled, data.authorized) }} />
-                                                    </div>
-                                                    <div className="sched-client-auth-row__nums">
-                                                        <span>Auth: <strong>{authHrs}h</strong> ({data.authorized}u)</span>
-                                                        <span>Sched: <strong>{schedHrs}h</strong> ({data.scheduled}u)</span>
-                                                        <span style={{ color: remainHrs < 0 ? 'hsl(0 84% 60%)' : 'hsl(142 71% 35%)' }}>
-                                                            Remain: <strong>{remainHrs}h</strong> ({data.remaining}u)
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
+                                    <table className="sched-auth-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Service</th>
+                                                <th>Authorized</th>
+                                                <th>Scheduled</th>
+                                                <th>Remaining</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {Object.entries(clientUnitSummary).map(([code, data]) => {
+                                                const colorInfo = SERVICE_COLORS[code] || { color: '#6B7280', label: code };
+                                                const authHrs = Math.round((data.authorized / 4) * 100) / 100;
+                                                const schedHrs = Math.round((data.scheduled / 4) * 100) / 100;
+                                                const remainHrs = Math.round(((data.authorized - data.scheduled) / 4) * 100) / 100;
+                                                return (
+                                                    <tr key={code}>
+                                                        <td>
+                                                            <span className="sched-auth-table__svc">
+                                                                <span className="sched-auth-table__dot" style={{ background: colorInfo.color }} />
+                                                                {colorInfo.label}
+                                                            </span>
+                                                        </td>
+                                                        <td>{authHrs} hrs</td>
+                                                        <td>{schedHrs} hrs</td>
+                                                        <td style={{ color: remainHrs < 0 ? '#ef4444' : '#22c55e', fontWeight: 600 }}>{remainHrs} hrs</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
                                 )}
                                 <ScheduleMatrix shifts={clientShifts} weekStart={weekStart} rowBy="employee" onEditShift={handleEditShift} overlapIds={clientOverlapIds} />
                             </>
@@ -1175,7 +1219,7 @@ export default function SchedulingPage() {
                 </ScheduleCard>
 
                 {/* Schedule Delivery */}
-                <ScheduleDelivery weekStart={weekStart} />
+                <ScheduleDelivery weekStart={weekStart} shifts={allShifts} />
 
                 {/* Service Legend */}
                 <div className="sched-legend">

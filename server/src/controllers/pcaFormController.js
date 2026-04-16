@@ -42,6 +42,15 @@ function getCurrentWeekStart() {
   return sunday;
 }
 
+// Parse a YYYY-MM-DD string to a Date snapped to Sunday.
+// Uses local time to stay consistent with getCurrentWeekStart().
+function normalizeWeekStart(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() - d.getDay());
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 function hasActivity(activitiesJson) {
   try {
     const obj = JSON.parse(activitiesJson || '{}');
@@ -104,12 +113,7 @@ async function getPcaForm(req, res, next) {
 
     let weekStart;
     if (req.query.weekStart) {
-      // Parse the provided Sunday date
-      const d = new Date(req.query.weekStart + 'T00:00:00');
-      // Snap to Sunday if needed
-      d.setDate(d.getDate() - d.getDay());
-      d.setHours(0, 0, 0, 0);
-      weekStart = d;
+      weekStart = normalizeWeekStart(req.query.weekStart);
     } else {
       weekStart = getCurrentWeekStart();
     }
@@ -169,19 +173,36 @@ async function updatePcaForm(req, res, next) {
 
     let weekStart;
     if (req.body.weekStart) {
-      const d = new Date(req.body.weekStart + 'T00:00:00');
-      d.setDate(d.getDate() - d.getDay());
-      d.setHours(0, 0, 0, 0);
-      weekStart = d;
+      weekStart = normalizeWeekStart(req.body.weekStart);
     } else {
       weekStart = getCurrentWeekStart();
     }
-    const timesheet = await prisma.timesheet.findFirst({
+    let timesheet = await prisma.timesheet.findFirst({
       where: { clientId: link.clientId, pcaName: link.pcaName, weekStart },
       include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
     });
 
-    if (!timesheet) return res.status(404).json({ error: 'No timesheet found for current week' });
+    // Auto-create timesheet if it doesn't exist yet (same as GET handler)
+    if (!timesheet) {
+      const entryData = [];
+      for (let d = 0; d < 7; d++) {
+        const date = new Date(weekStart);
+        date.setDate(date.getDate() + d);
+        entryData.push({
+          dayOfWeek: d,
+          dateOfService: date.toISOString().slice(0, 10),
+        });
+      }
+      timesheet = await prisma.timesheet.create({
+        data: {
+          clientId: link.clientId,
+          pcaName: link.pcaName,
+          weekStart,
+          entries: { create: entryData },
+        },
+        include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
+      });
+    }
     if (timesheet.status === 'submitted') return res.status(400).json({ error: 'Timesheet already submitted' });
 
     const { action, entries, pcaFullName, pcaSignature, recipientName, recipientSignature } = req.body;
@@ -307,7 +328,15 @@ async function updatePcaForm(req, res, next) {
       include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
     });
 
-    res.json({ timesheet: updated });
+    res.json({
+      client: {
+        id: link.client.id,
+        clientName: link.client.clientName,
+        enabledServices,
+      },
+      pcaName: link.pcaName,
+      timesheet: updated,
+    });
   } catch (err) {
     next(err);
   }
