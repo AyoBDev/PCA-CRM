@@ -154,6 +154,18 @@ async function createShift(req, res, next) {
                 return res.status(400).json({ error: `Invalid account number. Must be one of: ${VALID_ACCOUNT_NUMBERS.join(', ')}` });
             }
 
+            // Validate all service codes are authorized for this client
+            const now = new Date();
+            const clientAuths = await prisma.authorization.findMany({
+                where: { clientId: Number(clientId), authorizationEndDate: { gte: now } },
+                select: { serviceCode: true },
+            });
+            const authorizedCodes = new Set(clientAuths.map(a => a.serviceCode));
+            const unauthorized = [...new Set(bulkShifts.map(s => s.serviceCode))].filter(c => !authorizedCodes.has(c));
+            if (unauthorized.length > 0) {
+                return res.status(400).json({ error: `Service${unauthorized.length > 1 ? 's' : ''} not authorized for this client: ${unauthorized.join(', ')}` });
+            }
+
             // Check overlaps for all entries
             if (!force) {
                 const allConflicts = [];
@@ -214,6 +226,15 @@ async function createShift(req, res, next) {
         if (accountNumber && !VALID_ACCOUNT_NUMBERS.includes(accountNumber)) {
             return res.status(400).json({ error: `Invalid account number. Must be one of: ${VALID_ACCOUNT_NUMBERS.join(', ')}` });
         }
+
+        // Validate service is authorized for this client
+        const singleAuth = await prisma.authorization.findFirst({
+            where: { clientId: Number(clientId), serviceCode, authorizationEndDate: { gte: new Date() } },
+        });
+        if (!singleAuth) {
+            return res.status(400).json({ error: `Service ${serviceCode} is not authorized for this client` });
+        }
+
         const { hours, units } = computeShiftHours(startTime, endTime);
         const baseData = {
             clientId: Number(clientId),

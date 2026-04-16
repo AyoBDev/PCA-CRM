@@ -2935,58 +2935,42 @@ button.sdr-section-tag:hover:not(:disabled) {
     color: hsl(var(--foreground));
 }
 
-/* Client Auth Summary (per-service breakdown in Client Schedule card) */
-.sched-client-auth-summary {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 10px 12px;
-    margin-bottom: 12px;
-    background: hsl(var(--muted) / 0.4);
-    border-radius: var(--radius);
-    border: 1px solid hsl(var(--border));
+/* Client Auth Summary — simple table in Client Schedule card */
+.sched-auth-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 14px;
+    font-size: 13px;
 }
-.sched-client-auth-row__header {
+.sched-auth-table th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: hsl(var(--muted-foreground));
+    padding: 6px 10px;
+    border-bottom: 1px solid hsl(var(--border));
+}
+.sched-auth-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid hsl(var(--border) / 0.5);
+    color: hsl(var(--foreground));
+}
+.sched-auth-table tbody tr:last-child td {
+    border-bottom: none;
+}
+.sched-auth-table__svc {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin-bottom: 4px;
+    gap: 8px;
+    font-weight: 500;
 }
-.sched-client-auth-row__dot {
+.sched-auth-table__dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
     flex-shrink: 0;
-}
-.sched-client-auth-row__code {
-    font-size: 12px;
-    font-weight: 600;
-    color: hsl(var(--foreground));
-}
-.sched-client-auth-row__bar {
-    height: 6px;
-    background: hsl(var(--muted));
-    border-radius: 3px;
-    overflow: hidden;
-    margin-bottom: 4px;
-}
-.sched-client-auth-row__bar-fill {
-    height: 100%;
-    border-radius: 3px;
-    transition: width 0.3s;
-}
-.sched-client-auth-row__nums {
-    display: flex;
-    gap: 12px;
-    font-size: 11px;
-    color: hsl(var(--muted-foreground));
-}
-.sched-client-auth-row__nums strong {
-    color: hsl(var(--foreground));
-}
-.sched-client-auth-row + .sched-client-auth-row {
-    padding-top: 8px;
-    border-top: 1px solid hsl(var(--border) / 0.5);
 }
 
 /* Employee Totals (in Employee Schedule card) */
@@ -3167,6 +3151,25 @@ button.sdr-section-tag:hover:not(:disabled) {
 }
 .sched-legend__item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: hsl(var(--muted-foreground)); }
 .sched-legend__dot { width: 10px; height: 10px; border-radius: 50%; }
+
+/* Schedule Delivery — copyable text area */
+.sched-delivery-text {
+    width: 100%;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    background: hsl(var(--muted) / 0.3);
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    padding: 12px;
+    color: hsl(var(--foreground));
+    resize: vertical;
+    cursor: text;
+}
+.sched-delivery-text:focus {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 1px;
+}
 
 /* ── Modal-specific scheduling styles ── */
 
