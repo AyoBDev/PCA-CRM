@@ -74,7 +74,7 @@ async function getScheduleView(req, res) {
     const shifts = await prisma.shift.findMany({
         where: {
             employeeId: link.employeeId,
-            shiftDate: { gte: new Date(weekStart), lte: new Date(weekEnd) },
+            shiftDate: { gte: new Date(weekStart + 'T00:00:00.000Z'), lte: new Date(weekEnd + 'T23:59:59.999Z') },
             status: { not: 'cancelled' },
             archivedAt: null,
         },

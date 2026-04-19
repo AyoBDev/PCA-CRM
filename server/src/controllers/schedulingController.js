@@ -598,7 +598,7 @@ async function authCheck(req, res, next) {
                 where: {
                     clientId: Number(clientId),
                     serviceCode,
-                    shiftDate: { gte: new Date(ws), lte: new Date(we) },
+                    shiftDate: { gte: new Date(ws + 'T00:00:00.000Z'), lte: new Date(we + 'T23:59:59.999Z') },
                     status: { not: 'cancelled' },
                 },
                 select: { units: true },

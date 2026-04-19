@@ -15,7 +15,7 @@ async function sendSchedules(req, res) {
 
     // Get all shifts for the week, grouped by employee
     const where = {
-        shiftDate: { gte: new Date(ws), lte: new Date(we) },
+        shiftDate: { gte: new Date(ws + 'T00:00:00.000Z'), lte: new Date(we + 'T23:59:59.999Z') },
         status: { not: 'cancelled' },
     };
     if (employeeIds?.length) where.employeeId = { in: employeeIds };
@@ -140,7 +140,7 @@ async function getScheduleConfirm(req, res) {
     const shifts = await prisma.shift.findMany({
         where: {
             employeeId: notification.employeeId,
-            shiftDate: { gte: new Date(ws), lte: new Date(we) },
+            shiftDate: { gte: new Date(ws + 'T00:00:00.000Z'), lte: new Date(we + 'T23:59:59.999Z') },
             status: { not: 'cancelled' },
         },
         include: {
