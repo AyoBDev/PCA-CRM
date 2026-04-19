@@ -546,6 +546,65 @@ body {
   height: 16px;
 }
 
+/* ─── Archive Toggle ─── */
+.archive-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid hsl(var(--input));
+  background: hsl(var(--background));
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.archive-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+.archive-toggle:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.archived-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: hsl(38 100% 96%);
+  border: 1px solid hsl(38 92% 80%);
+  border-radius: var(--radius);
+  color: hsl(38 92% 35%);
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+.archived-banner svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.btn--restore {
+  background: transparent;
+  color: hsl(142 71% 35%);
+  border-color: transparent;
+  padding: 4px 8px;
+  font-size: 11px;
+  gap: 4px;
+}
+.btn--restore svg {
+  width: 13px;
+  height: 13px;
+}
+.btn--restore:hover {
+  background: hsl(142 76% 96%);
+}
+
 /* ─── Table Card ─── */
 .sheet-card {
   background: hsl(var(--card));
@@ -1020,21 +1079,23 @@ body {
 /* ─── Toast ─── */
 .toast {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
+  bottom: 20px;
+  right: 20px;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 18px;
+  padding: 12px 16px;
   border-radius: var(--radius);
   font-size: 13px;
   font-weight: 500;
   border: 1px solid hsl(var(--border));
-  background: hsl(var(--background));
+  background: hsl(var(--card));
   color: hsl(var(--foreground));
-  box-shadow: 0 4px 24px hsl(var(--foreground) / 0.08);
+  box-shadow: 0 4px 12px hsl(var(--foreground) / 0.12);
   z-index: 200;
-  animation: toastIn 0.3s ease;
+  max-width: 360px;
+  animation: toastIn 0.25s ease;
+  overflow: hidden;
 }
 
 .toast svg {
@@ -1044,25 +1105,60 @@ body {
 }
 
 .toast--success {
-  border-color: hsl(var(--success));
+  border-left: 3px solid hsl(142 71% 45%);
 }
-
 .toast--success svg {
-  color: hsl(var(--success));
+  color: hsl(142 71% 45%);
 }
 
 .toast--error {
-  border-color: hsl(var(--destructive));
+  border-left: 3px solid hsl(var(--destructive));
 }
-
 .toast--error svg {
   color: hsl(var(--destructive));
+}
+
+.toast--undo {
+  border-left: 3px solid hsl(35 80% 50%);
+}
+.toast--undo svg {
+  color: hsl(35 80% 50%);
+}
+
+.toast__message { flex: 1; }
+
+.toast__undo-btn {
+  padding: 4px 10px;
+  border: 1px solid hsl(var(--primary));
+  border-radius: var(--radius);
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.toast__undo-btn:hover {
+  opacity: 0.9;
+}
+
+.toast__progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: hsl(35 80% 50%);
+  transition: width 50ms linear;
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.toast:not(.toast--undo) .toast__progress {
+  display: none;
 }
 
 @keyframes toastIn {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(8px);
   }
 
   to {
@@ -1606,6 +1702,13 @@ button.sdr-section-tag:hover:not(:disabled) {
 .sdr-activity-row:hover {
   background: hsl(var(--muted) / 0.25);
 }
+.sdr-activity-row--respite {
+  background: hsl(195 80% 96%);
+  border-top: 1.5px solid hsl(195 60% 80%);
+}
+.sdr-activity-row--respite .sdr-activity-label {
+  color: hsl(195 70% 35%);
+}
 
 .sdr-activity-label {
   font-size: 12px;
@@ -1656,6 +1759,31 @@ button.sdr-section-tag:hover:not(:disabled) {
 .sdr-time-row {
   background: hsl(var(--muted) / 0.15);
   border-top: 1px solid hsl(var(--border));
+}
+
+/* Required field asterisk */
+.sdr-required {
+  color: hsl(0 84% 60%);
+  font-weight: 700;
+  margin-left: 2px;
+}
+
+/* Extra shift color bands */
+.sdr-shift--s2 {
+  background: hsl(210 80% 95%);
+  border-left: 3px solid hsl(210 70% 55%);
+}
+.sdr-shift--s3 {
+  background: hsl(150 60% 94%);
+  border-left: 3px solid hsl(150 50% 45%);
+}
+.sdr-shift--s4 {
+  background: hsl(35 80% 94%);
+  border-left: 3px solid hsl(35 70% 50%);
+}
+.sdr-shift--s5 {
+  background: hsl(280 60% 95%);
+  border-left: 3px solid hsl(280 50% 55%);
 }
 
 .sdr-time-input {
@@ -2683,6 +2811,62 @@ button.sdr-section-tag:hover:not(:disabled) {
 .sched-card__body {
     padding: 16px;
 }
+.sched-card__chevron {
+    display: flex;
+    align-items: center;
+    transition: transform 0.2s;
+}
+.sched-card__chevron--open {
+    transform: rotate(90deg);
+}
+.sched-card--collapsed .sched-card__header {
+    border-radius: 10px;
+}
+
+/* Expand / fullscreen button */
+.sched-card__expand-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.sched-card__expand-btn:hover {
+    background: rgba(255,255,255,0.3);
+}
+
+/* Fullscreen card */
+.sched-card--fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+    margin: 0;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+}
+.sched-card--fullscreen .sched-card__header {
+    border-radius: 0;
+    flex-shrink: 0;
+}
+.sched-card--fullscreen .sched-card__body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+}
+.sched-card__backdrop {
+    display: none;
+}
 
 /* ── Authorization Summary Bar ── */
 .sched-auth-bar {
@@ -3187,6 +3371,34 @@ button.sdr-section-tag:hover:not(:disabled) {
 .sched-hours-display__value { font-size: 18px; font-weight: 700; color: hsl(var(--foreground)); }
 .sched-hours-display__label { font-size: 12px; color: hsl(var(--muted-foreground)); }
 .sched-hours-display__sep { font-size: 14px; color: hsl(var(--muted-foreground)); margin: 0 2px; }
+
+/* Authorized services table inside shift modal */
+.sched-modal-auth-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 14px;
+    font-size: 13px;
+    background: hsl(var(--muted) / 0.3);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.sched-modal-auth-table th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: hsl(var(--muted-foreground));
+    padding: 6px 12px;
+    border-bottom: 1px solid hsl(var(--border));
+}
+.sched-modal-auth-table td {
+    padding: 6px 12px;
+    color: hsl(var(--foreground));
+}
+.sched-modal-auth-table tbody tr + tr td {
+    border-top: 1px solid hsl(var(--border) / 0.4);
+}
 
 /* Employee Mode Toggle */
 .sched-emp-toggle {

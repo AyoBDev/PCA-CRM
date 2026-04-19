@@ -59,18 +59,19 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
 }
 
 export default function EmployeesPage() {
-    const { showToast } = useToast();
+    const { showToast, showUndoToast } = useToast();
     const [employees, setEmployees] = useState([]);
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [filterActive, setFilterActive] = useState('true');
     const [modal, setModal] = useState(null);
+    const [showArchived, setShowArchived] = useState(false);
 
     const fetchData = useCallback(async () => {
         try {
             const [emps, usrs] = await Promise.all([
-                api.getEmployees({ active: filterActive }),
+                api.getEmployees({ active: filterActive }, { archived: showArchived }),
                 api.getUsers(),
             ]);
             setEmployees(emps);
@@ -80,7 +81,7 @@ export default function EmployeesPage() {
         } finally {
             setLoading(false);
         }
-    }, [filterActive, showToast]);
+    }, [filterActive, showArchived, showToast]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -102,13 +103,25 @@ export default function EmployeesPage() {
 
     const handleDelete = async () => {
         try {
-            await api.deleteEmployee(modal.employee.id);
-            showToast('Employee deleted');
+            const emp = modal.employee;
+            await api.deleteEmployee(emp.id);
             setModal(null);
             fetchData();
+            showUndoToast(`"${emp.name}" archived`, async () => {
+                await api.restoreEmployee(emp.id);
+                fetchData();
+            });
         } catch (err) {
             showToast(err.message, 'error');
         }
+    };
+
+    const handleRestore = async (emp) => {
+        try {
+            await api.restoreEmployee(emp.id);
+            showToast(`"${emp.name}" restored`);
+            fetchData();
+        } catch (err) { showToast(err.message, 'error'); }
     };
 
     const handleToggleActive = async (emp) => {
@@ -137,22 +150,40 @@ export default function EmployeesPage() {
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                     />
-                    <select
-                        className="filter-select"
-                        value={filterActive}
-                        onChange={e => setFilterActive(e.target.value)}
-                    >
-                        <option value="true">Active</option>
-                        <option value="false">Inactive</option>
-                        <option value="">All</option>
-                    </select>
-                    <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'form' })}>
-                        {Icons.plus} Add Employee
-                    </button>
+                    {!showArchived && (
+                        <select
+                            className="filter-select"
+                            value={filterActive}
+                            onChange={e => setFilterActive(e.target.value)}
+                        >
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
+                            <option value="">All</option>
+                        </select>
+                    )}
+                    {!showArchived && (
+                        <button className="archive-toggle" onClick={() => setShowArchived(true)}>
+                            {Icons.archive} View Archived
+                        </button>
+                    )}
+                    {!showArchived && (
+                        <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'form' })}>
+                            {Icons.plus} Add Employee
+                        </button>
+                    )}
                 </div>
             </div>
 
             <div className="page-content">
+                {showArchived && (
+                    <div className="archived-banner">
+                        {Icons.archive}
+                        <span style={{ flex: 1 }}>Viewing archived employees. Click "Restore" to bring items back.</span>
+                        <button className="btn btn--outline btn--sm" onClick={() => setShowArchived(false)}>
+                            {Icons.chevronLeft} Back to Active
+                        </button>
+                    </div>
+                )}
                 {loading ? (
                     <div style={{ padding: 16 }}>
                         {[1, 2, 3].map(i => <div key={i} className="skeleton skeleton-row" style={{ marginBottom: 4 }} />)}
@@ -190,15 +221,23 @@ export default function EmployeesPage() {
                                         </td>
                                         <td>
                                             <div className="row-actions">
-                                                <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'form', employee: emp })} title="Edit">
-                                                    {Icons.edit}
-                                                </button>
-                                                <button className="btn btn--ghost btn--icon" onClick={() => handleToggleActive(emp)} title={emp.active ? 'Deactivate' : 'Activate'}>
-                                                    {emp.active ? Icons.shieldCheck : Icons.checkCircle}
-                                                </button>
-                                                <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDelete', employee: emp })} title="Delete">
-                                                    {Icons.trash}
-                                                </button>
+                                                {showArchived ? (
+                                                    <button className="btn btn--restore" onClick={() => handleRestore(emp)} title="Restore">
+                                                        {Icons.rotateCcw} Restore
+                                                    </button>
+                                                ) : (
+                                                    <>
+                                                        <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'form', employee: emp })} title="Edit">
+                                                            {Icons.edit}
+                                                        </button>
+                                                        <button className="btn btn--ghost btn--icon" onClick={() => handleToggleActive(emp)} title={emp.active ? 'Deactivate' : 'Activate'}>
+                                                            {emp.active ? Icons.shieldCheck : Icons.checkCircle}
+                                                        </button>
+                                                        <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDelete', employee: emp })} title="Delete">
+                                                            {Icons.trash}
+                                                        </button>
+                                                    </>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

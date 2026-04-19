@@ -17,16 +17,18 @@ async function getDashboardStats(req, res) {
         timesheetSubmitted,
         payrollRuns,
     ] = await Promise.all([
-        prisma.client.count(),
-        prisma.employee.count({ where: { active: true } }),
+        prisma.client.count({ where: { archivedAt: null } }),
+        prisma.employee.count({ where: { active: true, archivedAt: null } }),
         prisma.shift.count({
             where: {
+                archivedAt: null,
                 shiftDate: new Date(today),
                 status: { not: 'cancelled' },
             },
         }),
         prisma.shift.findMany({
             where: {
+                archivedAt: null,
                 shiftDate: { gte: new Date(weekStart), lte: new Date(weekEnd) },
                 status: { not: 'cancelled' },
             },
@@ -36,11 +38,13 @@ async function getDashboardStats(req, res) {
             where: { status: { in: ['pending', 'sent'] }, confirmedAt: null },
         }),
         prisma.client.findMany({
+            where: { archivedAt: null },
             include: { authorizations: true },
         }),
-        prisma.timesheet.count({ where: { status: 'draft' } }),
-        prisma.timesheet.count({ where: { status: 'submitted' } }),
+        prisma.timesheet.count({ where: { status: 'draft', archivedAt: null } }),
+        prisma.timesheet.count({ where: { status: 'submitted', archivedAt: null } }),
         prisma.payrollRun.findMany({
+            where: { archivedAt: null },
             orderBy: { createdAt: 'desc' },
             take: 3,
             select: { id: true, name: true, status: true, totalVisits: true, totalPayable: true, createdAt: true },

@@ -697,7 +697,7 @@ function PayrollRunDetail({ run, onVisitChange, authMap }) {
 // PayrollPage
 // ────────────────────────────────────────
 function PayrollPage() {
-    const { showToast } = useToast();
+    const { showToast, showUndoToast } = useToast();
     const { runId } = useParams();
     const navigate = useNavigate();
     const initialRunId = runId ? parseInt(runId, 10) : null;
@@ -707,6 +707,7 @@ function PayrollPage() {
     const [loading, setLoading]         = useState(true);
     const [modal, setModal]             = useState(null);
     const [exporting, setExporting]     = useState(false);
+    const [showArchived, setShowArchived] = useState(false);
 
     // Optimistically update a visit field in selectedRun state after a successful PATCH
     // patch may be a plain object (optimistic update) or a full visit from the server
@@ -722,14 +723,14 @@ function PayrollPage() {
     const loadRuns = useCallback(async () => {
         setLoading(true);
         try {
-            const data = await api.getPayrollRuns();
+            const data = await api.getPayrollRuns({ archived: showArchived });
             setRuns(data);
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
             setLoading(false);
         }
-    }, [showToast]);
+    }, [showToast, showArchived]);
 
     useEffect(() => { loadRuns(); }, [loadRuns]);
 
@@ -762,17 +763,28 @@ function PayrollPage() {
     const handleDelete = async (run) => {
         try {
             await api.deletePayrollRun(run.id);
-            showToast('Payroll run deleted.', 'success');
             setModal(null);
             if (selectedRun?.id === run.id) {
                 setSelectedRun(null);
                 onNavigate('payroll');
             }
             loadRuns();
+            showUndoToast(`"${run.name}" archived`, async () => {
+                await api.restorePayrollRun(run.id);
+                loadRuns();
+            });
         } catch (err) {
             showToast(err.message, 'error');
             setModal(null);
         }
+    };
+
+    const handleRestore = async (run) => {
+        try {
+            await api.restorePayrollRun(run.id);
+            showToast(`"${run.name}" restored`);
+            loadRuns();
+        } catch (err) { showToast(err.message, 'error'); }
     };
 
     const handleExport = async () => {
@@ -831,12 +843,28 @@ function PayrollPage() {
             <div className="content-header">
                 <h1 className="content-header__title">Payroll Runs</h1>
                 <div className="content-header__actions">
-                    <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'upload' })}>
-                        {Icons.upload} New Run
-                    </button>
+                    {!showArchived && (
+                        <button className="archive-toggle" onClick={() => setShowArchived(true)}>
+                            {Icons.archive} View Archived
+                        </button>
+                    )}
+                    {!showArchived && (
+                        <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'upload' })}>
+                            {Icons.upload} New Run
+                        </button>
+                    )}
                 </div>
             </div>
             <div className="page-content">
+                {showArchived && (
+                    <div className="archived-banner">
+                        {Icons.archive}
+                        <span style={{ flex: 1 }}>Viewing archived payroll runs. Click "Restore" to bring items back.</span>
+                        <button className="btn btn--outline btn--sm" onClick={() => setShowArchived(false)}>
+                            {Icons.chevronLeft} Back to Active
+                        </button>
+                    </div>
+                )}
                 {loading ? (
                     <p style={{ color: 'hsl(240 3.8% 46.1%)' }}>Loading…</p>
                 ) : runs.length === 0 ? (
@@ -879,13 +907,19 @@ function PayrollPage() {
                                         </td>
                                         <td style={{ fontSize: 12 }}>{fmtDate(run.createdAt)}</td>
                                         <td onClick={(e) => e.stopPropagation()}>
-                                            <button
-                                                className="btn btn--danger-ghost btn--icon"
-                                                title="Delete run"
-                                                onClick={() => setModal({ type: 'confirmDelete', run })}
-                                            >
-                                                {Icons.trash}
-                                            </button>
+                                            {showArchived ? (
+                                                <button className="btn btn--restore" onClick={() => handleRestore(run)} title="Restore">
+                                                    {Icons.rotateCcw} Restore
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    className="btn btn--danger-ghost btn--icon"
+                                                    title="Delete run"
+                                                    onClick={() => setModal({ type: 'confirmDelete', run })}
+                                                >
+                                                    {Icons.trash}
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}

@@ -54,14 +54,15 @@ function InsuranceTypeFormModal({ insuranceType, onSave, onClose }) {
 }
 
 export default function InsuranceTypesPage() {
-    const { showToast } = useToast();
+    const { showToast, showUndoToast } = useToast();
     const [insuranceTypes, setInsuranceTypes] = useState([]);
     const [modal, setModal] = useState(null);
+    const [showArchived, setShowArchived] = useState(false);
 
     const fetchInsuranceTypes = useCallback(async () => {
-        try { setInsuranceTypes(await api.getInsuranceTypes()); }
+        try { setInsuranceTypes(await api.getInsuranceTypes({ archived: showArchived })); }
         catch (err) { showToast(err.message, 'error'); }
-    }, [showToast]);
+    }, [showToast, showArchived]);
 
     useEffect(() => { fetchInsuranceTypes(); }, [fetchInsuranceTypes]);
 
@@ -82,8 +83,19 @@ export default function InsuranceTypesPage() {
     const handleDelete = async (type) => {
         try {
             await api.deleteInsuranceType(type.id);
-            showToast('Insurance type deleted');
             setModal(null);
+            fetchInsuranceTypes();
+            showUndoToast(`"${type.name}" archived`, async () => {
+                await api.restoreInsuranceType(type.id);
+                fetchInsuranceTypes();
+            });
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleRestore = async (type) => {
+        try {
+            await api.restoreInsuranceType(type.id);
+            showToast(`"${type.name}" restored`);
             fetchInsuranceTypes();
         } catch (err) { showToast(err.message, 'error'); }
     };
@@ -93,12 +105,28 @@ export default function InsuranceTypesPage() {
             <div className="content-header">
                 <h1 className="content-header__title">Insurance Types</h1>
                 <div className="content-header__actions">
-                    <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'form' })}>
-                        {Icons.plus} Add Type
-                    </button>
+                    {!showArchived && (
+                        <button className="archive-toggle" onClick={() => setShowArchived(true)}>
+                            {Icons.archive} View Archived
+                        </button>
+                    )}
+                    {!showArchived && (
+                        <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'form' })}>
+                            {Icons.plus} Add Type
+                        </button>
+                    )}
                 </div>
             </div>
             <div className="page-content">
+                {showArchived && (
+                    <div className="archived-banner">
+                        {Icons.archive}
+                        <span style={{ flex: 1 }}>Viewing archived insurance types. Click "Restore" to bring items back.</span>
+                        <button className="btn btn--outline btn--sm" onClick={() => setShowArchived(false)}>
+                            {Icons.chevronLeft} Back to Active
+                        </button>
+                    </div>
+                )}
                 <div className="it-grid">
                     {insuranceTypes.length === 0 ? (
                         <div className="empty-state">
@@ -115,12 +143,20 @@ export default function InsuranceTypesPage() {
                                     <div className="it-card__hex">{t.color}</div>
                                 </div>
                                 <div className="it-card__actions">
-                                    <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'form', insuranceType: t })} title="Edit">
-                                        {Icons.edit}
-                                    </button>
-                                    <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDelete', insuranceType: t })} title="Delete">
-                                        {Icons.trash}
-                                    </button>
+                                    {showArchived ? (
+                                        <button className="btn btn--restore" onClick={() => handleRestore(t)} title="Restore">
+                                            {Icons.rotateCcw} Restore
+                                        </button>
+                                    ) : (
+                                        <>
+                                            <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'form', insuranceType: t })} title="Edit">
+                                                {Icons.edit}
+                                            </button>
+                                            <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDelete', insuranceType: t })} title="Delete">
+                                                {Icons.trash}
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         ))

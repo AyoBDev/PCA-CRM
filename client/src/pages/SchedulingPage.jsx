@@ -6,6 +6,8 @@ import { hhmm12 } from '../utils/time';
 import { useToast } from '../hooks/useToast';
 import ScheduleDelivery from './scheduling/ScheduleDelivery';
 
+const VALID_ACCOUNT_NUMBERS = ['71040', '71119', '71120', '71635'];
+
 const SERVICE_COLORS = {
     PCS:   { color: '#3B82F6', bg: '#EFF6FF', label: 'PCA' },
     S5125: { color: '#22C55E', bg: '#F0FDF4', label: 'Attendant Care' },
@@ -60,17 +62,37 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
     const [clientGateCode, setClientGateCode] = useState(selectedClient?.gateCode || '');
     const [clientNotes, setClientNotes] = useState(selectedClient?.notes || '');
 
-    // Authorized service codes for the selected client (from master sheet)
-    const authorizedServices = useMemo(() => {
-        if (!selectedClient?.authorizations?.length) return [];
+    // Authorized services for the selected client (from master sheet)
+    // Resolves TIMESHEETS entries via serviceName matching, includes units
+    function deriveCode(auth) {
+        if (auth.serviceCode && auth.serviceCode !== 'TIMESHEETS') return auth.serviceCode;
+        if (!auth.serviceName) return null;
+        const lower = auth.serviceName.toLowerCase();
+        if (lower.includes('self') && (lower.includes('directed') || lower.includes('direct'))) return 'SDPC';
+        if (lower.includes('personal') && lower.includes('care')) return 'PCS';
+        if (lower === 'pas' || lower === 'pca') return 'PCS';
+        if (lower.includes('homemaker') || lower === 'hm') return 'S5130';
+        if (lower.includes('attendant')) return 'S5125';
+        if (lower.includes('companion')) return 'S5135';
+        if (lower.includes('respite')) return 'S5150';
+        return null;
+    }
+
+    const authorizedServiceMap = useMemo(() => {
+        if (!selectedClient?.authorizations?.length) return {};
         const now = new Date();
-        const codes = new Set();
+        const map = {};
         for (const auth of selectedClient.authorizations) {
             if (auth.authorizationEndDate && new Date(auth.authorizationEndDate) < now) continue;
-            if (auth.serviceCode) codes.add(auth.serviceCode);
+            const code = deriveCode(auth);
+            if (!code) continue;
+            if (!map[code]) map[code] = { units: 0 };
+            map[code].units += auth.authorizedUnits || 0;
         }
-        return [...codes];
+        return map;
     }, [selectedClient]);
+
+    const authorizedServices = useMemo(() => Object.keys(authorizedServiceMap), [authorizedServiceMap]);
 
     // Edit mode: single day fields
     const [serviceCode, setServiceCode] = useState(shift?.serviceCode || 'PCS');
@@ -94,6 +116,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
             serviceCode: 'PCS',
             startTime: defaultStartTime || '09:00',
             endTime: '13:00',
+            accountNumber: accountNumber || '',
         }))
     );
 
@@ -111,7 +134,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
     // Apply same time/service to all enabled days
     const applyToAll = (sourceIdx) => {
         const src = dayEntries[sourceIdx];
-        setDayEntries(prev => prev.map((e, i) => e.enabled && i !== sourceIdx ? { ...e, serviceCode: src.serviceCode, startTime: src.startTime, endTime: src.endTime } : e));
+        setDayEntries(prev => prev.map((e, i) => e.enabled && i !== sourceIdx ? { ...e, serviceCode: src.serviceCode, startTime: src.startTime, endTime: src.endTime, accountNumber: src.accountNumber } : e));
     };
 
     useEffect(() => {
@@ -239,7 +262,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                 const bulkShifts = [];
                 for (let i = 0; i < 7; i++) {
                     if (!dayEntries[i].enabled) continue;
-                    const entry = { serviceCode: dayEntries[i].serviceCode, shiftDate: weekDates[i], startTime: dayEntries[i].startTime, endTime: dayEntries[i].endTime };
+                    const entry = { serviceCode: dayEntries[i].serviceCode, shiftDate: weekDates[i], startTime: dayEntries[i].startTime, endTime: dayEntries[i].endTime, accountNumber: dayEntries[i].accountNumber || '' };
                     bulkShifts.push(entry);
                     // If recurring, add weekly copies
                     if (recurring && repeatUntil) {
@@ -318,23 +341,59 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                     </div>
                 </div>
 
+                {/* Authorized services summary */}
+                {clientId && authorizedServices.length > 0 && (
+                    <table className="sched-modal-auth-table">
+                        <thead>
+                            <tr>
+                                <th>Service</th>
+                                <th>Units</th>
+                                <th>Hours</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {authorizedServices.map(code => {
+                                const info = SERVICE_COLORS[code] || { color: '#6B7280', label: code };
+                                const units = authorizedServiceMap[code]?.units || 0;
+                                const hrs = Math.round((units / 4) * 100) / 100;
+                                return (
+                                    <tr key={code}>
+                                        <td>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: info.color, flexShrink: 0 }} />
+                                                {info.label}
+                                            </span>
+                                        </td>
+                                        <td>{units}</td>
+                                        <td>{hrs}</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                )}
+
                 {/* Account + Sandata row */}
-                <div className="form-grid-2">
-                    <div className="form-group">
-                        <label htmlFor="shiftAccountNumber">Account Number</label>
-                        <select id="shiftAccountNumber" value={accountNumber} onChange={e => setAccountNumber(e.target.value)} required={!isEdit}>
-                            <option value="">Select account…</option>
-                            <option value="71040">71040</option>
-                            <option value="71119">71119</option>
-                            <option value="71120">71120</option>
-                            <option value="71635">71635</option>
-                        </select>
+                {isEdit ? (
+                    <div className="form-grid-2">
+                        <div className="form-group">
+                            <label htmlFor="shiftAccountNumber">Account Number</label>
+                            <select id="shiftAccountNumber" value={accountNumber} onChange={e => setAccountNumber(e.target.value)}>
+                                <option value="">Select account…</option>
+                                {VALID_ACCOUNT_NUMBERS.map(n => <option key={n} value={n}>{n}</option>)}
+                            </select>
+                        </div>
+                        <div className="form-group">
+                            <label htmlFor="shiftSandataId">SANDATA Client ID</label>
+                            <input id="shiftSandataId" value={sandataClientId} onChange={e => setSandataClientId(e.target.value)} placeholder="Optional…" />
+                        </div>
                     </div>
+                ) : (
                     <div className="form-group">
                         <label htmlFor="shiftSandataId">SANDATA Client ID</label>
                         <input id="shiftSandataId" value={sandataClientId} onChange={e => setSandataClientId(e.target.value)} placeholder="Optional…" />
                     </div>
-                </div>
+                )}
 
                 {isEdit ? (
                     /* ─── EDIT MODE: single day ─── */
@@ -445,6 +504,13 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                                                     <label className="sched-day-row__field-label">End</label>
                                                     <input type="time" value={entry.endTime} onChange={e => updateDayEntry(i, 'endTime', e.target.value)} className="sched-day-row__input" required />
                                                 </div>
+                                                <div className="sched-day-row__field">
+                                                    <label className="sched-day-row__field-label">Account</label>
+                                                    <select value={entry.accountNumber} onChange={e => updateDayEntry(i, 'accountNumber', e.target.value)} className="sched-day-row__input">
+                                                        <option value="">—</option>
+                                                        {VALID_ACCOUNT_NUMBERS.map(n => <option key={n} value={n}>{n}</option>)}
+                                                    </select>
+                                                </div>
                                                 {enabledCount > 1 && (
                                                     <button type="button" className="sched-day-row__apply" title="Apply this service and times to all selected days" onClick={() => applyToAll(i)}>
                                                         Apply to all
@@ -553,17 +619,46 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
     );
 }
 
-function ScheduleCard({ title, icon, headerActions, children }) {
+function ScheduleCard({ title, icon, headerActions, children, collapsible = true, defaultExpanded = true }) {
+    const [expanded, setExpanded] = useState(defaultExpanded);
+    const [fullscreen, setFullscreen] = useState(false);
+
+    useEffect(() => {
+        if (!fullscreen) return;
+        const onKey = e => { if (e.key === 'Escape') setFullscreen(false); };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [fullscreen]);
+
     return (
-        <div className="sched-card">
-            <div className="sched-card__header">
+        <div className={`sched-card ${!expanded ? 'sched-card--collapsed' : ''} ${fullscreen ? 'sched-card--fullscreen' : ''}`}>
+            <div className="sched-card__header" onClick={collapsible && !fullscreen ? () => setExpanded(e => !e) : undefined} style={collapsible && !fullscreen ? { cursor: 'pointer' } : undefined}>
                 <div className="sched-card__header-left">
+                    {collapsible && !fullscreen && (
+                        <span className={`sched-card__chevron ${expanded ? 'sched-card__chevron--open' : ''}`}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+                        </span>
+                    )}
                     <span className="sched-card__header-icon">{icon}</span>
                     <span className="sched-card__header-title">{title}</span>
                 </div>
-                {headerActions && <div className="sched-card__header-actions">{headerActions}</div>}
+                <div className="sched-card__header-actions" onClick={e => e.stopPropagation()}>
+                    {headerActions}
+                    <button
+                        className="sched-card__expand-btn"
+                        title={fullscreen ? 'Exit fullscreen' : 'Expand'}
+                        onClick={() => { setFullscreen(f => !f); if (!expanded) setExpanded(true); }}
+                    >
+                        {fullscreen ? (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                        ) : (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                        )}
+                    </button>
+                </div>
             </div>
-            <div className="sched-card__body">{children}</div>
+            {(expanded || fullscreen) && <div className="sched-card__body">{children}</div>}
+            {fullscreen && <div className="sched-card__backdrop" onClick={() => setFullscreen(false)} />}
         </div>
     );
 }
@@ -783,7 +878,7 @@ function ScheduleMatrix({ shifts, weekStart, rowBy, onEditShift, overlapIds }) {
 }
 
 export default function SchedulingPage() {
-    const { showToast } = useToast();
+    const { showToast, showUndoToast } = useToast();
     const [clients, setClients] = useState([]);
     const [employees, setEmployees] = useState([]);
 
@@ -949,17 +1044,24 @@ export default function SchedulingPage() {
     const handleDeleteShift = async (shiftId, deleteGroup = false) => {
         try {
             const result = await api.deleteShift(shiftId, { group: deleteGroup });
-            const count = result?.deleted || 1;
-            showToast(count > 1 ? `${count} shifts deleted` : 'Shift deleted');
+            const count = result?.archived || 1;
             setModal(null);
             refetchAll();
+            if (!deleteGroup) {
+                showUndoToast('Shift archived', async () => {
+                    await api.restoreShift(shiftId);
+                    refetchAll();
+                });
+            } else {
+                showToast(`${count} shift(s) archived`);
+            }
         } catch (err) { showToast(err.message, 'error'); }
     };
 
     const handleDeleteAllShifts = async () => {
         try {
-            const result = await api.deleteAllShifts();
-            showToast(`${result.deleted} shift${result.deleted !== 1 ? 's' : ''} deleted`);
+            await api.deleteAllShifts();
+            showToast('All shifts archived');
             refetchAll();
         } catch (err) { showToast(err.message, 'error'); }
     };

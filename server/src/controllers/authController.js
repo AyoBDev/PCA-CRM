@@ -74,15 +74,17 @@ async function register(req, res, next) {
 // GET /api/auth/users  (admin only)
 async function listUsers(req, res, next) {
     try {
+        const where = req.query.archived === 'true' ? { archivedAt: { not: null } } : { archivedAt: null };
         const users = await prisma.user.findMany({
-            select: { id: true, email: true, name: true, role: true, phone: true, createdAt: true },
+            where,
+            select: { id: true, email: true, name: true, role: true, phone: true, createdAt: true, archivedAt: true },
             orderBy: { createdAt: 'desc' },
         });
         res.json(users);
     } catch (err) { next(err); }
 }
 
-// DELETE /api/auth/users/:id  (admin only)
+// DELETE /api/auth/users/:id  (admin only — soft-delete)
 async function deleteUser(req, res, next) {
     try {
         const id = Number(req.params.id);
@@ -91,9 +93,20 @@ async function deleteUser(req, res, next) {
         }
         const user = await prisma.user.findUnique({ where: { id } });
         if (!user) return res.status(404).json({ error: 'User not found' });
-        await prisma.user.delete({ where: { id } });
-        res.status(204).end();
+        const archived = await prisma.user.update({ where: { id }, data: { archivedAt: new Date() } });
+        res.json({ id: archived.id, email: archived.email, name: archived.name, role: archived.role });
     } catch (err) { next(err); }
 }
 
-module.exports = { login, getMe, register, listUsers, deleteUser };
+// PUT /api/auth/users/:id/restore  (admin only)
+async function restoreUser(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const user = await prisma.user.findUnique({ where: { id } });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        const restored = await prisma.user.update({ where: { id }, data: { archivedAt: null } });
+        res.json({ id: restored.id, email: restored.email, name: restored.name, role: restored.role, phone: restored.phone });
+    } catch (err) { next(err); }
+}
+
+module.exports = { login, getMe, register, listUsers, deleteUser, restoreUser };

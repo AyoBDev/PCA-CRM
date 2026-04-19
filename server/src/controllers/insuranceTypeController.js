@@ -3,7 +3,9 @@ const prisma = require('../lib/prisma');
 // GET /api/insurance-types
 async function listInsuranceTypes(req, res, next) {
     try {
+        const where = req.query.archived === 'true' ? { archivedAt: { not: null } } : { archivedAt: null };
         const types = await prisma.insuranceType.findMany({
+            where,
             orderBy: { name: 'asc' },
         });
         res.json(types);
@@ -57,16 +59,26 @@ async function updateInsuranceType(req, res, next) {
     }
 }
 
-// DELETE /api/insurance-types/:id
+// DELETE /api/insurance-types/:id  (soft-delete → archive)
 async function deleteInsuranceType(req, res, next) {
     try {
         const id = Number(req.params.id);
-        await prisma.insuranceType.delete({ where: { id } });
-        res.status(204).end();
-    } catch (err) {
-        if (err.code === 'P2025') return res.status(404).json({ error: 'Insurance type not found' });
-        next(err);
-    }
+        const type = await prisma.insuranceType.findUnique({ where: { id } });
+        if (!type) return res.status(404).json({ error: 'Insurance type not found' });
+        const archived = await prisma.insuranceType.update({ where: { id }, data: { archivedAt: new Date() } });
+        res.json(archived);
+    } catch (err) { next(err); }
 }
 
-module.exports = { listInsuranceTypes, createInsuranceType, updateInsuranceType, deleteInsuranceType };
+// PUT /api/insurance-types/:id/restore
+async function restoreInsuranceType(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const type = await prisma.insuranceType.findUnique({ where: { id } });
+        if (!type) return res.status(404).json({ error: 'Insurance type not found' });
+        const restored = await prisma.insuranceType.update({ where: { id }, data: { archivedAt: null } });
+        res.json(restored);
+    } catch (err) { next(err); }
+}
+
+module.exports = { listInsuranceTypes, createInsuranceType, updateInsuranceType, deleteInsuranceType, restoreInsuranceType };

@@ -4,7 +4,9 @@ const { enrichClient } = require('../services/authorizationService');
 // GET /api/clients
 async function listClients(req, res, next) {
     try {
+        const where = req.query.archived === 'true' ? { archivedAt: { not: null } } : { archivedAt: null };
         const clients = await prisma.client.findMany({
+            where,
             include: { authorizations: { orderBy: { createdAt: 'asc' } } },
             orderBy: { createdAt: 'asc' },
         });
@@ -112,19 +114,23 @@ async function patchClient(req, res, next) {
     }
 }
 
-// DELETE /api/clients/:id
+// DELETE /api/clients/:id  (soft-delete → archive)
 async function deleteClient(req, res, next) {
     try {
         const id = Number(req.params.id);
-        await prisma.client.delete({ where: { id } });
-        res.status(204).end();
+        const client = await prisma.client.findUnique({ where: { id } });
+        if (!client) return res.status(404).json({ error: 'Client not found' });
+        const now = new Date();
+        await prisma.shift.updateMany({ where: { clientId: id, archivedAt: null }, data: { archivedAt: now } });
+        await prisma.timesheet.updateMany({ where: { clientId: id, archivedAt: null }, data: { archivedAt: now } });
+        const archived = await prisma.client.update({ where: { id }, data: { archivedAt: now }, include: { authorizations: true } });
+        res.json(archived);
     } catch (err) {
-        if (err.code === 'P2025') return res.status(404).json({ error: 'Client not found' });
         next(err);
     }
 }
 
-// POST /api/clients/bulk-delete
+// POST /api/clients/bulk-delete  (soft-delete → archive)
 async function bulkDelete(req, res, next) {
     try {
         const { ids } = req.body;
@@ -132,9 +138,29 @@ async function bulkDelete(req, res, next) {
             return res.status(400).json({ error: 'ids array is required' });
         }
         const numericIds = ids.map(Number).filter(n => !isNaN(n));
-        await prisma.authorization.deleteMany({ where: { clientId: { in: numericIds } } });
-        await prisma.client.deleteMany({ where: { id: { in: numericIds } } });
-        res.json({ deleted: numericIds.length });
+        const now = new Date();
+        await prisma.shift.updateMany({ where: { clientId: { in: numericIds }, archivedAt: null }, data: { archivedAt: now } });
+        await prisma.timesheet.updateMany({ where: { clientId: { in: numericIds }, archivedAt: null }, data: { archivedAt: now } });
+        await prisma.client.updateMany({ where: { id: { in: numericIds } }, data: { archivedAt: now } });
+        res.json({ archived: numericIds.length });
+    } catch (err) {
+        next(err);
+    }
+}
+
+// PUT /api/clients/:id/restore
+async function restoreClient(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const client = await prisma.client.findUnique({ where: { id } });
+        if (!client) return res.status(404).json({ error: 'Client not found' });
+        await prisma.shift.updateMany({ where: { clientId: id, archivedAt: { not: null } }, data: { archivedAt: null } });
+        await prisma.timesheet.updateMany({ where: { clientId: id, archivedAt: { not: null } }, data: { archivedAt: null } });
+        const restored = await prisma.client.update({
+            where: { id }, data: { archivedAt: null },
+            include: { authorizations: { orderBy: { createdAt: 'asc' } } },
+        });
+        res.json(enrichClient(restored));
     } catch (err) {
         next(err);
     }
@@ -209,4 +235,4 @@ async function bulkImport(req, res, next) {
     }
 }
 
-module.exports = { listClients, getClient, createClient, updateClient, patchClient, deleteClient, bulkDelete, bulkImport };
+module.exports = { listClients, getClient, createClient, updateClient, patchClient, deleteClient, bulkDelete, bulkImport, restoreClient };

@@ -414,7 +414,7 @@ function ClientNotesSection({ client, onSaved }) {
 // ── Clients Page ──
 export default function ClientsPage() {
     const { isAdmin } = useAuth();
-    const { showToast } = useToast();
+    const { showToast, showUndoToast } = useToast();
     const [clients, setClients] = useState([]);
     const [insuranceTypes, setInsuranceTypes] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -424,17 +424,18 @@ export default function ClientsPage() {
     const [drawerClient, setDrawerClient] = useState(null);
     const [expandedIds, setExpandedIds] = useState(new Set());
     const [selectedIds, setSelectedIds] = useState(new Set());
+    const [showArchived, setShowArchived] = useState(false);
 
     const fetchClients = useCallback(async () => {
         try {
-            const data = await api.getClients();
+            const data = await api.getClients({ archived: showArchived });
             setClients(data);
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
             setLoading(false);
         }
-    }, [showToast]);
+    }, [showToast, showArchived]);
 
     const fetchInsuranceTypes = useCallback(async () => {
         try { setInsuranceTypes(await api.getInsuranceTypes()); }
@@ -463,19 +464,26 @@ export default function ClientsPage() {
     const handleDeleteClient = async (client) => {
         try {
             await api.deleteClient(client.id);
-            showToast('Client deleted');
             setModal(null);
             fetchClients();
+            showUndoToast(`"${client.clientName}" archived`, async () => {
+                await api.restoreClient(client.id);
+                fetchClients();
+            });
         } catch (err) { showToast(err.message, 'error'); }
     };
 
     const handleBulkDelete = async () => {
         try {
-            await api.bulkDeleteClients([...selectedIds]);
-            showToast(`${selectedIds.size} client(s) deleted`);
+            const ids = [...selectedIds];
+            await api.bulkDeleteClients(ids);
             setSelectedIds(new Set());
             setModal(null);
             fetchClients();
+            showUndoToast(`${ids.length} client(s) archived`, async () => {
+                for (const id of ids) await api.restoreClient(id);
+                fetchClients();
+            });
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -528,6 +536,14 @@ export default function ClientsPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    const handleRestore = async (client) => {
+        try {
+            await api.restoreClient(client.id);
+            showToast(`"${client.clientName}" restored`);
+            fetchClients();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     const handleBulkImport = async (rows) => {
         try {
             const result = await api.bulkImport(rows);
@@ -568,19 +584,26 @@ export default function ClientsPage() {
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
-                    {selectedIds.size > 0 && (
+                    {!showArchived && (
+                        <button className="archive-toggle" onClick={() => { setShowArchived(true); setSelectedIds(new Set()); }}>
+                            {Icons.archive} View Archived
+                        </button>
+                    )}
+                    {!showArchived && selectedIds.size > 0 && (
                         <button className="btn btn--danger btn--sm" onClick={() => setModal({ type: 'confirmBulkDelete' })}>
                             {Icons.trash} Delete {selectedIds.size}
                         </button>
                     )}
-                    {isAdmin && (
+                    {!showArchived && isAdmin && (
                         <button className="btn btn--outline btn--sm" onClick={() => setModal({ type: 'bulkImport' })}>
                             {Icons.download} Import
                         </button>
                     )}
-                    <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'client' })}>
-                        {Icons.plus} Add Client
-                    </button>
+                    {!showArchived && (
+                        <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'client' })}>
+                            {Icons.plus} Add Client
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -620,6 +643,16 @@ export default function ClientsPage() {
                         <div className="card__description">{renewalCount > 0 ? `${renewalCount} renewal(s) due` : 'All auths current'}</div>
                     </div>
                 </div>
+
+                {showArchived && (
+                    <div className="archived-banner">
+                        {Icons.archive}
+                        <span style={{ flex: 1 }}>Viewing archived clients. Click "Restore" to bring items back.</span>
+                        <button className="btn btn--outline btn--sm" onClick={() => setShowArchived(false)}>
+                            {Icons.chevronLeft} Back to Active
+                        </button>
+                    </div>
+                )}
 
                 {/* Master Sheet Table */}
                 <div className="sheet-card">
@@ -719,12 +752,20 @@ export default function ClientsPage() {
                                                         </td>
                                                         <td>
                                                             <div className="row-actions" onClick={(e) => e.stopPropagation()}>
-                                                                <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'client', client })} title="Edit client">
-                                                                    {Icons.edit}
-                                                                </button>
-                                                                <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDeleteClient', client })} title="Delete client">
-                                                                    {Icons.trash}
-                                                                </button>
+                                                                {showArchived ? (
+                                                                    <button className="btn btn--restore" onClick={() => handleRestore(client)} title="Restore client">
+                                                                        {Icons.rotateCcw} Restore
+                                                                    </button>
+                                                                ) : (
+                                                                    <>
+                                                                        <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'client', client })} title="Edit client">
+                                                                            {Icons.edit}
+                                                                        </button>
+                                                                        <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDeleteClient', client })} title="Delete client">
+                                                                            {Icons.trash}
+                                                                        </button>
+                                                                    </>
+                                                                )}
                                                             </div>
                                                         </td>
                                                     </tr>
