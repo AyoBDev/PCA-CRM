@@ -61,12 +61,14 @@ export const login = (email, password) =>
 export const getMe = () => request('/auth/me');
 export const registerUser = (data) =>
     request('/auth/register', { method: 'POST', body: JSON.stringify(data) });
-export const getUsers = () => request('/auth/users');
+export const getUsers = ({ archived } = {}) => request(`/auth/users${archived ? '?archived=true' : ''}`);
 export const deleteUser = (id) =>
     request(`/auth/users/${id}`, { method: 'DELETE' });
+export const restoreUser = (id) =>
+    request(`/auth/users/${id}/restore`, { method: 'PUT' });
 
 // Clients
-export const getClients = () => request('/clients');
+export const getClients = ({ archived } = {}) => request(`/clients${archived ? '?archived=true' : ''}`);
 export const getClient = (id) => request(`/clients/${id}`);
 export const createClient = (clientName, extra = {}) =>
     request('/clients', { method: 'POST', body: JSON.stringify({ clientName, ...extra }) });
@@ -76,6 +78,8 @@ export const patchClient = (id, data) =>
     request(`/clients/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 export const deleteClient = (id) =>
     request(`/clients/${id}`, { method: 'DELETE' });
+export const restoreClient = (id) =>
+    request(`/clients/${id}/restore`, { method: 'PUT' });
 
 // Bulk Import
 export const bulkImport = (clients) =>
@@ -94,25 +98,32 @@ export const deleteAuthorization = (id) =>
     request(`/authorizations/${id}`, { method: 'DELETE' });
 
 // Insurance Types
-export const getInsuranceTypes = () => request('/insurance-types');
+export const getInsuranceTypes = ({ archived } = {}) => request(`/insurance-types${archived ? '?archived=true' : ''}`);
 export const createInsuranceType = (data) =>
     request('/insurance-types', { method: 'POST', body: JSON.stringify(data) });
 export const updateInsuranceType = (id, data) =>
     request(`/insurance-types/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deleteInsuranceType = (id) =>
     request(`/insurance-types/${id}`, { method: 'DELETE' });
+export const restoreInsuranceType = (id) =>
+    request(`/insurance-types/${id}/restore`, { method: 'PUT' });
 
 // Services
-export const getServices = () => request('/services');
+export const getServices = ({ archived } = {}) => request(`/services${archived ? '?archived=true' : ''}`);
 export const createService = (data) =>
     request('/services', { method: 'POST', body: JSON.stringify(data) });
 export const updateService = (id, data) =>
     request(`/services/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deleteService = (id) =>
     request(`/services/${id}`, { method: 'DELETE' });
+export const restoreService = (id) =>
+    request(`/services/${id}/restore`, { method: 'PUT' });
 
 // Timesheets
-export const getTimesheets = (params = '') => request(`/timesheets${params ? '?' + params : ''}`);
+export const getTimesheets = (params = '', { archived } = {}) => {
+    const parts = [params, archived ? 'archived=true' : ''].filter(Boolean).join('&');
+    return request(`/timesheets${parts ? '?' + parts : ''}`);
+};
 export const getTimesheet = (id) => request(`/timesheets/${id}`);
 export const getActivities = () => request('/timesheets/activities');
 export const createTimesheet = (data) =>
@@ -123,6 +134,8 @@ export const submitTimesheet = (id) =>
     request(`/timesheets/${id}/submit`, { method: 'PUT' });
 export const deleteTimesheet = (id) =>
     request(`/timesheets/${id}`, { method: 'DELETE' });
+export const restoreTimesheet = (id) =>
+    request(`/timesheets/${id}/restore`, { method: 'PUT' });
 
 // Timesheet Status (admin revert)
 export const updateTimesheetStatus = (id, status) =>
@@ -193,9 +206,10 @@ export const exportTimesheetPdf = (id) =>
     });
 
 // ── Payroll ──
-export const getPayrollRuns   = ()    => request('/payroll/runs');
+export const getPayrollRuns   = ({ archived } = {})    => request(`/payroll/runs${archived ? '?archived=true' : ''}`);
 export const getPayrollRun    = (id)  => request(`/payroll/runs/${id}`);
 export const deletePayrollRun   = (id)  => request(`/payroll/runs/${id}`, { method: 'DELETE' });
+export const restorePayrollRun  = (id)  => request(`/payroll/runs/${id}/restore`, { method: 'PUT' });
 export const updatePayrollVisit = (id, data) =>
     request(`/payroll/visits/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 
@@ -213,6 +227,8 @@ export const updateShift = (id, data) =>
     request(`/shifts/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deleteShift = (id, { group } = {}) =>
     request(`/shifts/${id}${group ? '?group=true' : ''}`, { method: 'DELETE' });
+export const restoreShift = (id) =>
+    request(`/shifts/${id}/restore`, { method: 'PUT' });
 export const deleteAllShifts = () =>
     request('/shifts/all', { method: 'DELETE' });
 export const getClientSchedule = (clientId, weekStart) =>
@@ -220,7 +236,8 @@ export const getClientSchedule = (clientId, weekStart) =>
 export const getEmployeeSchedule = (employeeId, weekStart) =>
     request(`/shifts/employee/${employeeId}${weekStart ? '?weekStart=' + weekStart : ''}`);
 // ── Employees ──
-export const getEmployees = (params = {}) => {
+export const getEmployees = (params = {}, { archived } = {}) => {
+    if (archived) params.archived = 'true';
     const qs = new URLSearchParams(params).toString();
     return request(`/employees${qs ? '?' + qs : ''}`);
 };
@@ -228,6 +245,24 @@ export const getEmployee = (id) => request(`/employees/${id}`);
 export const createEmployee = (data) => request('/employees', { method: 'POST', body: JSON.stringify(data) });
 export const updateEmployee = (id, data) => request(`/employees/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deleteEmployee = (id) => request(`/employees/${id}`, { method: 'DELETE' });
+export const restoreEmployee = (id) => request(`/employees/${id}/restore`, { method: 'PUT' });
+
+// ── Employee Schedule Links ──
+export const getEmployeeScheduleLinks = () => request('/employee-schedule-links');
+export const createEmployeeScheduleLink = (employeeId) =>
+    request('/employee-schedule-links', { method: 'POST', body: JSON.stringify({ employeeId }) });
+export const deleteEmployeeScheduleLink = (id) =>
+    request(`/employee-schedule-links/${id}`, { method: 'DELETE' });
+
+export async function getScheduleView(token, weekStart) {
+    const qs = weekStart ? `?weekStart=${weekStart}` : '';
+    const res = await fetch(`${BASE}/schedule/view/${token}${qs}`);
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+    }
+    return res.json();
+}
 
 // ── Dashboard ──
 export const getDashboardStats = () => request('/dashboard/stats');

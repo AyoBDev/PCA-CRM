@@ -18,6 +18,7 @@ const PayrollPage = lazy(() => import('./pages/PayrollPage'));
 const SchedulingPage = lazy(() => import('./pages/SchedulingPage'));
 const EmployeesPage = lazy(() => import('./pages/EmployeesPage'));
 const ScheduleConfirmPage = lazy(() => import('./pages/scheduling/ScheduleConfirmPage'));
+const ScheduleViewPage = lazy(() => import('./pages/scheduling/ScheduleViewPage'));
 
 function ProtectedRoute({ children, adminOnly = false, staffOnly = false }) {
     const { user, isAdmin, isStaff, loading } = useAuth();
@@ -41,6 +42,7 @@ function AppRoutes() {
                 <Route path="/sign/:token" element={<SignRedirectPage />} />
                 <Route path="/pca-form/:token" element={<PcaFormPage />} />
                 <Route path="/schedule/confirm/:token" element={<ScheduleConfirmPage />} />
+                <Route path="/schedule/view/:token" element={<ScheduleViewPage />} />
 
                 {/* Protected routes with layout */}
                 <Route path="/dashboard" element={<ProtectedRoute staffOnly><Layout><DashboardPage /></Layout></ProtectedRoute>} />

@@ -13,7 +13,7 @@ function getSunday(dateStr) {
 }
 
 export default function TimesheetsListPage() {
-    const { showToast } = useToast();
+    const { showToast, showUndoToast } = useToast();
     const [clients, setClients] = useState([]);
     const [timesheets, setTimesheets] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -25,6 +25,7 @@ export default function TimesheetsListPage() {
     const [newWeekDate, setNewWeekDate] = useState(getSunday(new Date().toISOString().split('T')[0]));
     const [newClientPhone, setNewClientPhone] = useState('');
     const [newClientIdNumber, setNewClientIdNumber] = useState('');
+    const [showArchived, setShowArchived] = useState(false);
 
     useEffect(() => {
         api.getClients().then(setClients).catch(() => {});
@@ -33,11 +34,11 @@ export default function TimesheetsListPage() {
     const fetchTimesheets = useCallback(async () => {
         try {
             const params = statusFilter ? `status=${statusFilter}` : '';
-            const data = await api.getTimesheets(params);
+            const data = await api.getTimesheets(params, { archived: showArchived });
             setTimesheets(data);
         } catch (err) { showToast(err.message, 'error'); }
         setLoading(false);
-    }, [statusFilter, showToast]);
+    }, [statusFilter, showArchived, showToast]);
 
     useEffect(() => { fetchTimesheets(); }, [fetchTimesheets]);
 
@@ -52,7 +53,22 @@ export default function TimesheetsListPage() {
     };
 
     const handleDelete = async (id) => {
-        try { await api.deleteTimesheet(id); showToast('Timesheet deleted'); fetchTimesheets(); } catch (err) { showToast(err.message, 'error'); }
+        try {
+            await api.deleteTimesheet(id);
+            fetchTimesheets();
+            showUndoToast('Timesheet archived', async () => {
+                await api.restoreTimesheet(id);
+                fetchTimesheets();
+            });
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleRestore = async (id) => {
+        try {
+            await api.restoreTimesheet(id);
+            showToast('Timesheet restored');
+            fetchTimesheets();
+        } catch (err) { showToast(err.message, 'error'); }
     };
 
     if (activeTimesheetId) {
@@ -64,15 +80,33 @@ export default function TimesheetsListPage() {
             <div className="content-header">
                 <h1 className="content-header__title">Timesheets</h1>
                 <div className="content-header__actions">
-                    <select className="filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ marginRight: 8 }}>
-                        <option value="">All Status</option>
-                        <option value="draft">Draft</option>
-                        <option value="submitted">Submitted</option>
-                    </select>
-                    <button className="btn btn--primary btn--sm" onClick={() => setShowNewModal(true)}>{Icons.plus} New Timesheet</button>
+                    {!showArchived && (
+                        <select className="filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ marginRight: 8 }}>
+                            <option value="">All Status</option>
+                            <option value="draft">Draft</option>
+                            <option value="submitted">Submitted</option>
+                        </select>
+                    )}
+                    {!showArchived && (
+                        <button className="archive-toggle" onClick={() => setShowArchived(true)}>
+                            {Icons.archive} View Archived
+                        </button>
+                    )}
+                    {!showArchived && (
+                        <button className="btn btn--primary btn--sm" onClick={() => setShowNewModal(true)}>{Icons.plus} New Timesheet</button>
+                    )}
                 </div>
             </div>
             <div className="page-content">
+                {showArchived && (
+                    <div className="archived-banner">
+                        {Icons.archive}
+                        <span style={{ flex: 1 }}>Viewing archived timesheets. Click "Restore" to bring items back.</span>
+                        <button className="btn btn--outline btn--sm" onClick={() => setShowArchived(false)}>
+                            {Icons.chevronLeft} Back to Active
+                        </button>
+                    </div>
+                )}
                 {loading ? (
                     <div style={{ padding: 40, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>Loading…</div>
                 ) : timesheets.length === 0 ? (
@@ -97,7 +131,11 @@ export default function TimesheetsListPage() {
                                         <td><strong>{ts.totalHours.toFixed(2)}</strong></td>
                                         <td><span className={`ts-badge ts-badge--${ts.status}`}>{ts.status}</span></td>
                                         <td onClick={(e) => e.stopPropagation()}>
-                                            <button className="btn btn--danger-ghost btn--icon" onClick={() => handleDelete(ts.id)} title="Delete">{Icons.trash}</button>
+                                            {showArchived ? (
+                                                <button className="btn btn--restore" onClick={() => handleRestore(ts.id)} title="Restore">{Icons.rotateCcw} Restore</button>
+                                            ) : (
+                                                <button className="btn btn--danger-ghost btn--icon" onClick={() => handleDelete(ts.id)} title="Delete">{Icons.trash}</button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}

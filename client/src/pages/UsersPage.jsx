@@ -5,15 +5,16 @@ import Modal from '../components/common/Modal';
 import { useToast } from '../hooks/useToast';
 
 export default function UsersPage() {
-    const { showToast } = useToast();
+    const { showToast, showUndoToast } = useToast();
     const [users, setUsers] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [form, setForm] = useState({ name: '', email: '', password: '', role: 'pca' });
     const [saving, setSaving] = useState(false);
+    const [showArchived, setShowArchived] = useState(false);
 
     const fetchUsers = useCallback(async () => {
-        try { setUsers(await api.getUsers()); } catch (err) { showToast(err.message, 'error'); }
-    }, [showToast]);
+        try { setUsers(await api.getUsers({ archived: showArchived })); } catch (err) { showToast(err.message, 'error'); }
+    }, [showToast, showArchived]);
 
     useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
@@ -32,10 +33,20 @@ export default function UsersPage() {
     };
 
     const handleDelete = async (user) => {
-        if (!confirm(`Delete user "${user.name}"?`)) return;
         try {
             await api.deleteUser(user.id);
-            showToast('User deleted');
+            fetchUsers();
+            showUndoToast(`"${user.name}" archived`, async () => {
+                await api.restoreUser(user.id);
+                fetchUsers();
+            });
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleRestore = async (user) => {
+        try {
+            await api.restoreUser(user.id);
+            showToast(`"${user.name}" restored`);
             fetchUsers();
         } catch (err) { showToast(err.message, 'error'); }
     };
@@ -45,10 +56,26 @@ export default function UsersPage() {
             <div className="content-header">
                 <h1 className="content-header__title">User Management</h1>
                 <div className="content-header__actions">
-                    <button className="btn btn--primary btn--sm" onClick={() => setShowModal(true)}>{Icons.plus} Add User</button>
+                    {!showArchived && (
+                        <button className="archive-toggle" onClick={() => setShowArchived(true)}>
+                            {Icons.archive} View Archived
+                        </button>
+                    )}
+                    {!showArchived && (
+                        <button className="btn btn--primary btn--sm" onClick={() => setShowModal(true)}>{Icons.plus} Add User</button>
+                    )}
                 </div>
             </div>
             <div className="page-content">
+                {showArchived && (
+                    <div className="archived-banner">
+                        {Icons.archive}
+                        <span style={{ flex: 1 }}>Viewing archived users. Click "Restore" to bring items back.</span>
+                        <button className="btn btn--outline btn--sm" onClick={() => setShowArchived(false)}>
+                            {Icons.chevronLeft} Back to Active
+                        </button>
+                    </div>
+                )}
                 <div className="sheet-card">
                     <table className="data-table">
                         <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Created</th><th>Actions</th></tr></thead>
@@ -60,9 +87,15 @@ export default function UsersPage() {
                                     <td><span className={`ts-badge ts-badge--${u.role === 'admin' ? 'submitted' : 'draft'}`}>{u.role}</span></td>
                                     <td>{new Date(u.createdAt).toLocaleDateString()}</td>
                                     <td>
-                                        <button className="btn btn--outline btn--xs" style={{ color: 'hsl(0 84% 60%)' }} onClick={() => handleDelete(u)}>
-                                            {Icons.trash}
-                                        </button>
+                                        {showArchived ? (
+                                            <button className="btn btn--restore" onClick={() => handleRestore(u)}>
+                                                {Icons.rotateCcw} Restore
+                                            </button>
+                                        ) : (
+                                            <button className="btn btn--outline btn--xs" style={{ color: 'hsl(0 84% 60%)' }} onClick={() => handleDelete(u)}>
+                                                {Icons.trash}
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

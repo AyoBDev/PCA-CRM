@@ -2,7 +2,7 @@ const prisma = require('../lib/prisma');
 
 async function listEmployees(req, res, next) {
     try {
-        const where = {};
+        const where = req.query.archived === 'true' ? { archivedAt: { not: null } } : { archivedAt: null };
         if (req.query.active === 'true') where.active = true;
         if (req.query.active === 'false') where.active = false;
 
@@ -69,18 +69,24 @@ async function updateEmployee(req, res, next) {
 async function deleteEmployee(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const shiftCount = await prisma.shift.count({ where: { employeeId: id } });
-        if (shiftCount > 0) {
-            return res.status(409).json({
-                error: `Cannot delete employee with ${shiftCount} shift(s). Reassign or delete their shifts first.`,
-            });
-        }
-        await prisma.employee.delete({ where: { id } });
-        res.json({ success: true });
-    } catch (err) {
-        if (err.code === 'P2025') return res.status(404).json({ error: 'Employee not found' });
-        next(err);
-    }
+        const employee = await prisma.employee.findUnique({ where: { id } });
+        if (!employee) return res.status(404).json({ error: 'Employee not found' });
+        const archived = await prisma.employee.update({ where: { id }, data: { archivedAt: new Date() } });
+        res.json(archived);
+    } catch (err) { next(err); }
 }
 
-module.exports = { listEmployees, getEmployee, createEmployee, updateEmployee, deleteEmployee };
+async function restoreEmployee(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const employee = await prisma.employee.findUnique({ where: { id } });
+        if (!employee) return res.status(404).json({ error: 'Employee not found' });
+        const restored = await prisma.employee.update({
+            where: { id }, data: { archivedAt: null },
+            include: { user: { select: { id: true, name: true, email: true, role: true } } },
+        });
+        res.json(restored);
+    } catch (err) { next(err); }
+}
+
+module.exports = { listEmployees, getEmployee, createEmployee, updateEmployee, deleteEmployee, restoreEmployee };

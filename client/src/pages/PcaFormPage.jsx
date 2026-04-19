@@ -54,7 +54,8 @@ function getSunday(date) {
     return d.toISOString().slice(0, 10);
 }
 
-function SectionBlock({ header, activities, section, entries, updateEntry, dailyHoursFn, disabled, sectionDisabled, onAddShift, onRemoveShift }) {
+function SectionBlock({ header, activities, section, entries, updateEntry, dailyHoursFn, disabled, sectionDisabled, onAddShift, onRemoveShift, respiteEnabled, isIadlSection }) {
+    const SHIFT_COLORS = ['', 'sdr-shift--s2', 'sdr-shift--s3', 'sdr-shift--s4', 'sdr-shift--s5'];
     return (
         <div className={`sdr-section ${sectionDisabled ? 'sdr-section--disabled' : ''}`}>
             <div className="sdr-section-title">{header}</div>
@@ -85,8 +86,26 @@ function SectionBlock({ header, activities, section, entries, updateEntry, daily
                     })}
                 </div>
             ))}
+            {isIadlSection && respiteEnabled && (
+                <div className="sdr-activity-row sdr-activity-row--respite">
+                    <div className="sdr-activity-label"><strong>Respite</strong></div>
+                    {entries.map((entry, idx) => {
+                        const acts = JSON.parse(entry.respiteActivities || '{}');
+                        const checked = !!acts['Respite'];
+                        return (
+                            <div key={idx} className="sdr-activity-cell">
+                                <input type="checkbox" checked={checked} disabled={disabled}
+                                    onChange={() => {
+                                        const next = { ...acts, Respite: !checked };
+                                        updateEntry(idx, 'respiteActivities', JSON.stringify(next));
+                                    }} />
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
             <div className="sdr-activity-row sdr-initials-row">
-                <div className="sdr-activity-label"><strong>PCA Initials</strong></div>
+                <div className="sdr-activity-label"><strong>PCA Initials</strong> <span className="sdr-required">*</span></div>
                 {entries.map((e, i) => (
                     <div key={i} className="sdr-activity-cell">
                         <input type="text" className="sdr-initials-input" value={e[`${section}PcaInitials`] || ''} disabled={disabled} maxLength={4}
@@ -95,7 +114,7 @@ function SectionBlock({ header, activities, section, entries, updateEntry, daily
                 ))}
             </div>
             <div className="sdr-activity-row sdr-initials-row">
-                <div className="sdr-activity-label"><strong>Client Initials</strong></div>
+                <div className="sdr-activity-label"><strong>Client Initials</strong> <span className="sdr-required">*</span></div>
                 {entries.map((e, i) => (
                     <div key={i} className="sdr-activity-cell">
                         <input type="text" className="sdr-initials-input" value={e[`${section}ClientInitials`] || ''} disabled={disabled} maxLength={4}
@@ -105,7 +124,7 @@ function SectionBlock({ header, activities, section, entries, updateEntry, daily
             </div>
             {/* Shift 1: primary time in/out */}
             <div className="sdr-activity-row sdr-time-row">
-                <div className="sdr-activity-label">Shift 1 — In</div>
+                <div className="sdr-activity-label">Shift 1 — In <span className="sdr-required">*</span></div>
                 {entries.map((e, i) => (
                     <div key={i} className="sdr-activity-cell">
                         <input type="time" className="sdr-time-input" value={e[`${section}TimeIn`] || ''} disabled={disabled}
@@ -114,7 +133,7 @@ function SectionBlock({ header, activities, section, entries, updateEntry, daily
                 ))}
             </div>
             <div className="sdr-activity-row sdr-time-row">
-                <div className="sdr-activity-label">Shift 1 — Out</div>
+                <div className="sdr-activity-label">Shift 1 — Out <span className="sdr-required">*</span></div>
                 {entries.map((e, i) => (
                     <div key={i} className="sdr-activity-cell">
                         <input type="time" className="sdr-time-input" value={e[`${section}TimeOut`] || ''} disabled={disabled}
@@ -122,9 +141,8 @@ function SectionBlock({ header, activities, section, entries, updateEntry, daily
                     </div>
                 ))}
             </div>
-            {/* Extra shifts from timeBlocks */}
+            {/* Extra shifts from timeBlocks — color-coded */}
             {(() => {
-                // Find the max number of time blocks across all entries for this section
                 let maxBlocks = 0;
                 for (const e of entries) {
                     try {
@@ -134,8 +152,9 @@ function SectionBlock({ header, activities, section, entries, updateEntry, daily
                 }
                 const rows = [];
                 for (let b = 0; b < maxBlocks; b++) {
+                    const colorClass = SHIFT_COLORS[b] || SHIFT_COLORS[SHIFT_COLORS.length - 1];
                     rows.push(
-                        <div key={`block-in-${b}`} className="sdr-activity-row sdr-time-row">
+                        <div key={`block-in-${b}`} className={`sdr-activity-row sdr-time-row ${colorClass}`}>
                             <div className="sdr-activity-label">
                                 Shift {b + 2} — In
                                 {!disabled && b === maxBlocks - 1 && (
@@ -158,7 +177,7 @@ function SectionBlock({ header, activities, section, entries, updateEntry, daily
                                 );
                             })}
                         </div>,
-                        <div key={`block-out-${b}`} className="sdr-activity-row sdr-time-row">
+                        <div key={`block-out-${b}`} className={`sdr-activity-row sdr-time-row ${colorClass}`}>
                             <div className="sdr-activity-label">Shift {b + 2} — Out</div>
                             {entries.map((e, i) => {
                                 const blocks = (() => { try { return JSON.parse(e[`${section}TimeBlocks`] || '[]'); } catch { return []; } })();
@@ -458,29 +477,31 @@ export default function PcaFormPage() {
                     sectionDisabled={!iadlAnyEnabled}
                     onAddShift={handleAddShift}
                     onRemoveShift={handleRemoveShift}
+                    respiteEnabled={respiteEnabled}
+                    isIadlSection
                 />
                 {iadlAnyEnabled && hmEnabled && respiteEnabled && (
                     <p className="pca-form-hint">Tip: switch between <strong>HOMEMAKER</strong> and <strong>RESPITE</strong> using the tags in the blue bar above. Only one can be logged per day in a given time block.</p>
                 )}
 
                 <div className="sdr-totals-bar">
-                    <div className="sdr-total-item"><span>Total</span><strong>{totalAll.toFixed(2)}</strong></div>
-                    {pasEnabled && <div className="sdr-total-item"><span>PAS</span><strong>{totalPas.toFixed(2)}</strong></div>}
-                    {hmEnabled && <div className="sdr-total-item"><span>Homemaker</span><strong>{totalHm.toFixed(2)}</strong></div>}
-                    {respiteEnabled && <div className="sdr-total-item"><span>Respite</span><strong>{totalRespite.toFixed(2)}</strong></div>}
+                    <div className="sdr-total-item"><span>Total</span><strong>{totalAll.toFixed(2)} hrs / {Math.round(totalAll * 4)} units</strong></div>
+                    {pasEnabled && <div className="sdr-total-item"><span>PAS</span><strong>{totalPas.toFixed(2)} hrs / {Math.round(totalPas * 4)} units</strong></div>}
+                    {hmEnabled && <div className="sdr-total-item"><span>Homemaker</span><strong>{totalHm.toFixed(2)} hrs / {Math.round(totalHm * 4)} units</strong></div>}
+                    {respiteEnabled && <div className="sdr-total-item"><span>Respite</span><strong>{totalRespite.toFixed(2)} hrs / {Math.round(totalRespite * 4)} units</strong></div>}
                 </div>
 
                 <div className="sdr-section">
                     <div className="sdr-section-title">Acknowledgement and Required Signatures</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 16, padding: '0 16px' }}>
-                        <div className="form-group"><label>PCA Name (First, MI, Last)</label><input type="text" value={pcaFullName} onChange={(e) => setPcaFullName(e.target.value)} disabled={submitted} placeholder="Jane A. Doe" /></div>
-                        <div className="form-group"><label>Recipient Name (First, MI, Last)</label><input type="text" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} disabled={submitted} placeholder="John B. Client" /></div>
+                        <div className="form-group"><label>PCA Name (First, MI, Last) <span className="sdr-required">*</span></label><input type="text" value={pcaFullName} onChange={(e) => setPcaFullName(e.target.value)} disabled={submitted} placeholder="Jane A. Doe" /></div>
+                        <div className="form-group"><label>Recipient Name (First, MI, Last) <span className="sdr-required">*</span></label><input type="text" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} disabled={submitted} placeholder="John B. Client" /></div>
                     </div>
                     <div className="ts-signatures">
-                        <SignaturePad label="PCA Signature" value={pcaSig} onChange={setPcaSig} disabled={submitted} />
+                        <SignaturePad label="PCA Signature *" value={pcaSig} onChange={setPcaSig} disabled={submitted} />
                     </div>
                     <div className="ts-signatures" style={{ paddingBottom: 16 }}>
-                        <SignaturePad label="Recipient / Responsible Party Signature" value={recipientSig} onChange={setRecipientSig} disabled={submitted} />
+                        <SignaturePad label="Recipient / Responsible Party Signature *" value={recipientSig} onChange={setRecipientSig} disabled={submitted} />
                     </div>
                 </div>
 

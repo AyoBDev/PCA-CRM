@@ -14,6 +14,7 @@ model User {
   name         String
   role         String    @default("pca")
   phone        String    @default("") @map("phone")
+  archivedAt   DateTime? @map("archived_at")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
   employee     Employee?
@@ -31,10 +32,23 @@ model Employee {
   user          User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
   shifts        Shift[]
   notifications ScheduleNotification[]
+  scheduleLink  EmployeeScheduleLink?
+  archivedAt    DateTime?              @map("archived_at")
   createdAt     DateTime               @default(now()) @map("created_at")
   updatedAt     DateTime               @updatedAt @map("updated_at")
 
   @@map("employees")
+}
+
+model EmployeeScheduleLink {
+  id         Int      @id @default(autoincrement())
+  token      String   @unique @default(uuid())
+  employeeId Int      @unique @map("employee_id")
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("employee_schedule_links")
 }
 
 model ScheduleNotification {
@@ -66,6 +80,7 @@ model Client {
   gateCode        String          @default("") @map("gate_code")
   notes           String          @default("") @map("notes")
   enabledServices String          @default("[\"PAS\",\"Homemaker\"]") @map("enabled_services")
+  archivedAt      DateTime?       @map("archived_at")
   authorizations  Authorization[]
   timesheets      Timesheet[]
   shifts          Shift[]
@@ -95,22 +110,24 @@ model Authorization {
 }
 
 model InsuranceType {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  color     String   @default("#9E9E9E")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id         Int       @id @default(autoincrement())
+  name       String    @unique
+  color      String    @default("#9E9E9E")
+  archivedAt DateTime? @map("archived_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
 
   @@map("insurance_types")
 }
 
 model Service {
-  id        Int      @id @default(autoincrement())
-  category  String
-  code      String   @unique
-  name      String   @default("")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id         Int       @id @default(autoincrement())
+  category   String
+  code       String    @unique
+  name       String    @default("")
+  archivedAt DateTime? @map("archived_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
 
   @@map("services")
 }
@@ -135,6 +152,7 @@ model Timesheet {
   supervisorSignature String           @default("") @map("supervisor_signature")
   completionDate      String           @default("") @map("completion_date")
   submittedAt         DateTime?        @map("submitted_at")
+  archivedAt          DateTime?        @map("archived_at")
   client              Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
   entries             TimesheetEntry[]
   signingTokens       SigningToken[]
@@ -202,6 +220,7 @@ model PayrollRun {
   totalVisits  Int            @default(0) @map("total_visits")
   totalPayable Int            @default(0) @map("total_payable")
   errorMessage String?        @map("error_message")
+  archivedAt   DateTime?      @map("archived_at")
   visits       PayrollVisit[]
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
@@ -263,6 +282,7 @@ model Shift {
   recurringGroupId String    @default("") @map("recurring_group_id") // groups recurring shifts for bulk delete
   accountNumber    String    @default("") @map("account_number")
   sandataClientId  String    @default("") @map("sandata_client_id")
+  archivedAt       DateTime? @map("archived_at")
   client           Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
   employee         Employee? @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   createdAt        DateTime  @default(now()) @map("created_at")

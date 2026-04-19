@@ -373,7 +373,9 @@ async function uploadPayrollRun(req, res, next) {
  */
 async function listPayrollRuns(req, res, next) {
     try {
+        const where = req.query.archived === 'true' ? { archivedAt: { not: null } } : { archivedAt: null };
         const runs = await prisma.payrollRun.findMany({
+            where,
             orderBy: { createdAt: 'desc' },
             select: {
                 id:           true,
@@ -385,6 +387,7 @@ async function listPayrollRuns(req, res, next) {
                 totalVisits:  true,
                 totalPayable: true,
                 errorMessage: true,
+                archivedAt:   true,
                 createdAt:    true,
                 updatedAt:    true,
             },
@@ -440,13 +443,30 @@ async function getPayrollRun(req, res, next) {
 }
 
 /**
- * DELETE /api/payroll/runs/:id
+ * DELETE /api/payroll/runs/:id  (soft-delete → archive)
  */
 async function deletePayrollRun(req, res, next) {
     try {
         const id = parseInt(req.params.id);
-        await prisma.payrollRun.delete({ where: { id } });
-        return res.status(204).send();
+        const run = await prisma.payrollRun.findUnique({ where: { id } });
+        if (!run) return res.status(404).json({ error: 'Payroll run not found' });
+        const archived = await prisma.payrollRun.update({ where: { id }, data: { archivedAt: new Date() } });
+        return res.json(archived);
+    } catch (err) {
+        return next(err);
+    }
+}
+
+/**
+ * PUT /api/payroll/runs/:id/restore
+ */
+async function restorePayrollRun(req, res, next) {
+    try {
+        const id = parseInt(req.params.id);
+        const run = await prisma.payrollRun.findUnique({ where: { id } });
+        if (!run) return res.status(404).json({ error: 'Payroll run not found' });
+        const restored = await prisma.payrollRun.update({ where: { id }, data: { archivedAt: null } });
+        return res.json(restored);
     } catch (err) {
         return next(err);
     }
@@ -675,6 +695,7 @@ module.exports = {
     listPayrollRuns,
     getPayrollRun,
     deletePayrollRun,
+    restorePayrollRun,
     exportPayrollRun,
     updatePayrollVisit,
 };

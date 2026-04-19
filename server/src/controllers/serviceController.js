@@ -3,7 +3,9 @@ const prisma = require('../lib/prisma');
 // GET /api/services
 async function listServices(req, res, next) {
     try {
+        const where = req.query.archived === 'true' ? { archivedAt: { not: null } } : { archivedAt: null };
         const services = await prisma.service.findMany({
+            where,
             orderBy: [{ category: 'asc' }, { code: 'asc' }],
         });
         res.json(services);
@@ -57,16 +59,26 @@ async function updateService(req, res, next) {
     }
 }
 
-// DELETE /api/services/:id
+// DELETE /api/services/:id  (soft-delete → archive)
 async function deleteService(req, res, next) {
     try {
         const id = Number(req.params.id);
-        await prisma.service.delete({ where: { id } });
-        res.status(204).end();
-    } catch (err) {
-        if (err.code === 'P2025') return res.status(404).json({ error: 'Service not found' });
-        next(err);
-    }
+        const svc = await prisma.service.findUnique({ where: { id } });
+        if (!svc) return res.status(404).json({ error: 'Service not found' });
+        const archived = await prisma.service.update({ where: { id }, data: { archivedAt: new Date() } });
+        res.json(archived);
+    } catch (err) { next(err); }
 }
 
-module.exports = { listServices, createService, updateService, deleteService };
+// PUT /api/services/:id/restore
+async function restoreService(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const svc = await prisma.service.findUnique({ where: { id } });
+        if (!svc) return res.status(404).json({ error: 'Service not found' });
+        const restored = await prisma.service.update({ where: { id }, data: { archivedAt: null } });
+        res.json(restored);
+    } catch (err) { next(err); }
+}
+
+module.exports = { listServices, createService, updateService, deleteService, restoreService };

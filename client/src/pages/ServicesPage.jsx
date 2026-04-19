@@ -43,14 +43,15 @@ function ServiceFormModal({ service, onSave, onClose }) {
 }
 
 export default function ServicesPage() {
-    const { showToast } = useToast();
+    const { showToast, showUndoToast } = useToast();
     const [services, setServices] = useState([]);
     const [modal, setModal] = useState(null);
+    const [showArchived, setShowArchived] = useState(false);
 
     const fetchServices = useCallback(async () => {
-        try { setServices(await api.getServices()); }
+        try { setServices(await api.getServices({ archived: showArchived })); }
         catch (err) { showToast(err.message, 'error'); }
-    }, [showToast]);
+    }, [showToast, showArchived]);
 
     useEffect(() => { fetchServices(); }, [fetchServices]);
 
@@ -71,8 +72,19 @@ export default function ServicesPage() {
     const handleDelete = async (svc) => {
         try {
             await api.deleteService(svc.id);
-            showToast('Service deleted');
             setModal(null);
+            fetchServices();
+            showUndoToast(`"${svc.code}" archived`, async () => {
+                await api.restoreService(svc.id);
+                fetchServices();
+            });
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleRestore = async (svc) => {
+        try {
+            await api.restoreService(svc.id);
+            showToast(`"${svc.code}" restored`);
             fetchServices();
         } catch (err) { showToast(err.message, 'error'); }
     };
@@ -88,12 +100,28 @@ export default function ServicesPage() {
             <div className="content-header">
                 <h1 className="content-header__title">Services</h1>
                 <div className="content-header__actions">
-                    <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'form' })}>
-                        {Icons.plus} Add Service
-                    </button>
+                    {!showArchived && (
+                        <button className="archive-toggle" onClick={() => setShowArchived(true)}>
+                            {Icons.archive} View Archived
+                        </button>
+                    )}
+                    {!showArchived && (
+                        <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'form' })}>
+                            {Icons.plus} Add Service
+                        </button>
+                    )}
                 </div>
             </div>
             <div className="page-content">
+                {showArchived && (
+                    <div className="archived-banner">
+                        {Icons.archive}
+                        <span style={{ flex: 1 }}>Viewing archived services. Click "Restore" to bring items back.</span>
+                        <button className="btn btn--outline btn--sm" onClick={() => setShowArchived(false)}>
+                            {Icons.chevronLeft} Back to Active
+                        </button>
+                    </div>
+                )}
                 {services.length === 0 ? (
                     <div className="empty-state">
                         <div className="empty-state__icon">{Icons.fileText}</div>
@@ -113,12 +141,20 @@ export default function ServicesPage() {
                                             <div className="it-card__hex">{s.category} · {s.code}</div>
                                         </div>
                                         <div className="it-card__actions">
-                                            <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'form', service: s })} title="Edit">
-                                                {Icons.edit}
-                                            </button>
-                                            <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDelete', service: s })} title="Delete">
-                                                {Icons.trash}
-                                            </button>
+                                            {showArchived ? (
+                                                <button className="btn btn--restore" onClick={() => handleRestore(s)} title="Restore">
+                                                    {Icons.rotateCcw} Restore
+                                                </button>
+                                            ) : (
+                                                <>
+                                                    <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'form', service: s })} title="Edit">
+                                                        {Icons.edit}
+                                                    </button>
+                                                    <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDelete', service: s })} title="Delete">
+                                                        {Icons.trash}
+                                                    </button>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 ))}

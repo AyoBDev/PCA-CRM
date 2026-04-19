@@ -39,7 +39,7 @@ function computeHours(timeIn, timeOut) {
 // GET /api/timesheets
 async function listTimesheets(req, res, next) {
     try {
-        const where = {};
+        const where = req.query.archived === 'true' ? { archivedAt: { not: null } } : { archivedAt: null };
         if (req.query.status) where.status = req.query.status;
         if (req.query.weekStart) where.weekStart = new Date(req.query.weekStart);
         const timesheets = await prisma.timesheet.findMany({
@@ -207,8 +207,21 @@ async function deleteTimesheet(req, res, next) {
         if (existing.status !== 'draft' && (!req.user || req.user.role !== 'admin')) {
             return res.status(400).json({ error: 'Only admins can delete submitted timesheets' });
         }
-        await prisma.timesheet.delete({ where: { id } });
-        res.status(204).end();
+        const archived = await prisma.timesheet.update({ where: { id }, data: { archivedAt: new Date() } });
+        res.json(archived);
+    } catch (err) { next(err); }
+}
+
+async function restoreTimesheet(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const existing = await prisma.timesheet.findUnique({ where: { id } });
+        if (!existing) return res.status(404).json({ error: 'Timesheet not found' });
+        const restored = await prisma.timesheet.update({
+            where: { id }, data: { archivedAt: null },
+            include: { client: { select: { id: true, clientName: true } }, entries: true },
+        });
+        res.json(restored);
     } catch (err) { next(err); }
 }
 
@@ -481,4 +494,4 @@ async function updateTimesheetStatus(req, res, next) {
     }
 }
 
-module.exports = { listTimesheets, getTimesheet, getActivities, createTimesheet, updateTimesheet, submitTimesheet, deleteTimesheet, exportTimesheetPdf, updateTimesheetStatus };
+module.exports = { listTimesheets, getTimesheet, getActivities, createTimesheet, updateTimesheet, submitTimesheet, deleteTimesheet, restoreTimesheet, exportTimesheetPdf, updateTimesheetStatus };

@@ -9,10 +9,14 @@ export function ToastProvider({ children }) {
         setToast({ message, type });
     }, []);
 
+    const showUndoToast = useCallback((message, onUndo) => {
+        setToast({ message, type: 'undo', onUndo });
+    }, []);
+
     const clearToast = useCallback(() => setToast(null), []);
 
     return (
-        <ToastContext.Provider value={{ toast, showToast, clearToast }}>
+        <ToastContext.Provider value={{ toast, showToast, showUndoToast, clearToast }}>
             {children}
         </ToastContext.Provider>
     );

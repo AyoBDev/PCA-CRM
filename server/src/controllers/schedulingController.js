@@ -11,6 +11,45 @@ const { isSmsConfigured, isEmailConfigured, sendSms, sendEmail } = require('../s
 
 const VALID_ACCOUNT_NUMBERS = ['71040', '71119', '71120', '71635'];
 
+// Derive a scheduling service code from a service name (handles TIMESHEETS rows)
+function deriveCodeFromName(name) {
+    if (!name) return null;
+    const lower = name.toLowerCase();
+    if (lower.includes('self') && (lower.includes('directed') || lower.includes('direct'))) return 'SDPC';
+    if (lower.includes('personal') && lower.includes('care')) return 'PCS';
+    if (lower === 'pas' || lower === 'pca') return 'PCS';
+    if (lower.includes('homemaker') || lower === 'hm') return 'S5130';
+    if (lower.includes('attendant')) return 'S5125';
+    if (lower.includes('companion')) return 'S5135';
+    if (lower.includes('respite')) return 'S5150';
+    return null;
+}
+
+// Get the set of real service codes authorized for a client (resolves TIMESHEETS via serviceName)
+async function getAuthorizedServiceCodes(clientId) {
+    const now = new Date();
+    const auths = await prisma.authorization.findMany({
+        where: {
+            clientId: Number(clientId),
+            OR: [
+                { authorizationEndDate: null },
+                { authorizationEndDate: { gte: now } },
+            ],
+        },
+        select: { serviceCode: true, serviceName: true },
+    });
+    const codes = new Set();
+    for (const a of auths) {
+        if (a.serviceCode && a.serviceCode !== 'TIMESHEETS') {
+            codes.add(a.serviceCode);
+        } else {
+            const derived = deriveCodeFromName(a.serviceName);
+            if (derived) codes.add(derived);
+        }
+    }
+    return codes;
+}
+
 const shiftInclude = {
     client: { select: { id: true, clientName: true, address: true, phone: true, gateCode: true } },
     employee: { select: { id: true, name: true, email: true, phone: true } },
@@ -97,6 +136,7 @@ async function listShifts(req, res, next) {
         const range = getWeekRange(weekStart || undefined);
 
         const where = {
+            archivedAt: null,
             shiftDate: {
                 gte: new Date(range.weekStart + 'T00:00:00.000Z'),
                 lte: new Date(range.weekEnd + 'T23:59:59.999Z'),
@@ -155,12 +195,7 @@ async function createShift(req, res, next) {
             }
 
             // Validate all service codes are authorized for this client
-            const now = new Date();
-            const clientAuths = await prisma.authorization.findMany({
-                where: { clientId: Number(clientId), authorizationEndDate: { gte: now } },
-                select: { serviceCode: true },
-            });
-            const authorizedCodes = new Set(clientAuths.map(a => a.serviceCode));
+            const authorizedCodes = await getAuthorizedServiceCodes(clientId);
             const unauthorized = [...new Set(bulkShifts.map(s => s.serviceCode))].filter(c => !authorizedCodes.has(c));
             if (unauthorized.length > 0) {
                 return res.status(400).json({ error: `Service${unauthorized.length > 1 ? 's' : ''} not authorized for this client: ${unauthorized.join(', ')}` });
@@ -197,6 +232,10 @@ async function createShift(req, res, next) {
             const created = [];
             for (const entry of bulkShifts) {
                 const { hours, units } = computeShiftHours(entry.startTime, entry.endTime);
+                const entryAccount = entry.accountNumber || accountNumber || '';
+                if (entryAccount && !VALID_ACCOUNT_NUMBERS.includes(entryAccount)) {
+                    return res.status(400).json({ error: `Invalid account number: ${entryAccount}. Must be one of: ${VALID_ACCOUNT_NUMBERS.join(', ')}` });
+                }
                 const shift = await prisma.shift.create({
                     data: {
                         clientId: Number(clientId),
@@ -208,7 +247,7 @@ async function createShift(req, res, next) {
                         hours,
                         units,
                         notes: notes || '',
-                        accountNumber: accountNumber || '',
+                        accountNumber: entryAccount,
                         sandataClientId: sandataClientId || '',
                         recurringGroupId: groupId,
                     },
@@ -228,10 +267,8 @@ async function createShift(req, res, next) {
         }
 
         // Validate service is authorized for this client
-        const singleAuth = await prisma.authorization.findFirst({
-            where: { clientId: Number(clientId), serviceCode, authorizationEndDate: { gte: new Date() } },
-        });
-        if (!singleAuth) {
+        const singleAuthorizedCodes = await getAuthorizedServiceCodes(clientId);
+        if (!singleAuthorizedCodes.has(serviceCode)) {
             return res.status(400).json({ error: `Service ${serviceCode} is not authorized for this client` });
         }
 
@@ -391,36 +428,47 @@ async function updateShift(req, res, next) {
     }
 }
 
-// DELETE /api/shifts/:id?group=true (optional: delete entire recurring group)
+// DELETE /api/shifts/:id?group=true (soft-delete → archive)
 async function deleteShift(req, res, next) {
     try {
         const id = Number(req.params.id);
         const deleteGroup = req.query.group === 'true';
+        const now = new Date();
 
-        // Capture shift info before deletion for auto-notify
         const shiftToDelete = await prisma.shift.findUnique({ where: { id } });
         if (!shiftToDelete) return res.status(404).json({ error: 'Shift not found' });
 
         if (deleteGroup && shiftToDelete.recurringGroupId) {
-            const result = await prisma.shift.deleteMany({ where: { recurringGroupId: shiftToDelete.recurringGroupId } });
+            const result = await prisma.shift.updateMany({ where: { recurringGroupId: shiftToDelete.recurringGroupId }, data: { archivedAt: now } });
             await autoNotify(shiftToDelete.employeeId, shiftToDelete.shiftDate, req);
-            return res.json({ deleted: result.count });
+            return res.json({ archived: result.count });
         }
 
-        await prisma.shift.delete({ where: { id } });
+        await prisma.shift.update({ where: { id }, data: { archivedAt: now } });
         await autoNotify(shiftToDelete.employeeId, shiftToDelete.shiftDate, req);
-        res.json({ deleted: 1 });
+        res.json({ archived: 1, id });
     } catch (err) {
         if (err.code === 'P2025') return res.status(404).json({ error: 'Shift not found' });
         next(err);
     }
 }
 
-// DELETE /api/shifts (bulk delete all shifts)
+// DELETE /api/shifts (bulk archive all shifts)
 async function deleteAllShifts(req, res, next) {
     try {
-        const result = await prisma.shift.deleteMany({});
-        res.json({ deleted: result.count });
+        const result = await prisma.shift.updateMany({ where: { archivedAt: null }, data: { archivedAt: new Date() } });
+        res.json({ archived: result.count });
+    } catch (err) { next(err); }
+}
+
+// PUT /api/shifts/:id/restore
+async function restoreShift(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const shift = await prisma.shift.findUnique({ where: { id } });
+        if (!shift) return res.status(404).json({ error: 'Shift not found' });
+        const restored = await prisma.shift.update({ where: { id }, data: { archivedAt: null }, include: shiftInclude });
+        res.json(enrichShift(restored));
     } catch (err) { next(err); }
 }
 
@@ -439,6 +487,7 @@ async function getClientSchedule(req, res, next) {
         const shifts = await prisma.shift.findMany({
             where: {
                 clientId,
+                archivedAt: null,
                 shiftDate: {
                     gte: new Date(range.weekStart + 'T00:00:00.000Z'),
                     lte: new Date(range.weekEnd + 'T23:59:59.999Z'),
@@ -459,6 +508,7 @@ async function getClientSchedule(req, res, next) {
             allEmpShifts = await prisma.shift.findMany({
                 where: {
                     employeeId: { in: employeeIds },
+                    archivedAt: null,
                     shiftDate: {
                         gte: new Date(range.weekStart + 'T00:00:00.000Z'),
                         lte: new Date(range.weekEnd + 'T23:59:59.999Z'),
@@ -492,6 +542,7 @@ async function getEmployeeSchedule(req, res, next) {
         const shifts = await prisma.shift.findMany({
             where: {
                 employeeId,
+                archivedAt: null,
                 shiftDate: {
                     gte: new Date(range.weekStart + 'T00:00:00.000Z'),
                     lte: new Date(range.weekEnd + 'T23:59:59.999Z'),
@@ -557,4 +608,4 @@ async function authCheck(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listShifts, createShift, updateShift, deleteShift, deleteAllShifts, getClientSchedule, getEmployeeSchedule, authCheck };
+module.exports = { listShifts, createShift, updateShift, deleteShift, deleteAllShifts, getClientSchedule, getEmployeeSchedule, authCheck, restoreShift };
