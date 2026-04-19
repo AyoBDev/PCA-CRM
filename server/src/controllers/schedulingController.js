@@ -580,8 +580,18 @@ async function authCheck(req, res, next) {
                 where: {
                     clientId: Number(clientId),
                     serviceCode,
-                    authorizationStartDate: { lte: new Date(we) },
-                    authorizationEndDate: { gte: new Date(ws) },
+                    OR: [
+                        { authorizationStartDate: null },
+                        { authorizationStartDate: { lte: new Date(we) } },
+                    ],
+                    AND: [
+                        {
+                            OR: [
+                                { authorizationEndDate: null },
+                                { authorizationEndDate: { gte: new Date(ws) } },
+                            ],
+                        },
+                    ],
                 },
             }),
             prisma.shift.findMany({
