@@ -22,14 +22,14 @@ async function getDashboardStats(req, res) {
         prisma.shift.count({
             where: {
                 archivedAt: null,
-                shiftDate: new Date(today),
+                shiftDate: { gte: new Date(today + 'T00:00:00.000Z'), lte: new Date(today + 'T23:59:59.999Z') },
                 status: { not: 'cancelled' },
             },
         }),
         prisma.shift.findMany({
             where: {
                 archivedAt: null,
-                shiftDate: { gte: new Date(weekStart), lte: new Date(weekEnd) },
+                shiftDate: { gte: new Date(weekStart + 'T00:00:00.000Z'), lte: new Date(weekEnd + 'T23:59:59.999Z') },
                 status: { not: 'cancelled' },
             },
             select: { hours: true, units: true },
