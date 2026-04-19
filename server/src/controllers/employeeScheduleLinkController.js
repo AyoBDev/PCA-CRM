@@ -1,5 +1,5 @@
 const prisma = require('../lib/prisma');
-const { getWeekRange } = require('../services/schedulingService');
+const { getWeekRange, SERVICE_COLOR_MAP } = require('../services/schedulingService');
 
 // POST /api/employee-schedule-links
 async function createLink(req, res, next) {
@@ -89,11 +89,16 @@ async function getScheduleView(req, res) {
         orderBy: [{ shiftDate: 'asc' }, { startTime: 'asc' }],
     });
 
+    const enrichedShifts = shifts.map(s => ({
+        ...s,
+        serviceLabel: (SERVICE_COLOR_MAP[s.serviceCode] || {}).label || s.serviceCode,
+    }));
+
     res.json({
         employee: { id: link.employee.id, name: link.employee.name },
         weekStart,
         weekEnd,
-        shifts,
+        shifts: enrichedShifts,
     });
 }
 
