@@ -11,21 +11,32 @@ function hhmm12(t) {
     return `${hr}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
 }
 
+function localToday() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function getSunday(dateStr) {
-    const d = new Date(dateStr + 'T00:00:00.000Z');
-    d.setUTCDate(d.getUTCDate() - d.getUTCDay());
-    return d.toISOString().split('T')[0];
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    dt.setDate(dt.getDate() - dt.getDay());
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 }
 
 function addDays(dateStr, n) {
-    const d = new Date(dateStr + 'T00:00:00.000Z');
-    d.setUTCDate(d.getUTCDate() + n);
-    return d.toISOString().split('T')[0];
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dt = new Date(y, m - 1, d + n);
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 }
 
 function fmtShort(dateStr) {
-    const d = new Date(dateStr + 'T12:00:00Z');
-    return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+    const [, m, d] = dateStr.split('-').map(Number);
+    return `${m}/${d}`;
+}
+
+function dayName(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return DAY_NAMES[new Date(y, m - 1, d).getDay()];
 }
 
 export default function ScheduleViewPage() {
@@ -33,7 +44,7 @@ export default function ScheduleViewPage() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [weekStart, setWeekStart] = useState(() => getSunday(new Date().toISOString().split('T')[0]));
+    const [weekStart, setWeekStart] = useState(() => getSunday(localToday()));
 
     useEffect(() => {
         setLoading(true);
@@ -44,12 +55,15 @@ export default function ScheduleViewPage() {
             .finally(() => setLoading(false));
     }, [token, weekStart]);
 
+    // Use the server's weekStart to ensure dates align with shift dates
+    const effectiveWeekStart = data?.weekStart || weekStart;
     const weekDays = useMemo(() => {
         return Array.from({ length: 7 }, (_, i) => {
-            const date = addDays(weekStart, i);
-            return { date, dayName: DAY_NAMES[i], label: `${DAY_NAMES[i]} ${fmtShort(date)}` };
+            const date = addDays(effectiveWeekStart, i);
+            const dn = dayName(date);
+            return { date, dayName: dn, label: `${dn} ${fmtShort(date)}` };
         });
-    }, [weekStart]);
+    }, [effectiveWeekStart]);
 
     // Group shifts by date
     const shiftsByDate = useMemo(() => {
@@ -65,7 +79,7 @@ export default function ScheduleViewPage() {
 
     const handlePrevWeek = () => setWeekStart(addDays(weekStart, -7));
     const handleNextWeek = () => setWeekStart(addDays(weekStart, 7));
-    const handleThisWeek = () => setWeekStart(getSunday(new Date().toISOString().split('T')[0]));
+    const handleThisWeek = () => setWeekStart(getSunday(localToday()));
 
     if (error) {
         return (
