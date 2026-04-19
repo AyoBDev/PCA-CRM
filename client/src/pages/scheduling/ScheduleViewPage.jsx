@@ -152,7 +152,7 @@ export default function ScheduleViewPage() {
                                                         fontSize: 11, fontWeight: 600,
                                                         background: 'hsl(var(--accent))', color: 'hsl(var(--accent-foreground))',
                                                     }}>
-                                                        {shift.serviceCode}
+                                                        {shift.serviceLabel || shift.serviceCode}
                                                     </span>
                                                 </td>
                                                 <td style={{ fontSize: 12 }}>{shift.accountNumber || '—'}</td>
