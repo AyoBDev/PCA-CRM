@@ -12,14 +12,14 @@ function hhmm12(t) {
 }
 
 function getSunday(dateStr) {
-    const d = new Date(dateStr + 'T00:00:00');
-    d.setDate(d.getDate() - d.getDay());
+    const d = new Date(dateStr + 'T00:00:00.000Z');
+    d.setUTCDate(d.getUTCDate() - d.getUTCDay());
     return d.toISOString().split('T')[0];
 }
 
 function addDays(dateStr, n) {
-    const d = new Date(dateStr + 'T00:00:00');
-    d.setDate(d.getDate() + n);
+    const d = new Date(dateStr + 'T00:00:00.000Z');
+    d.setUTCDate(d.getUTCDate() + n);
     return d.toISOString().split('T')[0];
 }
 
