@@ -31,13 +31,13 @@ export default function LoginPage() {
             <div className="login-card">
                 <div className="login-card__header">
                     <div className="login-card__logo">{Icons.shieldCheck}</div>
-                    <h1 className="login-card__title">NV Best PCA</h1>
-                    <p className="login-card__subtitle">Authorization Tracking System</p>
+                    <h1 className="login-card__title">PCAlink</h1>
+                    <p className="login-card__subtitle">Service Delivery Platform</p>
                 </div>
                 <form onSubmit={handleSubmit} className="login-card__form">
                     <div className="form-group">
                         <label>Email</label>
-                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@nvbestpca.com" autoFocus required />
+                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your email" autoFocus required />
                     </div>
                     <div className="form-group">
                         <label>Password</label>
