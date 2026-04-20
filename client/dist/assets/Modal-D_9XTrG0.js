@@ -1,0 +1,1 @@
+import{j as r}from"./index-r7rOd10t.js";function e({children:o,onClose:s,wide:t}){return r.jsx("div",{className:"modal-backdrop",onClick:a=>a.target===a.currentTarget&&s(),children:r.jsx("div",{className:`modal${t?" modal--wide":""}`,children:o})})}export{e as M};
