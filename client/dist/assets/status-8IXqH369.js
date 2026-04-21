@@ -1,0 +1,1 @@
+function e(r){return r==="OK"?"OK":r==="Renewal Reminder"?"Renewal Reminder":r==="Expired"?"Expired":r}function i(r){return r.needsReview?"payroll-row--needs-review":r.voidFlag?"payroll-row--void":r.isIncomplete?"payroll-row--incomplete":r.isUnauthorized?"payroll-row--unauthorized":r.overlapId?"payroll-row--overlap":""}export{e as s,i as v};

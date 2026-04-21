@@ -104,7 +104,7 @@ export default function ScheduleViewPage() {
                         {data ? `${data.employee.name}'s Schedule` : 'Loading...'}
                     </h2>
                     <p style={{ color: '#71717a', margin: 0, fontSize: 13 }}>
-                        NV Best PCA Services
+                        PCAlink
                     </p>
                 </div>
 

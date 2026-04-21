@@ -1,6 +1,6 @@
 /* ─────────────────────────────────────────────
-   Authorization Tracker — shadcn/ui Design System
-   Zinc palette · Sidebar layout · Clean borders
+   PCAlink — Healthcare Design System
+   Blue palette · Sidebar layout · Clean borders
    ───────────────────────────────────────────── */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -13,23 +13,24 @@
   --card-foreground: 240 10% 3.9%;
   --popover: 0 0% 100%;
   --popover-foreground: 240 10% 3.9%;
-  --primary: 240 5.9% 10%;
-  --primary-foreground: 0 0% 98%;
+  --primary: 217 91% 60%;
+  --primary-foreground: 0 0% 100%;
   --secondary: 240 4.8% 95.9%;
   --secondary-foreground: 240 5.9% 10%;
   --muted: 240 4.8% 95.9%;
   --muted-foreground: 240 3.8% 46.1%;
-  --accent: 240 4.8% 95.9%;
-  --accent-foreground: 240 5.9% 10%;
+  --accent: 213 94% 95%;
+  --accent-foreground: 217 91% 40%;
   --destructive: 0 84.2% 60.2%;
   --destructive-foreground: 0 0% 98%;
   --border: 240 5.9% 90%;
   --input: 240 5.9% 90%;
-  --ring: 240 5.9% 10%;
+  --ring: 217 91% 60%;
   --radius: 0.5rem;
 
   /* Semantic colors */
-  --success: 142 71% 45%;
+  --success: 160 84% 39%;
+  --success-foreground: 0 0% 100%;
   --success-bg: 142 76% 96%;
   --warning: 38 92% 50%;
   --warning-bg: 38 100% 96%;
@@ -169,13 +170,13 @@ body {
 }
 
 .sidebar__nav-item:hover {
-  background: hsl(var(--accent));
-  color: hsl(var(--accent-foreground));
+  background: hsl(var(--primary) / 0.05);
+  color: hsl(var(--primary));
 }
 
 .sidebar__nav-item--active {
-  background: hsl(var(--accent));
-  color: hsl(var(--accent-foreground));
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
   font-weight: 600;
 }
 
@@ -468,8 +469,8 @@ body {
 /* Outline */
 .btn--outline {
   background: hsl(var(--background));
-  color: hsl(var(--foreground));
-  border-color: hsl(var(--input));
+  color: hsl(var(--primary));
+  border-color: hsl(var(--primary) / 0.3);
 }
 
 .btn--outline:hover {
@@ -480,7 +481,7 @@ body {
 /* Ghost */
 .btn--ghost {
   background: transparent;
-  color: hsl(var(--foreground));
+  color: hsl(var(--primary));
   border-color: transparent;
 }
 
@@ -489,15 +490,15 @@ body {
   color: hsl(var(--accent-foreground));
 }
 
-/* Success (for import) */
+/* Success (submit/finalize actions) */
 .btn--success {
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
-  border-color: hsl(var(--input));
+  background: hsl(var(--success));
+  color: hsl(var(--success-foreground));
+  border-color: hsl(var(--success));
 }
 
 .btn--success:hover {
-  background: hsl(var(--accent));
+  background: hsl(var(--success) / 0.9);
 }
 
 /* Destructive */
@@ -672,7 +673,7 @@ body {
   font-size: 12px;
   font-weight: 500;
   color: hsl(var(--muted-foreground));
-  background: hsl(var(--muted));
+  background: hsl(var(--primary) / 0.04);
   border-bottom: 1px solid hsl(var(--border));
   white-space: nowrap;
   position: sticky;
@@ -1105,10 +1106,10 @@ body {
 }
 
 .toast--success {
-  border-left: 3px solid hsl(142 71% 45%);
+  border-left: 3px solid hsl(var(--success));
 }
 .toast--success svg {
-  color: hsl(142 71% 45%);
+  color: hsl(var(--success));
 }
 
 .toast--error {
@@ -1116,6 +1117,13 @@ body {
 }
 .toast--error svg {
   color: hsl(var(--destructive));
+}
+
+.toast--info {
+  border-left: 3px solid hsl(var(--primary));
+}
+.toast--info svg {
+  color: hsl(var(--primary));
 }
 
 .toast--undo {
@@ -1985,6 +1993,29 @@ button.sdr-section-tag:hover:not(:disabled) {
   color: hsl(var(--foreground));
 }
 
+/* ── PCA Form Validation ── */
+.sdr-field-error {
+  border: 2px solid hsl(var(--destructive)) !important;
+  background: hsl(0 84% 60% / 0.05) !important;
+}
+
+.sdr-field-error-msg {
+  font-size: 11px;
+  color: hsl(var(--destructive));
+  margin-top: 2px;
+  text-align: center;
+}
+
+.sdr-sig-error .signature-pad__canvas {
+  border-color: hsl(var(--destructive)) !important;
+  background: hsl(0 84% 60% / 0.05) !important;
+}
+
+.sdr-name-error input {
+  border: 2px solid hsl(var(--destructive)) !important;
+  background: hsl(0 84% 60% / 0.05) !important;
+}
+
 /* Totals bar */
 .sdr-totals-bar {
   display: flex;
@@ -2102,7 +2133,7 @@ button.sdr-section-tag:hover:not(:disabled) {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: hsl(var(--muted-foreground));
-  background: hsl(var(--muted));
+  background: hsl(var(--primary) / 0.04);
   border-bottom: 2px solid hsl(var(--border));
   white-space: nowrap;
 }
@@ -2114,7 +2145,7 @@ button.sdr-section-tag:hover:not(:disabled) {
 }
 
 .data-table tbody tr:hover {
-  background: hsl(var(--muted) / 0.35);
+  background: hsl(var(--primary) / 0.04);
 }
 
 .data-table tbody tr:last-child td {
@@ -2138,6 +2169,18 @@ button.sdr-section-tag:hover:not(:disabled) {
   width: 100%;
   max-width: 420px;
   padding: 40px;
+  overflow: hidden;
+  position: relative;
+}
+
+.login-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, hsl(var(--primary)), hsl(217 91% 70%));
 }
 
 .login-card__header {
@@ -3821,13 +3864,4 @@ button.sdr-section-tag:hover:not(:disabled) {
 }
 .signing-missing li {
     margin-bottom: 2px;
-}
-.btn--success {
-    background: hsl(142 71% 35%);
-    color: white;
-    border: none;
-    font-weight: 700;
-}
-.btn--success:hover {
-    background: hsl(142 71% 30%);
 }

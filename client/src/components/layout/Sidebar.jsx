@@ -57,8 +57,8 @@ export default function Sidebar() {
             <div className="sidebar__header">
                 <div className="sidebar__logo">{Icons.shieldCheck}</div>
                 <div className="sidebar__brand-info">
-                    <div className="sidebar__brand-name">NV Best PCA</div>
-                    <div className="sidebar__brand-sub">Auth Tracker</div>
+                    <div className="sidebar__brand-name">PCAlink</div>
+                    <div className="sidebar__brand-sub">Service Delivery</div>
                 </div>
             </div>
 

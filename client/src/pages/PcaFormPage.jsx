@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
@@ -54,7 +54,7 @@ function getSunday(date) {
     return d.toISOString().slice(0, 10);
 }
 
-function SectionBlock({ header, activities, section, entries, updateEntry, dailyHoursFn, disabled, sectionDisabled, onAddShift, onRemoveShift, respiteEnabled, isIadlSection }) {
+function SectionBlock({ header, activities, section, entries, updateEntry, dailyHoursFn, disabled, sectionDisabled, onAddShift, onRemoveShift, respiteEnabled, isIadlSection, fieldErrors = {} }) {
     const SHIFT_COLORS = ['', 'sdr-shift--s2', 'sdr-shift--s3', 'sdr-shift--s4', 'sdr-shift--s5'];
     return (
         <div className={`sdr-section ${sectionDisabled ? 'sdr-section--disabled' : ''}`}>
@@ -108,7 +108,7 @@ function SectionBlock({ header, activities, section, entries, updateEntry, daily
                 <div className="sdr-activity-label"><strong>PCA Initials</strong> <span className="sdr-required">*</span></div>
                 {entries.map((e, i) => (
                     <div key={i} className="sdr-activity-cell">
-                        <input type="text" className="sdr-initials-input" value={e[`${section}PcaInitials`] || ''} disabled={disabled} maxLength={4}
+                        <input type="text" className={`sdr-initials-input ${fieldErrors[`${i}-${section}-pcaInitials`] ? 'sdr-field-error' : ''}`} value={e[`${section}PcaInitials`] || ''} disabled={disabled} maxLength={4}
                             onChange={(ev) => updateEntry(i, `${section}PcaInitials`, ev.target.value.toUpperCase())} />
                     </div>
                 ))}
@@ -117,7 +117,7 @@ function SectionBlock({ header, activities, section, entries, updateEntry, daily
                 <div className="sdr-activity-label"><strong>Client Initials</strong> <span className="sdr-required">*</span></div>
                 {entries.map((e, i) => (
                     <div key={i} className="sdr-activity-cell">
-                        <input type="text" className="sdr-initials-input" value={e[`${section}ClientInitials`] || ''} disabled={disabled} maxLength={4}
+                        <input type="text" className={`sdr-initials-input ${fieldErrors[`${i}-${section}-clientInitials`] ? 'sdr-field-error' : ''}`} value={e[`${section}ClientInitials`] || ''} disabled={disabled} maxLength={4}
                             onChange={(ev) => updateEntry(i, `${section}ClientInitials`, ev.target.value.toUpperCase())} />
                     </div>
                 ))}
@@ -127,7 +127,7 @@ function SectionBlock({ header, activities, section, entries, updateEntry, daily
                 <div className="sdr-activity-label">Shift 1 — In <span className="sdr-required">*</span></div>
                 {entries.map((e, i) => (
                     <div key={i} className="sdr-activity-cell">
-                        <input type="time" className="sdr-time-input" value={e[`${section}TimeIn`] || ''} disabled={disabled}
+                        <input type="time" className={`sdr-time-input ${fieldErrors[`${i}-${section}-timeIn`] ? 'sdr-field-error' : ''}`} value={e[`${section}TimeIn`] || ''} disabled={disabled}
                             onChange={(ev) => updateEntry(i, `${section}TimeIn`, ev.target.value)} />
                     </div>
                 ))}
@@ -136,7 +136,7 @@ function SectionBlock({ header, activities, section, entries, updateEntry, daily
                 <div className="sdr-activity-label">Shift 1 — Out <span className="sdr-required">*</span></div>
                 {entries.map((e, i) => (
                     <div key={i} className="sdr-activity-cell">
-                        <input type="time" className="sdr-time-input" value={e[`${section}TimeOut`] || ''} disabled={disabled}
+                        <input type="time" className={`sdr-time-input ${fieldErrors[`${i}-${section}-timeOut`] ? 'sdr-field-error' : ''}`} value={e[`${section}TimeOut`] || ''} disabled={disabled}
                             onChange={(ev) => updateEntry(i, `${section}TimeOut`, ev.target.value)} />
                     </div>
                 ))}
@@ -235,6 +235,7 @@ export default function PcaFormPage() {
     const [iadlTab, setIadlTab] = useState('iadl');
     const [toast, setToast] = useState('');
     const [selectedWeekStart, setSelectedWeekStart] = useState('');
+    const [submitAttempted, setSubmitAttempted] = useState(false);
 
     const showToast = useCallback((msg) => {
         setToast(msg);
@@ -343,6 +344,34 @@ export default function PcaFormPage() {
         return null;
     }, [data, entries, pcaFullName, pcaSig, recipientName, recipientSig, pasEnabled, hmEnabled, respiteEnabled]);
 
+    const fieldErrors = useMemo(() => {
+        if (!submitAttempted || !data) return {};
+        const errors = {};
+        if (!pcaFullName.trim()) errors.pcaFullName = 'PCA name required';
+        if (!pcaSig) errors.pcaSig = 'PCA signature required';
+        if (!recipientName.trim()) errors.recipientName = 'Recipient name required';
+        if (!recipientSig) errors.recipientSig = 'Recipient signature required';
+        for (let idx = 0; idx < entries.length; idx++) {
+            const e = entries[idx];
+            const sections = [];
+            if (pasEnabled) sections.push('adl');
+            if (hmEnabled) sections.push('iadl');
+            if (respiteEnabled) sections.push('respite');
+            for (const sec of sections) {
+                const anyAct = hasActivity(e, sec);
+                const anyInitials = e[`${sec}PcaInitials`] || e[`${sec}ClientInitials`];
+                const anyTime = e[`${sec}TimeIn`] || e[`${sec}TimeOut`];
+                if (anyAct || anyInitials || anyTime) {
+                    if (!e[`${sec}TimeIn`]) errors[`${idx}-${sec}-timeIn`] = 'Required';
+                    if (!e[`${sec}TimeOut`]) errors[`${idx}-${sec}-timeOut`] = 'Required';
+                    if (!e[`${sec}PcaInitials`]) errors[`${idx}-${sec}-pcaInitials`] = 'Required';
+                    if (!e[`${sec}ClientInitials`]) errors[`${idx}-${sec}-clientInitials`] = 'Required';
+                }
+            }
+        }
+        return errors;
+    }, [submitAttempted, data, entries, pcaFullName, pcaSig, recipientName, recipientSig, pasEnabled, hmEnabled, respiteEnabled]);
+
     const buildPayload = (action) => ({
         action,
         weekStart: selectedWeekStart || undefined,
@@ -378,12 +407,21 @@ export default function PcaFormPage() {
     };
 
     const handleSubmit = async () => {
-        if (validationError) { showToast(validationError); return; }
+        setSubmitAttempted(true);
+        if (validationError) {
+            showToast(validationError);
+            setTimeout(() => {
+                const el = document.querySelector('.sdr-field-error, .sdr-name-error, .sdr-sig-error');
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 50);
+            return;
+        }
         setSubmitting(true);
         try {
             const resp = await api.updatePcaForm(token, buildPayload('submit'));
             setData(resp);
             setEntries(resp.timesheet.entries || []);
+            setSubmitAttempted(false);
             showToast('Timesheet submitted!');
         } catch (err) {
             showToast(err.message);
@@ -464,6 +502,7 @@ export default function PcaFormPage() {
                     sectionDisabled={!pasEnabled}
                     onAddShift={handleAddShift}
                     onRemoveShift={handleRemoveShift}
+                    fieldErrors={fieldErrors}
                 />
 
                 <SectionBlock
@@ -479,6 +518,7 @@ export default function PcaFormPage() {
                     onRemoveShift={handleRemoveShift}
                     respiteEnabled={respiteEnabled}
                     isIadlSection
+                    fieldErrors={fieldErrors}
                 />
                 {iadlAnyEnabled && hmEnabled && respiteEnabled && (
                     <p className="pca-form-hint">Tip: switch between <strong>HOMEMAKER</strong> and <strong>RESPITE</strong> using the tags in the blue bar above. Only one can be logged per day in a given time block.</p>
@@ -494,13 +534,13 @@ export default function PcaFormPage() {
                 <div className="sdr-section">
                     <div className="sdr-section-title">Acknowledgement and Required Signatures</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 16, padding: '0 16px' }}>
-                        <div className="form-group"><label>PCA Name (First, MI, Last) <span className="sdr-required">*</span></label><input type="text" value={pcaFullName} onChange={(e) => setPcaFullName(e.target.value)} disabled={submitted} placeholder="Jane A. Doe" /></div>
-                        <div className="form-group"><label>Recipient Name (First, MI, Last) <span className="sdr-required">*</span></label><input type="text" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} disabled={submitted} placeholder="John B. Client" /></div>
+                        <div className={`form-group ${fieldErrors.pcaFullName ? 'sdr-name-error' : ''}`}><label>PCA Name (First, MI, Last) <span className="sdr-required">*</span></label><input type="text" value={pcaFullName} onChange={(e) => setPcaFullName(e.target.value)} disabled={submitted} placeholder="Jane A. Doe" /></div>
+                        <div className={`form-group ${fieldErrors.recipientName ? 'sdr-name-error' : ''}`}><label>Recipient Name (First, MI, Last) <span className="sdr-required">*</span></label><input type="text" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} disabled={submitted} placeholder="John B. Client" /></div>
                     </div>
-                    <div className="ts-signatures">
+                    <div className={`ts-signatures ${fieldErrors.pcaSig ? 'sdr-sig-error' : ''}`}>
                         <SignaturePad label="PCA Signature *" value={pcaSig} onChange={setPcaSig} disabled={submitted} />
                     </div>
-                    <div className="ts-signatures" style={{ paddingBottom: 16 }}>
+                    <div className={`ts-signatures ${fieldErrors.recipientSig ? 'sdr-sig-error' : ''}`} style={{ paddingBottom: 16 }}>
                         <SignaturePad label="Recipient / Responsible Party Signature *" value={recipientSig} onChange={setRecipientSig} disabled={submitted} />
                     </div>
                 </div>
@@ -508,16 +548,11 @@ export default function PcaFormPage() {
                 {!submitted && (
                     <div className="pca-form-actions" style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', padding: 16 }}>
                         <button className="btn btn--outline" onClick={handleSave} disabled={saving || submitting}>{saving ? 'Saving…' : 'Save Progress'}</button>
-                        <button className="btn btn--primary" onClick={handleSubmit} disabled={!!validationError || submitting || saving} title={validationError || 'Submit timesheet'}>{submitting ? 'Submitting…' : 'Submit Timesheet'}</button>
-                    </div>
-                )}
-                {!submitted && validationError && (
-                    <div style={{ textAlign: 'right', padding: '0 16px 16px', fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>
-                        {validationError}
+                        <button className="btn btn--success" onClick={handleSubmit} disabled={submitting || saving}>{submitting ? 'Submitting…' : 'Submit Timesheet'}</button>
                     </div>
                 )}
 
-                {toast && <div className="pca-form-toast" style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', padding: '12px 20px', background: 'hsl(var(--foreground))', color: 'hsl(var(--background))', borderRadius: 8, zIndex: 1000 }}>{toast}</div>}
+                {toast && <div className="pca-form-toast" style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', padding: '12px 20px', background: 'hsl(var(--foreground))', color: 'hsl(var(--background))', borderRadius: 8, zIndex: 1000, fontSize: 13, fontWeight: 500 }}>{toast}</div>}
             </div>
         </div>
     );
