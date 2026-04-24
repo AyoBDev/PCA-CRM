@@ -3,21 +3,11 @@ import { useToast } from '../../hooks/useToast';
 import Icons from '../../components/common/Icons';
 import * as api from '../../api';
 
-function toDateStr(d) {
-    if (typeof d === 'string') {
-        const idx = d.indexOf('T');
-        if (idx === 10) return d.slice(0, 10);
-    }
-    return new Date(d).toISOString().slice(0, 10);
-}
-
 export default function ScheduleDelivery({ weekStart, shifts }) {
     const [expanded, setExpanded] = useState(true);
     const [fullscreen, setFullscreen] = useState(false);
-    const [links, setLinks] = useState([]);
-    const [loadingLinks, setLoadingLinks] = useState(true);
-    const [copiedId, setCopiedId] = useState(null);
-    const [generatingId, setGeneratingId] = useState(null);
+    const [sendingId, setSendingId] = useState(null);
+    const [sentIds, setSentIds] = useState(new Set());
     const { showToast } = useToast();
 
     useEffect(() => {
@@ -27,26 +17,7 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
         return () => document.removeEventListener('keydown', onKey);
     }, [fullscreen]);
 
-    const fetchLinks = useCallback(async () => {
-        try {
-            const data = await api.getEmployeeScheduleLinks();
-            setLinks(data);
-        } catch { /* silent */ }
-        finally { setLoadingLinks(false); }
-    }, []);
-
-    useEffect(() => { fetchLinks(); }, [fetchLinks]);
-
-    // Build a map of employeeId → link
-    const linkMap = useMemo(() => {
-        const map = {};
-        for (const l of links) {
-            if (l.active) map[l.employeeId] = l;
-        }
-        return map;
-    }, [links]);
-
-    // Get unique employees from shifts
+    // Get unique employees from shifts (include email from shift.employee)
     const employees = useMemo(() => {
         const map = new Map();
         const activeShifts = (shifts || []).filter(s => s.status !== 'cancelled');
@@ -56,6 +27,8 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                 map.set(s.employeeId, {
                     id: s.employeeId,
                     name: s.employee.name || '',
+                    email: s.employee.email || '',
+                    phone: s.employee.phone || '',
                     shiftCount: 0,
                 });
             }
@@ -64,27 +37,33 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
         return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
     }, [shifts]);
 
-    const handleGenerateLink = async (employeeId) => {
-        setGeneratingId(employeeId);
-        try {
-            await api.createEmployeeScheduleLink(employeeId);
-            await fetchLinks();
-            showToast('Schedule link created');
-        } catch (err) {
-            showToast(err.message, 'error');
-        } finally {
-            setGeneratingId(null);
+    const handleSendSchedule = async (emp) => {
+        if (!emp.email && !emp.phone) {
+            showToast('No email or phone on file for this employee', 'error');
+            return;
         }
-    };
-
-    const handleCopyLink = async (link) => {
+        setSendingId(emp.id);
         try {
-            await navigator.clipboard.writeText(link.url);
-            setCopiedId(link.id);
-            showToast('Link copied to clipboard');
-            setTimeout(() => setCopiedId(null), 2000);
-        } catch {
-            showToast('Failed to copy', 'error');
+            const result = await api.sendScheduleNotifications({
+                weekStart,
+                employeeIds: [emp.id],
+            });
+            const r = result.results?.[0];
+            if (r?.status === 'sent') {
+                setSentIds(prev => new Set([...prev, emp.id]));
+                showToast(`Schedule sent to ${emp.name} via ${r.method}`);
+                setTimeout(() => setSentIds(prev => { const next = new Set(prev); next.delete(emp.id); return next; }), 3000);
+            } else if (r?.status === 'skipped') {
+                showToast(`Skipped: ${r.reason}`, 'error');
+            } else if (r?.status === 'failed') {
+                showToast(`Failed to send: ${r.reason}`, 'error');
+            } else {
+                showToast('No notification sent — check employee contact info', 'error');
+            }
+        } catch (err) {
+            showToast(err.message || 'Failed to send schedule', 'error');
+        } finally {
+            setSendingId(null);
         }
     };
 
@@ -115,29 +94,36 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
             </div>
             {(expanded || fullscreen) && <div className="sched-card__body">
                 {employees.length === 0 ? (
-                    <p style={{ color: '#71717a' }}>No shifts scheduled for this week.</p>
-                ) : loadingLinks ? (
-                    <p style={{ color: '#71717a' }}>Loading...</p>
+                    <p style={{ color: 'hsl(var(--muted-foreground))' }}>No shifts scheduled for this week.</p>
                 ) : (
                     <>
-                        <p style={{ fontSize: 12, color: '#71717a', margin: '0 0 10px' }}>
-                            Generate a permanent schedule link for each PCA. They can refresh it anytime to see the latest updates.
+                        <p style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', margin: '0 0 10px' }}>
+                            Send the weekly schedule link to each PCA via email or SMS. They can refresh the link anytime to see updates.
                         </p>
                         <table className="data-table" style={{ fontSize: 13 }}>
                             <thead>
                                 <tr>
                                     <th>Employee</th>
+                                    <th>Email</th>
                                     <th>Shifts This Week</th>
-                                    <th>Schedule Link</th>
-                                    <th style={{ width: 120 }}>Actions</th>
+                                    <th style={{ width: 150 }}>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {employees.map(emp => {
-                                    const link = linkMap[emp.id];
+                                    const hasContact = !!(emp.email || emp.phone);
+                                    const isSending = sendingId === emp.id;
+                                    const isSent = sentIds.has(emp.id);
                                     return (
                                         <tr key={emp.id}>
                                             <td style={{ fontWeight: 500 }}>{emp.name}</td>
+                                            <td>
+                                                {emp.email ? (
+                                                    <span style={{ fontSize: 12 }}>{emp.email}</span>
+                                                ) : (
+                                                    <span style={{ fontSize: 12, color: 'hsl(var(--destructive))', fontStyle: 'italic' }}>No email on file</span>
+                                                )}
+                                            </td>
                                             <td>
                                                 <span style={{
                                                     display: 'inline-block', padding: '1px 8px', borderRadius: 10,
@@ -148,35 +134,21 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                                                 </span>
                                             </td>
                                             <td>
-                                                {link ? (
-                                                    <span style={{ fontSize: 11, color: '#71717a', wordBreak: 'break-all' }}>
-                                                        {link.url}
-                                                    </span>
-                                                ) : (
-                                                    <span style={{ fontSize: 12, color: '#a1a1aa', fontStyle: 'italic' }}>No link yet</span>
-                                                )}
-                                            </td>
-                                            <td>
-                                                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                                                    {link ? (
-                                                        <button
-                                                            className="btn btn--primary btn--sm"
-                                                            style={{ fontSize: 11, padding: '3px 8px', gap: 4 }}
-                                                            onClick={() => handleCopyLink(link)}
-                                                        >
-                                                            {Icons.copy} {copiedId === link.id ? 'Copied!' : 'Copy Link'}
-                                                        </button>
+                                                <button
+                                                    className={`btn btn--sm ${isSent ? 'btn--outline' : 'btn--primary'}`}
+                                                    style={{ fontSize: 11, padding: '3px 8px', gap: 4 }}
+                                                    onClick={() => handleSendSchedule(emp)}
+                                                    disabled={!hasContact || isSending}
+                                                    title={!hasContact ? 'Add email or phone to this employee first' : 'Send schedule link via email/SMS'}
+                                                >
+                                                    {isSending ? (
+                                                        <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Sending...</>
+                                                    ) : isSent ? (
+                                                        <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="hsl(142 71% 45%)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Sent!</>
                                                     ) : (
-                                                        <button
-                                                            className="btn btn--outline btn--sm"
-                                                            style={{ fontSize: 11, padding: '3px 8px', gap: 4 }}
-                                                            onClick={() => handleGenerateLink(emp.id)}
-                                                            disabled={generatingId === emp.id}
-                                                        >
-                                                            {Icons.share} {generatingId === emp.id ? 'Creating...' : 'Generate Link'}
-                                                        </button>
+                                                        <>{Icons.share} Send Schedule</>
                                                     )}
-                                                </div>
+                                                </button>
                                             </td>
                                         </tr>
                                     );

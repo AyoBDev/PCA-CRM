@@ -51,6 +51,15 @@ async function sendSchedules(req, res) {
             continue;
         }
 
+        // Auto-generate permanent schedule link if one doesn't exist
+        let scheduleLink = await prisma.employeeScheduleLink.findUnique({ where: { employeeId: empId } });
+        if (!scheduleLink) {
+            scheduleLink = await prisma.employeeScheduleLink.create({ data: { employeeId: empId } });
+        } else if (!scheduleLink.active) {
+            scheduleLink = await prisma.employeeScheduleLink.update({ where: { id: scheduleLink.id }, data: { active: true } });
+        }
+        const scheduleUrl = `${baseUrl}/schedule/view/${scheduleLink.token}`;
+
         // Create notification records and send
         if (hasSms) {
             const notification = await prisma.scheduleNotification.create({
@@ -61,9 +70,8 @@ async function sendSchedules(req, res) {
                     destination: employee.phone,
                 },
             });
-            const confirmUrl = `${baseUrl}/schedule/confirm/${notification.confirmationToken}`;
             try {
-                const body = formatScheduleSms(employee.name, empShifts, weekLabel, confirmUrl);
+                const body = formatScheduleSms(employee.name, empShifts, weekLabel, scheduleUrl);
                 await sendSms(employee.phone, body);
                 await prisma.scheduleNotification.update({
                     where: { id: notification.id },
@@ -88,10 +96,9 @@ async function sendSchedules(req, res) {
                     destination: employee.email,
                 },
             });
-            const confirmUrl = `${baseUrl}/schedule/confirm/${notification.confirmationToken}`;
             try {
-                const html = formatScheduleEmailHtml(employee.name, empShifts, weekLabel, confirmUrl);
-                const text = `Schedule for ${weekLabel}. Confirm: ${confirmUrl}`;
+                const html = formatScheduleEmailHtml(employee.name, empShifts, weekLabel, scheduleUrl);
+                const text = `Schedule for ${weekLabel}. View: ${scheduleUrl}`;
                 await sendEmail(employee.email, `Your Schedule - ${weekLabel}`, html, text);
                 await prisma.scheduleNotification.update({
                     where: { id: notification.id },

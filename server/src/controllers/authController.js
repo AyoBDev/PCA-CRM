@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../lib/prisma');
+const { isEmailConfigured, sendEmail } = require('../services/notificationService');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'nvbestpca-secret';
 const TOKEN_EXPIRY = '24h';
@@ -68,6 +69,29 @@ async function register(req, res, next) {
             },
         });
         res.status(201).json({ id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone });
+
+        // Send welcome email with login credentials (fire-and-forget)
+        if (isEmailConfigured()) {
+            const loginUrl = `${req.protocol}://${req.get('host')}`;
+            sendEmail(
+                user.email,
+                'Welcome to NV Best PCA — Your Login Details',
+                `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+                    <h2>Welcome to NV Best PCA</h2>
+                    <p>Hi ${user.name},</p>
+                    <p>Your account has been created. Here are your login details:</p>
+                    <table cellpadding="8" cellspacing="0" style="border:1px solid #e4e4e7;border-radius:6px;width:100%">
+                        <tr><td style="color:#71717a">Email</td><td><strong>${user.email}</strong></td></tr>
+                        <tr><td style="color:#71717a">Password</td><td><strong>${password}</strong></td></tr>
+                        <tr><td style="color:#71717a">Role</td><td>${user.role}</td></tr>
+                    </table>
+                    <p style="margin-top:20px">
+                        <a href="${loginUrl}" style="display:inline-block;padding:12px 24px;background:#18181b;color:#fff;text-decoration:none;border-radius:6px;">Log In</a>
+                    </p>
+                </div>`,
+                `Welcome to NV Best PCA\n\nEmail: ${user.email}\nPassword: ${password}\nRole: ${user.role}\n\nLog in at: ${loginUrl}`
+            ).catch(err => console.error('Welcome email failed:', err.message));
+        }
     } catch (err) { next(err); }
 }
 
@@ -109,4 +133,43 @@ async function restoreUser(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { login, getMe, register, listUsers, deleteUser, restoreUser };
+// PUT /api/auth/users/:id/reset-password  (admin only)
+async function resetPassword(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const { password } = req.body;
+        if (!password || password.length < 4) {
+            return res.status(400).json({ error: 'Password must be at least 4 characters' });
+        }
+        const user = await prisma.user.findUnique({ where: { id } });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        const passwordHash = await bcrypt.hash(password, 10);
+        await prisma.user.update({ where: { id }, data: { passwordHash } });
+
+        // Send password reset email (fire-and-forget)
+        if (isEmailConfigured()) {
+            const loginUrl = `${req.protocol}://${req.get('host')}`;
+            sendEmail(
+                user.email,
+                'Your Password Has Been Reset — PCAlink',
+                `<div style="font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:500px;margin:0 auto">
+                    <h2 style="color:#09090b">Password Reset</h2>
+                    <p>Hi ${user.name},</p>
+                    <p>Your password has been reset by an administrator. Here are your updated login details:</p>
+                    <table cellpadding="8" cellspacing="0" style="border:1px solid #e4e4e7;border-radius:6px;width:100%">
+                        <tr><td style="color:#71717a">Email</td><td><strong>${user.email}</strong></td></tr>
+                        <tr><td style="color:#71717a">New Password</td><td><strong>${password}</strong></td></tr>
+                    </table>
+                    <p style="margin-top:20px">
+                        <a href="${loginUrl}" style="display:inline-block;padding:12px 24px;background:#3b82f6;color:#fff;text-decoration:none;border-radius:6px;">Log In</a>
+                    </p>
+                </div>`,
+                `Your password has been reset.\n\nEmail: ${user.email}\nNew Password: ${password}\n\nLog in at: ${loginUrl}`
+            ).catch(err => console.error('Password reset email failed:', err.message));
+        }
+
+        res.json({ success: true });
+    } catch (err) { next(err); }
+}
+
+module.exports = { login, getMe, register, listUsers, deleteUser, restoreUser, resetPassword };

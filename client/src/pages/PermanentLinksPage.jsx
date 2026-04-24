@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
+import ConfirmModal from '../components/common/ConfirmModal';
 import { useToast } from '../hooks/useToast';
 
 export default function PermanentLinksPage() {
@@ -12,6 +13,7 @@ export default function PermanentLinksPage() {
     const [showModal, setShowModal] = useState(false);
     const [newClientId, setNewClientId] = useState('');
     const [newPcaName, setNewPcaName] = useState('');
+    const [confirmDeactivate, setConfirmDeactivate] = useState(null);
 
     const load = useCallback(async () => {
         try {
@@ -46,9 +48,10 @@ export default function PermanentLinksPage() {
         }
     };
 
-    const handleDeactivate = async (id) => {
+    const handleDeactivate = async (link) => {
         try {
-            await api.deletePermanentLink(id);
+            await api.deletePermanentLink(link.id);
+            setConfirmDeactivate(null);
             showToast('Link deactivated');
             load();
         } catch (err) {
@@ -101,7 +104,7 @@ export default function PermanentLinksPage() {
                                             <div style={{ display: 'flex', gap: 6 }}>
                                                 <button className="btn btn--outline btn--sm" onClick={() => copyLink(link.token)}>{Icons.copy} Copy</button>
                                                 {link.active && (
-                                                    <button className="btn btn--danger-ghost btn--icon" onClick={() => handleDeactivate(link.id)} title="Deactivate">{Icons.trash}</button>
+                                                    <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmDeactivate(link)} title="Deactivate link">{Icons.trash}</button>
                                                 )}
                                             </div>
                                         </td>
@@ -132,6 +135,16 @@ export default function PermanentLinksPage() {
                         <button className="btn btn--primary" onClick={handleCreate}>Create Link</button>
                     </div>
                 </Modal>
+            )}
+            {confirmDeactivate && (
+                <ConfirmModal
+                    title="Deactivate Link"
+                    message={`Deactivate the link for ${confirmDeactivate.pcaName} — ${confirmDeactivate.client?.clientName || 'Unknown'}? The PCA will no longer be able to access timesheets via this link.`}
+                    confirmLabel="Deactivate"
+                    confirmVariant="danger"
+                    onConfirm={() => handleDeactivate(confirmDeactivate)}
+                    onClose={() => setConfirmDeactivate(null)}
+                />
             )}
         </>
     );

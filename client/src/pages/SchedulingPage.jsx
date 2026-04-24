@@ -17,6 +17,59 @@ const SERVICE_COLORS = {
     S5150: { color: '#06B6D4', bg: '#ECFEFF', label: 'Respite' },
 };
 
+// Reusable searchable dropdown for Client/Employee selection
+function SearchableSelect({ options, value, onChange, placeholder, className, id }) {
+    const [search, setSearch] = useState('');
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+
+    const selectedLabel = options.find(o => String(o.value) === String(value))?.label || '';
+
+    useEffect(() => {
+        if (!open) setSearch('');
+    }, [open]);
+
+    useEffect(() => {
+        const handleClick = (e) => {
+            if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+        };
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+    }, []);
+
+    const filtered = options.filter(o =>
+        o.label.toLowerCase().includes(search.toLowerCase())
+    );
+
+    return (
+        <div ref={ref} className="searchable-select">
+            <input
+                id={id}
+                className={className}
+                value={open ? search : selectedLabel}
+                onChange={e => { setSearch(e.target.value); if (!open) setOpen(true); }}
+                onFocus={() => setOpen(true)}
+                placeholder={placeholder || 'Type to search…'}
+                autoComplete="off"
+            />
+            {open && (
+                <ul className="searchable-select__dropdown">
+                    {filtered.length === 0 && (
+                        <li className="searchable-select__empty">No results found</li>
+                    )}
+                    {filtered.map(o => (
+                        <li key={o.value}
+                            className={`searchable-select__item${String(o.value) === String(value) ? ' searchable-select__item--active' : ''}`}
+                            onClick={() => { onChange(String(o.value)); setOpen(false); setSearch(''); }}>
+                            {o.label}
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    );
+}
+
 // Helper: get YYYY-MM-DD from a date value.
 // For ISO strings from the server (stored as UTC midnight), extract the UTC date portion
 // so a shift on "2026-03-15T00:00:00.000Z" always shows as March 15 regardless of timezone.
@@ -53,6 +106,8 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
         return '';
     });
     const [empDropdownOpen, setEmpDropdownOpen] = useState(false);
+    const [creatingNewEmp, setCreatingNewEmp] = useState(false);
+    const [newEmpEmail, setNewEmpEmail] = useState('');
     const empRef = useRef(null);
 
     // Client details
@@ -117,6 +172,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
             startTime: defaultStartTime || '09:00',
             endTime: '13:00',
             accountNumber: accountNumber || '',
+            sandataClientId: '',
         }))
     );
 
@@ -134,7 +190,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
     // Apply same time/service to all enabled days
     const applyToAll = (sourceIdx) => {
         const src = dayEntries[sourceIdx];
-        setDayEntries(prev => prev.map((e, i) => e.enabled && i !== sourceIdx ? { ...e, serviceCode: src.serviceCode, startTime: src.startTime, endTime: src.endTime, accountNumber: src.accountNumber } : e));
+        setDayEntries(prev => prev.map((e, i) => e.enabled && i !== sourceIdx ? { ...e, serviceCode: src.serviceCode, startTime: src.startTime, endTime: src.endTime, accountNumber: src.accountNumber, sandataClientId: src.sandataClientId } : e));
     };
 
     useEffect(() => {
@@ -231,7 +287,9 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
         try {
             let resolvedEmployeeId = employeeId;
             if (!resolvedEmployeeId && empSearch.trim()) {
-                const newEmp = await api.createEmployee({ name: empSearch.trim() });
+                const empData = { name: empSearch.trim() };
+                if (newEmpEmail.trim()) empData.email = newEmpEmail.trim();
+                const newEmp = await api.createEmployee(empData);
                 resolvedEmployeeId = String(newEmp.id);
                 setEmployeeId(resolvedEmployeeId);
             }
@@ -262,7 +320,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                 const bulkShifts = [];
                 for (let i = 0; i < 7; i++) {
                     if (!dayEntries[i].enabled) continue;
-                    const entry = { serviceCode: dayEntries[i].serviceCode, shiftDate: weekDates[i], startTime: dayEntries[i].startTime, endTime: dayEntries[i].endTime, accountNumber: dayEntries[i].accountNumber || '' };
+                    const entry = { serviceCode: dayEntries[i].serviceCode, shiftDate: weekDates[i], startTime: dayEntries[i].startTime, endTime: dayEntries[i].endTime, accountNumber: dayEntries[i].accountNumber || '', sandataClientId: dayEntries[i].sandataClientId || '' };
                     bulkShifts.push(entry);
                     // If recurring, add weekly copies
                     if (recurring && repeatUntil) {
@@ -295,10 +353,13 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                 <div className="form-grid-2">
                     <div className="form-group">
                         <label htmlFor="shiftClient">Client</label>
-                        <select id="shiftClient" value={clientId} onChange={e => setClientId(e.target.value)} required>
-                            <option value="">Select client…</option>
-                            {clients.map(c => <option key={c.id} value={c.id}>{c.clientName}</option>)}
-                        </select>
+                        <SearchableSelect
+                            id="shiftClient"
+                            options={clients.map(c => ({ value: c.id, label: c.clientName }))}
+                            value={clientId}
+                            onChange={setClientId}
+                            placeholder="Type to search clients…"
+                        />
                         {clientId && authorizedServices.length === 0 && (
                             <p style={{ color: '#ef4444', fontSize: 12, margin: '4px 0 0' }}>This client has no active authorizations. Cannot create shifts.</p>
                         )}
@@ -308,7 +369,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                         <input
                             id="shiftEmployee"
                             value={empSearch}
-                            onChange={e => { setEmpSearch(e.target.value); setEmployeeId(''); setEmpDropdownOpen(true); }}
+                            onChange={e => { setEmpSearch(e.target.value); setEmployeeId(''); setCreatingNewEmp(false); setNewEmpEmail(''); setEmpDropdownOpen(true); }}
                             onFocus={() => setEmpDropdownOpen(true)}
                             placeholder="Type to search or add new…"
                             autoComplete="off"
@@ -322,14 +383,14 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                                 margin: 0, padding: 0, listStyle: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                             }}>
                                 {filteredEmployees.length === 0 && empSearch.trim() && (
-                                    <li onClick={() => { setEmployeeId(''); setEmpDropdownOpen(false); }}
+                                    <li onClick={() => { setEmployeeId(''); setCreatingNewEmp(true); setEmpDropdownOpen(false); }}
                                         style={{ padding: '8px 12px', fontSize: 13, color: 'hsl(142 71% 45%)', cursor: 'pointer' }}>
                                         + Create "{empSearch.trim()}" as new employee
                                     </li>
                                 )}
                                 {filteredEmployees.map(e => (
                                     <li key={e.id}
-                                        onClick={() => { setEmployeeId(String(e.id)); setEmpSearch(e.name); setEmpDropdownOpen(false); }}
+                                        onClick={() => { setEmployeeId(String(e.id)); setEmpSearch(e.name); setCreatingNewEmp(false); setNewEmpEmail(''); setEmpDropdownOpen(false); }}
                                         style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, background: String(e.id) === String(employeeId) ? 'hsl(var(--muted))' : undefined }}
                                         onMouseEnter={ev => ev.currentTarget.style.background = 'hsl(var(--muted))'}
                                         onMouseLeave={ev => ev.currentTarget.style.background = String(e.id) === String(employeeId) ? 'hsl(var(--muted))' : ''}>
@@ -340,6 +401,23 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                         )}
                     </div>
                 </div>
+
+                {/* New employee email field */}
+                {creatingNewEmp && !employeeId && (
+                    <div className="form-group" style={{ marginTop: 0 }}>
+                        <label htmlFor="newEmpEmail" style={{ fontSize: 13 }}>
+                            New employee email <span style={{ color: '#71717a', fontWeight: 400 }}>(for schedule notifications)</span>
+                        </label>
+                        <input
+                            id="newEmpEmail"
+                            type="email"
+                            value={newEmpEmail}
+                            onChange={e => setNewEmpEmail(e.target.value)}
+                            placeholder="employee@email.com"
+                            style={{ fontSize: 13 }}
+                        />
+                    </div>
+                )}
 
                 {/* Authorized services summary */}
                 {clientId && authorizedServices.length > 0 && (
@@ -388,12 +466,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                             <input id="shiftSandataId" value={sandataClientId} onChange={e => setSandataClientId(e.target.value)} placeholder="Optional…" />
                         </div>
                     </div>
-                ) : (
-                    <div className="form-group">
-                        <label htmlFor="shiftSandataId">SANDATA Client ID</label>
-                        <input id="shiftSandataId" value={sandataClientId} onChange={e => setSandataClientId(e.target.value)} placeholder="Optional…" />
-                    </div>
-                )}
+                ) : null}
 
                 {isEdit ? (
                     /* ─── EDIT MODE: single day ─── */
@@ -510,6 +583,10 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                                                         <option value="">—</option>
                                                         {VALID_ACCOUNT_NUMBERS.map(n => <option key={n} value={n}>{n}</option>)}
                                                     </select>
+                                                </div>
+                                                <div className="sched-day-row__field">
+                                                    <label className="sched-day-row__field-label">SANDATA ID</label>
+                                                    <input value={entry.sandataClientId} onChange={e => updateDayEntry(i, 'sandataClientId', e.target.value)} className="sched-day-row__input" placeholder="—" />
                                                 </div>
                                                 {enabledCount > 1 && (
                                                     <button type="button" className="sched-day-row__apply" title="Apply this service and times to all selected days" onClick={() => applyToAll(i)}>
@@ -1023,23 +1100,6 @@ export default function SchedulingPage() {
         }
     };
 
-    const handleForceSaveShift = async () => {
-        if (!modal?.overlapData) return;
-        try {
-            const data = { ...modal.overlapData, force: true };
-            if (modal.shift) {
-                await api.updateShift(modal.shift.id, data);
-                showToast('Shift updated (overlap allowed)');
-            } else {
-                const result = await api.createShift(data);
-                if (result.count) showToast(`${result.count} recurring shifts created (overlaps allowed)`);
-                else showToast('Shift created (overlap allowed)');
-            }
-            setModal(null);
-            refetchAll();
-            fetchEmployees();
-        } catch (err) { showToast(err.message, 'error'); }
-    };
 
     const handleDeleteShift = async (shiftId, deleteGroup = false) => {
         try {
@@ -1146,10 +1206,13 @@ export default function SchedulingPage() {
                         title="Client Schedule"
                         icon={Icons.users}
                         headerActions={
-                            <select className="sched-card__select" value={selectedClientId} onChange={e => setSelectedClientId(e.target.value)}>
-                                <option value="">Select a client…</option>
-                                {clients.map(c => <option key={c.id} value={c.id}>{c.clientName}</option>)}
-                            </select>
+                            <SearchableSelect
+                                className="sched-card__select"
+                                options={clients.map(c => ({ value: c.id, label: c.clientName }))}
+                                value={selectedClientId}
+                                onChange={setSelectedClientId}
+                                placeholder="Search clients…"
+                            />
                         }
                     >
                         {!selectedClientId ? (
@@ -1213,10 +1276,13 @@ export default function SchedulingPage() {
                         title="Employee Schedule"
                         icon={Icons.user}
                         headerActions={
-                            <select className="sched-card__select" value={selectedEmployeeId} onChange={e => setSelectedEmployeeId(e.target.value)}>
-                                <option value="">Select an employee…</option>
-                                {employees.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                            </select>
+                            <SearchableSelect
+                                className="sched-card__select"
+                                options={employees.map(e => ({ value: e.id, label: e.name }))}
+                                value={selectedEmployeeId}
+                                onChange={setSelectedEmployeeId}
+                                placeholder="Search employees…"
+                            />
                         }
                     >
                         {!selectedEmployeeId ? (
@@ -1335,7 +1401,7 @@ export default function SchedulingPage() {
             </div>
 
             {/* Shift Modal */}
-            {modal?.type === 'shift' && !modal.overlapWarning && (
+            {modal?.type === 'shift' && (
                 <ShiftFormModal
                     shift={modal.shift}
                     defaultDate={modal.defaultDate}
@@ -1351,11 +1417,11 @@ export default function SchedulingPage() {
                 />
             )}
 
-            {/* Overlap Confirmation Modal */}
+            {/* Overlap Error Modal — renders on top of the shift form so form state is preserved */}
             {modal?.type === 'shift' && modal.overlapWarning && (
-                <Modal onClose={() => setModal(prev => ({ ...prev, overlapWarning: null, overlapData: null, overlapConflicts: null }))}>
+                <div className="modal-backdrop" style={{ zIndex: 110 }} onClick={e => e.target === e.currentTarget && setModal(prev => ({ ...prev, overlapWarning: null, overlapData: null, overlapConflicts: null }))}><div className="modal">
                     <h2 className="modal__title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ color: 'hsl(38 92% 50%)' }}>{Icons.alertTriangle}</span> Overlap Detected
+                        <span style={{ color: '#ef4444' }}>{Icons.alertTriangle}</span> Overlap Detected
                     </h2>
                     <div className="sched-overlap-confirm">
                         <p className="sched-overlap-confirm__msg">{modal.overlapWarning}</p>
@@ -1369,18 +1435,15 @@ export default function SchedulingPage() {
                             </div>
                         )}
                         <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', margin: '12px 0 0' }}>
-                            Do you want to create this shift anyway?
+                            Please fix the scheduling conflict before saving. A PCA cannot be scheduled for multiple clients at the same time.
                         </p>
                     </div>
                     <div className="form-actions">
-                        <button className="btn btn--outline" onClick={() => setModal(prev => ({ ...prev, overlapWarning: null, overlapData: null, overlapConflicts: null }))}>
-                            Go Back
-                        </button>
-                        <button className="btn" style={{ background: 'hsl(38 92% 50%)', color: '#fff' }} onClick={handleForceSaveShift}>
-                            Create Anyway
+                        <button className="btn" onClick={() => setModal(prev => ({ ...prev, overlapWarning: null, overlapData: null, overlapConflicts: null }))}>
+                            Go Back & Fix
                         </button>
                     </div>
-                </Modal>
+                </div></div>
             )}
 
             {/* Delete All Confirmation Modal */}

@@ -25,6 +25,76 @@ function deriveCodeFromName(name) {
     return null;
 }
 
+// Check if adding proposed units would exceed authorized limits for a client+serviceCode.
+// Returns { allowed: true } or { allowed: false, serviceCode, authorized, currentlyScheduled, proposed, overage }.
+async function checkAuthorizationLimits(clientId, proposedShifts, excludeShiftId) {
+    // Group proposed units by serviceCode and by week
+    const proposedByCodeWeek = {};
+    for (const s of proposedShifts) {
+        const { hours, units } = computeShiftHours(s.startTime, s.endTime);
+        const { weekStart } = getWeekRange(s.shiftDate);
+        const key = `${s.serviceCode}::${weekStart}`;
+        if (!proposedByCodeWeek[key]) proposedByCodeWeek[key] = { serviceCode: s.serviceCode, weekStart, units: 0 };
+        proposedByCodeWeek[key].units += units;
+    }
+
+    const now = new Date();
+    for (const { serviceCode, weekStart, units: proposedUnits } of Object.values(proposedByCodeWeek)) {
+        // Find authorized units for this service code
+        // Look up by exact code first, then try resolving via serviceName for TIMESHEETS entries
+        const auths = await prisma.authorization.findMany({
+            where: {
+                clientId: Number(clientId),
+                OR: [
+                    { authorizationEndDate: null },
+                    { authorizationEndDate: { gte: now } },
+                ],
+            },
+        });
+
+        let authorized = 0;
+        for (const a of auths) {
+            let code = a.serviceCode;
+            if (code === 'TIMESHEETS' || !code) {
+                code = deriveCodeFromName(a.serviceName);
+            }
+            if (code === serviceCode) {
+                authorized += a.authorizedUnits || 0;
+            }
+        }
+
+        if (authorized === 0) continue; // No authorization found — service code validation handles this
+
+        // Get currently scheduled units for this week (excluding the shift being edited)
+        const { weekStart: ws, weekEnd: we } = getWeekRange(weekStart);
+        const where = {
+            clientId: Number(clientId),
+            serviceCode,
+            shiftDate: { gte: new Date(ws + 'T00:00:00.000Z'), lte: new Date(we + 'T23:59:59.999Z') },
+            status: { not: 'cancelled' },
+            archivedAt: null,
+        };
+        if (excludeShiftId) where.id = { not: Number(excludeShiftId) };
+
+        const existing = await prisma.shift.findMany({ where, select: { units: true } });
+        const currentlyScheduled = existing.reduce((sum, s) => sum + s.units, 0);
+
+        if (currentlyScheduled + proposedUnits > authorized) {
+            return {
+                allowed: false,
+                serviceCode,
+                weekStart: ws,
+                authorized,
+                currentlyScheduled,
+                proposed: proposedUnits,
+                overage: (currentlyScheduled + proposedUnits) - authorized,
+            };
+        }
+    }
+
+    return { allowed: true };
+}
+
 // Get the set of real service codes authorized for a client (resolves TIMESHEETS via serviceName)
 async function getAuthorizedServiceCodes(clientId) {
     const now = new Date();
@@ -102,13 +172,21 @@ async function autoNotify(employeeId, shiftDate, req) {
     const { weekStart: ws } = getWeekRange(shiftDate instanceof Date ? shiftDate.toISOString().split('T')[0] : shiftDate);
     const baseUrl = `${req.protocol}://${req.get('host')}`;
 
+    // Auto-generate permanent schedule link
+    let scheduleLink = await prisma.employeeScheduleLink.findUnique({ where: { employeeId } });
+    if (!scheduleLink) {
+        scheduleLink = await prisma.employeeScheduleLink.create({ data: { employeeId } });
+    } else if (!scheduleLink.active) {
+        scheduleLink = await prisma.employeeScheduleLink.update({ where: { id: scheduleLink.id }, data: { active: true } });
+    }
+    const scheduleUrl = `${baseUrl}/schedule/view/${scheduleLink.token}`;
+
     if (isSmsConfigured() && employee.phone) {
         const notification = await prisma.scheduleNotification.create({
             data: { employeeId, weekStart: new Date(ws), method: 'sms', destination: employee.phone },
         });
-        const confirmUrl = `${baseUrl}/schedule/confirm/${notification.confirmationToken}`;
         try {
-            await sendSms(employee.phone, `NV Best PCA - Your schedule has been updated. View: ${confirmUrl}`);
+            await sendSms(employee.phone, `NV Best PCA - Your schedule has been updated. View: ${scheduleUrl}`);
             await prisma.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'sent', sentAt: new Date() } });
         } catch (err) {
             await prisma.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'failed', failureReason: err.message } });
@@ -119,9 +197,8 @@ async function autoNotify(employeeId, shiftDate, req) {
         const notification = await prisma.scheduleNotification.create({
             data: { employeeId, weekStart: new Date(ws), method: 'email', destination: employee.email },
         });
-        const confirmUrl = `${baseUrl}/schedule/confirm/${notification.confirmationToken}`;
         try {
-            await sendEmail(employee.email, 'Schedule Updated', `<p>Your schedule has been updated. <a href="${confirmUrl}">View & Confirm</a></p>`, `Schedule updated: ${confirmUrl}`);
+            await sendEmail(employee.email, 'Schedule Updated', `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:500px;margin:0 auto"><p>Hi ${employee.name},</p><p>Your schedule has been updated.</p><p style="text-align:center"><a href="${scheduleUrl}" style="display:inline-block;padding:12px 28px;background:#18181b;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:500">View Schedule</a></p></div>`, `Schedule updated. View: ${scheduleUrl}`);
             await prisma.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'sent', sentAt: new Date() } });
         } catch (err) {
             await prisma.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'failed', failureReason: err.message } });
@@ -183,7 +260,7 @@ async function listShifts(req, res, next) {
 // POST /api/shifts
 async function createShift(req, res, next) {
     try {
-        const { clientId, employeeId, serviceCode, shiftDate, startTime, endTime, notes, repeatUntil, force, accountNumber, sandataClientId, shifts: bulkShifts } = req.body;
+        const { clientId, employeeId, serviceCode, shiftDate, startTime, endTime, notes, repeatUntil, accountNumber, sandataClientId, shifts: bulkShifts } = req.body;
 
         // Bulk mode: array of { serviceCode, shiftDate, startTime, endTime } entries
         if (Array.isArray(bulkShifts) && bulkShifts.length > 0) {
@@ -201,8 +278,21 @@ async function createShift(req, res, next) {
                 return res.status(400).json({ error: `Service${unauthorized.length > 1 ? 's' : ''} not authorized for this client: ${unauthorized.join(', ')}` });
             }
 
+            // Check authorization limits
+            const authLimitCheck = await checkAuthorizationLimits(clientId, bulkShifts);
+            if (!authLimitCheck.allowed) {
+                const authHrs = Math.round((authLimitCheck.authorized / 4) * 100) / 100;
+                const schedHrs = Math.round((authLimitCheck.currentlyScheduled / 4) * 100) / 100;
+                const proposedHrs = Math.round((authLimitCheck.proposed / 4) * 100) / 100;
+                return res.status(400).json({
+                    error: 'authorization_exceeded',
+                    message: `Exceeds authorized hours for ${authLimitCheck.serviceCode} (week of ${authLimitCheck.weekStart}). Authorized: ${authHrs} hrs, Already scheduled: ${schedHrs} hrs, Attempting to add: ${proposedHrs} hrs.`,
+                    details: authLimitCheck,
+                });
+            }
+
             // Check overlaps for all entries
-            if (!force) {
+            if (true) {
                 const allConflicts = [];
                 for (const entry of bulkShifts) {
                     const conflicts = await checkOverlaps({
@@ -248,7 +338,7 @@ async function createShift(req, res, next) {
                         units,
                         notes: notes || '',
                         accountNumber: entryAccount,
-                        sandataClientId: sandataClientId || '',
+                        sandataClientId: entry.sandataClientId || sandataClientId || '',
                         recurringGroupId: groupId,
                     },
                     include: shiftInclude,
@@ -300,8 +390,22 @@ async function createShift(req, res, next) {
             }
         }
 
-        // Check for overlaps before creating (unless force=true)
-        if (!force) {
+        // Check authorization limits for all dates
+        const singleProposed = dates.map(d => ({ serviceCode, shiftDate: d, startTime, endTime }));
+        const singleAuthCheck = await checkAuthorizationLimits(clientId, singleProposed);
+        if (!singleAuthCheck.allowed) {
+            const authHrs = Math.round((singleAuthCheck.authorized / 4) * 100) / 100;
+            const schedHrs = Math.round((singleAuthCheck.currentlyScheduled / 4) * 100) / 100;
+            const proposedHrs = Math.round((singleAuthCheck.proposed / 4) * 100) / 100;
+            return res.status(400).json({
+                error: 'authorization_exceeded',
+                message: `Exceeds authorized hours for ${singleAuthCheck.serviceCode} (week of ${singleAuthCheck.weekStart}). Authorized: ${authHrs} hrs, Already scheduled: ${schedHrs} hrs, Attempting to add: ${proposedHrs} hrs.`,
+                details: singleAuthCheck,
+            });
+        }
+
+        // Check for overlaps before creating
+        if (true) {
             const allConflicts = [];
             for (const date of dates) {
                 const conflicts = await checkOverlaps({
@@ -352,7 +456,7 @@ async function createShift(req, res, next) {
 async function updateShift(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const { clientId, employeeId, serviceCode, shiftDate, startTime, endTime, notes, status, force, accountNumber, sandataClientId } = req.body;
+        const { clientId, employeeId, serviceCode, shiftDate, startTime, endTime, notes, status, accountNumber, sandataClientId } = req.body;
 
         const existing = await prisma.shift.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Shift not found' });
@@ -383,9 +487,27 @@ async function updateShift(req, res, next) {
             data.units = units;
         }
 
-        // Check overlaps if employee/date/time changed (unless force=true)
+        // Check authorization limits if service/times/date changed
+        const finalSC = serviceCode !== undefined ? serviceCode : existing.serviceCode;
+        const finalCID = clientId !== undefined ? Number(clientId) : existing.clientId;
+        const finalShiftDate = shiftDate !== undefined ? shiftDate : existing.shiftDate.toISOString().slice(0, 10);
+        if (serviceCode !== undefined || startTime !== undefined || endTime !== undefined || shiftDate !== undefined || clientId !== undefined) {
+            const updateAuthCheck = await checkAuthorizationLimits(finalCID, [{ serviceCode: finalSC, shiftDate: finalShiftDate, startTime: st, endTime: et }], id);
+            if (!updateAuthCheck.allowed) {
+                const authHrs = Math.round((updateAuthCheck.authorized / 4) * 100) / 100;
+                const schedHrs = Math.round((updateAuthCheck.currentlyScheduled / 4) * 100) / 100;
+                const proposedHrs = Math.round((updateAuthCheck.proposed / 4) * 100) / 100;
+                return res.status(400).json({
+                    error: 'authorization_exceeded',
+                    message: `Exceeds authorized hours for ${updateAuthCheck.serviceCode} (week of ${updateAuthCheck.weekStart}). Authorized: ${authHrs} hrs, Already scheduled: ${schedHrs} hrs, Attempting to add: ${proposedHrs} hrs.`,
+                    details: updateAuthCheck,
+                });
+            }
+        }
+
+        // Check overlaps if employee/date/time changed
         const finalStatus = status !== undefined ? status : existing.status;
-        if (!force && finalStatus !== 'cancelled') {
+        if (finalStatus !== 'cancelled') {
             const finalEmpId = employeeId !== undefined ? Number(employeeId) : existing.employeeId;
             const finalDate = shiftDate !== undefined ? shiftDate : existing.shiftDate.toISOString().slice(0, 10);
 

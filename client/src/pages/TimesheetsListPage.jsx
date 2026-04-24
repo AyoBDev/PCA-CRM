@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
+import ConfirmModal from '../components/common/ConfirmModal';
 import TimesheetFormPage from './TimesheetFormPage';
 import { formatWeek } from '../utils/dates';
 import { useToast } from '../hooks/useToast';
@@ -26,6 +27,7 @@ export default function TimesheetsListPage() {
     const [newClientPhone, setNewClientPhone] = useState('');
     const [newClientIdNumber, setNewClientIdNumber] = useState('');
     const [showArchived, setShowArchived] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(null);
 
     useEffect(() => {
         api.getClients().then(setClients).catch(() => {});
@@ -52,14 +54,12 @@ export default function TimesheetsListPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
-    const handleDelete = async (id) => {
+    const handleDelete = async (ts) => {
         try {
-            await api.deleteTimesheet(id);
+            await api.deleteTimesheet(ts.id);
+            setConfirmDelete(null);
+            showToast('Timesheet archived');
             fetchTimesheets();
-            showUndoToast('Timesheet archived', async () => {
-                await api.restoreTimesheet(id);
-                fetchTimesheets();
-            });
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -134,7 +134,7 @@ export default function TimesheetsListPage() {
                                             {showArchived ? (
                                                 <button className="btn btn--restore" onClick={() => handleRestore(ts.id)} title="Restore">{Icons.rotateCcw} Restore</button>
                                             ) : (
-                                                <button className="btn btn--danger-ghost btn--icon" onClick={() => handleDelete(ts.id)} title="Delete">{Icons.trash}</button>
+                                                <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmDelete(ts)} title="Archive timesheet">{Icons.trash}</button>
                                             )}
                                         </td>
                                     </tr>
@@ -166,6 +166,16 @@ export default function TimesheetsListPage() {
                         <button type="button" className="btn btn--primary" onClick={handleCreate}>Create Timesheet</button>
                     </div>
                 </Modal>
+            )}
+            {confirmDelete && (
+                <ConfirmModal
+                    title="Archive Timesheet"
+                    message={`Archive the timesheet for ${confirmDelete.pcaName} — ${confirmDelete.client?.clientName || 'Unknown'}?`}
+                    confirmLabel="Archive"
+                    confirmVariant="danger"
+                    onConfirm={() => handleDelete(confirmDelete)}
+                    onClose={() => setConfirmDelete(null)}
+                />
             )}
         </>
     );

@@ -52,6 +52,7 @@ const {
     listUsers,
     deleteUser,
     restoreUser,
+    resetPassword,
 } = require('../controllers/authController');
 const {
     generateSigningLinks,
@@ -114,6 +115,7 @@ router.post('/auth/register', requireRole('admin'), register);
 router.get('/auth/users', requireRole('admin'), listUsers);
 router.delete('/auth/users/:id', requireRole('admin'), deleteUser);
 router.put('/auth/users/:id/restore', requireRole('admin'), restoreUser);
+router.put('/auth/users/:id/reset-password', requireRole('admin'), resetPassword);
 
 // Dashboard
 router.get('/dashboard/stats', requireRole('admin', 'user'), getDashboardStats);

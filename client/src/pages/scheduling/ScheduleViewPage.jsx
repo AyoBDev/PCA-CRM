@@ -85,11 +85,11 @@ export default function ScheduleViewPage() {
         return (
             <div className="signing-page">
                 <div className="signing-card" style={{ maxWidth: 500, textAlign: 'center' }}>
-                    <svg style={{ width: 48, height: 48, color: 'hsl(0 84% 60%)', marginBottom: 12 }} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg style={{ width: 48, height: 48, color: 'hsl(var(--destructive))', marginBottom: 12 }} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="12" cy="12" r="10" /><line x1="12" x2="12" y1="8" y2="12" /><line x1="12" x2="12.01" y1="16" y2="16" />
                     </svg>
                     <h2 style={{ margin: '0 0 8px' }}>Schedule Unavailable</h2>
-                    <p style={{ color: '#71717a' }}>{error}</p>
+                    <p style={{ color: 'hsl(var(--muted-foreground))' }}>{error}</p>
                 </div>
             </div>
         );
@@ -103,7 +103,7 @@ export default function ScheduleViewPage() {
                     <h2 style={{ margin: '0 0 4px', fontSize: 20 }}>
                         {data ? `${data.employee.name}'s Schedule` : 'Loading...'}
                     </h2>
-                    <p style={{ color: '#71717a', margin: 0, fontSize: 13 }}>
+                    <p style={{ color: 'hsl(var(--muted-foreground))', margin: 0, fontSize: 13 }}>
                         PCAlink
                     </p>
                 </div>
@@ -119,67 +119,65 @@ export default function ScheduleViewPage() {
                 </div>
 
                 {loading ? (
-                    <div style={{ padding: 40, textAlign: 'center', color: '#71717a' }}>Loading schedule...</div>
+                    <div style={{ padding: 40, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>Loading schedule...</div>
                 ) : (
                     <>
-                        {/* Schedule table */}
-                        <div style={{ overflowX: 'auto' }}>
-                            <table className="data-table" style={{ width: '100%', fontSize: 13 }}>
-                                <thead>
-                                    <tr>
-                                        <th>Day</th>
-                                        <th>Time</th>
-                                        <th>Client</th>
-                                        <th>SANDATA ID</th>
-                                        <th>Service</th>
-                                        <th>Account #</th>
-                                        <th>Address</th>
-                                        <th>Phone</th>
-                                        <th>Gate Code</th>
-                                        <th>Notes</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {weekDays.map(({ date, dayName }) => {
-                                        const dayShifts = shiftsByDate[date] || [];
-                                        if (dayShifts.length === 0) {
-                                            return (
-                                                <tr key={date} style={{ background: 'hsl(var(--muted) / 0.3)' }}>
-                                                    <td style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>{dayName} {fmtShort(date)}</td>
-                                                    <td colSpan={9} style={{ color: '#a1a1aa', fontStyle: 'italic' }}>No shift</td>
-                                                </tr>
-                                            );
-                                        }
-                                        return dayShifts.map((shift, idx) => (
-                                            <tr key={shift.id}>
-                                                {idx === 0 && (
-                                                    <td rowSpan={dayShifts.length} style={{ fontWeight: 500, whiteSpace: 'nowrap', verticalAlign: 'top', borderRight: '1px solid hsl(var(--border))' }}>
-                                                        {dayName}<br /><span style={{ fontSize: 11, color: '#71717a' }}>{fmtShort(date)}</span>
+                        {/* Schedule table — only days with shifts */}
+                        {data.shifts.length === 0 ? (
+                            <div style={{ padding: 40, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>
+                                No shifts scheduled for this week.
+                            </div>
+                        ) : (
+                            <div style={{ overflowX: 'auto' }}>
+                                <table className="data-table" style={{ width: '100%', fontSize: 13 }}>
+                                    <thead>
+                                        <tr>
+                                            <th>Day</th>
+                                            <th>Time</th>
+                                            <th>Client</th>
+                                            <th>SANDATA ID</th>
+                                            <th>Service</th>
+                                            <th>Account #</th>
+                                            <th>Address</th>
+                                            <th>Phone</th>
+                                            <th>Gate Code</th>
+                                            <th>Notes</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {weekDays.filter(({ date }) => (shiftsByDate[date] || []).length > 0).map(({ date, dayName }) => {
+                                            const dayShifts = shiftsByDate[date];
+                                            return dayShifts.map((shift, idx) => (
+                                                <tr key={shift.id}>
+                                                    {idx === 0 && (
+                                                        <td rowSpan={dayShifts.length} style={{ fontWeight: 500, whiteSpace: 'nowrap', verticalAlign: 'top', borderRight: '1px solid hsl(var(--border))' }}>
+                                                            {dayName}<br /><span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>{fmtShort(date)}</span>
+                                                        </td>
+                                                    )}
+                                                    <td style={{ whiteSpace: 'nowrap' }}>{hhmm12(shift.startTime)} - {hhmm12(shift.endTime)}</td>
+                                                    <td style={{ fontWeight: 500 }}>{shift.client?.clientName || '—'}</td>
+                                                    <td style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>{shift.sandataClientId || '—'}</td>
+                                                    <td>
+                                                        <span style={{
+                                                            display: 'inline-block', padding: '1px 6px', borderRadius: 4,
+                                                            fontSize: 11, fontWeight: 600,
+                                                            background: 'hsl(var(--accent))', color: 'hsl(var(--accent-foreground))',
+                                                        }}>
+                                                            {shift.serviceLabel || shift.serviceCode}
+                                                        </span>
                                                     </td>
-                                                )}
-                                                <td style={{ whiteSpace: 'nowrap' }}>{hhmm12(shift.startTime)} - {hhmm12(shift.endTime)}</td>
-                                                <td style={{ fontWeight: 500 }}>{shift.client?.clientName || '—'}</td>
-                                                <td style={{ fontSize: 12, color: '#71717a' }}>{shift.sandataClientId || '—'}</td>
-                                                <td>
-                                                    <span style={{
-                                                        display: 'inline-block', padding: '1px 6px', borderRadius: 4,
-                                                        fontSize: 11, fontWeight: 600,
-                                                        background: 'hsl(var(--accent))', color: 'hsl(var(--accent-foreground))',
-                                                    }}>
-                                                        {shift.serviceLabel || shift.serviceCode}
-                                                    </span>
-                                                </td>
-                                                <td style={{ fontSize: 12 }}>{shift.accountNumber || '—'}</td>
-                                                <td style={{ fontSize: 12, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis' }}>{shift.client?.address || '—'}</td>
-                                                <td style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{shift.client?.phone || '—'}</td>
-                                                <td style={{ fontSize: 12 }}>{shift.client?.gateCode || '—'}</td>
-                                                <td style={{ fontSize: 12, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis' }}>{shift.notes || shift.client?.notes || '—'}</td>
-                                            </tr>
-                                        ));
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
+                                                    <td style={{ fontSize: 12 }}>{shift.accountNumber || '—'}</td>
+                                                    <td style={{ fontSize: 12, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis' }}>{shift.client?.address || '—'}</td>
+                                                    <td style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{shift.client?.phone || '—'}</td>
+                                                    <td style={{ fontSize: 12 }}>{shift.client?.gateCode || '—'}</td>
+                                                    <td style={{ fontSize: 12, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis' }}>{shift.notes || shift.client?.notes || '—'}</td>
+                                                </tr>
+                                            ));
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
 
                         {/* Footer */}
                         <div style={{ marginTop: 16, textAlign: 'center', fontSize: 11, color: '#a1a1aa' }}>

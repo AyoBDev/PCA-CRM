@@ -2,15 +2,21 @@ import { useState, useEffect, useCallback } from 'react';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
+import ConfirmModal from '../components/common/ConfirmModal';
 import { useToast } from '../hooks/useToast';
 
 export default function UsersPage() {
-    const { showToast, showUndoToast } = useToast();
+    const { showToast } = useToast();
     const [users, setUsers] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [form, setForm] = useState({ name: '', email: '', password: '', role: 'pca' });
     const [saving, setSaving] = useState(false);
     const [showArchived, setShowArchived] = useState(false);
+    const [resetUser, setResetUser] = useState(null);
+    const [newPassword, setNewPassword] = useState('');
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [resetting, setResetting] = useState(false);
+    const [confirmArchive, setConfirmArchive] = useState(null);
 
     const fetchUsers = useCallback(async () => {
         try { setUsers(await api.getUsers({ archived: showArchived })); } catch (err) { showToast(err.message, 'error'); }
@@ -35,11 +41,9 @@ export default function UsersPage() {
     const handleDelete = async (user) => {
         try {
             await api.deleteUser(user.id);
+            setConfirmArchive(null);
+            showToast(`"${user.name}" archived`);
             fetchUsers();
-            showUndoToast(`"${user.name}" archived`, async () => {
-                await api.restoreUser(user.id);
-                fetchUsers();
-            });
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -49,6 +53,20 @@ export default function UsersPage() {
             showToast(`"${user.name}" restored`);
             fetchUsers();
         } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleResetPassword = async (e) => {
+        e.preventDefault();
+        if (!newPassword || newPassword.length < 4) return;
+        setResetting(true);
+        try {
+            await api.resetUserPassword(resetUser.id, newPassword);
+            showToast(`Password reset for "${resetUser.name}"`);
+            setResetUser(null);
+            setNewPassword('');
+            setShowNewPassword(false);
+        } catch (err) { showToast(err.message, 'error'); }
+        finally { setResetting(false); }
     };
 
     return (
@@ -76,40 +94,54 @@ export default function UsersPage() {
                         </button>
                     </div>
                 )}
-                <div className="sheet-card">
-                    <table className="data-table">
-                        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Created</th><th>Actions</th></tr></thead>
-                        <tbody>
-                            {users.map((u) => (
-                                <tr key={u.id}>
-                                    <td style={{ fontWeight: 500 }}>{u.name}</td>
-                                    <td>{u.email}</td>
-                                    <td><span className={`ts-badge ts-badge--${u.role === 'admin' ? 'submitted' : 'draft'}`}>{u.role}</span></td>
-                                    <td>{new Date(u.createdAt).toLocaleDateString()}</td>
-                                    <td>
-                                        {showArchived ? (
-                                            <button className="btn btn--restore" onClick={() => handleRestore(u)}>
-                                                {Icons.rotateCcw} Restore
-                                            </button>
-                                        ) : (
-                                            <button className="btn btn--outline btn--xs" style={{ color: 'hsl(0 84% 60%)' }} onClick={() => handleDelete(u)}>
-                                                {Icons.trash}
-                                            </button>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                {users.length === 0 ? (
+                    <div className="empty-state">
+                        <div className="empty-state__icon">{Icons.users}</div>
+                        <div className="empty-state__title">{showArchived ? 'No archived users' : 'No users yet'}</div>
+                        <div className="empty-state__desc">{showArchived ? 'Archived users will appear here.' : 'Click "Add User" to create a staff or PCA account.'}</div>
+                    </div>
+                ) : (
+                    <div className="sheet-card">
+                        <table className="data-table">
+                            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Created</th><th>Actions</th></tr></thead>
+                            <tbody>
+                                {users.map((u) => (
+                                    <tr key={u.id}>
+                                        <td style={{ fontWeight: 500 }}>{u.name}</td>
+                                        <td>{u.email}</td>
+                                        <td><span className={`ts-badge ts-badge--${u.role === 'admin' ? 'submitted' : 'draft'}`}>{u.role}</span></td>
+                                        <td>{new Date(u.createdAt).toLocaleDateString()}</td>
+                                        <td>
+                                            {showArchived ? (
+                                                <button className="btn btn--restore" onClick={() => handleRestore(u)}>
+                                                    {Icons.rotateCcw} Restore
+                                                </button>
+                                            ) : (
+                                                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                                                    <button className="btn btn--ghost btn--icon" title="Reset password" onClick={() => { setResetUser(u); setNewPassword(''); setShowNewPassword(false); }}>
+                                                        {Icons.key}
+                                                    </button>
+                                                    <button className="btn btn--danger-ghost btn--icon" title="Archive user" onClick={() => setConfirmArchive(u)}>
+                                                        {Icons.trash}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
             {showModal && (
                 <Modal onClose={() => setShowModal(false)}>
                     <h2 className="modal__title">Create User</h2>
+                    <p className="modal__desc">Add a new staff or caregiver account.</p>
                     <form onSubmit={handleCreate}>
-                        <div className="form-group"><label>Name</label><input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
-                        <div className="form-group"><label>Email</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></div>
-                        <div className="form-group"><label>Password</label><input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required /></div>
+                        <div className="form-group"><label>Name</label><input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Full name" required /></div>
+                        <div className="form-group"><label>Email</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="user@example.com" required /></div>
+                        <div className="form-group"><label>Password</label><input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Minimum 4 characters" required minLength={4} /></div>
                         <div className="form-group">
                             <label>Role</label>
                             <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
@@ -120,10 +152,62 @@ export default function UsersPage() {
                         </div>
                         <div className="form-actions">
                             <button type="button" className="btn btn--outline" onClick={() => setShowModal(false)}>Cancel</button>
-                            <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Creating…' : 'Create User'}</button>
+                            <button type="submit" className="btn btn--primary" disabled={saving || !form.name || !form.email || !form.password}>{saving ? 'Creating…' : 'Create User'}</button>
                         </div>
                     </form>
                 </Modal>
+            )}
+            {resetUser && (
+                <Modal onClose={() => setResetUser(null)}>
+                    <h2 className="modal__title">Reset Password</h2>
+                    <p className="modal__desc">Set a new password for <strong>{resetUser.name}</strong> ({resetUser.email})</p>
+                    <form onSubmit={handleResetPassword}>
+                        <div className="form-group">
+                            <label>New Password</label>
+                            <div style={{ position: 'relative' }}>
+                                <input
+                                    type={showNewPassword ? 'text' : 'password'}
+                                    value={newPassword}
+                                    onChange={(e) => setNewPassword(e.target.value)}
+                                    placeholder="Minimum 4 characters"
+                                    required
+                                    minLength={4}
+                                    autoFocus
+                                    style={{ paddingRight: 40 }}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowNewPassword(v => !v)}
+                                    title={showNewPassword ? 'Hide password' : 'Show password'}
+                                    style={{
+                                        position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                                        background: 'transparent', border: 'none', cursor: 'pointer', padding: 4,
+                                        color: 'hsl(var(--muted-foreground))',
+                                    }}
+                                >
+                                    {showNewPassword ? Icons.eyeOff : Icons.eye}
+                                </button>
+                            </div>
+                            {newPassword.length > 0 && newPassword.length < 4 && (
+                                <p style={{ color: 'hsl(var(--destructive))', fontSize: 12, margin: '4px 0 0' }}>Password must be at least 4 characters</p>
+                            )}
+                        </div>
+                        <div className="form-actions">
+                            <button type="button" className="btn btn--outline" onClick={() => setResetUser(null)}>Cancel</button>
+                            <button type="submit" className="btn btn--primary" disabled={resetting || newPassword.length < 4}>{resetting ? 'Resetting…' : 'Reset Password'}</button>
+                        </div>
+                    </form>
+                </Modal>
+            )}
+            {confirmArchive && (
+                <ConfirmModal
+                    title="Archive User"
+                    message={`Are you sure you want to archive "${confirmArchive.name}"? They will no longer be able to log in.`}
+                    confirmLabel="Archive"
+                    confirmVariant="danger"
+                    onConfirm={() => handleDelete(confirmArchive)}
+                    onClose={() => setConfirmArchive(null)}
+                />
             )}
         </>
     );

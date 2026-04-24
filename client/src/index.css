@@ -455,6 +455,11 @@ body {
   height: 14px;
 }
 
+.btn:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
 /* Default / Primary (dark) */
 .btn--primary {
   background: hsl(var(--primary));
@@ -569,6 +574,10 @@ body {
 .archive-toggle:hover {
   background: hsl(var(--accent));
   color: hsl(var(--accent-foreground));
+}
+.archive-toggle:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
 }
 
 .archived-banner {
@@ -943,6 +952,31 @@ body {
   animation: dialogIn 0.2s ease;
   max-height: 85vh;
   overflow-y: auto;
+  position: relative;
+}
+
+.modal__close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: transparent;
+  border: none;
+  padding: 4px;
+  border-radius: var(--radius);
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.modal__close:hover {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+.modal__close:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
 }
 
 .modal--wide {
@@ -1265,6 +1299,11 @@ body {
   100% {
     background-position: -200% 0;
   }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .skeleton-row {
@@ -2100,7 +2139,22 @@ button.sdr-section-tag:hover:not(:disabled) {
 }
 
 .clickable-row:hover {
-  background: hsl(var(--muted) / 0.5);
+  background: hsl(var(--primary) / 0.06);
+}
+
+.clickable-row td:first-child {
+  position: relative;
+}
+
+.clickable-row:hover td:first-child::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: hsl(var(--primary));
+  border-radius: 0 2px 2px 0;
 }
 
 .btn--xs {
@@ -2851,6 +2905,55 @@ button.sdr-section-tag:hover:not(:disabled) {
     outline: none;
     border-color: rgba(255,255,255,0.6);
 }
+.sched-card__select::placeholder {
+    color: rgba(255,255,255,0.5);
+}
+
+/* Searchable Select */
+.searchable-select { position: relative; }
+.searchable-select__dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 50;
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    max-height: 220px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 4px;
+    list-style: none;
+    box-shadow: 0 4px 16px hsl(var(--foreground) / 0.08), 0 1px 3px hsl(var(--foreground) / 0.04);
+}
+.searchable-select__item {
+    padding: 7px 10px;
+    cursor: pointer;
+    font-size: 13px;
+    color: hsl(var(--foreground));
+    border-radius: calc(var(--radius) - 2px);
+    transition: background 0.1s;
+}
+.searchable-select__item:hover,
+.searchable-select__item--active {
+    background: hsl(var(--muted));
+}
+.searchable-select__empty {
+    padding: 8px 10px;
+    font-size: 13px;
+    color: hsl(var(--muted-foreground));
+}
+
+/* Card-header variant: dropdown on dark header background */
+.sched-card__header-actions .searchable-select__dropdown {
+    background: hsl(var(--card));
+    border-color: hsl(var(--border));
+}
+.sched-card__header-actions .searchable-select__item {
+    color: hsl(var(--foreground));
+}
+
 .sched-card__body {
     padding: 16px;
 }

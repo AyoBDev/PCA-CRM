@@ -70,7 +70,7 @@ export default function DashboardPage() {
                             <span className="card__title">Draft Timesheets</span>
                             <span className="card__icon">{Icons.fileText}</span>
                         </div>
-                        <div className="card__value" style={{ color: stats.timesheetDraft > 0 ? 'hsl(48 96% 40%)' : undefined }}>{stats.timesheetDraft}</div>
+                        <div className="card__value" style={{ color: stats.timesheetDraft > 0 ? 'hsl(var(--warning))' : undefined }}>{stats.timesheetDraft}</div>
                         <div className="card__description">Awaiting completion</div>
                     </div>
                     <div className="card">
@@ -78,7 +78,7 @@ export default function DashboardPage() {
                             <span className="card__title">Submitted Timesheets</span>
                             <span className="card__icon">{Icons.checkCircle}</span>
                         </div>
-                        <div className="card__value" style={{ color: stats.timesheetSubmitted > 0 ? 'hsl(142 71% 45%)' : undefined }}>{stats.timesheetSubmitted}</div>
+                        <div className="card__value" style={{ color: stats.timesheetSubmitted > 0 ? 'hsl(var(--success))' : undefined }}>{stats.timesheetSubmitted}</div>
                         <div className="card__description">Signed and submitted</div>
                     </div>
                     <div className="card">
@@ -86,7 +86,7 @@ export default function DashboardPage() {
                             <span className="card__title">Unconfirmed Schedules</span>
                             <span className="card__icon">{Icons.alertTriangle}</span>
                         </div>
-                        <div className="card__value" style={{ color: stats.unconfirmedCount > 0 ? 'hsl(0 84% 60%)' : undefined }}>{stats.unconfirmedCount}</div>
+                        <div className="card__value" style={{ color: stats.unconfirmedCount > 0 ? 'hsl(var(--destructive))' : undefined }}>{stats.unconfirmedCount}</div>
                         <div className="card__description">Pending employee confirmation</div>
                     </div>
                     <div className="card">
@@ -94,7 +94,7 @@ export default function DashboardPage() {
                             <span className="card__title">Auth Alerts</span>
                             {stats.expiringAuths.length > 0 && <span className="card__trend card__trend--down">{Icons.trendingDown}</span>}
                         </div>
-                        <div className="card__value" style={{ color: expiredAuths.length > 0 ? 'hsl(0 84% 60%)' : renewalAuths.length > 0 ? 'hsl(48 96% 40%)' : 'hsl(142 71% 45%)' }}>
+                        <div className="card__value" style={{ color: expiredAuths.length > 0 ? 'hsl(var(--destructive))' : renewalAuths.length > 0 ? 'hsl(var(--warning))' : 'hsl(var(--success))' }}>
                             {stats.expiringAuths.length || 0}
                         </div>
                         <div className="card__description">

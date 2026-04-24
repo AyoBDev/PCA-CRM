@@ -66,6 +66,8 @@ export const deleteUser = (id) =>
     request(`/auth/users/${id}`, { method: 'DELETE' });
 export const restoreUser = (id) =>
     request(`/auth/users/${id}/restore`, { method: 'PUT' });
+export const resetUserPassword = (id, password) =>
+    request(`/auth/users/${id}/reset-password`, { method: 'PUT', body: JSON.stringify({ password }) });
 
 // Clients
 export const getClients = ({ archived } = {}) => request(`/clients${archived ? '?archived=true' : ''}`);
