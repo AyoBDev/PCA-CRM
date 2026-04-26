@@ -47,6 +47,7 @@ export default function ServicesPage() {
     const [services, setServices] = useState([]);
     const [modal, setModal] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
+    const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(null);
 
     const fetchServices = useCallback(async () => {
         try { setServices(await api.getServices({ archived: showArchived })); }
@@ -85,6 +86,15 @@ export default function ServicesPage() {
         try {
             await api.restoreService(svc.id);
             showToast(`"${svc.code}" restored`);
+            fetchServices();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handlePermanentDelete = async (svc) => {
+        try {
+            await api.permanentlyDeleteService(svc.id);
+            setConfirmPermanentDelete(null);
+            showToast('Item permanently deleted');
             fetchServices();
         } catch (err) { showToast(err.message, 'error'); }
     };
@@ -142,9 +152,12 @@ export default function ServicesPage() {
                                         </div>
                                         <div className="it-card__actions">
                                             {showArchived ? (
-                                                <button className="btn btn--restore" onClick={() => handleRestore(s)} title="Restore">
-                                                    {Icons.rotateCcw} Restore
-                                                </button>
+                                                <div style={{ display: 'flex', gap: 6 }}>
+                                                    <button className="btn btn--restore" onClick={() => handleRestore(s)} title="Restore">
+                                                        {Icons.rotateCcw} Restore
+                                                    </button>
+                                                    <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmPermanentDelete(s)} title="Delete permanently">{Icons.trash}</button>
+                                                </div>
                                             ) : (
                                                 <>
                                                     <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'form', service: s })} title="Edit">
@@ -173,6 +186,16 @@ export default function ServicesPage() {
                     message={`This will permanently delete "${modal.service.code}${modal.service.name ? ' — ' + modal.service.name : ''}". This action cannot be undone.`}
                     onConfirm={() => handleDelete(modal.service)}
                     onClose={() => setModal(null)}
+                />
+            )}
+            {confirmPermanentDelete && (
+                <ConfirmModal
+                    title="Permanently Delete Service"
+                    message={`Permanently delete "${confirmPermanentDelete.code}${confirmPermanentDelete.name ? ' — ' + confirmPermanentDelete.name : ''}"? This action cannot be undone.`}
+                    confirmLabel="Delete Forever"
+                    confirmVariant="danger"
+                    onConfirm={() => handlePermanentDelete(confirmPermanentDelete)}
+                    onClose={() => setConfirmPermanentDelete(null)}
                 />
             )}
         </>

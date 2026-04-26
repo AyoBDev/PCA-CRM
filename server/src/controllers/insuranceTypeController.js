@@ -81,4 +81,15 @@ async function restoreInsuranceType(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listInsuranceTypes, createInsuranceType, updateInsuranceType, deleteInsuranceType, restoreInsuranceType };
+async function permanentlyDeleteInsuranceType(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const type = await prisma.insuranceType.findUnique({ where: { id } });
+        if (!type) return res.status(404).json({ error: 'Insurance type not found' });
+        if (!type.archivedAt) return res.status(400).json({ error: 'Only archived insurance types can be permanently deleted' });
+        await prisma.insuranceType.delete({ where: { id } });
+        res.json({ success: true });
+    } catch (err) { next(err); }
+}
+
+module.exports = { listInsuranceTypes, createInsuranceType, updateInsuranceType, deleteInsuranceType, restoreInsuranceType, permanentlyDeleteInsuranceType };

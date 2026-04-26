@@ -58,6 +58,7 @@ export default function InsuranceTypesPage() {
     const [insuranceTypes, setInsuranceTypes] = useState([]);
     const [modal, setModal] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
+    const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(null);
 
     const fetchInsuranceTypes = useCallback(async () => {
         try { setInsuranceTypes(await api.getInsuranceTypes({ archived: showArchived })); }
@@ -96,6 +97,15 @@ export default function InsuranceTypesPage() {
         try {
             await api.restoreInsuranceType(type.id);
             showToast(`"${type.name}" restored`);
+            fetchInsuranceTypes();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handlePermanentDelete = async (type) => {
+        try {
+            await api.permanentlyDeleteInsuranceType(type.id);
+            setConfirmPermanentDelete(null);
+            showToast('Item permanently deleted');
             fetchInsuranceTypes();
         } catch (err) { showToast(err.message, 'error'); }
     };
@@ -144,9 +154,12 @@ export default function InsuranceTypesPage() {
                                 </div>
                                 <div className="it-card__actions">
                                     {showArchived ? (
-                                        <button className="btn btn--restore" onClick={() => handleRestore(t)} title="Restore">
-                                            {Icons.rotateCcw} Restore
-                                        </button>
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                            <button className="btn btn--restore" onClick={() => handleRestore(t)} title="Restore">
+                                                {Icons.rotateCcw} Restore
+                                            </button>
+                                            <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmPermanentDelete(t)} title="Delete permanently">{Icons.trash}</button>
+                                        </div>
                                     ) : (
                                         <>
                                             <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'form', insuranceType: t })} title="Edit">
@@ -173,6 +186,16 @@ export default function InsuranceTypesPage() {
                     message={`This will permanently delete "${modal.insuranceType.name}". This action cannot be undone.`}
                     onConfirm={() => handleDelete(modal.insuranceType)}
                     onClose={() => setModal(null)}
+                />
+            )}
+            {confirmPermanentDelete && (
+                <ConfirmModal
+                    title="Permanently Delete Insurance Type"
+                    message={`Permanently delete "${confirmPermanentDelete.name}"? This action cannot be undone.`}
+                    confirmLabel="Delete Forever"
+                    confirmVariant="danger"
+                    onConfirm={() => handlePermanentDelete(confirmPermanentDelete)}
+                    onClose={() => setConfirmPermanentDelete(null)}
                 />
             )}
         </>

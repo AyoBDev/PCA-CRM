@@ -235,4 +235,15 @@ async function bulkImport(req, res, next) {
     }
 }
 
-module.exports = { listClients, getClient, createClient, updateClient, patchClient, deleteClient, bulkDelete, bulkImport, restoreClient };
+async function permanentlyDeleteClient(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const client = await prisma.client.findUnique({ where: { id } });
+        if (!client) return res.status(404).json({ error: 'Client not found' });
+        if (!client.archivedAt) return res.status(400).json({ error: 'Only archived clients can be permanently deleted' });
+        await prisma.client.delete({ where: { id } });
+        res.json({ success: true });
+    } catch (err) { next(err); }
+}
+
+module.exports = { listClients, getClient, createClient, updateClient, patchClient, deleteClient, bulkDelete, bulkImport, restoreClient, permanentlyDeleteClient };

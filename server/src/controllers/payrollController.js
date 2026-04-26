@@ -216,6 +216,18 @@ async function uploadPayrollRun(req, res, next) {
             include: { authorizations: true },
         });
 
+        // ── Snapshot authorization data at upload time ────────
+        const authSnapshot = {};
+        for (const client of clientsWithAuths) {
+            const norm = normalizeName(client.clientName);
+            if (!authSnapshot[norm]) authSnapshot[norm] = {};
+            for (const auth of client.authorizations) {
+                const code = auth.serviceCode || auth.service || '';
+                if (!code) continue;
+                authSnapshot[norm][code] = (authSnapshot[norm][code] || 0) + (auth.authorizedUnits || 0);
+            }
+        }
+
         // ── Run processing pipeline ──────────────────────────
         const processed = processPayrollRows(rawRows, clientsWithAuths);
 
@@ -350,13 +362,15 @@ async function uploadPayrollRun(req, res, next) {
                 status:       'done',
                 totalVisits:  processed.length,
                 totalPayable,
+                authorizationSnapshot: JSON.stringify(authSnapshot),
             },
             include: {
                 visits: { orderBy: [{ clientName: 'asc' }, { visitDate: 'asc' }] },
             },
         });
 
-        return res.status(201).json(updatedRun);
+        const { authorizationSnapshot: _s, ...runResponse } = updatedRun;
+        return res.status(201).json(runResponse);
     } catch (err) {
         // Update run status to error
         await prisma.payrollRun.update({
@@ -412,20 +426,31 @@ async function getPayrollRun(req, res, next) {
         });
         if (!run) return res.status(404).json({ error: 'Payroll run not found.' });
 
-        // Build authMap: normalizedClientName → { serviceCode → authorizedUnits }
-        // Build clientNotesMap: normalizedClientName → notes
-        const clients = await prisma.client.findMany({ include: { authorizations: true } });
-        const authMap = {};
+        // Use snapshotted authorization data if available, otherwise fall back to live
+        let authMap = {};
+        const snapshot = run.authorizationSnapshot;
+        if (snapshot && snapshot !== '{}') {
+            authMap = JSON.parse(snapshot);
+        } else {
+            // Fallback for runs created before the snapshot feature
+            const allClients = await prisma.client.findMany({ include: { authorizations: true } });
+            for (const client of allClients) {
+                const norm = normalizeName(client.clientName);
+                if (!authMap[norm]) authMap[norm] = {};
+                for (const auth of client.authorizations) {
+                    const code = auth.serviceCode || auth.service || '';
+                    if (!code) continue;
+                    authMap[norm][code] = (authMap[norm][code] || 0) + (auth.authorizedUnits || 0);
+                }
+            }
+        }
+
+        // Build clientNotesMap from live data (notes are not auth-related)
+        const clients = await prisma.client.findMany({ select: { clientName: true, notes: true } });
         const clientNotesMap = {};
         for (const client of clients) {
             const norm = normalizeName(client.clientName);
-            if (!authMap[norm]) authMap[norm] = {};
             if (client.notes) clientNotesMap[norm] = client.notes;
-            for (const auth of client.authorizations) {
-                const code = auth.serviceCode || auth.service || '';
-                if (!code) continue;
-                authMap[norm][code] = (authMap[norm][code] || 0) + (auth.authorizedUnits || 0);
-            }
         }
 
         // Enrich visits: fill empty notes with client-level notes
@@ -436,7 +461,8 @@ async function getPayrollRun(req, res, next) {
             }
         }
 
-        return res.json({ ...run, authMap });
+        const { authorizationSnapshot: _snap, ...runData } = run;
+        return res.json({ ...runData, authMap });
     } catch (err) {
         return next(err);
     }
@@ -690,12 +716,24 @@ async function updatePayrollVisit(req, res, next) {
     }
 }
 
+async function permanentlyDeletePayrollRun(req, res, next) {
+    try {
+        const id = parseInt(req.params.id);
+        const run = await prisma.payrollRun.findUnique({ where: { id } });
+        if (!run) return res.status(404).json({ error: 'Payroll run not found' });
+        if (!run.archivedAt) return res.status(400).json({ error: 'Only archived payroll runs can be permanently deleted' });
+        await prisma.payrollRun.delete({ where: { id } });
+        res.json({ success: true });
+    } catch (err) { next(err); }
+}
+
 module.exports = {
     uploadPayrollRun,
     listPayrollRuns,
     getPayrollRun,
     deletePayrollRun,
     restorePayrollRun,
+    permanentlyDeletePayrollRun,
     exportPayrollRun,
     updatePayrollVisit,
 };

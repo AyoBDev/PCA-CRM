@@ -425,6 +425,7 @@ export default function ClientsPage() {
     const [expandedIds, setExpandedIds] = useState(new Set());
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [showArchived, setShowArchived] = useState(false);
+    const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(null);
 
     const fetchClients = useCallback(async () => {
         try {
@@ -540,6 +541,15 @@ export default function ClientsPage() {
         try {
             await api.restoreClient(client.id);
             showToast(`"${client.clientName}" restored`);
+            fetchClients();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handlePermanentDelete = async (client) => {
+        try {
+            await api.permanentlyDeleteClient(client.id);
+            setConfirmPermanentDelete(null);
+            showToast('Item permanently deleted');
             fetchClients();
         } catch (err) { showToast(err.message, 'error'); }
     };
@@ -753,9 +763,12 @@ export default function ClientsPage() {
                                                         <td>
                                                             <div className="row-actions" onClick={(e) => e.stopPropagation()}>
                                                                 {showArchived ? (
-                                                                    <button className="btn btn--restore" onClick={() => handleRestore(client)} title="Restore client">
-                                                                        {Icons.rotateCcw} Restore
-                                                                    </button>
+                                                                    <div style={{ display: 'flex', gap: 6 }}>
+                                                                        <button className="btn btn--restore" onClick={() => handleRestore(client)} title="Restore client">
+                                                                            {Icons.rotateCcw} Restore
+                                                                        </button>
+                                                                        <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmPermanentDelete(client)} title="Delete permanently">{Icons.trash}</button>
+                                                                    </div>
                                                                 ) : (
                                                                     <>
                                                                         <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'client', client })} title="Edit client">
@@ -858,6 +871,16 @@ export default function ClientsPage() {
                     message={`This will permanently delete this ${modal.auth.serviceCode} authorization. This action cannot be undone.`}
                     onConfirm={() => handleDeleteAuth(modal.auth)}
                     onClose={() => setModal(null)}
+                />
+            )}
+            {confirmPermanentDelete && (
+                <ConfirmModal
+                    title="Permanently Delete Client"
+                    message={`Permanently delete "${confirmPermanentDelete.clientName}" and all associated authorizations? This action cannot be undone.`}
+                    confirmLabel="Delete Forever"
+                    confirmVariant="danger"
+                    onConfirm={() => handlePermanentDelete(confirmPermanentDelete)}
+                    onClose={() => setConfirmPermanentDelete(null)}
                 />
             )}
 

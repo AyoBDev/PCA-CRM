@@ -17,6 +17,7 @@ export default function UsersPage() {
     const [showNewPassword, setShowNewPassword] = useState(false);
     const [resetting, setResetting] = useState(false);
     const [confirmArchive, setConfirmArchive] = useState(null);
+    const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(null);
 
     const fetchUsers = useCallback(async () => {
         try { setUsers(await api.getUsers({ archived: showArchived })); } catch (err) { showToast(err.message, 'error'); }
@@ -51,6 +52,15 @@ export default function UsersPage() {
         try {
             await api.restoreUser(user.id);
             showToast(`"${user.name}" restored`);
+            fetchUsers();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handlePermanentDelete = async (user) => {
+        try {
+            await api.permanentlyDeleteUser(user.id);
+            setConfirmPermanentDelete(null);
+            showToast('Item permanently deleted');
             fetchUsers();
         } catch (err) { showToast(err.message, 'error'); }
     };
@@ -113,9 +123,12 @@ export default function UsersPage() {
                                         <td>{new Date(u.createdAt).toLocaleDateString()}</td>
                                         <td>
                                             {showArchived ? (
-                                                <button className="btn btn--restore" onClick={() => handleRestore(u)}>
-                                                    {Icons.rotateCcw} Restore
-                                                </button>
+                                                <div style={{ display: 'flex', gap: 6 }}>
+                                                    <button className="btn btn--restore" onClick={() => handleRestore(u)}>
+                                                        {Icons.rotateCcw} Restore
+                                                    </button>
+                                                    <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmPermanentDelete(u)} title="Delete permanently">{Icons.trash}</button>
+                                                </div>
                                             ) : (
                                                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                                                     <button className="btn btn--ghost btn--icon" title="Reset password" onClick={() => { setResetUser(u); setNewPassword(''); setShowNewPassword(false); }}>
@@ -207,6 +220,16 @@ export default function UsersPage() {
                     confirmVariant="danger"
                     onConfirm={() => handleDelete(confirmArchive)}
                     onClose={() => setConfirmArchive(null)}
+                />
+            )}
+            {confirmPermanentDelete && (
+                <ConfirmModal
+                    title="Permanently Delete User"
+                    message={`Permanently delete "${confirmPermanentDelete.name}" (${confirmPermanentDelete.email})? This action cannot be undone.`}
+                    confirmLabel="Delete Forever"
+                    confirmVariant="danger"
+                    onConfirm={() => handlePermanentDelete(confirmPermanentDelete)}
+                    onClose={() => setConfirmPermanentDelete(null)}
                 />
             )}
         </>

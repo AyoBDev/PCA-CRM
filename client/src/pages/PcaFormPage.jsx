@@ -49,9 +49,10 @@ function hasActivity(entry, section) {
 }
 
 function getSunday(date) {
-    const d = new Date(date);
-    d.setDate(d.getDate() - d.getDay());
-    return d.toISOString().slice(0, 10);
+    const [y, m, d] = (typeof date === 'string' ? date : date.toISOString().slice(0, 10)).split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() - dt.getUTCDay());
+    return dt.toISOString().slice(0, 10);
 }
 
 function SectionBlock({ header, activities, section, entries, updateEntry, dailyHoursFn, disabled, sectionDisabled, onAddShift, onRemoveShift, respiteEnabled, isIadlSection, fieldErrors = {} }) {
@@ -309,9 +310,9 @@ export default function PcaFormPage() {
 
     const navigateWeek = (dir) => {
         if (!selectedWeekStart) return;
-        const d = new Date(selectedWeekStart + 'T00:00:00');
-        d.setDate(d.getDate() + dir * 7);
-        handleWeekChange(d.toISOString().slice(0, 10));
+        const [y, m, d] = selectedWeekStart.split('-').map(Number);
+        const dt = new Date(Date.UTC(y, m - 1, d + dir * 7));
+        handleWeekChange(dt.toISOString().slice(0, 10));
     };
 
     // Validation for submit gating

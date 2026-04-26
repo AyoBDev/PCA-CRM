@@ -172,4 +172,16 @@ async function resetPassword(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { login, getMe, register, listUsers, deleteUser, restoreUser, resetPassword };
+async function permanentlyDeleteUser(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        if (id === req.user.id) return res.status(400).json({ error: 'Cannot delete your own account' });
+        const user = await prisma.user.findUnique({ where: { id } });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        if (!user.archivedAt) return res.status(400).json({ error: 'Only archived users can be permanently deleted' });
+        await prisma.user.delete({ where: { id } });
+        res.json({ success: true });
+    } catch (err) { next(err); }
+}
+
+module.exports = { login, getMe, register, listUsers, deleteUser, restoreUser, resetPassword, permanentlyDeleteUser };

@@ -219,9 +219,10 @@ model PayrollRun {
   status       String         @default("processing")
   totalVisits  Int            @default(0) @map("total_visits")
   totalPayable Int            @default(0) @map("total_payable")
-  errorMessage String?        @map("error_message")
-  archivedAt   DateTime?      @map("archived_at")
-  visits       PayrollVisit[]
+  errorMessage           String?        @map("error_message")
+  authorizationSnapshot  String         @default("{}") @map("authorization_snapshot")
+  archivedAt             DateTime?      @map("archived_at")
+  visits                 PayrollVisit[]
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
 

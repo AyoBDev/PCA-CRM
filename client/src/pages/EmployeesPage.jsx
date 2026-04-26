@@ -67,6 +67,7 @@ export default function EmployeesPage() {
     const [filterActive, setFilterActive] = useState('true');
     const [modal, setModal] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
+    const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(null);
 
     const fetchData = useCallback(async () => {
         try {
@@ -120,6 +121,15 @@ export default function EmployeesPage() {
         try {
             await api.restoreEmployee(emp.id);
             showToast(`"${emp.name}" restored`);
+            fetchData();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handlePermanentDelete = async (emp) => {
+        try {
+            await api.permanentlyDeleteEmployee(emp.id);
+            setConfirmPermanentDelete(null);
+            showToast('Item permanently deleted');
             fetchData();
         } catch (err) { showToast(err.message, 'error'); }
     };
@@ -222,9 +232,12 @@ export default function EmployeesPage() {
                                         <td>
                                             <div className="row-actions">
                                                 {showArchived ? (
-                                                    <button className="btn btn--restore" onClick={() => handleRestore(emp)} title="Restore">
-                                                        {Icons.rotateCcw} Restore
-                                                    </button>
+                                                    <div style={{ display: 'flex', gap: 6 }}>
+                                                        <button className="btn btn--restore" onClick={() => handleRestore(emp)} title="Restore">
+                                                            {Icons.rotateCcw} Restore
+                                                        </button>
+                                                        <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmPermanentDelete(emp)} title="Delete permanently">{Icons.trash}</button>
+                                                    </div>
                                                 ) : (
                                                     <>
                                                         <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'form', employee: emp })} title="Edit">
@@ -262,6 +275,16 @@ export default function EmployeesPage() {
                     message={`Delete ${modal.employee.name}? This will fail if they have any shifts assigned.`}
                     onConfirm={handleDelete}
                     onClose={() => setModal(null)}
+                />
+            )}
+            {confirmPermanentDelete && (
+                <ConfirmModal
+                    title="Permanently Delete Employee"
+                    message={`Permanently delete "${confirmPermanentDelete.name}"? This action cannot be undone.`}
+                    confirmLabel="Delete Forever"
+                    confirmVariant="danger"
+                    onConfirm={() => handlePermanentDelete(confirmPermanentDelete)}
+                    onClose={() => setConfirmPermanentDelete(null)}
                 />
             )}
         </>

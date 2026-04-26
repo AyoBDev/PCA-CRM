@@ -787,6 +787,18 @@ function PayrollPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    const handlePermanentDelete = async (run) => {
+        try {
+            await api.permanentlyDeletePayrollRun(run.id);
+            setModal(null);
+            showToast(`"${run.name}" permanently deleted`);
+            loadRuns();
+        } catch (err) {
+            showToast(err.message, 'error');
+            setModal(null);
+        }
+    };
+
     const handleExport = async () => {
         if (!selectedRun) return;
         setExporting(true);
@@ -907,11 +919,18 @@ function PayrollPage() {
                                         </td>
                                         <td style={{ fontSize: 12 }}>{fmtDate(run.createdAt)}</td>
                                         <td onClick={(e) => e.stopPropagation()}>
-                                            {showArchived ? (
+                                            {showArchived ? (<>
                                                 <button className="btn btn--restore" onClick={() => handleRestore(run)} title="Restore">
                                                     {Icons.rotateCcw} Restore
                                                 </button>
-                                            ) : (
+                                                <button
+                                                    className="btn btn--danger-ghost btn--icon"
+                                                    title="Delete Forever"
+                                                    onClick={() => setModal({ type: 'confirmPermanentDelete', run })}
+                                                >
+                                                    {Icons.trash}
+                                                </button>
+                                            </>) : (
                                                 <button
                                                     className="btn btn--danger-ghost btn--icon"
                                                     title="Delete run"
@@ -934,10 +953,19 @@ function PayrollPage() {
             )}
             {modal?.type === 'confirmDelete' && (
                 <ConfirmModal
-                    title="Delete Payroll Run"
-                    message={`This will permanently delete the run "${modal.run.name}" and all ${modal.run.totalVisits} visit records. This action cannot be undone.`}
+                    title="Archive Payroll Run"
+                    message={`This will archive the run "${modal.run.name}". You can restore it later from the archived view.`}
                     onConfirm={() => handleDelete(modal.run)}
                     onClose={() => setModal(null)}
+                />
+            )}
+            {modal?.type === 'confirmPermanentDelete' && (
+                <ConfirmModal
+                    title="Permanently Delete Payroll Run"
+                    message={`This will permanently delete the run "${modal.run.name}" and all ${modal.run.totalVisits} visit records. This action cannot be undone.`}
+                    onConfirm={() => handlePermanentDelete(modal.run)}
+                    onClose={() => setModal(null)}
+                    confirmLabel="Delete Forever"
                 />
             )}
         </div>

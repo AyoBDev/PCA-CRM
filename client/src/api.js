@@ -66,6 +66,8 @@ export const deleteUser = (id) =>
     request(`/auth/users/${id}`, { method: 'DELETE' });
 export const restoreUser = (id) =>
     request(`/auth/users/${id}/restore`, { method: 'PUT' });
+export const permanentlyDeleteUser = (id) =>
+    request(`/auth/users/${id}/permanent`, { method: 'DELETE' });
 export const resetUserPassword = (id, password) =>
     request(`/auth/users/${id}/reset-password`, { method: 'PUT', body: JSON.stringify({ password }) });
 
@@ -82,6 +84,8 @@ export const deleteClient = (id) =>
     request(`/clients/${id}`, { method: 'DELETE' });
 export const restoreClient = (id) =>
     request(`/clients/${id}/restore`, { method: 'PUT' });
+export const permanentlyDeleteClient = (id) =>
+    request(`/clients/${id}/permanent`, { method: 'DELETE' });
 
 // Bulk Import
 export const bulkImport = (clients) =>
@@ -109,6 +113,8 @@ export const deleteInsuranceType = (id) =>
     request(`/insurance-types/${id}`, { method: 'DELETE' });
 export const restoreInsuranceType = (id) =>
     request(`/insurance-types/${id}/restore`, { method: 'PUT' });
+export const permanentlyDeleteInsuranceType = (id) =>
+    request(`/insurance-types/${id}/permanent`, { method: 'DELETE' });
 
 // Services
 export const getServices = ({ archived } = {}) => request(`/services${archived ? '?archived=true' : ''}`);
@@ -120,6 +126,8 @@ export const deleteService = (id) =>
     request(`/services/${id}`, { method: 'DELETE' });
 export const restoreService = (id) =>
     request(`/services/${id}/restore`, { method: 'PUT' });
+export const permanentlyDeleteService = (id) =>
+    request(`/services/${id}/permanent`, { method: 'DELETE' });
 
 // Timesheets
 export const getTimesheets = (params = '', { archived } = {}) => {
@@ -214,6 +222,7 @@ export const getPayrollRuns   = ({ archived } = {})    => request(`/payroll/runs
 export const getPayrollRun    = (id)  => request(`/payroll/runs/${id}`);
 export const deletePayrollRun   = (id)  => request(`/payroll/runs/${id}`, { method: 'DELETE' });
 export const restorePayrollRun  = (id)  => request(`/payroll/runs/${id}/restore`, { method: 'PUT' });
+export const permanentlyDeletePayrollRun = (id) => request(`/payroll/runs/${id}/permanent`, { method: 'DELETE' });
 export const updatePayrollVisit = (id, data) =>
     request(`/payroll/visits/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 
@@ -250,6 +259,7 @@ export const createEmployee = (data) => request('/employees', { method: 'POST', 
 export const updateEmployee = (id, data) => request(`/employees/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deleteEmployee = (id) => request(`/employees/${id}`, { method: 'DELETE' });
 export const restoreEmployee = (id) => request(`/employees/${id}/restore`, { method: 'PUT' });
+export const permanentlyDeleteEmployee = (id) => request(`/employees/${id}/permanent`, { method: 'DELETE' });
 
 // ── Employee Schedule Links ──
 export const getEmployeeScheduleLinks = () => request('/employee-schedule-links');

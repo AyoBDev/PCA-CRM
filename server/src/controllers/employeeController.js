@@ -89,4 +89,17 @@ async function restoreEmployee(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listEmployees, getEmployee, createEmployee, updateEmployee, deleteEmployee, restoreEmployee };
+async function permanentlyDeleteEmployee(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const emp = await prisma.employee.findUnique({ where: { id } });
+        if (!emp) return res.status(404).json({ error: 'Employee not found' });
+        if (!emp.archivedAt) return res.status(400).json({ error: 'Only archived employees can be permanently deleted' });
+        // Clear shifts referencing this employee (Shift uses onDelete: Restrict)
+        await prisma.shift.deleteMany({ where: { employeeId: id } });
+        await prisma.employee.delete({ where: { id } });
+        res.json({ success: true });
+    } catch (err) { next(err); }
+}
+
+module.exports = { listEmployees, getEmployee, createEmployee, updateEmployee, deleteEmployee, restoreEmployee, permanentlyDeleteEmployee };

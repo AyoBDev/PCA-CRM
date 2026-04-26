@@ -81,4 +81,15 @@ async function restoreService(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listServices, createService, updateService, deleteService, restoreService };
+async function permanentlyDeleteService(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const svc = await prisma.service.findUnique({ where: { id } });
+        if (!svc) return res.status(404).json({ error: 'Service not found' });
+        if (!svc.archivedAt) return res.status(400).json({ error: 'Only archived services can be permanently deleted' });
+        await prisma.service.delete({ where: { id } });
+        res.json({ success: true });
+    } catch (err) { next(err); }
+}
+
+module.exports = { listServices, createService, updateService, deleteService, restoreService, permanentlyDeleteService };

@@ -11,6 +11,7 @@ const {
     bulkDelete,
     bulkImport,
     restoreClient,
+    permanentlyDeleteClient,
 } = require('../controllers/clientController');
 const {
     createAuthorization,
@@ -23,6 +24,7 @@ const {
     updateInsuranceType,
     deleteInsuranceType,
     restoreInsuranceType,
+    permanentlyDeleteInsuranceType,
 } = require('../controllers/insuranceTypeController');
 const {
     listServices,
@@ -30,6 +32,7 @@ const {
     updateService,
     deleteService,
     restoreService,
+    permanentlyDeleteService,
 } = require('../controllers/serviceController');
 const {
     listTimesheets,
@@ -54,6 +57,7 @@ const {
     deleteUser,
     restoreUser,
     resetPassword,
+    permanentlyDeleteUser,
 } = require('../controllers/authController');
 const {
     generateSigningLinks,
@@ -66,6 +70,7 @@ const {
     getPayrollRun,
     deletePayrollRun,
     restorePayrollRun,
+    permanentlyDeletePayrollRun,
     exportPayrollRun,
     updatePayrollVisit,
 } = require('../controllers/payrollController');
@@ -87,6 +92,7 @@ const {
     updateEmployee,
     deleteEmployee,
     restoreEmployee,
+    permanentlyDeleteEmployee,
 } = require('../controllers/employeeController');
 const { getDashboardStats } = require('../controllers/dashboardController');
 const { sendSchedules, getNotificationStatus, getScheduleConfirm, confirmSchedule } = require('../controllers/scheduleNotificationController');
@@ -117,6 +123,7 @@ router.get('/auth/users', requireRole('admin'), listUsers);
 router.delete('/auth/users/:id', requireRole('admin'), deleteUser);
 router.put('/auth/users/:id/restore', requireRole('admin'), restoreUser);
 router.put('/auth/users/:id/reset-password', requireRole('admin'), resetPassword);
+router.delete('/auth/users/:id/permanent', requireRole('admin'), permanentlyDeleteUser);
 
 // Dashboard
 router.get('/dashboard/stats', requireRole('admin', 'user'), getDashboardStats);
@@ -131,6 +138,7 @@ router.put('/clients/:id/restore', requireRole('admin', 'user'), restoreClient);
 router.put('/clients/:id', requireRole('admin', 'user'), updateClient);
 router.patch('/clients/:id', requireRole('admin', 'user'), patchClient);
 router.delete('/clients/:id', requireRole('admin', 'user'), deleteClient);
+router.delete('/clients/:id/permanent', requireRole('admin'), permanentlyDeleteClient);
 
 // Authorization routes
 router.post('/clients/:clientId/authorizations', requireRole('admin', 'user'), createAuthorization);
@@ -143,6 +151,7 @@ router.post('/insurance-types', requireRole('admin', 'user'), createInsuranceTyp
 router.put('/insurance-types/:id/restore', requireRole('admin', 'user'), restoreInsuranceType);
 router.put('/insurance-types/:id', requireRole('admin', 'user'), updateInsuranceType);
 router.delete('/insurance-types/:id', requireRole('admin', 'user'), deleteInsuranceType);
+router.delete('/insurance-types/:id/permanent', requireRole('admin'), permanentlyDeleteInsuranceType);
 
 // Service routes
 router.get('/services', requireRole('admin', 'user'), listServices);
@@ -150,6 +159,7 @@ router.post('/services', requireRole('admin', 'user'), createService);
 router.put('/services/:id/restore', requireRole('admin', 'user'), restoreService);
 router.put('/services/:id', requireRole('admin', 'user'), updateService);
 router.delete('/services/:id', requireRole('admin', 'user'), deleteService);
+router.delete('/services/:id/permanent', requireRole('admin'), permanentlyDeleteService);
 
 // Timesheet routes (all authenticated users)
 router.get('/timesheets/activities', getActivities);
@@ -176,6 +186,7 @@ router.post('/payroll/runs',               requireRole('admin', 'user'), upload.
 router.get('/payroll/runs/:id',            requireRole('admin', 'user'), getPayrollRun);
 router.put('/payroll/runs/:id/restore',    requireRole('admin', 'user'), restorePayrollRun);
 router.delete('/payroll/runs/:id',         requireRole('admin', 'user'), deletePayrollRun);
+router.delete('/payroll/runs/:id/permanent', requireRole('admin'), permanentlyDeletePayrollRun);
 router.get('/payroll/runs/:id/export',     requireRole('admin', 'user'), exportPayrollRun);
 router.patch('/payroll/visits/:id',        requireRole('admin', 'user'), updatePayrollVisit);
 
@@ -186,6 +197,7 @@ router.post('/employees',      requireRole('admin', 'user'), createEmployee);
 router.put('/employees/:id/restore', requireRole('admin', 'user'), restoreEmployee);
 router.put('/employees/:id',   requireRole('admin', 'user'), updateEmployee);
 router.delete('/employees/:id', requireRole('admin', 'user'), deleteEmployee);
+router.delete('/employees/:id/permanent', requireRole('admin'), permanentlyDeleteEmployee);
 
 // Scheduling
 router.get('/shifts',                       requireRole('admin', 'user'), listShifts);
