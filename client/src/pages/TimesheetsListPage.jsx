@@ -28,6 +28,7 @@ export default function TimesheetsListPage() {
     const [newClientIdNumber, setNewClientIdNumber] = useState('');
     const [showArchived, setShowArchived] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(null);
+    const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(null);
 
     useEffect(() => {
         api.getClients().then(setClients).catch(() => {});
@@ -67,6 +68,15 @@ export default function TimesheetsListPage() {
         try {
             await api.restoreTimesheet(id);
             showToast('Timesheet restored');
+            fetchTimesheets();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handlePermanentDelete = async (ts) => {
+        try {
+            await api.permanentlyDeleteTimesheet(ts.id);
+            setConfirmPermanentDelete(null);
+            showToast('Timesheet permanently deleted');
             fetchTimesheets();
         } catch (err) { showToast(err.message, 'error'); }
     };
@@ -118,7 +128,7 @@ export default function TimesheetsListPage() {
                 ) : (
                     <div className="sheet-card">
                         <table className="data-table">
-                            <thead><tr><th>PCA Name</th><th>Client</th><th>Week</th><th>PAS Hrs</th><th>HM Hrs</th><th>Respite Hrs</th><th>Total</th><th>Status</th><th style={{ width: 80 }}>Actions</th></tr></thead>
+                            <thead><tr><th>PCA Name</th><th>Client</th><th>Week</th><th>PAS Hrs</th><th>HM Hrs</th><th>Respite Hrs</th><th>Total</th><th>Status</th><th style={{ width: showArchived ? 160 : 80 }}>Actions</th></tr></thead>
                             <tbody>
                                 {timesheets.map((ts) => (
                                     <tr key={ts.id} className="clickable-row" onClick={() => setActiveTimesheetId(ts.id)}>
@@ -132,7 +142,10 @@ export default function TimesheetsListPage() {
                                         <td><span className={`ts-badge ts-badge--${ts.status}`}>{ts.status}</span></td>
                                         <td onClick={(e) => e.stopPropagation()}>
                                             {showArchived ? (
-                                                <button className="btn btn--restore" onClick={() => handleRestore(ts.id)} title="Restore">{Icons.rotateCcw} Restore</button>
+                                                <div style={{ display: 'flex', gap: 6 }}>
+                                                    <button className="btn btn--restore" onClick={() => handleRestore(ts.id)} title="Restore">{Icons.rotateCcw} Restore</button>
+                                                    <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmPermanentDelete(ts)} title="Delete permanently">{Icons.trash}</button>
+                                                </div>
                                             ) : (
                                                 <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmDelete(ts)} title="Archive timesheet">{Icons.trash}</button>
                                             )}
@@ -175,6 +188,16 @@ export default function TimesheetsListPage() {
                     confirmVariant="danger"
                     onConfirm={() => handleDelete(confirmDelete)}
                     onClose={() => setConfirmDelete(null)}
+                />
+            )}
+            {confirmPermanentDelete && (
+                <ConfirmModal
+                    title="Permanently Delete Timesheet"
+                    message={`Permanently delete the timesheet for ${confirmPermanentDelete.pcaName} — ${confirmPermanentDelete.client?.clientName || 'Unknown'}? This action cannot be undone.`}
+                    confirmLabel="Delete Forever"
+                    confirmVariant="danger"
+                    onConfirm={() => handlePermanentDelete(confirmPermanentDelete)}
+                    onClose={() => setConfirmPermanentDelete(null)}
                 />
             )}
         </>

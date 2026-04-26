@@ -41,7 +41,10 @@ async function listTimesheets(req, res, next) {
     try {
         const where = req.query.archived === 'true' ? { archivedAt: { not: null } } : { archivedAt: null };
         if (req.query.status) where.status = req.query.status;
-        if (req.query.weekStart) where.weekStart = new Date(req.query.weekStart);
+        if (req.query.weekStart) {
+            const [y, m, d] = req.query.weekStart.split('-').map(Number);
+            where.weekStart = new Date(Date.UTC(y, m - 1, d));
+        }
         const timesheets = await prisma.timesheet.findMany({
             where,
             include: { client: { select: { id: true, clientName: true } }, entries: true },
@@ -76,21 +79,45 @@ async function createTimesheet(req, res, next) {
         if (!clientId || !pcaName || !weekStart) {
             return res.status(400).json({ error: 'clientId, pcaName, weekStart are required' });
         }
+        const [y, m, d] = weekStart.split('-').map(Number);
+        const raw = new Date(Date.UTC(y, m - 1, d));
+        // Snap to Sunday
+        raw.setUTCDate(raw.getUTCDate() - raw.getUTCDay());
+        const ws = raw;
+        const cId = Number(clientId);
+        const pName = pcaName.trim();
+
+        // Check for existing timesheet (active or archived)
+        const existing = await prisma.timesheet.findFirst({
+            where: { clientId: cId, pcaName: pName, weekStart: ws },
+            include: { client: { select: { id: true, clientName: true } }, entries: { orderBy: { dayOfWeek: 'asc' } } },
+        });
+
+        if (existing) {
+            if (existing.archivedAt) {
+                // Archived — hard-delete it so we can create fresh
+                await prisma.timesheetEntry.deleteMany({ where: { timesheetId: existing.id } });
+                await prisma.timesheet.delete({ where: { id: existing.id } });
+            } else {
+                // Active — just return it instead of erroring
+                return res.status(200).json(existing);
+            }
+        }
+
         // Compute dates for each day of the week
-        const ws = new Date(weekStart);
-        const entries = [0, 1, 2, 3, 4, 5, 6].map((d) => {
+        const entries = [0, 1, 2, 3, 4, 5, 6].map((dow) => {
             const date = new Date(ws);
-            date.setDate(ws.getDate() + d);
+            date.setUTCDate(ws.getUTCDate() + dow);
             return {
-                dayOfWeek: d,
+                dayOfWeek: dow,
                 dateOfService: date.toISOString().split('T')[0],
             };
         });
 
         const ts = await prisma.timesheet.create({
             data: {
-                clientId: Number(clientId),
-                pcaName: pcaName.trim(),
+                clientId: cId,
+                pcaName: pName,
                 weekStart: ws,
                 clientPhone: (clientPhone || '').trim(),
                 clientIdNumber: (clientIdNumber || '').trim(),
@@ -222,6 +249,19 @@ async function restoreTimesheet(req, res, next) {
             include: { client: { select: { id: true, clientName: true } }, entries: true },
         });
         res.json(restored);
+    } catch (err) { next(err); }
+}
+
+// DELETE /api/timesheets/:id/permanent — hard delete (admin only, archived timesheets only)
+async function permanentlyDeleteTimesheet(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const existing = await prisma.timesheet.findUnique({ where: { id } });
+        if (!existing) return res.status(404).json({ error: 'Timesheet not found' });
+        if (!existing.archivedAt) return res.status(400).json({ error: 'Only archived timesheets can be permanently deleted' });
+        await prisma.timesheetEntry.deleteMany({ where: { timesheetId: id } });
+        await prisma.timesheet.delete({ where: { id } });
+        res.json({ success: true });
     } catch (err) { next(err); }
 }
 
@@ -494,4 +534,4 @@ async function updateTimesheetStatus(req, res, next) {
     }
 }
 
-module.exports = { listTimesheets, getTimesheet, getActivities, createTimesheet, updateTimesheet, submitTimesheet, deleteTimesheet, restoreTimesheet, exportTimesheetPdf, updateTimesheetStatus };
+module.exports = { listTimesheets, getTimesheet, getActivities, createTimesheet, updateTimesheet, submitTimesheet, deleteTimesheet, restoreTimesheet, permanentlyDeleteTimesheet, exportTimesheetPdf, updateTimesheetStatus };

@@ -40,6 +40,7 @@ const {
     submitTimesheet,
     deleteTimesheet,
     restoreTimesheet,
+    permanentlyDeleteTimesheet,
     exportTimesheetPdf,
     updateTimesheetStatus,
 } = require('../controllers/timesheetController');
@@ -160,6 +161,7 @@ router.put('/timesheets/:id', updateTimesheet);
 router.put('/timesheets/:id/submit', submitTimesheet);
 router.post('/timesheets/:id/signing-links', requireRole('admin', 'user'), generateSigningLinks);
 router.delete('/timesheets/:id', deleteTimesheet);
+router.delete('/timesheets/:id/permanent', requireRole('admin'), permanentlyDeleteTimesheet);
 router.get('/timesheets/:id/export-pdf', requireRole('admin', 'user'), exportTimesheetPdf);
 router.put('/timesheets/:id/status', requireRole('admin', 'user'), updateTimesheetStatus);
 

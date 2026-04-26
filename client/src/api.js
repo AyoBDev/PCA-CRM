@@ -136,6 +136,8 @@ export const submitTimesheet = (id) =>
     request(`/timesheets/${id}/submit`, { method: 'PUT' });
 export const deleteTimesheet = (id) =>
     request(`/timesheets/${id}`, { method: 'DELETE' });
+export const permanentlyDeleteTimesheet = (id) =>
+    request(`/timesheets/${id}/permanent`, { method: 'DELETE' });
 export const restoreTimesheet = (id) =>
     request(`/timesheets/${id}/restore`, { method: 'PUT' });
 

@@ -244,6 +244,8 @@ export default function PcaFormPage() {
 
     const loadForm = useCallback((weekStart) => {
         setLoading(true);
+        setError(null);
+        setSubmitAttempted(false);
         api.getPcaForm(token, weekStart || undefined)
             .then((resp) => {
                 setData(resp);
@@ -429,8 +431,9 @@ export default function PcaFormPage() {
         setSubmitting(false);
     };
 
-    if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading…</div>;
-    if (error) return <div style={{ padding: 40, textAlign: 'center', color: 'hsl(var(--destructive))' }}>{error}</div>;
+    // Initial load — no data yet, show simple loading screen
+    if (!data && loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading…</div>;
+    if (!data && error) return <div style={{ padding: 40, textAlign: 'center', color: 'hsl(var(--destructive))' }}>{error}</div>;
     if (!data) return null;
 
     const weekLabel = formatWeek(selectedWeekStart || data.timesheet.weekStart.split('T')[0]);
@@ -491,65 +494,73 @@ export default function PcaFormPage() {
             </div>
 
             <div className="sdr-form" style={{ maxWidth: 1200, margin: '0 auto', padding: 16 }}>
-                <SectionBlock
-                    header={pasHeader}
-                    activities={ADL_ACTIVITIES}
-                    section="adl"
-                    entries={entries}
-                    updateEntry={updateEntry}
-                    dailyHoursFn={adlHrs}
-                    disabled={submitted || !pasEnabled}
-                    sectionDisabled={!pasEnabled}
-                    onAddShift={handleAddShift}
-                    onRemoveShift={handleRemoveShift}
-                    fieldErrors={fieldErrors}
-                />
+                {loading ? (
+                    <div style={{ padding: 40, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>Loading…</div>
+                ) : error ? (
+                    <div style={{ padding: 40, textAlign: 'center', color: 'hsl(var(--destructive))' }}>{error}</div>
+                ) : (
+                    <>
+                        <SectionBlock
+                            header={pasHeader}
+                            activities={ADL_ACTIVITIES}
+                            section="adl"
+                            entries={entries}
+                            updateEntry={updateEntry}
+                            dailyHoursFn={adlHrs}
+                            disabled={submitted || !pasEnabled}
+                            sectionDisabled={!pasEnabled}
+                            onAddShift={handleAddShift}
+                            onRemoveShift={handleRemoveShift}
+                            fieldErrors={fieldErrors}
+                        />
 
-                <SectionBlock
-                    header={iadlHeader}
-                    activities={IADL_ACTIVITIES}
-                    section={iadlSection}
-                    entries={entries}
-                    updateEntry={updateEntry}
-                    dailyHoursFn={iadlHoursFn}
-                    disabled={submitted || !iadlAnyEnabled || (iadlTab === 'iadl' && !hmEnabled) || (iadlTab === 'respite' && !respiteEnabled)}
-                    sectionDisabled={!iadlAnyEnabled}
-                    onAddShift={handleAddShift}
-                    onRemoveShift={handleRemoveShift}
-                    respiteEnabled={respiteEnabled}
-                    isIadlSection
-                    fieldErrors={fieldErrors}
-                />
-                {iadlAnyEnabled && hmEnabled && respiteEnabled && (
-                    <p className="pca-form-hint">Tip: switch between <strong>HOMEMAKER</strong> and <strong>RESPITE</strong> using the tags in the blue bar above. Only one can be logged per day in a given time block.</p>
-                )}
+                        <SectionBlock
+                            header={iadlHeader}
+                            activities={IADL_ACTIVITIES}
+                            section={iadlSection}
+                            entries={entries}
+                            updateEntry={updateEntry}
+                            dailyHoursFn={iadlHoursFn}
+                            disabled={submitted || !iadlAnyEnabled || (iadlTab === 'iadl' && !hmEnabled) || (iadlTab === 'respite' && !respiteEnabled)}
+                            sectionDisabled={!iadlAnyEnabled}
+                            onAddShift={handleAddShift}
+                            onRemoveShift={handleRemoveShift}
+                            respiteEnabled={respiteEnabled}
+                            isIadlSection
+                            fieldErrors={fieldErrors}
+                        />
+                        {iadlAnyEnabled && hmEnabled && respiteEnabled && (
+                            <p className="pca-form-hint">Tip: switch between <strong>HOMEMAKER</strong> and <strong>RESPITE</strong> using the tags in the blue bar above. Only one can be logged per day in a given time block.</p>
+                        )}
 
-                <div className="sdr-totals-bar">
-                    <div className="sdr-total-item"><span>Total</span><strong>{totalAll.toFixed(2)} hrs / {Math.round(totalAll * 4)} units</strong></div>
-                    {pasEnabled && <div className="sdr-total-item"><span>PAS</span><strong>{totalPas.toFixed(2)} hrs / {Math.round(totalPas * 4)} units</strong></div>}
-                    {hmEnabled && <div className="sdr-total-item"><span>Homemaker</span><strong>{totalHm.toFixed(2)} hrs / {Math.round(totalHm * 4)} units</strong></div>}
-                    {respiteEnabled && <div className="sdr-total-item"><span>Respite</span><strong>{totalRespite.toFixed(2)} hrs / {Math.round(totalRespite * 4)} units</strong></div>}
-                </div>
+                        <div className="sdr-totals-bar">
+                            <div className="sdr-total-item"><span>Total</span><strong>{totalAll.toFixed(2)} hrs / {Math.round(totalAll * 4)} units</strong></div>
+                            {pasEnabled && <div className="sdr-total-item"><span>PAS</span><strong>{totalPas.toFixed(2)} hrs / {Math.round(totalPas * 4)} units</strong></div>}
+                            {hmEnabled && <div className="sdr-total-item"><span>Homemaker</span><strong>{totalHm.toFixed(2)} hrs / {Math.round(totalHm * 4)} units</strong></div>}
+                            {respiteEnabled && <div className="sdr-total-item"><span>Respite</span><strong>{totalRespite.toFixed(2)} hrs / {Math.round(totalRespite * 4)} units</strong></div>}
+                        </div>
 
-                <div className="sdr-section">
-                    <div className="sdr-section-title">Acknowledgement and Required Signatures</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 16, padding: '0 16px' }}>
-                        <div className={`form-group ${fieldErrors.pcaFullName ? 'sdr-name-error' : ''}`}><label>PCA Name (First, MI, Last) <span className="sdr-required">*</span></label><input type="text" value={pcaFullName} onChange={(e) => setPcaFullName(e.target.value)} disabled={submitted} placeholder="Jane A. Doe" /></div>
-                        <div className={`form-group ${fieldErrors.recipientName ? 'sdr-name-error' : ''}`}><label>Recipient Name (First, MI, Last) <span className="sdr-required">*</span></label><input type="text" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} disabled={submitted} placeholder="John B. Client" /></div>
-                    </div>
-                    <div className={`ts-signatures ${fieldErrors.pcaSig ? 'sdr-sig-error' : ''}`}>
-                        <SignaturePad label="PCA Signature *" value={pcaSig} onChange={setPcaSig} disabled={submitted} />
-                    </div>
-                    <div className={`ts-signatures ${fieldErrors.recipientSig ? 'sdr-sig-error' : ''}`} style={{ paddingBottom: 16 }}>
-                        <SignaturePad label="Recipient / Responsible Party Signature *" value={recipientSig} onChange={setRecipientSig} disabled={submitted} />
-                    </div>
-                </div>
+                        <div className="sdr-section">
+                            <div className="sdr-section-title">Acknowledgement and Required Signatures</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 16, padding: '0 16px' }}>
+                                <div className={`form-group ${fieldErrors.pcaFullName ? 'sdr-name-error' : ''}`}><label>PCA Name (First, MI, Last) <span className="sdr-required">*</span></label><input type="text" value={pcaFullName} onChange={(e) => setPcaFullName(e.target.value)} disabled={submitted} placeholder="Jane A. Doe" /></div>
+                                <div className={`form-group ${fieldErrors.recipientName ? 'sdr-name-error' : ''}`}><label>Recipient Name (First, MI, Last) <span className="sdr-required">*</span></label><input type="text" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} disabled={submitted} placeholder="John B. Client" /></div>
+                            </div>
+                            <div className={`ts-signatures ${fieldErrors.pcaSig ? 'sdr-sig-error' : ''}`}>
+                                <SignaturePad label="PCA Signature *" value={pcaSig} onChange={setPcaSig} disabled={submitted} />
+                            </div>
+                            <div className={`ts-signatures ${fieldErrors.recipientSig ? 'sdr-sig-error' : ''}`} style={{ paddingBottom: 16 }}>
+                                <SignaturePad label="Recipient / Responsible Party Signature *" value={recipientSig} onChange={setRecipientSig} disabled={submitted} />
+                            </div>
+                        </div>
 
-                {!submitted && (
-                    <div className="pca-form-actions" style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', padding: 16 }}>
-                        <button className="btn btn--outline" onClick={handleSave} disabled={saving || submitting}>{saving ? 'Saving…' : 'Save Progress'}</button>
-                        <button className="btn btn--success" onClick={handleSubmit} disabled={submitting || saving}>{submitting ? 'Submitting…' : 'Submit Timesheet'}</button>
-                    </div>
+                        {!submitted && (
+                            <div className="pca-form-actions" style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', padding: 16 }}>
+                                <button className="btn btn--outline" onClick={handleSave} disabled={saving || submitting}>{saving ? 'Saving…' : 'Save Progress'}</button>
+                                <button className="btn btn--success" onClick={handleSubmit} disabled={submitting || saving}>{submitting ? 'Submitting…' : 'Submit Timesheet'}</button>
+                            </div>
+                        )}
+                    </>
                 )}
 
                 {toast && <div className="pca-form-toast" style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', padding: '12px 20px', background: 'hsl(var(--foreground))', color: 'hsl(var(--background))', borderRadius: 8, zIndex: 1000, fontSize: 13, fontWeight: 500 }}>{toast}</div>}

@@ -35,20 +35,18 @@ function computeTotalHoursWithBlocks(timeIn, timeOut, timeBlocksJson) {
 
 function getCurrentWeekStart() {
   const now = new Date();
-  const day = now.getDay();
-  const sunday = new Date(now);
-  sunday.setDate(now.getDate() - day);
-  sunday.setHours(0, 0, 0, 0);
+  const utcDay = now.getUTCDay();
+  const sunday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - utcDay));
   return sunday;
 }
 
-// Parse a YYYY-MM-DD string to a Date snapped to Sunday.
-// Uses local time to stay consistent with getCurrentWeekStart().
+// Parse a YYYY-MM-DD string to a Date snapped to Sunday (UTC midnight).
 function normalizeWeekStart(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00');
-  d.setDate(d.getDate() - d.getDay());
-  d.setHours(0, 0, 0, 0);
-  return d;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const day = dt.getUTCDay();
+  dt.setUTCDate(dt.getUTCDate() - day);
+  return dt;
 }
 
 function hasActivity(activitiesJson) {
@@ -118,15 +116,24 @@ async function getPcaForm(req, res, next) {
       weekStart = getCurrentWeekStart();
     }
     let timesheet = await prisma.timesheet.findFirst({
-      where: { clientId: link.clientId, pcaName: link.pcaName, weekStart },
+      where: { clientId: link.clientId, pcaName: link.pcaName, weekStart, archivedAt: null },
       include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
     });
 
     if (!timesheet) {
+      // Remove any archived timesheet occupying this unique slot
+      const archivedTs = await prisma.timesheet.findFirst({
+        where: { clientId: link.clientId, pcaName: link.pcaName, weekStart, archivedAt: { not: null } },
+      });
+      if (archivedTs) {
+        await prisma.timesheetEntry.deleteMany({ where: { timesheetId: archivedTs.id } });
+        await prisma.timesheet.delete({ where: { id: archivedTs.id } });
+      }
+
       const entryData = [];
       for (let d = 0; d < 7; d++) {
         const date = new Date(weekStart);
-        date.setDate(date.getDate() + d);
+        date.setUTCDate(date.getUTCDate() + d);
         entryData.push({
           dayOfWeek: d,
           dateOfService: date.toISOString().slice(0, 10),
@@ -178,16 +185,25 @@ async function updatePcaForm(req, res, next) {
       weekStart = getCurrentWeekStart();
     }
     let timesheet = await prisma.timesheet.findFirst({
-      where: { clientId: link.clientId, pcaName: link.pcaName, weekStart },
+      where: { clientId: link.clientId, pcaName: link.pcaName, weekStart, archivedAt: null },
       include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
     });
 
     // Auto-create timesheet if it doesn't exist yet (same as GET handler)
     if (!timesheet) {
+      // Remove any archived timesheet occupying this unique slot
+      const archivedTs = await prisma.timesheet.findFirst({
+        where: { clientId: link.clientId, pcaName: link.pcaName, weekStart, archivedAt: { not: null } },
+      });
+      if (archivedTs) {
+        await prisma.timesheetEntry.deleteMany({ where: { timesheetId: archivedTs.id } });
+        await prisma.timesheet.delete({ where: { id: archivedTs.id } });
+      }
+
       const entryData = [];
       for (let d = 0; d < 7; d++) {
         const date = new Date(weekStart);
-        date.setDate(date.getDate() + d);
+        date.setUTCDate(date.getUTCDate() + d);
         entryData.push({
           dayOfWeek: d,
           dateOfService: date.toISOString().slice(0, 10),
