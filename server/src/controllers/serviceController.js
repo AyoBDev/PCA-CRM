@@ -92,4 +92,11 @@ async function permanentlyDeleteService(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listServices, createService, updateService, deleteService, restoreService, permanentlyDeleteService };
+async function bulkPermanentlyDeleteServices(req, res, next) {
+    try {
+        const result = await prisma.service.deleteMany({ where: { archivedAt: { not: null } } });
+        res.json({ success: true, count: result.count });
+    } catch (err) { next(err); }
+}
+
+module.exports = { listServices, createService, updateService, deleteService, restoreService, permanentlyDeleteService, bulkPermanentlyDeleteServices };

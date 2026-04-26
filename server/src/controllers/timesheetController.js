@@ -534,4 +534,11 @@ async function updateTimesheetStatus(req, res, next) {
     }
 }
 
-module.exports = { listTimesheets, getTimesheet, getActivities, createTimesheet, updateTimesheet, submitTimesheet, deleteTimesheet, restoreTimesheet, permanentlyDeleteTimesheet, exportTimesheetPdf, updateTimesheetStatus };
+async function bulkPermanentlyDeleteTimesheets(req, res, next) {
+    try {
+        const result = await prisma.timesheet.deleteMany({ where: { archivedAt: { not: null } } });
+        res.json({ success: true, count: result.count });
+    } catch (err) { next(err); }
+}
+
+module.exports = { listTimesheets, getTimesheet, getActivities, createTimesheet, updateTimesheet, submitTimesheet, deleteTimesheet, restoreTimesheet, permanentlyDeleteTimesheet, bulkPermanentlyDeleteTimesheets, exportTimesheetPdf, updateTimesheetStatus };

@@ -237,6 +237,7 @@ export default function PcaFormPage() {
     const [toast, setToast] = useState('');
     const [selectedWeekStart, setSelectedWeekStart] = useState('');
     const [submitAttempted, setSubmitAttempted] = useState(false);
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
     const showToast = useCallback((msg) => {
         setToast(msg);
@@ -247,6 +248,7 @@ export default function PcaFormPage() {
         setLoading(true);
         setError(null);
         setSubmitAttempted(false);
+        setHasUnsavedChanges(false);
         api.getPcaForm(token, weekStart || undefined)
             .then((resp) => {
                 setData(resp);
@@ -275,6 +277,7 @@ export default function PcaFormPage() {
 
     const updateEntry = (idx, field, value) => {
         setEntries((prev) => prev.map((e, i) => (i === idx ? { ...e, [field]: value } : e)));
+        setHasUnsavedChanges(true);
     };
 
     const handleAddShift = (section) => {
@@ -283,6 +286,7 @@ export default function PcaFormPage() {
             blocks.push({ in: '', out: '' });
             return { ...e, [`${section}TimeBlocks`]: JSON.stringify(blocks) };
         }));
+        setHasUnsavedChanges(true);
     };
 
     const handleRemoveShift = (section, blockIdx) => {
@@ -291,6 +295,7 @@ export default function PcaFormPage() {
             blocks.splice(blockIdx, 1);
             return { ...e, [`${section}TimeBlocks`]: JSON.stringify(blocks) };
         }));
+        setHasUnsavedChanges(true);
     };
 
     const adlHrs = (e) => totalHoursWithBlocks(e, 'adl');
@@ -402,6 +407,7 @@ export default function PcaFormPage() {
             const resp = await api.updatePcaForm(token, buildPayload('save'));
             setData(resp);
             setEntries(resp.timesheet.entries || []);
+            setHasUnsavedChanges(false);
             showToast('Progress saved');
         } catch (err) {
             showToast(err.message);
@@ -424,6 +430,7 @@ export default function PcaFormPage() {
             const resp = await api.updatePcaForm(token, buildPayload('submit'));
             setData(resp);
             setEntries(resp.timesheet.entries || []);
+            setHasUnsavedChanges(false);
             setSubmitAttempted(false);
             showToast('Timesheet submitted!');
         } catch (err) {
@@ -494,6 +501,14 @@ export default function PcaFormPage() {
                 </div>
             </div>
 
+            {!submitted && hasUnsavedChanges && (
+                <div style={{ position: 'sticky', top: 0, zIndex: 50, maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
+                    <div style={{ padding: '10px 16px', background: '#fef3cd', border: '1px solid #ffc107', borderRadius: 8, fontSize: 13, color: '#664d03', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 500 }}>
+                        <span style={{ fontSize: 18 }}>&#9888;</span> You have unsaved changes. Click <strong>Save Progress</strong> to keep your work.
+                    </div>
+                </div>
+            )}
+
             <div className="sdr-form" style={{ maxWidth: 1200, margin: '0 auto', padding: 16 }}>
                 {loading ? (
                     <div style={{ padding: 40, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>Loading…</div>
@@ -544,14 +559,14 @@ export default function PcaFormPage() {
                         <div className="sdr-section">
                             <div className="sdr-section-title">Acknowledgement and Required Signatures</div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 16, padding: '0 16px' }}>
-                                <div className={`form-group ${fieldErrors.pcaFullName ? 'sdr-name-error' : ''}`}><label>PCA Name (First, MI, Last) <span className="sdr-required">*</span></label><input type="text" value={pcaFullName} onChange={(e) => setPcaFullName(e.target.value)} disabled={submitted} placeholder="Jane A. Doe" /></div>
-                                <div className={`form-group ${fieldErrors.recipientName ? 'sdr-name-error' : ''}`}><label>Recipient Name (First, MI, Last) <span className="sdr-required">*</span></label><input type="text" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} disabled={submitted} placeholder="John B. Client" /></div>
+                                <div className={`form-group ${fieldErrors.pcaFullName ? 'sdr-name-error' : ''}`}><label>PCA Name (First, MI, Last) <span className="sdr-required">*</span></label><input type="text" value={pcaFullName} onChange={(e) => { setPcaFullName(e.target.value); setHasUnsavedChanges(true); }} disabled={submitted} placeholder="Jane A. Doe" /></div>
+                                <div className={`form-group ${fieldErrors.recipientName ? 'sdr-name-error' : ''}`}><label>Recipient Name (First, MI, Last) <span className="sdr-required">*</span></label><input type="text" value={recipientName} onChange={(e) => { setRecipientName(e.target.value); setHasUnsavedChanges(true); }} disabled={submitted} placeholder="John B. Client" /></div>
                             </div>
                             <div className={`ts-signatures ${fieldErrors.pcaSig ? 'sdr-sig-error' : ''}`}>
-                                <SignaturePad label="PCA Signature *" value={pcaSig} onChange={setPcaSig} disabled={submitted} />
+                                <SignaturePad label="PCA Signature *" value={pcaSig} onChange={(v) => { setPcaSig(v); setHasUnsavedChanges(true); }} disabled={submitted} />
                             </div>
                             <div className={`ts-signatures ${fieldErrors.recipientSig ? 'sdr-sig-error' : ''}`} style={{ paddingBottom: 16 }}>
-                                <SignaturePad label="Recipient / Responsible Party Signature *" value={recipientSig} onChange={setRecipientSig} disabled={submitted} />
+                                <SignaturePad label="Recipient / Responsible Party Signature *" value={recipientSig} onChange={(v) => { setRecipientSig(v); setHasUnsavedChanges(true); }} disabled={submitted} />
                             </div>
                         </div>
 

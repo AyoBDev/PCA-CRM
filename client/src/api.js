@@ -68,6 +68,8 @@ export const restoreUser = (id) =>
     request(`/auth/users/${id}/restore`, { method: 'PUT' });
 export const permanentlyDeleteUser = (id) =>
     request(`/auth/users/${id}/permanent`, { method: 'DELETE' });
+export const bulkPermanentlyDeleteUsers = () =>
+    request('/auth/users/bulk-permanent', { method: 'DELETE' });
 export const resetUserPassword = (id, password) =>
     request(`/auth/users/${id}/reset-password`, { method: 'PUT', body: JSON.stringify({ password }) });
 
@@ -86,6 +88,8 @@ export const restoreClient = (id) =>
     request(`/clients/${id}/restore`, { method: 'PUT' });
 export const permanentlyDeleteClient = (id) =>
     request(`/clients/${id}/permanent`, { method: 'DELETE' });
+export const bulkPermanentlyDeleteClients = () =>
+    request('/clients/bulk-permanent', { method: 'DELETE' });
 
 // Bulk Import
 export const bulkImport = (clients) =>
@@ -115,6 +119,8 @@ export const restoreInsuranceType = (id) =>
     request(`/insurance-types/${id}/restore`, { method: 'PUT' });
 export const permanentlyDeleteInsuranceType = (id) =>
     request(`/insurance-types/${id}/permanent`, { method: 'DELETE' });
+export const bulkPermanentlyDeleteInsuranceTypes = () =>
+    request('/insurance-types/bulk-permanent', { method: 'DELETE' });
 
 // Services
 export const getServices = ({ archived } = {}) => request(`/services${archived ? '?archived=true' : ''}`);
@@ -128,6 +134,8 @@ export const restoreService = (id) =>
     request(`/services/${id}/restore`, { method: 'PUT' });
 export const permanentlyDeleteService = (id) =>
     request(`/services/${id}/permanent`, { method: 'DELETE' });
+export const bulkPermanentlyDeleteServices = () =>
+    request('/services/bulk-permanent', { method: 'DELETE' });
 
 // Timesheets
 export const getTimesheets = (params = '', { archived } = {}) => {
@@ -146,6 +154,8 @@ export const deleteTimesheet = (id) =>
     request(`/timesheets/${id}`, { method: 'DELETE' });
 export const permanentlyDeleteTimesheet = (id) =>
     request(`/timesheets/${id}/permanent`, { method: 'DELETE' });
+export const bulkPermanentlyDeleteTimesheets = () =>
+    request('/timesheets/bulk-permanent', { method: 'DELETE' });
 export const restoreTimesheet = (id) =>
     request(`/timesheets/${id}/restore`, { method: 'PUT' });
 
@@ -223,6 +233,7 @@ export const getPayrollRun    = (id)  => request(`/payroll/runs/${id}`);
 export const deletePayrollRun   = (id)  => request(`/payroll/runs/${id}`, { method: 'DELETE' });
 export const restorePayrollRun  = (id)  => request(`/payroll/runs/${id}/restore`, { method: 'PUT' });
 export const permanentlyDeletePayrollRun = (id) => request(`/payroll/runs/${id}/permanent`, { method: 'DELETE' });
+export const bulkPermanentlyDeletePayrollRuns = () => request('/payroll/runs/bulk-permanent', { method: 'DELETE' });
 export const updatePayrollVisit = (id, data) =>
     request(`/payroll/visits/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 
@@ -260,6 +271,7 @@ export const updateEmployee = (id, data) => request(`/employees/${id}`, { method
 export const deleteEmployee = (id) => request(`/employees/${id}`, { method: 'DELETE' });
 export const restoreEmployee = (id) => request(`/employees/${id}/restore`, { method: 'PUT' });
 export const permanentlyDeleteEmployee = (id) => request(`/employees/${id}/permanent`, { method: 'DELETE' });
+export const bulkPermanentlyDeleteEmployees = () => request('/employees/bulk-permanent', { method: 'DELETE' });
 
 // ── Employee Schedule Links ──
 export const getEmployeeScheduleLinks = () => request('/employee-schedule-links');

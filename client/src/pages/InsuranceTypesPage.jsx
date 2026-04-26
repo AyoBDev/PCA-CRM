@@ -59,6 +59,7 @@ export default function InsuranceTypesPage() {
     const [modal, setModal] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
     const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(null);
+    const [confirmBulkPermanentDelete, setConfirmBulkPermanentDelete] = useState(false);
 
     const fetchInsuranceTypes = useCallback(async () => {
         try { setInsuranceTypes(await api.getInsuranceTypes({ archived: showArchived })); }
@@ -110,6 +111,15 @@ export default function InsuranceTypesPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    const handleBulkPermanentDelete = async () => {
+        try {
+            const result = await api.bulkPermanentlyDeleteInsuranceTypes();
+            setConfirmBulkPermanentDelete(false);
+            showToast(`${result.count} archived insurance type(s) permanently deleted`);
+            fetchInsuranceTypes();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     return (
         <>
             <div className="content-header">
@@ -132,6 +142,11 @@ export default function InsuranceTypesPage() {
                     <div className="archived-banner">
                         {Icons.archive}
                         <span style={{ flex: 1 }}>Viewing archived insurance types. Click "Restore" to bring items back.</span>
+                        {insuranceTypes.length > 0 && (
+                            <button className="btn btn--danger btn--sm" onClick={() => setConfirmBulkPermanentDelete(true)}>
+                                {Icons.trash} Delete All Archived
+                            </button>
+                        )}
                         <button className="btn btn--outline btn--sm" onClick={() => setShowArchived(false)}>
                             {Icons.chevronLeft} Back to Active
                         </button>
@@ -196,6 +211,16 @@ export default function InsuranceTypesPage() {
                     confirmVariant="danger"
                     onConfirm={() => handlePermanentDelete(confirmPermanentDelete)}
                     onClose={() => setConfirmPermanentDelete(null)}
+                />
+            )}
+            {confirmBulkPermanentDelete && (
+                <ConfirmModal
+                    title="Delete All Archived Insurance Types"
+                    message={`Permanently delete all ${insuranceTypes.length} archived insurance type(s)? This action cannot be undone.`}
+                    confirmLabel="Delete All Forever"
+                    confirmVariant="danger"
+                    onConfirm={handleBulkPermanentDelete}
+                    onClose={() => setConfirmBulkPermanentDelete(false)}
                 />
             )}
         </>

@@ -184,4 +184,11 @@ async function permanentlyDeleteUser(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { login, getMe, register, listUsers, deleteUser, restoreUser, resetPassword, permanentlyDeleteUser };
+async function bulkPermanentlyDeleteUsers(req, res, next) {
+    try {
+        const result = await prisma.user.deleteMany({ where: { archivedAt: { not: null } } });
+        res.json({ success: true, count: result.count });
+    } catch (err) { next(err); }
+}
+
+module.exports = { login, getMe, register, listUsers, deleteUser, restoreUser, resetPassword, permanentlyDeleteUser, bulkPermanentlyDeleteUsers };

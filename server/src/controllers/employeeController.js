@@ -102,4 +102,13 @@ async function permanentlyDeleteEmployee(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listEmployees, getEmployee, createEmployee, updateEmployee, deleteEmployee, restoreEmployee, permanentlyDeleteEmployee };
+async function bulkPermanentlyDeleteEmployees(req, res, next) {
+    try {
+        // Clear shifts referencing archived employees (Shift uses onDelete: Restrict)
+        await prisma.shift.deleteMany({ where: { employee: { archivedAt: { not: null } } } });
+        const result = await prisma.employee.deleteMany({ where: { archivedAt: { not: null } } });
+        res.json({ success: true, count: result.count });
+    } catch (err) { next(err); }
+}
+
+module.exports = { listEmployees, getEmployee, createEmployee, updateEmployee, deleteEmployee, restoreEmployee, permanentlyDeleteEmployee, bulkPermanentlyDeleteEmployees };

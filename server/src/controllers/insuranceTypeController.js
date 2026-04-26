@@ -92,4 +92,11 @@ async function permanentlyDeleteInsuranceType(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listInsuranceTypes, createInsuranceType, updateInsuranceType, deleteInsuranceType, restoreInsuranceType, permanentlyDeleteInsuranceType };
+async function bulkPermanentlyDeleteInsuranceTypes(req, res, next) {
+    try {
+        const result = await prisma.insuranceType.deleteMany({ where: { archivedAt: { not: null } } });
+        res.json({ success: true, count: result.count });
+    } catch (err) { next(err); }
+}
+
+module.exports = { listInsuranceTypes, createInsuranceType, updateInsuranceType, deleteInsuranceType, restoreInsuranceType, permanentlyDeleteInsuranceType, bulkPermanentlyDeleteInsuranceTypes };

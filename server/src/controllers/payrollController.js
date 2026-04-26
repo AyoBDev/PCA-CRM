@@ -727,6 +727,13 @@ async function permanentlyDeletePayrollRun(req, res, next) {
     } catch (err) { next(err); }
 }
 
+async function bulkPermanentlyDeletePayrollRuns(req, res, next) {
+    try {
+        const result = await prisma.payrollRun.deleteMany({ where: { archivedAt: { not: null } } });
+        res.json({ success: true, count: result.count });
+    } catch (err) { next(err); }
+}
+
 module.exports = {
     uploadPayrollRun,
     listPayrollRuns,
@@ -734,6 +741,7 @@ module.exports = {
     deletePayrollRun,
     restorePayrollRun,
     permanentlyDeletePayrollRun,
+    bulkPermanentlyDeletePayrollRuns,
     exportPayrollRun,
     updatePayrollVisit,
 };

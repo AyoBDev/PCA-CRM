@@ -426,6 +426,7 @@ export default function ClientsPage() {
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [showArchived, setShowArchived] = useState(false);
     const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(null);
+    const [confirmBulkPermanentDelete, setConfirmBulkPermanentDelete] = useState(false);
 
     const fetchClients = useCallback(async () => {
         try {
@@ -554,6 +555,15 @@ export default function ClientsPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    const handleBulkPermanentDelete = async () => {
+        try {
+            const result = await api.bulkPermanentlyDeleteClients();
+            setConfirmBulkPermanentDelete(false);
+            showToast(`${result.count} archived client(s) permanently deleted`);
+            fetchClients();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     const handleBulkImport = async (rows) => {
         try {
             const result = await api.bulkImport(rows);
@@ -658,6 +668,11 @@ export default function ClientsPage() {
                     <div className="archived-banner">
                         {Icons.archive}
                         <span style={{ flex: 1 }}>Viewing archived clients. Click "Restore" to bring items back.</span>
+                        {clients.length > 0 && (
+                            <button className="btn btn--danger btn--sm" onClick={() => setConfirmBulkPermanentDelete(true)}>
+                                {Icons.trash} Delete All Archived
+                            </button>
+                        )}
                         <button className="btn btn--outline btn--sm" onClick={() => setShowArchived(false)}>
                             {Icons.chevronLeft} Back to Active
                         </button>
@@ -881,6 +896,16 @@ export default function ClientsPage() {
                     confirmVariant="danger"
                     onConfirm={() => handlePermanentDelete(confirmPermanentDelete)}
                     onClose={() => setConfirmPermanentDelete(null)}
+                />
+            )}
+            {confirmBulkPermanentDelete && (
+                <ConfirmModal
+                    title="Delete All Archived Clients"
+                    message={`Permanently delete all ${clients.length} archived client(s) and their authorizations? This action cannot be undone.`}
+                    confirmLabel="Delete All Forever"
+                    confirmVariant="danger"
+                    onConfirm={handleBulkPermanentDelete}
+                    onClose={() => setConfirmBulkPermanentDelete(false)}
                 />
             )}
 

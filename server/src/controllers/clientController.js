@@ -246,4 +246,11 @@ async function permanentlyDeleteClient(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listClients, getClient, createClient, updateClient, patchClient, deleteClient, bulkDelete, bulkImport, restoreClient, permanentlyDeleteClient };
+async function bulkPermanentlyDeleteClients(req, res, next) {
+    try {
+        const result = await prisma.client.deleteMany({ where: { archivedAt: { not: null } } });
+        res.json({ success: true, count: result.count });
+    } catch (err) { next(err); }
+}
+
+module.exports = { listClients, getClient, createClient, updateClient, patchClient, deleteClient, bulkDelete, bulkImport, restoreClient, permanentlyDeleteClient, bulkPermanentlyDeleteClients };

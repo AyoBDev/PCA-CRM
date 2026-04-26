@@ -48,6 +48,7 @@ export default function ServicesPage() {
     const [modal, setModal] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
     const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(null);
+    const [confirmBulkPermanentDelete, setConfirmBulkPermanentDelete] = useState(false);
 
     const fetchServices = useCallback(async () => {
         try { setServices(await api.getServices({ archived: showArchived })); }
@@ -99,6 +100,15 @@ export default function ServicesPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    const handleBulkPermanentDelete = async () => {
+        try {
+            const result = await api.bulkPermanentlyDeleteServices();
+            setConfirmBulkPermanentDelete(false);
+            showToast(`${result.count} archived service(s) permanently deleted`);
+            fetchServices();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     // Group by category
     const grouped = services.reduce((acc, s) => {
         (acc[s.category] = acc[s.category] || []).push(s);
@@ -127,6 +137,11 @@ export default function ServicesPage() {
                     <div className="archived-banner">
                         {Icons.archive}
                         <span style={{ flex: 1 }}>Viewing archived services. Click "Restore" to bring items back.</span>
+                        {services.length > 0 && (
+                            <button className="btn btn--danger btn--sm" onClick={() => setConfirmBulkPermanentDelete(true)}>
+                                {Icons.trash} Delete All Archived
+                            </button>
+                        )}
                         <button className="btn btn--outline btn--sm" onClick={() => setShowArchived(false)}>
                             {Icons.chevronLeft} Back to Active
                         </button>
@@ -196,6 +211,16 @@ export default function ServicesPage() {
                     confirmVariant="danger"
                     onConfirm={() => handlePermanentDelete(confirmPermanentDelete)}
                     onClose={() => setConfirmPermanentDelete(null)}
+                />
+            )}
+            {confirmBulkPermanentDelete && (
+                <ConfirmModal
+                    title="Delete All Archived Services"
+                    message={`Permanently delete all ${services.length} archived service(s)? This action cannot be undone.`}
+                    confirmLabel="Delete All Forever"
+                    confirmVariant="danger"
+                    onConfirm={handleBulkPermanentDelete}
+                    onClose={() => setConfirmBulkPermanentDelete(false)}
                 />
             )}
         </>

@@ -799,6 +799,18 @@ function PayrollPage() {
         }
     };
 
+    const handleBulkPermanentDelete = async () => {
+        try {
+            const result = await api.bulkPermanentlyDeletePayrollRuns();
+            setModal(null);
+            showToast(`${result.count} archived payroll run(s) permanently deleted`);
+            loadRuns();
+        } catch (err) {
+            showToast(err.message, 'error');
+            setModal(null);
+        }
+    };
+
     const handleExport = async () => {
         if (!selectedRun) return;
         setExporting(true);
@@ -872,6 +884,11 @@ function PayrollPage() {
                     <div className="archived-banner">
                         {Icons.archive}
                         <span style={{ flex: 1 }}>Viewing archived payroll runs. Click "Restore" to bring items back.</span>
+                        {runs.length > 0 && (
+                            <button className="btn btn--danger btn--sm" onClick={() => setModal({ type: 'confirmBulkPermanentDelete' })}>
+                                {Icons.trash} Delete All Archived
+                            </button>
+                        )}
                         <button className="btn btn--outline btn--sm" onClick={() => setShowArchived(false)}>
                             {Icons.chevronLeft} Back to Active
                         </button>
@@ -966,6 +983,15 @@ function PayrollPage() {
                     onConfirm={() => handlePermanentDelete(modal.run)}
                     onClose={() => setModal(null)}
                     confirmLabel="Delete Forever"
+                />
+            )}
+            {modal?.type === 'confirmBulkPermanentDelete' && (
+                <ConfirmModal
+                    title="Delete All Archived Payroll Runs"
+                    message={`Permanently delete all ${runs.length} archived payroll run(s) and their visit records? This action cannot be undone.`}
+                    onConfirm={handleBulkPermanentDelete}
+                    onClose={() => setModal(null)}
+                    confirmLabel="Delete All Forever"
                 />
             )}
         </div>

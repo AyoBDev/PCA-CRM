@@ -29,6 +29,7 @@ export default function TimesheetsListPage() {
     const [showArchived, setShowArchived] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(null);
     const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(null);
+    const [confirmBulkPermanentDelete, setConfirmBulkPermanentDelete] = useState(false);
 
     useEffect(() => {
         api.getClients().then(setClients).catch(() => {});
@@ -81,6 +82,15 @@ export default function TimesheetsListPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    const handleBulkPermanentDelete = async () => {
+        try {
+            const result = await api.bulkPermanentlyDeleteTimesheets();
+            setConfirmBulkPermanentDelete(false);
+            showToast(`${result.count} archived timesheet(s) permanently deleted`);
+            fetchTimesheets();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     if (activeTimesheetId) {
         return <TimesheetFormPage timesheetId={activeTimesheetId} clients={clients} onBack={() => { setActiveTimesheetId(null); fetchTimesheets(); }} showToast={showToast} />;
     }
@@ -112,6 +122,11 @@ export default function TimesheetsListPage() {
                     <div className="archived-banner">
                         {Icons.archive}
                         <span style={{ flex: 1 }}>Viewing archived timesheets. Click "Restore" to bring items back.</span>
+                        {timesheets.length > 0 && (
+                            <button className="btn btn--danger btn--sm" onClick={() => setConfirmBulkPermanentDelete(true)}>
+                                {Icons.trash} Delete All Archived
+                            </button>
+                        )}
                         <button className="btn btn--outline btn--sm" onClick={() => setShowArchived(false)}>
                             {Icons.chevronLeft} Back to Active
                         </button>
@@ -198,6 +213,16 @@ export default function TimesheetsListPage() {
                     confirmVariant="danger"
                     onConfirm={() => handlePermanentDelete(confirmPermanentDelete)}
                     onClose={() => setConfirmPermanentDelete(null)}
+                />
+            )}
+            {confirmBulkPermanentDelete && (
+                <ConfirmModal
+                    title="Delete All Archived Timesheets"
+                    message={`Permanently delete all ${timesheets.length} archived timesheet(s)? This action cannot be undone.`}
+                    confirmLabel="Delete All Forever"
+                    confirmVariant="danger"
+                    onConfirm={handleBulkPermanentDelete}
+                    onClose={() => setConfirmBulkPermanentDelete(false)}
                 />
             )}
         </>
