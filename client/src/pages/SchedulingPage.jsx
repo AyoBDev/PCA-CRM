@@ -989,13 +989,17 @@ export default function SchedulingPage() {
     const [summaryViewBy, setSummaryViewBy] = useState('client');
 
     const fetchClients = useCallback(async () => {
-        try { setClients(await api.getClients()); }
-        catch (_) { /* silent */ }
+        try {
+            const data = await api.getClients();
+            data.sort((a, b) => (a.clientName || '').localeCompare(b.clientName || ''));
+            setClients(data);
+        } catch (_) { /* silent */ }
     }, []);
 
     const fetchEmployees = useCallback(async () => {
         try {
             const data = await api.getEmployees({ active: 'true' });
+            data.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
             setEmployees(data);
         } catch (err) { showToast(err.message, 'error'); }
     }, [showToast]);
