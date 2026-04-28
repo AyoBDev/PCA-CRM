@@ -97,7 +97,7 @@ export default function ScheduleViewPage() {
 
     return (
         <div className="signing-page">
-            <div className="signing-card" style={{ maxWidth: 900, width: '95%' }}>
+            <div className="signing-card schedule-view-card">
                 {/* Header */}
                 <div style={{ textAlign: 'center', marginBottom: 20 }}>
                     <h2 style={{ margin: '0 0 4px', fontSize: 20 }}>
@@ -122,61 +122,58 @@ export default function ScheduleViewPage() {
                     <div style={{ padding: 40, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>Loading schedule...</div>
                 ) : (
                     <>
-                        {/* Schedule table — only days with shifts */}
                         {data.shifts.length === 0 ? (
                             <div style={{ padding: 40, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>
                                 No shifts scheduled for this week.
                             </div>
                         ) : (
-                            <div style={{ overflowX: 'auto' }}>
-                                <table className="data-table" style={{ width: '100%', fontSize: 13 }}>
-                                    <thead>
-                                        <tr>
-                                            <th>Day</th>
-                                            <th>Time</th>
-                                            <th>Client</th>
-                                            <th>SANDATA ID</th>
-                                            <th>Service</th>
-                                            <th>Account #</th>
-                                            <th>Address</th>
-                                            <th>Phone</th>
-                                            <th>Gate Code</th>
-                                            <th>Notes</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {weekDays.filter(({ date }) => (shiftsByDate[date] || []).length > 0).map(({ date, dayName }) => {
-                                            const dayShifts = shiftsByDate[date];
-                                            return dayShifts.map((shift, idx) => (
-                                                <tr key={shift.id}>
-                                                    {idx === 0 && (
-                                                        <td rowSpan={dayShifts.length} style={{ fontWeight: 500, whiteSpace: 'nowrap', verticalAlign: 'top', borderRight: '1px solid hsl(var(--border))' }}>
-                                                            {dayName}<br /><span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>{fmtShort(date)}</span>
-                                                        </td>
-                                                    )}
-                                                    <td style={{ whiteSpace: 'nowrap' }}>{hhmm12(shift.startTime)} - {hhmm12(shift.endTime)}</td>
-                                                    <td style={{ fontWeight: 500 }}>{shift.client?.clientName || '—'}</td>
-                                                    <td style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>{shift.sandataClientId || '—'}</td>
-                                                    <td>
-                                                        <span style={{
-                                                            display: 'inline-block', padding: '1px 6px', borderRadius: 4,
-                                                            fontSize: 11, fontWeight: 600,
-                                                            background: 'hsl(var(--accent))', color: 'hsl(var(--accent-foreground))',
-                                                        }}>
-                                                            {shift.serviceLabel || shift.serviceCode}
-                                                        </span>
+                            <table className="schedule-view-table">
+                                <thead>
+                                    <tr>
+                                        <th>Day</th>
+                                        <th>Time</th>
+                                        <th>Client</th>
+                                        <th>Service</th>
+                                        <th>Account</th>
+                                        <th>Sandata Client ID</th>
+                                        <th>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {weekDays.filter(({ date }) => (shiftsByDate[date] || []).length > 0).map(({ date, dayName: dn }) => {
+                                        const dayShifts = shiftsByDate[date];
+                                        return dayShifts.map((shift, idx) => (
+                                            <tr key={shift.id}>
+                                                {idx === 0 && (
+                                                    <td rowSpan={dayShifts.length} className="schedule-view-table__day">
+                                                        <span className="schedule-view-table__day-name">{dn}</span>
+                                                        <span className="schedule-view-table__day-date">{fmtShort(date)}</span>
                                                     </td>
-                                                    <td style={{ fontSize: 12 }}>{shift.accountNumber || '—'}</td>
-                                                    <td style={{ fontSize: 12, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis' }}>{shift.client?.address || '—'}</td>
-                                                    <td style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{shift.client?.phone || '—'}</td>
-                                                    <td style={{ fontSize: 12 }}>{shift.client?.gateCode || '—'}</td>
-                                                    <td style={{ fontSize: 12, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis' }}>{shift.notes || shift.client?.notes || '—'}</td>
-                                                </tr>
-                                            ));
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
+                                                )}
+                                                <td className="schedule-view-table__time" data-label="Time">{hhmm12(shift.startTime)} - {hhmm12(shift.endTime)}</td>
+                                                <td className="schedule-view-table__client" data-label="Client">{shift.client?.clientName || '—'}</td>
+                                                <td data-label="Service">
+                                                    <span className="schedule-view-table__service-badge">
+                                                        {shift.serviceLabel || shift.serviceCode}
+                                                    </span>
+                                                </td>
+                                                <td data-label="Account">{shift.accountNumber || '—'}</td>
+                                                <td data-label="Sandata ID">{shift.sandataClientId || '—'}</td>
+                                                <td className="schedule-view-table__details" data-label="Details">
+                                                    {shift.client?.address && <div>{shift.client.address}</div>}
+                                                    <div className="schedule-view-table__meta">
+                                                        {shift.client?.phone && <span>{shift.client.phone}</span>}
+                                                        {shift.client?.gateCode && <span>Gate: {shift.client.gateCode}</span>}
+                                                    </div>
+                                                    {(shift.notes || shift.client?.notes) && (
+                                                        <div className="schedule-view-table__notes">{shift.notes || shift.client?.notes}</div>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ));
+                                    })}
+                                </tbody>
+                            </table>
                         )}
 
                         {/* Footer */}

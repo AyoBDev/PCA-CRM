@@ -59,6 +59,30 @@ export const login = (email, password) =>
     });
 
 export const getMe = () => request('/auth/me');
+export const forgotPassword = (email) =>
+    fetch(`${BASE}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+    }).then(async (res) => {
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.error || 'Request failed');
+        }
+        return res.json();
+    });
+export const resetPasswordWithToken = (token, password) =>
+    fetch(`${BASE}/auth/reset-password-with-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, password }),
+    }).then(async (res) => {
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.error || 'Request failed');
+        }
+        return res.json();
+    });
 export const registerUser = (data) =>
     request('/auth/register', { method: 'POST', body: JSON.stringify(data) });
 export const getUsers = ({ archived } = {}) => request(`/auth/users${archived ? '?archived=true' : ''}`);
@@ -72,6 +96,8 @@ export const bulkPermanentlyDeleteUsers = () =>
     request('/auth/users/bulk-permanent', { method: 'DELETE' });
 export const resetUserPassword = (id, password) =>
     request(`/auth/users/${id}/reset-password`, { method: 'PUT', body: JSON.stringify({ password }) });
+export const toggleUserActive = (id) =>
+    request(`/auth/users/${id}/toggle-active`, { method: 'PUT' });
 
 // Clients
 export const getClients = ({ archived } = {}) => request(`/clients${archived ? '?archived=true' : ''}`);

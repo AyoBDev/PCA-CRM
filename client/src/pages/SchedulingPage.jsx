@@ -18,57 +18,7 @@ const SERVICE_COLORS = {
 };
 
 // Reusable searchable dropdown for Client/Employee selection
-function SearchableSelect({ options, value, onChange, placeholder, className, id }) {
-    const [search, setSearch] = useState('');
-    const [open, setOpen] = useState(false);
-    const ref = useRef(null);
-
-    const selectedLabel = options.find(o => String(o.value) === String(value))?.label || '';
-
-    useEffect(() => {
-        if (!open) setSearch('');
-    }, [open]);
-
-    useEffect(() => {
-        const handleClick = (e) => {
-            if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-        };
-        document.addEventListener('mousedown', handleClick);
-        return () => document.removeEventListener('mousedown', handleClick);
-    }, []);
-
-    const filtered = options.filter(o =>
-        o.label.toLowerCase().includes(search.toLowerCase())
-    );
-
-    return (
-        <div ref={ref} className="searchable-select">
-            <input
-                id={id}
-                className={className}
-                value={open ? search : selectedLabel}
-                onChange={e => { setSearch(e.target.value); if (!open) setOpen(true); }}
-                onFocus={() => setOpen(true)}
-                placeholder={placeholder || 'Type to search…'}
-                autoComplete="off"
-            />
-            {open && (
-                <ul className="searchable-select__dropdown">
-                    {filtered.length === 0 && (
-                        <li className="searchable-select__empty">No results found</li>
-                    )}
-                    {filtered.map(o => (
-                        <li key={o.value}
-                            className={`searchable-select__item${String(o.value) === String(value) ? ' searchable-select__item--active' : ''}`}
-                            onClick={() => { onChange(String(o.value)); setOpen(false); setSearch(''); }}>
-                            {o.label}
-                        </li>
-                    ))}
-                </ul>
-            )}
-        </div>
-    );
-}
+import SearchableSelect from '../components/common/SearchableSelect';
 
 // Helper: get YYYY-MM-DD from a date value.
 // For ISO strings from the server (stored as UTC midnight), extract the UTC date portion
@@ -462,7 +412,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                             </select>
                         </div>
                         <div className="form-group">
-                            <label htmlFor="shiftSandataId">SANDATA Client ID</label>
+                            <label htmlFor="shiftSandataId">Sandata Client ID</label>
                             <input id="shiftSandataId" value={sandataClientId} onChange={e => setSandataClientId(e.target.value)} placeholder="Optional…" />
                         </div>
                     </div>
@@ -585,7 +535,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                                                     </select>
                                                 </div>
                                                 <div className="sched-day-row__field">
-                                                    <label className="sched-day-row__field-label">SANDATA ID</label>
+                                                    <label className="sched-day-row__field-label">Sandata Client ID</label>
                                                     <input value={entry.sandataClientId} onChange={e => updateDayEntry(i, 'sandataClientId', e.target.value)} className="sched-day-row__input" placeholder="—" />
                                                 </div>
                                                 {enabledCount > 1 && (
@@ -696,7 +646,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
     );
 }
 
-function ScheduleCard({ title, icon, headerActions, children, collapsible = true, defaultExpanded = true }) {
+function ScheduleCard({ title, icon, headerActions, children, collapsible = true, defaultExpanded = true, showPdf = false, pdfShifts = [], pdfWeekStart, pdfRowBy }) {
     const [expanded, setExpanded] = useState(defaultExpanded);
     const [fullscreen, setFullscreen] = useState(false);
 
@@ -706,6 +656,142 @@ function ScheduleCard({ title, icon, headerActions, children, collapsible = true
         document.addEventListener('keydown', onKey);
         return () => document.removeEventListener('keydown', onKey);
     }, [fullscreen]);
+
+    const handleSavePdf = () => {
+        if (!pdfShifts || pdfShifts.length === 0) return;
+
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const dayAbbr = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const sorted = [...pdfShifts].sort((a, b) => {
+            const da = new Date(a.shiftDate).getTime();
+            const db = new Date(b.shiftDate).getTime();
+            if (da !== db) return da - db;
+            return (a.startTime || '').localeCompare(b.startTime || '');
+        });
+
+        // ── Detail table ──
+        const detailRows = sorted.map(s => {
+            const dateStr = toLocalDateStr(s.shiftDate);
+            const dayIdx = new Date(dateStr + 'T00:00:00').getDay();
+            const day = dayNames[dayIdx];
+            const time = `${hhmm12(s.startTime)} – ${hhmm12(s.endTime)}`;
+            const client = s.client?.clientName || '—';
+            const employee = s.displayEmployeeName || s.employeeName || '—';
+            const colorInfo = SERVICE_COLORS[s.serviceCode] || { label: s.serviceCode || '—' };
+            const service = colorInfo.label;
+            const account = s.accountNumber || '—';
+            const sandataId = s.sandataClientId || '—';
+            const details = [
+                s.client?.address,
+                s.client?.phone,
+                s.client?.gateCode ? `Gate: ${s.client.gateCode}` : null,
+                s.notes,
+            ].filter(Boolean).join(' · ');
+            const cancelled = s.status === 'cancelled';
+            return `<tr${cancelled ? ' class="cancelled"' : ''}>
+                <td>${day}</td><td>${client}</td><td>${employee}</td><td>${service}</td><td>${time}</td><td>${account}</td><td>${sandataId}</td><td class="details">${details || '—'}</td>
+            </tr>`;
+        }).join('\n');
+
+        // ── Calendar matrix ──
+        let matrixHtml = '';
+        if (pdfWeekStart) {
+            const ws = new Date(pdfWeekStart + 'T00:00:00');
+            const days = [];
+            const dayHeaders = [];
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(ws);
+                d.setDate(ws.getDate() + i);
+                const dateStr = toLocalDateStr(d);
+                days.push(dateStr);
+                dayHeaders.push(`<th class="matrix-day-head">${dayAbbr[i]}<br><span class="matrix-day-num">${d.getDate()}</span></th>`);
+            }
+
+            const rowBy = pdfRowBy || 'employee';
+            const rowMap = new Map();
+            for (const s of sorted) {
+                const key = rowBy === 'employee'
+                    ? (s.displayEmployeeName || s.employeeName || 'Unassigned')
+                    : (s.client?.clientName || 'Unknown');
+                if (!rowMap.has(key)) rowMap.set(key, {});
+                const dateStr = toLocalDateStr(s.shiftDate);
+                if (!rowMap.get(key)[dateStr]) rowMap.get(key)[dateStr] = [];
+                rowMap.get(key)[dateStr].push(s);
+            }
+
+            const rowLabel = rowBy === 'employee' ? 'Employee' : 'Client';
+            const matrixRows = [...rowMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([label, cells]) => {
+                const tds = days.map(dateStr => {
+                    const cellShifts = cells[dateStr] || [];
+                    if (cellShifts.length === 0) return '<td class="matrix-cell empty">—</td>';
+                    const chips = cellShifts.map(s => {
+                        const colorInfo = SERVICE_COLORS[s.serviceCode] || { label: s.serviceCode || '—' };
+                        const name = rowBy === 'employee' ? (s.client?.clientName || '—') : (s.displayEmployeeName || '—');
+                        return `<div class="chip"><strong>${name}</strong><br>${hhmm12(s.startTime)}–${hhmm12(s.endTime)}<br><span class="chip-svc">${colorInfo.label}</span></div>`;
+                    }).join('');
+                    return `<td class="matrix-cell">${chips}</td>`;
+                }).join('');
+                return `<tr><td class="matrix-row-label">${label}</td>${tds}</tr>`;
+            }).join('\n');
+
+            matrixHtml = `
+<h2 class="section-title">Weekly Calendar</h2>
+<table class="matrix">
+    <thead><tr><th class="matrix-row-head">${rowLabel}</th>${dayHeaders.join('')}</tr></thead>
+    <tbody>${matrixRows}</tbody>
+</table>`;
+        }
+
+        const printWin = window.open('', '_blank');
+        if (!printWin) return;
+        printWin.document.write(`<!DOCTYPE html><html><head><title>${title} — PCAlink</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 32px; color: #09090b; background: #fff; margin: 0; }
+.pdf-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 2px solid #18181b; }
+.pdf-header h1 { font-size: 20px; margin: 0; }
+.pdf-header span { font-size: 12px; color: #71717a; }
+.section-title { font-size: 15px; margin: 28px 0 12px; padding-bottom: 6px; border-bottom: 1px solid #e4e4e7; }
+
+/* Detail table */
+table.detail { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.detail th { text-align: left; padding: 8px 10px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #71717a; background: #f4f4f5; border-bottom: 2px solid #e4e4e7; }
+table.detail td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+table.detail tr:nth-child(even) { background: #fafafa; }
+table.detail .cancelled { opacity: 0.45; text-decoration: line-through; }
+table.detail .details { font-size: 11px; color: #71717a; max-width: 200px; }
+
+/* Matrix table */
+table.matrix { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; border: 1px solid #e4e4e7; border-radius: 6px; }
+table.matrix th { background: #f4f4f5; color: #71717a; font-weight: 600; padding: 8px 6px; text-align: center; border-bottom: 1px solid #e4e4e7; font-size: 11px; }
+.matrix-row-head { width: 120px; text-align: left !important; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; }
+.matrix-day-head { font-size: 11px; }
+.matrix-day-num { font-size: 14px; font-weight: 700; }
+.matrix-row-label { font-weight: 600; font-size: 12px; padding: 8px 10px; background: #fafafa; border-right: 1px solid #e4e4e7; vertical-align: top; }
+.matrix-cell { padding: 4px; vertical-align: top; border-right: 1px solid #f4f4f5; }
+.matrix-cell.empty { color: #d4d4d8; text-align: center; vertical-align: middle; }
+table.matrix tbody tr:not(:last-child) td { border-bottom: 1px solid #f4f4f5; }
+.chip { padding: 4px 6px; margin-bottom: 3px; border-left: 3px solid #71717a; border-radius: 3px; background: #f9fafb; line-height: 1.4; }
+.chip strong { font-size: 11px; }
+.chip-svc { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; color: #71717a; }
+
+@media print { body { padding: 16px; } @page { margin: 0.4in; size: landscape; } }
+</style>
+</head><body>
+<div class="pdf-header">
+    <h1>${title}</h1>
+    <span>PCAlink — ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+</div>
+<h2 class="section-title">Shift Details</h2>
+<table class="detail">
+    <thead><tr><th>Day</th><th>Client</th><th>Employee</th><th>Service</th><th>Time</th><th>Account</th><th>Sandata ID</th><th>Details</th></tr></thead>
+    <tbody>${detailRows}</tbody>
+</table>
+${matrixHtml}
+</body></html>`);
+        printWin.document.close();
+        printWin.focus();
+        setTimeout(() => { printWin.print(); }, 400);
+    };
 
     return (
         <div className={`sched-card ${!expanded ? 'sched-card--collapsed' : ''} ${fullscreen ? 'sched-card--fullscreen' : ''}`}>
@@ -721,6 +807,16 @@ function ScheduleCard({ title, icon, headerActions, children, collapsible = true
                 </div>
                 <div className="sched-card__header-actions" onClick={e => e.stopPropagation()}>
                     {headerActions}
+                    {showPdf && expanded && (
+                        <button
+                            className="btn btn--outline btn--sm"
+                            title="Save as PDF"
+                            onClick={handleSavePdf}
+                            style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}
+                        >
+                            {Icons.download} PDF
+                        </button>
+                    )}
                     <button
                         className="sched-card__expand-btn"
                         title={fullscreen ? 'Exit fullscreen' : 'Expand'}
@@ -1177,7 +1273,7 @@ export default function SchedulingPage() {
                         {Icons.share} Send Schedule
                     </button>
                     <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'shift', shift: null })}>
-                        {Icons.plus} Add Shift
+                        {Icons.plus} Create Shift
                     </button>
                 </div>
             </div>
@@ -1209,6 +1305,10 @@ export default function SchedulingPage() {
                     <ScheduleCard
                         title="Client Schedule"
                         icon={Icons.users}
+                        showPdf={!!selectedClientId && clientShifts.length > 0}
+                        pdfShifts={clientShifts}
+                        pdfWeekStart={weekStart}
+                        pdfRowBy="employee"
                         headerActions={
                             <SearchableSelect
                                 className="sched-card__select"
@@ -1279,6 +1379,10 @@ export default function SchedulingPage() {
                     <ScheduleCard
                         title="Employee Schedule"
                         icon={Icons.user}
+                        showPdf={!!selectedEmployeeId && employeeShifts.length > 0}
+                        pdfShifts={employeeShifts}
+                        pdfWeekStart={weekStart}
+                        pdfRowBy="client"
                         headerActions={
                             <SearchableSelect
                                 className="sched-card__select"
@@ -1367,6 +1471,10 @@ export default function SchedulingPage() {
                 <ScheduleCard
                     title="Weekly Schedule Overview"
                     icon={Icons.table}
+                    showPdf={allShifts.length > 0}
+                    pdfShifts={allShifts}
+                    pdfWeekStart={weekStart}
+                    pdfRowBy="client"
                     headerActions={
                         <div className="sched-view-toggle">
                             <span className="sched-view-toggle__label">View By:</span>
@@ -1383,7 +1491,7 @@ export default function SchedulingPage() {
                         <div style={{ textAlign: 'center', padding: 40, color: 'hsl(var(--muted-foreground))' }}>Loading shifts…</div>
                     ) : allShifts.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: 32, color: 'hsl(var(--muted-foreground))' }}>
-                            No shifts scheduled this week. Click + Add Shift to get started.
+                            No shifts scheduled this week. Click + Create Shift to get started.
                         </div>
                     ) : (
                         <ScheduleOverviewTable shifts={allShifts} overlapIds={allOverlapIds} onEditShift={handleEditShift} />

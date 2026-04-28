@@ -115,42 +115,55 @@ async function getPcaForm(req, res, next) {
     } else {
       weekStart = getCurrentWeekStart();
     }
-    let timesheet = await prisma.timesheet.findFirst({
+    const timesheet = await prisma.timesheet.findFirst({
       where: { clientId: link.clientId, pcaName: link.pcaName, weekStart, archivedAt: null },
       include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
     });
 
-    if (!timesheet) {
-      // Remove any archived timesheet occupying this unique slot
-      const archivedTs = await prisma.timesheet.findFirst({
-        where: { clientId: link.clientId, pcaName: link.pcaName, weekStart, archivedAt: { not: null } },
-      });
-      if (archivedTs) {
-        await prisma.timesheetEntry.deleteMany({ where: { timesheetId: archivedTs.id } });
-        await prisma.timesheet.delete({ where: { id: archivedTs.id } });
-      }
+    const enabledServices = JSON.parse(link.client.enabledServices || '["PAS","Homemaker"]');
 
-      const entryData = [];
+    // If no timesheet exists yet, return placeholder data without persisting.
+    // A real timesheet will only be created when the user saves (PUT).
+    if (!timesheet) {
+      const placeholderEntries = [];
       for (let d = 0; d < 7; d++) {
         const date = new Date(weekStart);
         date.setUTCDate(date.getUTCDate() + d);
-        entryData.push({
+        placeholderEntries.push({
+          id: null,
           dayOfWeek: d,
           dateOfService: date.toISOString().slice(0, 10),
+          adlActivities: '{}', adlTimeIn: null, adlTimeOut: null, adlHours: 0, adlPcaInitials: '', adlClientInitials: '', adlTimeBlocks: '[]',
+          iadlActivities: '{}', iadlTimeIn: null, iadlTimeOut: null, iadlHours: 0, iadlPcaInitials: '', iadlClientInitials: '', iadlTimeBlocks: '[]',
+          respiteActivities: '{}', respiteTimeIn: null, respiteTimeOut: null, respiteHours: 0, respitePcaInitials: '', respiteClientInitials: '', respiteTimeBlocks: '[]',
         });
       }
-      timesheet = await prisma.timesheet.create({
-        data: {
+
+      return res.json({
+        client: {
+          id: link.client.id,
+          clientName: link.client.clientName,
+          enabledServices,
+        },
+        pcaName: link.pcaName,
+        timesheet: {
+          id: null,
           clientId: link.clientId,
           pcaName: link.pcaName,
-          weekStart,
-          entries: { create: entryData },
+          weekStart: weekStart.toISOString(),
+          status: 'draft',
+          totalPasHours: 0,
+          totalHmHours: 0,
+          totalRespiteHours: 0,
+          totalHours: 0,
+          pcaFullName: '',
+          pcaSignature: '',
+          recipientName: '',
+          recipientSignature: '',
+          entries: placeholderEntries,
         },
-        include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
       });
     }
-
-    const enabledServices = JSON.parse(link.client.enabledServices || '["PAS","Homemaker"]');
 
     res.json({
       client: {
@@ -272,11 +285,18 @@ async function updatePcaForm(req, res, next) {
       }
     }
 
-    // Save entries
+    // Save entries — map by dayOfWeek to handle newly-created timesheets
+    // where the client sends entries with id: null (placeholder from GET)
+    const dbEntryByDay = {};
+    for (const e of timesheet.entries) {
+      dbEntryByDay[e.dayOfWeek] = e;
+    }
+
     let totalPasHours = 0, totalHmHours = 0, totalRespiteHours = 0;
 
     for (const entry of (entries || [])) {
-      if (!entry.id) continue;
+      const dbEntry = entry.id ? { id: entry.id } : dbEntryByDay[entry.dayOfWeek];
+      if (!dbEntry) continue;
       const filtered = filterByEnabledServices(entry, enabledServices);
 
       const adlHours = computeTotalHoursWithBlocks(filtered.adlTimeIn, filtered.adlTimeOut, filtered.adlTimeBlocks);
@@ -288,7 +308,7 @@ async function updatePcaForm(req, res, next) {
       totalRespiteHours += respiteHours;
 
       await prisma.timesheetEntry.update({
-        where: { id: entry.id },
+        where: { id: dbEntry.id },
         data: {
           adlActivities: filtered.adlActivities || '{}',
           adlTimeIn: filtered.adlTimeIn || null,

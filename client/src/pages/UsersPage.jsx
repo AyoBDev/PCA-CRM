@@ -89,6 +89,14 @@ export default function UsersPage() {
         finally { setResetting(false); }
     };
 
+    const handleToggleActive = async (user) => {
+        try {
+            await api.toggleUserActive(user.id);
+            showToast(user.active ? `"${user.name}" deactivated` : `"${user.name}" activated`);
+            fetchUsers();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     return (
         <>
             <div className="content-header">
@@ -128,13 +136,18 @@ export default function UsersPage() {
                 ) : (
                     <div className="sheet-card">
                         <table className="data-table">
-                            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Created</th><th>Actions</th></tr></thead>
+                            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
                             <tbody>
                                 {users.map((u) => (
                                     <tr key={u.id}>
                                         <td style={{ fontWeight: 500 }}>{u.name}</td>
                                         <td>{u.email}</td>
                                         <td><span className={`ts-badge ts-badge--${u.role === 'admin' ? 'submitted' : 'draft'}`}>{u.role}</span></td>
+                                        <td>
+                                            <span className={`ts-badge ts-badge--${u.active ? 'submitted' : 'draft'}`}>
+                                                {u.active ? 'Active' : 'Inactive'}
+                                            </span>
+                                        </td>
                                         <td>{new Date(u.createdAt).toLocaleDateString()}</td>
                                         <td>
                                             {showArchived ? (
@@ -146,6 +159,13 @@ export default function UsersPage() {
                                                 </div>
                                             ) : (
                                                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                                                    <button
+                                                        className="btn btn--ghost btn--icon"
+                                                        title={u.active ? 'Deactivate user' : 'Activate user'}
+                                                        onClick={() => handleToggleActive(u)}
+                                                    >
+                                                        {u.active ? Icons.shieldCheck : Icons.checkCircle}
+                                                    </button>
                                                     <button className="btn btn--ghost btn--icon" title="Reset password" onClick={() => { setResetUser(u); setNewPassword(''); setShowNewPassword(false); }}>
                                                         {Icons.key}
                                                     </button>
@@ -180,7 +200,7 @@ export default function UsersPage() {
                         </div>
                         <div className="form-actions">
                             <button type="button" className="btn btn--outline" onClick={() => setShowModal(false)}>Cancel</button>
-                            <button type="submit" className="btn btn--primary" disabled={saving || !form.name || !form.email || !form.password}>{saving ? 'Creating…' : 'Create User'}</button>
+                            <button type="submit" className="btn btn--primary" disabled={saving || !form.name || !form.email || !form.password}>{saving ? 'Creating...' : 'Create User'}</button>
                         </div>
                     </form>
                 </Modal>
@@ -222,7 +242,7 @@ export default function UsersPage() {
                         </div>
                         <div className="form-actions">
                             <button type="button" className="btn btn--outline" onClick={() => setResetUser(null)}>Cancel</button>
-                            <button type="submit" className="btn btn--primary" disabled={resetting || newPassword.length < 4}>{resetting ? 'Resetting…' : 'Reset Password'}</button>
+                            <button type="submit" className="btn btn--primary" disabled={resetting || newPassword.length < 4}>{resetting ? 'Resetting...' : 'Reset Password'}</button>
                         </div>
                     </form>
                 </Modal>

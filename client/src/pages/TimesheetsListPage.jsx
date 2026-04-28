@@ -3,6 +3,7 @@ import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import SearchableSelect from '../components/common/SearchableSelect';
 import TimesheetFormPage from './TimesheetFormPage';
 import { formatWeek } from '../utils/dates';
 import { useToast } from '../hooks/useToast';
@@ -179,10 +180,12 @@ export default function TimesheetsListPage() {
                     <div className="form-group"><label>PCA Name</label><input type="text" value={newPcaName} onChange={(e) => setNewPcaName(e.target.value)} placeholder="Jane Smith" autoFocus /></div>
                     <div className="form-group">
                         <label>Client</label>
-                        <select value={newClientId} onChange={(e) => setNewClientId(e.target.value)}>
-                            <option value="">Select a client…</option>
-                            {clients.map((c) => <option key={c.id} value={c.id}>{c.clientName}</option>)}
-                        </select>
+                        <SearchableSelect
+                            options={[...clients].sort((a, b) => a.clientName.localeCompare(b.clientName)).map(c => ({ value: c.id, label: c.clientName }))}
+                            value={newClientId}
+                            onChange={setNewClientId}
+                            placeholder="Search clients…"
+                        />
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                         <div className="form-group"><label>Client Phone</label><input type="tel" value={newClientPhone} onChange={(e) => setNewClientPhone(e.target.value)} placeholder="702-555-0123" /></div>

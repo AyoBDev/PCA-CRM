@@ -25,6 +25,12 @@ async function login(req, res, next) {
         if (!user) {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
+        if (user.archivedAt) {
+            return res.status(403).json({ error: 'This account has been archived. Please contact your administrator.' });
+        }
+        if (!user.active) {
+            return res.status(403).json({ error: 'This account has been deactivated. Please contact your administrator.' });
+        }
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) {
             return res.status(401).json({ error: 'Invalid email or password' });
@@ -101,7 +107,7 @@ async function listUsers(req, res, next) {
         const where = req.query.archived === 'true' ? { archivedAt: { not: null } } : { archivedAt: null };
         const users = await prisma.user.findMany({
             where,
-            select: { id: true, email: true, name: true, role: true, phone: true, createdAt: true, archivedAt: true },
+            select: { id: true, email: true, name: true, role: true, phone: true, active: true, createdAt: true, archivedAt: true },
             orderBy: { createdAt: 'desc' },
         });
         res.json(users);
@@ -191,4 +197,103 @@ async function bulkPermanentlyDeleteUsers(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { login, getMe, register, listUsers, deleteUser, restoreUser, resetPassword, permanentlyDeleteUser, bulkPermanentlyDeleteUsers };
+// PUT /api/auth/users/:id/toggle-active (admin only)
+async function toggleUserActive(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        if (id === req.user.id) {
+            return res.status(400).json({ error: 'Cannot deactivate your own account' });
+        }
+        const user = await prisma.user.findUnique({ where: { id } });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        const updated = await prisma.user.update({
+            where: { id },
+            data: { active: !user.active },
+        });
+        res.json({ id: updated.id, email: updated.email, name: updated.name, role: updated.role, active: updated.active });
+    } catch (err) { next(err); }
+}
+
+// POST /api/auth/forgot-password (public)
+async function forgotPassword(req, res, next) {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ error: 'Email is required' });
+
+        const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+        // Always return success to avoid revealing whether email exists
+        if (!user || user.archivedAt) {
+            return res.json({ success: true });
+        }
+
+        // Invalidate any existing unused tokens for this user
+        await prisma.passwordResetToken.updateMany({
+            where: { userId: user.id, usedAt: null },
+            data: { usedAt: new Date() },
+        });
+
+        // Create reset token (expires in 1 hour)
+        const resetToken = await prisma.passwordResetToken.create({
+            data: {
+                userId: user.id,
+                expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+            },
+        });
+
+        // Send reset email
+        if (isEmailConfigured()) {
+            const baseUrl = `${req.protocol}://${req.get('host')}`;
+            const resetUrl = `${baseUrl}/reset-password?token=${resetToken.token}`;
+            sendEmail(
+                user.email,
+                'Reset Your Password — PCAlink',
+                `<div style="font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:500px;margin:0 auto">
+                    <h2 style="color:#09090b">Password Reset Request</h2>
+                    <p>Hi ${user.name},</p>
+                    <p>We received a request to reset your password. Click the button below to set a new password:</p>
+                    <p style="margin:24px 0">
+                        <a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#18181b;color:#fff;text-decoration:none;border-radius:6px;font-weight:500;">Reset Password</a>
+                    </p>
+                    <p style="font-size:13px;color:#71717a">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
+                </div>`,
+                `Password Reset Request\n\nHi ${user.name},\n\nReset your password using this link:\n${resetUrl}\n\nThis link expires in 1 hour.`
+            ).catch(err => console.error('Password reset email failed:', err.message));
+        }
+
+        res.json({ success: true });
+    } catch (err) { next(err); }
+}
+
+// POST /api/auth/reset-password-with-token (public)
+async function resetPasswordWithToken(req, res, next) {
+    try {
+        const { token, password } = req.body;
+        if (!token || !password) {
+            return res.status(400).json({ error: 'Token and password are required' });
+        }
+        if (password.length < 4) {
+            return res.status(400).json({ error: 'Password must be at least 4 characters' });
+        }
+
+        const resetToken = await prisma.passwordResetToken.findUnique({ where: { token } });
+        if (!resetToken) {
+            return res.status(400).json({ error: 'Invalid or expired reset link' });
+        }
+        if (resetToken.usedAt) {
+            return res.status(400).json({ error: 'This reset link has already been used' });
+        }
+        if (new Date() > resetToken.expiresAt) {
+            return res.status(400).json({ error: 'This reset link has expired. Please request a new one.' });
+        }
+
+        const passwordHash = await bcrypt.hash(password, 10);
+        await prisma.$transaction([
+            prisma.user.update({ where: { id: resetToken.userId }, data: { passwordHash } }),
+            prisma.passwordResetToken.update({ where: { id: resetToken.id }, data: { usedAt: new Date() } }),
+        ]);
+
+        res.json({ success: true });
+    } catch (err) { next(err); }
+}
+
+module.exports = { login, getMe, register, listUsers, deleteUser, restoreUser, resetPassword, permanentlyDeleteUser, bulkPermanentlyDeleteUsers, forgotPassword, resetPasswordWithToken, toggleUserActive };

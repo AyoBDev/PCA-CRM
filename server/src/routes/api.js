@@ -63,6 +63,9 @@ const {
     resetPassword,
     permanentlyDeleteUser,
     bulkPermanentlyDeleteUsers,
+    forgotPassword,
+    resetPasswordWithToken,
+    toggleUserActive,
 } = require('../controllers/authController');
 const {
     generateSigningLinks,
@@ -110,6 +113,8 @@ const router = express.Router();
 
 // ── Public routes (no auth) ──
 router.post('/auth/login', login);
+router.post('/auth/forgot-password', forgotPassword);
+router.post('/auth/reset-password-with-token', resetPasswordWithToken);
 router.get('/sign/:token', getSigningForm);
 router.put('/sign/:token', submitSigningForm);
 router.get('/schedule/confirm/:token', getScheduleConfirm);
@@ -131,6 +136,7 @@ router.delete('/auth/users/bulk-permanent', requireRole('admin'), bulkPermanentl
 router.delete('/auth/users/:id', requireRole('admin'), deleteUser);
 router.put('/auth/users/:id/restore', requireRole('admin'), restoreUser);
 router.put('/auth/users/:id/reset-password', requireRole('admin'), resetPassword);
+router.put('/auth/users/:id/toggle-active', requireRole('admin'), toggleUserActive);
 router.delete('/auth/users/:id/permanent', requireRole('admin'), permanentlyDeleteUser);
 
 // Dashboard
