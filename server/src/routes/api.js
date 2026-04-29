@@ -108,6 +108,7 @@ const { getDashboardStats } = require('../controllers/dashboardController');
 const { sendSchedules, getNotificationStatus, getScheduleConfirm, confirmSchedule } = require('../controllers/scheduleNotificationController');
 const { createLink, listLinks, deleteLink, getScheduleView } = require('../controllers/employeeScheduleLinkController');
 const { getAuditLogs, getEntityAuditLogs } = require('../controllers/auditController');
+const { exportBackup } = require('../controllers/backupController');
 const { authenticate, requireRole } = require('../middleware/authMiddleware');
 
 const router = express.Router();
@@ -243,5 +244,8 @@ router.delete('/employee-schedule-links/:id', requireRole('admin', 'user', 'pca'
 // Audit Logs (admin only)
 router.get('/audit-logs',                     requireRole('admin'), getAuditLogs);
 router.get('/audit-logs/:entityType/:entityId', requireRole('admin'), getEntityAuditLogs);
+
+// Backup (admin only)
+router.get('/backup/export', requireRole('admin'), exportBackup);
 
 module.exports = router;

@@ -377,3 +377,23 @@ export const uploadPayrollRun = (formData) =>
         }
         return res.json();
     });
+
+// ── Backup ──
+export async function downloadBackup() {
+    const headers = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    const res = await fetch(`${BASE}/backup/export`, { headers });
+    if (res.status === 401) {
+        clearToken();
+        window.dispatchEvent(new Event('auth:logout'));
+        throw new Error('Session expired');
+    }
+    if (!res.ok) throw new Error(`Backup failed: HTTP ${res.status}`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nvbestpca-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+}

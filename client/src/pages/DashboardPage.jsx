@@ -9,6 +9,7 @@ export default function DashboardPage() {
     const { isAdmin } = useAuth();
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [backingUp, setBackingUp] = useState(false);
 
     useEffect(() => {
         api.getDashboardStats()
@@ -29,6 +30,7 @@ export default function DashboardPage() {
             <div className="content-header">
                 <h1 className="content-header__title">Dashboard</h1>
                 <div className="content-header__actions">
+                    {isAdmin && <button className="btn btn--outline btn--sm" disabled={backingUp} onClick={async () => { setBackingUp(true); try { await api.downloadBackup(); } catch (e) { alert(e.message); } setBackingUp(false); }}>{Icons.download} {backingUp ? 'Exporting…' : 'Backup'}</button>}
                     {isAdmin && <ActivityButton />}
                 </div>
             </div>
