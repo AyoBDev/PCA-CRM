@@ -3,6 +3,7 @@
 const XLSX = require('xlsx');
 const prisma = require('../lib/prisma');
 const { processPayrollRows, parseTimeToMinutes, minutesToHHMM, applyTimeRules, calcUnits, normalizeName } = require('../services/payrollService');
+const audit = require('../services/auditService');
 
 // ── Column aliases accepted from the XLSX header row ──────
 const HEADER_ALIASES = {
@@ -369,6 +370,12 @@ async function uploadPayrollRun(req, res, next) {
             },
         });
 
+        audit.logAction({
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            action: 'CREATE', entityType: 'PayrollRun', entityId: run.id, entityName: run.name,
+            metadata: { fileName: run.fileName },
+        });
+
         const { authorizationSnapshot: _s, ...runResponse } = updatedRun;
         return res.status(201).json(runResponse);
     } catch (err) {
@@ -477,6 +484,7 @@ async function deletePayrollRun(req, res, next) {
         const run = await prisma.payrollRun.findUnique({ where: { id } });
         if (!run) return res.status(404).json({ error: 'Payroll run not found' });
         const archived = await prisma.payrollRun.update({ where: { id }, data: { archivedAt: new Date() } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'ARCHIVE', entityType: 'PayrollRun', entityId: id, entityName: run.name });
         return res.json(archived);
     } catch (err) {
         return next(err);
@@ -492,6 +500,7 @@ async function restorePayrollRun(req, res, next) {
         const run = await prisma.payrollRun.findUnique({ where: { id } });
         if (!run) return res.status(404).json({ error: 'Payroll run not found' });
         const restored = await prisma.payrollRun.update({ where: { id }, data: { archivedAt: null } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'RESTORE', entityType: 'PayrollRun', entityId: id, entityName: run.name });
         return res.json(restored);
     } catch (err) {
         return next(err);
@@ -723,6 +732,7 @@ async function permanentlyDeletePayrollRun(req, res, next) {
         if (!run) return res.status(404).json({ error: 'Payroll run not found' });
         if (!run.archivedAt) return res.status(400).json({ error: 'Only archived payroll runs can be permanently deleted' });
         await prisma.payrollRun.delete({ where: { id } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'PERMANENT_DELETE', entityType: 'PayrollRun', entityId: id, entityName: run.name });
         res.json({ success: true });
     } catch (err) { next(err); }
 }
@@ -730,6 +740,7 @@ async function permanentlyDeletePayrollRun(req, res, next) {
 async function bulkPermanentlyDeletePayrollRuns(req, res, next) {
     try {
         const result = await prisma.payrollRun.deleteMany({ where: { archivedAt: { not: null } } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'BULK_DELETE', entityType: 'PayrollRun', entityId: 0, metadata: { count: result.count } });
         res.json({ success: true, count: result.count });
     } catch (err) { next(err); }
 }

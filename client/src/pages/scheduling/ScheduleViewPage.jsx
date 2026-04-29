@@ -160,7 +160,7 @@ export default function ScheduleViewPage() {
                                                 <td data-label="Account">{shift.accountNumber || '—'}</td>
                                                 <td data-label="Sandata ID">{shift.sandataClientId || '—'}</td>
                                                 <td className="schedule-view-table__details" data-label="Details">
-                                                    {shift.client?.address && <div>{shift.client.address}</div>}
+                                                    {shift.client?.address && <div><a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(shift.client.address)}`} target="_blank" rel="noopener noreferrer" style={{ color: 'hsl(var(--primary))', textDecoration: 'underline' }}>{shift.client.address}</a></div>}
                                                     <div className="schedule-view-table__meta">
                                                         {shift.client?.phone && <span>{shift.client.phone}</span>}
                                                         {shift.client?.gateCode && <span>Gate: {shift.client.gateCode}</span>}

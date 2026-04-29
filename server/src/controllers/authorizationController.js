@@ -1,5 +1,6 @@
 const prisma = require('../lib/prisma');
 const { enrichAuthorization, enrichClient } = require('../services/authorizationService');
+const audit = require('../services/auditService');
 
 const VALID_SERVICE_CODES = ['PCS', 'SDPC', 'TIMESHEETS', 'S5125', 'S5130', 'S5135', 'S5150', 'PAS'];
 
@@ -37,6 +38,7 @@ async function createAuthorization(req, res, next) {
             },
         });
 
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Authorization', entityId: auth.id, entityName: `${client.clientName} - ${auth.serviceCode}` });
         res.status(201).json(enrichAuthorization(auth));
     } catch (err) {
         next(err);
@@ -50,6 +52,7 @@ async function updateAuthorization(req, res, next) {
         const errors = validateBody(req.body);
         if (errors.length) return res.status(400).json({ errors });
 
+        const oldAuth = await prisma.authorization.findUnique({ where: { id } });
         const auth = await prisma.authorization.update({
             where: { id },
             data: {
@@ -65,6 +68,8 @@ async function updateAuthorization(req, res, next) {
             },
         });
 
+        const changes = audit.diffFields(oldAuth, auth, ['serviceCode', 'serviceName', 'authorizedUnits', 'authorizationStartDate', 'authorizationEndDate', 'notes']);
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: auth.id, entityName: auth.serviceCode, changes });
         res.json(enrichAuthorization(auth));
     } catch (err) {
         if (err.code === 'P2025') return res.status(404).json({ error: 'Authorization not found' });
@@ -80,6 +85,7 @@ async function deleteAuthorization(req, res, next) {
         if (!auth) return res.status(404).json({ error: 'Authorization not found' });
 
         await prisma.authorization.delete({ where: { id } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'DELETE', entityType: 'Authorization', entityId: id, entityName: auth.serviceCode });
 
         const client = await prisma.client.findUnique({
             where: { id: auth.clientId },

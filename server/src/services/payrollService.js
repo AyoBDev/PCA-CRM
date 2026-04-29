@@ -438,32 +438,37 @@ function applyAuthCap(visits, clientsWithAuths) {
 // ── Master pipeline ────────────────────────────────────────
 
 function processPayrollRows(rawRows, clientsWithAuths) {
-    // needsReview rows bypass the pipeline — saved as-is with zeroed computed fields
-    const reviewRows = rawRows.filter((r) => !isProcessableRow(r)).map((r) => ({
-        clientName:        String(r.clientName   || '').trim(),
-        employeeName:      String(r.employeeName || '').trim(),
-        service:           String(r.service      || '').trim(),
-        visitDate:         r.visitDate || null,
-        callInRaw:         r.callInRaw,
-        callOutRaw:        r.callOutRaw,
-        callHoursRaw:      r.callHoursRaw || 0,
-        visitStatus:       String(r.visitStatus  || '').trim(),
-        unitsRaw:          parseInt(r.unitsRaw) || 0,
-        serviceCode:       '',
-        callInTime:        '',
-        callOutTime:       '',
-        callInMinutes:     0,
-        callOutMinutes:    0,
-        durationMinutes:   0,
-        finalPayableUnits: 0,
-        voidFlag:          false,
-        voidReason:        '',
-        overlapId:         '',
-        isIncomplete:      false,
-        isUnauthorized:    false,
-        needsReview:       r.needsReview  || false,
-        reviewReason:      r.reviewReason || '',
-    }));
+    // needsReview / incomplete rows bypass the unit-calculation pipeline
+    // but we still parse their raw times so clock-in/out are visible in the report
+    const reviewRows = rawRows.filter((r) => !isProcessableRow(r)).map((r) => {
+        const inMin  = parseTimeToMinutes(r.callInRaw);
+        const outMin = parseTimeToMinutes(r.callOutRaw);
+        return {
+            clientName:        String(r.clientName   || '').trim(),
+            employeeName:      String(r.employeeName || '').trim(),
+            service:           String(r.service      || '').trim(),
+            visitDate:         r.visitDate || null,
+            callInRaw:         r.callInRaw,
+            callOutRaw:        r.callOutRaw,
+            callHoursRaw:      r.callHoursRaw || 0,
+            visitStatus:       String(r.visitStatus  || '').trim(),
+            unitsRaw:          parseInt(r.unitsRaw) || 0,
+            serviceCode:       '',
+            callInTime:        inMin  ? minutesToHHMM(inMin)  : '',
+            callOutTime:       outMin ? minutesToHHMM(outMin) : '',
+            callInMinutes:     inMin,
+            callOutMinutes:    outMin,
+            durationMinutes:   0,
+            finalPayableUnits: 0,
+            voidFlag:          false,
+            voidReason:        '',
+            overlapId:         '',
+            isIncomplete:      false,
+            isUnauthorized:    false,
+            needsReview:       r.needsReview  || false,
+            reviewReason:      r.reviewReason || '',
+        };
+    });
 
     const visits = rawRows.filter(isProcessableRow).map(parseRawRow);
 

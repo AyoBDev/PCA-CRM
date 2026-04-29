@@ -8,6 +8,7 @@ const {
     getEmployeeDisplayName,
 } = require('../services/schedulingService');
 const { isSmsConfigured, isEmailConfigured, sendSms, sendEmail } = require('../services/notificationService');
+const audit = require('../services/auditService');
 
 const VALID_ACCOUNT_NUMBERS = ['71040', '71119', '71120', '71635'];
 
@@ -345,6 +346,14 @@ async function createShift(req, res, next) {
                 });
                 created.push(enrichShift(shift));
             }
+            for (const shift of created) {
+                audit.logAction({
+                    userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+                    action: 'CREATE', entityType: 'Shift', entityId: shift.id,
+                    entityName: `${shift.client?.clientName || ''} - ${shift.employee?.name || ''}`,
+                    metadata: { shiftDate: shift.shiftDate, serviceCode: shift.serviceCode },
+                });
+            }
             return res.status(201).json({ shifts: created, count: created.length });
         }
 
@@ -448,6 +457,15 @@ async function createShift(req, res, next) {
             created.push(enrichShift(shift));
         }
 
+        for (const shift of created) {
+            audit.logAction({
+                userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+                action: 'CREATE', entityType: 'Shift', entityId: shift.id,
+                entityName: `${shift.client?.clientName || ''} - ${shift.employee?.name || ''}`,
+                metadata: { shiftDate: shift.shiftDate, serviceCode: shift.serviceCode },
+            });
+        }
+
         res.status(201).json(created.length === 1 ? created[0] : { shifts: created, count: created.length });
     } catch (err) { next(err); }
 }
@@ -543,6 +561,13 @@ async function updateShift(req, res, next) {
             await autoNotify(shift.employeeId, shift.shiftDate, req);
         }
 
+        const changes = audit.diffFields(existing, shift, ['serviceCode', 'startTime', 'endTime', 'status', 'notes', 'employeeId', 'clientId', 'accountNumber', 'sandataClientId']);
+        audit.logAction({
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            action: 'UPDATE', entityType: 'Shift', entityId: shift.id,
+            changes,
+        });
+
         res.json(enrichShift(shift));
     } catch (err) {
         if (err.code === 'P2025') return res.status(404).json({ error: 'Shift not found' });
@@ -563,11 +588,20 @@ async function deleteShift(req, res, next) {
         if (deleteGroup && shiftToDelete.recurringGroupId) {
             const result = await prisma.shift.updateMany({ where: { recurringGroupId: shiftToDelete.recurringGroupId }, data: { archivedAt: now } });
             await autoNotify(shiftToDelete.employeeId, shiftToDelete.shiftDate, req);
+            audit.logAction({
+                userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+                action: 'ARCHIVE', entityType: 'Shift', entityId: id,
+                metadata: { group: true, recurringGroupId: shiftToDelete.recurringGroupId, count: result.count },
+            });
             return res.json({ archived: result.count });
         }
 
         await prisma.shift.update({ where: { id }, data: { archivedAt: now } });
         await autoNotify(shiftToDelete.employeeId, shiftToDelete.shiftDate, req);
+        audit.logAction({
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            action: 'ARCHIVE', entityType: 'Shift', entityId: id,
+        });
         res.json({ archived: 1, id });
     } catch (err) {
         if (err.code === 'P2025') return res.status(404).json({ error: 'Shift not found' });

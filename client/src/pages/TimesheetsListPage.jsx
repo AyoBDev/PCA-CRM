@@ -7,6 +7,8 @@ import SearchableSelect from '../components/common/SearchableSelect';
 import TimesheetFormPage from './TimesheetFormPage';
 import { formatWeek } from '../utils/dates';
 import { useToast } from '../hooks/useToast';
+import { useAuth } from '../hooks/useAuth';
+import { ActivityButton } from '../components/common/ActivityDrawer';
 
 function getSunday(dateStr) {
     const d = new Date(dateStr + 'T00:00:00');
@@ -15,6 +17,7 @@ function getSunday(dateStr) {
 }
 
 export default function TimesheetsListPage() {
+    const { isAdmin } = useAuth();
     const { showToast, showUndoToast } = useToast();
     const [clients, setClients] = useState([]);
     const [timesheets, setTimesheets] = useState([]);
@@ -101,6 +104,7 @@ export default function TimesheetsListPage() {
             <div className="content-header">
                 <h1 className="content-header__title">Timesheets</h1>
                 <div className="content-header__actions">
+                    {isAdmin && <ActivityButton entityType="Timesheet" />}
                     {!showArchived && (
                         <select className="filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ marginRight: 8 }}>
                             <option value="">All Status</option>

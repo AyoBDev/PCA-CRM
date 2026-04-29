@@ -1,5 +1,6 @@
 const prisma = require('../lib/prisma');
 const { enrichClient } = require('../services/authorizationService');
+const audit = require('../services/auditService');
 
 // GET /api/clients
 async function listClients(req, res, next) {
@@ -51,6 +52,7 @@ async function createClient(req, res, next) {
             },
             include: { authorizations: true },
         });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Client', entityId: client.id, entityName: client.clientName });
         res.status(201).json(enrichClient(client));
     } catch (err) {
         next(err);
@@ -65,7 +67,8 @@ async function updateClient(req, res, next) {
         if (!clientName || typeof clientName !== 'string' || !clientName.trim()) {
             return res.status(400).json({ error: 'clientName is required' });
         }
-        const client = await prisma.client.update({
+        const oldClient = await prisma.client.findUnique({ where: { id } });
+        const updated = await prisma.client.update({
             where: { id },
             data: {
                 clientName: clientName.trim(),
@@ -79,7 +82,9 @@ async function updateClient(req, res, next) {
             },
             include: { authorizations: { orderBy: { createdAt: 'asc' } } },
         });
-        res.json(enrichClient(client));
+        const changes = audit.diffFields(oldClient, updated, ['clientName', 'medicaidId', 'insuranceType', 'address', 'phone', 'gateCode', 'notes', 'enabledServices']);
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Client', entityId: updated.id, entityName: updated.clientName, changes });
+        res.json(enrichClient(updated));
     } catch (err) {
         if (err.code === 'P2025') return res.status(404).json({ error: 'Client not found' });
         next(err);
@@ -102,12 +107,15 @@ async function patchClient(req, res, next) {
             return res.status(400).json({ error: 'No valid fields provided' });
         }
 
-        const client = await prisma.client.update({
+        const oldClient = await prisma.client.findUnique({ where: { id } });
+        const updated = await prisma.client.update({
             where: { id },
             data,
             include: { authorizations: true },
         });
-        res.json(client);
+        const changes = audit.diffFields(oldClient, updated, Object.keys(data));
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Client', entityId: id, entityName: updated.clientName, changes });
+        res.json(updated);
     } catch (err) {
         if (err.code === 'P2025') return res.status(404).json({ error: 'Client not found' });
         next(err);
@@ -124,6 +132,7 @@ async function deleteClient(req, res, next) {
         await prisma.shift.updateMany({ where: { clientId: id, archivedAt: null }, data: { archivedAt: now } });
         await prisma.timesheet.updateMany({ where: { clientId: id, archivedAt: null }, data: { archivedAt: now } });
         const archived = await prisma.client.update({ where: { id }, data: { archivedAt: now }, include: { authorizations: true } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'ARCHIVE', entityType: 'Client', entityId: id, entityName: client.clientName });
         res.json(archived);
     } catch (err) {
         next(err);
@@ -142,6 +151,7 @@ async function bulkDelete(req, res, next) {
         await prisma.shift.updateMany({ where: { clientId: { in: numericIds }, archivedAt: null }, data: { archivedAt: now } });
         await prisma.timesheet.updateMany({ where: { clientId: { in: numericIds }, archivedAt: null }, data: { archivedAt: now } });
         await prisma.client.updateMany({ where: { id: { in: numericIds } }, data: { archivedAt: now } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'ARCHIVE', entityType: 'Client', entityId: 0, metadata: { count: numericIds.length } });
         res.json({ archived: numericIds.length });
     } catch (err) {
         next(err);
@@ -160,6 +170,7 @@ async function restoreClient(req, res, next) {
             where: { id }, data: { archivedAt: null },
             include: { authorizations: { orderBy: { createdAt: 'asc' } } },
         });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'RESTORE', entityType: 'Client', entityId: id, entityName: restored.clientName });
         res.json(enrichClient(restored));
     } catch (err) {
         next(err);
@@ -226,6 +237,7 @@ async function bulkImport(req, res, next) {
             orderBy: { createdAt: 'desc' },
         });
 
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Client', entityId: 0, entityName: 'Bulk Import', metadata: { count: results.length } });
         res.status(201).json({
             imported: results.length,
             clients: allClients.map(enrichClient),
@@ -242,6 +254,7 @@ async function permanentlyDeleteClient(req, res, next) {
         if (!client) return res.status(404).json({ error: 'Client not found' });
         if (!client.archivedAt) return res.status(400).json({ error: 'Only archived clients can be permanently deleted' });
         await prisma.client.delete({ where: { id } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'PERMANENT_DELETE', entityType: 'Client', entityId: id, entityName: client.clientName });
         res.json({ success: true });
     } catch (err) { next(err); }
 }
@@ -249,6 +262,7 @@ async function permanentlyDeleteClient(req, res, next) {
 async function bulkPermanentlyDeleteClients(req, res, next) {
     try {
         const result = await prisma.client.deleteMany({ where: { archivedAt: { not: null } } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'BULK_DELETE', entityType: 'Client', entityId: 0, metadata: { count: result.count } });
         res.json({ success: true, count: result.count });
     } catch (err) { next(err); }
 }

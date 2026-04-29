@@ -4,8 +4,11 @@ import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import { useToast } from '../hooks/useToast';
+import { useAuth } from '../hooks/useAuth';
+import { ActivityButton } from '../components/common/ActivityDrawer';
 
 export default function UsersPage() {
+    const { isAdmin } = useAuth();
     const { showToast } = useToast();
     const [users, setUsers] = useState([]);
     const [showModal, setShowModal] = useState(false);
@@ -102,6 +105,7 @@ export default function UsersPage() {
             <div className="content-header">
                 <h1 className="content-header__title">User Management</h1>
                 <div className="content-header__actions">
+                    {isAdmin && <ActivityButton entityType="User" />}
                     {!showArchived && (
                         <button className="archive-toggle" onClick={() => setShowArchived(true)}>
                             {Icons.archive} View Archived

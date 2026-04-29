@@ -4,6 +4,8 @@ import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import { hhmm12 } from '../utils/time';
 import { useToast } from '../hooks/useToast';
+import { useAuth } from '../hooks/useAuth';
+import { ActivityButton } from '../components/common/ActivityDrawer';
 import ScheduleDelivery from './scheduling/ScheduleDelivery';
 
 const VALID_ACCOUNT_NUMBERS = ['71040', '71119', '71120', '71635'];
@@ -1051,6 +1053,7 @@ function ScheduleMatrix({ shifts, weekStart, rowBy, onEditShift, overlapIds }) {
 }
 
 export default function SchedulingPage() {
+    const { isAdmin } = useAuth();
     const { showToast, showUndoToast } = useToast();
     const [clients, setClients] = useState([]);
     const [employees, setEmployees] = useState([]);
@@ -1264,6 +1267,7 @@ export default function SchedulingPage() {
             <div className="content-header">
                 <h1 className="content-header__title">Scheduling</h1>
                 <div className="content-header__actions">
+                    {isAdmin && <ActivityButton entityType="Shift" />}
                     {allShifts.length > 0 && (
                         <button className="btn btn--outline btn--sm" style={{ color: 'hsl(0 84% 60%)', borderColor: 'hsl(0 84% 80%)' }} onClick={() => setModal({ type: 'confirmDeleteAll' })}>
                             {Icons.trash} Delete All
@@ -1331,7 +1335,7 @@ export default function SchedulingPage() {
                                 {clientInfo && (
                                     <div className="sched-client-info">
                                         <div className="sched-client-info__details">
-                                            {clientInfo.address && <span className="sched-client-info__tag">{Icons.layoutDashboard} {clientInfo.address}</span>}
+                                            {clientInfo.address && <span className="sched-client-info__tag">{Icons.layoutDashboard} <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clientInfo.address)}`} target="_blank" rel="noopener noreferrer" style={{ color: 'hsl(var(--primary))', textDecoration: 'underline' }}>{clientInfo.address}</a></span>}
                                             {clientInfo.phone && <span className="sched-client-info__tag">{Icons.user} {clientInfo.phone}</span>}
                                             {clientInfo.gateCode && <span className="sched-client-info__tag sched-client-info__tag--gate">Gate: {clientInfo.gateCode}</span>}
                                         </div>

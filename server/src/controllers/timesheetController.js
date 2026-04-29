@@ -1,4 +1,5 @@
 const prisma = require('../lib/prisma');
+const audit = require('../services/auditService');
 
 // ── Activity definitions (match the paper form) ──────
 const ADL_ACTIVITIES = [
@@ -125,6 +126,12 @@ async function createTimesheet(req, res, next) {
             },
             include: { client: { select: { id: true, clientName: true } }, entries: { orderBy: { dayOfWeek: 'asc' } } },
         });
+        audit.logAction({
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            action: 'CREATE', entityType: 'Timesheet', entityId: ts.id,
+            entityName: `${ts.pcaName} - ${ts.client?.clientName || ''}`,
+            metadata: { weekStart: ts.weekStart },
+        });
         res.status(201).json(ts);
     } catch (err) {
         if (err.code === 'P2002') return res.status(409).json({ error: 'A timesheet already exists for this client/PCA/week' });
@@ -204,6 +211,13 @@ async function updateTimesheet(req, res, next) {
             data: updateData,
             include: { client: { select: { id: true, clientName: true } }, entries: { orderBy: { dayOfWeek: 'asc' } } },
         });
+        const changes = audit.diffFields(existing, ts, ['totalPasHours', 'totalHmHours', 'totalRespiteHours', 'totalHours']);
+        audit.logAction({
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            action: 'UPDATE', entityType: 'Timesheet', entityId: ts.id,
+            entityName: ts.pcaName,
+            changes,
+        });
         res.json(ts);
     } catch (err) { next(err); }
 }
@@ -221,6 +235,11 @@ async function submitTimesheet(req, res, next) {
             data: { status: 'submitted', submittedAt: new Date() },
             include: { client: { select: { id: true, clientName: true } }, entries: { orderBy: { dayOfWeek: 'asc' } } },
         });
+        audit.logAction({
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            action: 'SUBMIT', entityType: 'Timesheet', entityId: ts.id,
+            entityName: `${ts.pcaName} - ${ts.client?.clientName || ''}`,
+        });
         res.json(ts);
     } catch (err) { next(err); }
 }
@@ -235,6 +254,11 @@ async function deleteTimesheet(req, res, next) {
             return res.status(400).json({ error: 'Only admins can delete submitted timesheets' });
         }
         const archived = await prisma.timesheet.update({ where: { id }, data: { archivedAt: new Date() } });
+        audit.logAction({
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            action: 'ARCHIVE', entityType: 'Timesheet', entityId: id,
+            entityName: `${existing.pcaName}`,
+        });
         res.json(archived);
     } catch (err) { next(err); }
 }
@@ -247,6 +271,10 @@ async function restoreTimesheet(req, res, next) {
         const restored = await prisma.timesheet.update({
             where: { id }, data: { archivedAt: null },
             include: { client: { select: { id: true, clientName: true } }, entries: true },
+        });
+        audit.logAction({
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            action: 'RESTORE', entityType: 'Timesheet', entityId: id,
         });
         res.json(restored);
     } catch (err) { next(err); }
@@ -261,6 +289,7 @@ async function permanentlyDeleteTimesheet(req, res, next) {
         if (!existing.archivedAt) return res.status(400).json({ error: 'Only archived timesheets can be permanently deleted' });
         await prisma.timesheetEntry.deleteMany({ where: { timesheetId: id } });
         await prisma.timesheet.delete({ where: { id } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'PERMANENT_DELETE', entityType: 'Timesheet', entityId: id, entityName: existing.pcaName });
         res.json({ success: true });
     } catch (err) { next(err); }
 }
@@ -537,6 +566,7 @@ async function updateTimesheetStatus(req, res, next) {
 async function bulkPermanentlyDeleteTimesheets(req, res, next) {
     try {
         const result = await prisma.timesheet.deleteMany({ where: { archivedAt: { not: null } } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'BULK_DELETE', entityType: 'Timesheet', entityId: 0, metadata: { count: result.count } });
         res.json({ success: true, count: result.count });
     } catch (err) { next(err); }
 }

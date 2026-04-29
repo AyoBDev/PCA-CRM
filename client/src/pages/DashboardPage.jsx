@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import Icons from '../components/common/Icons';
 import * as api from '../api';
+import { useAuth } from '../hooks/useAuth';
+import { ActivityButton } from '../components/common/ActivityDrawer';
 
 
 export default function DashboardPage() {
+    const { isAdmin } = useAuth();
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -25,6 +28,9 @@ export default function DashboardPage() {
         <>
             <div className="content-header">
                 <h1 className="content-header__title">Dashboard</h1>
+                <div className="content-header__actions">
+                    {isAdmin && <ActivityButton />}
+                </div>
             </div>
             <div className="page-content">
                 {/* Row 1: People */}

@@ -4,6 +4,8 @@ import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import { useToast } from '../hooks/useToast';
+import { useAuth } from '../hooks/useAuth';
+import { ActivityButton } from '../components/common/ActivityDrawer';
 
 function ServiceFormModal({ service, onSave, onClose }) {
     const [category, setCategory] = useState(service?.category || '');
@@ -43,6 +45,7 @@ function ServiceFormModal({ service, onSave, onClose }) {
 }
 
 export default function ServicesPage() {
+    const { isAdmin } = useAuth();
     const { showToast, showUndoToast } = useToast();
     const [services, setServices] = useState([]);
     const [modal, setModal] = useState(null);
@@ -120,6 +123,7 @@ export default function ServicesPage() {
             <div className="content-header">
                 <h1 className="content-header__title">Services</h1>
                 <div className="content-header__actions">
+                    {isAdmin && <ActivityButton entityType="Service" />}
                     {!showArchived && (
                         <button className="archive-toggle" onClick={() => setShowArchived(true)}>
                             {Icons.archive} View Archived

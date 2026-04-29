@@ -4,6 +4,8 @@ import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import { useToast } from '../hooks/useToast';
+import { useAuth } from '../hooks/useAuth';
+import { ActivityButton } from '../components/common/ActivityDrawer';
 
 function InsuranceTypeFormModal({ insuranceType, onSave, onClose }) {
     const [name, setName] = useState(insuranceType?.name || '');
@@ -54,6 +56,7 @@ function InsuranceTypeFormModal({ insuranceType, onSave, onClose }) {
 }
 
 export default function InsuranceTypesPage() {
+    const { isAdmin } = useAuth();
     const { showToast, showUndoToast } = useToast();
     const [insuranceTypes, setInsuranceTypes] = useState([]);
     const [modal, setModal] = useState(null);
@@ -125,6 +128,7 @@ export default function InsuranceTypesPage() {
             <div className="content-header">
                 <h1 className="content-header__title">Insurance Types</h1>
                 <div className="content-header__actions">
+                    {isAdmin && <ActivityButton entityType="InsuranceType" />}
                     {!showArchived && (
                         <button className="archive-toggle" onClick={() => setShowArchived(true)}>
                             {Icons.archive} View Archived

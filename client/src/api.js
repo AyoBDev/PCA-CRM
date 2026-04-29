@@ -350,6 +350,16 @@ export const confirmSchedule = (token) =>
         return res.json();
     });
 
+// ── Audit Logs ──
+export const getAuditLogs = (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/audit-logs${qs ? '?' + qs : ''}`);
+};
+export const getEntityAuditLogs = (entityType, entityId, params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/audit-logs/${entityType}/${entityId}${qs ? '?' + qs : ''}`);
+};
+
 export const uploadPayrollRun = (formData) =>
     fetch(`${BASE}/payroll/runs`, {
         method: 'POST',

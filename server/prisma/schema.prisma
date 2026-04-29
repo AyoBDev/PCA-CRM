@@ -308,6 +308,25 @@ model Shift {
   @@map("shifts")
 }
 
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id")
+  userName   String   @map("user_name")
+  userRole   String   @map("user_role")
+  action     String   // CREATE, UPDATE, DELETE, ARCHIVE, RESTORE, SUBMIT, EXPORT, TOGGLE_ACTIVE, RESET_PASSWORD, PERMANENT_DELETE, BULK_DELETE
+  entityType String   @map("entity_type") // Client, Employee, Timesheet, Shift, Authorization, PayrollRun, PayrollVisit, User, Service, InsuranceType, PermanentLink
+  entityId   Int      @map("entity_id")
+  entityName String   @default("") @map("entity_name")
+  changes    String   @default("[]") // JSON array of {field, oldValue, newValue}
+  metadata   String   @default("{}") // JSON extra context
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId])
+  @@index([entityType, createdAt])
+  @@index([userId])
+  @@map("audit_logs")
+}
+
 model PermanentLink {
   id        Int      @id @default(autoincrement())
   token     String   @unique @default(uuid())

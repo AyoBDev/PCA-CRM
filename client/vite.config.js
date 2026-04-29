@@ -13,6 +13,15 @@ export default defineConfig({
             },
         },
     },
+    build: {
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    xlsx: ['xlsx'],
+                },
+            },
+        },
+    },
     test: {
         environment: 'jsdom',
         globals: true,

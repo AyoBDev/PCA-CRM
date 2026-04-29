@@ -4,6 +4,8 @@ import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import * as api from '../api';
+import { useAuth } from '../hooks/useAuth';
+import { ActivityButton } from '../components/common/ActivityDrawer';
 
 function EmployeeFormModal({ employee, users, onSave, onClose }) {
     const [name, setName] = useState(employee?.name || '');
@@ -59,6 +61,7 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
 }
 
 export default function EmployeesPage() {
+    const { isAdmin } = useAuth();
     const { showToast, showUndoToast } = useToast();
     const [employees, setEmployees] = useState([]);
     const [users, setUsers] = useState([]);
@@ -163,6 +166,7 @@ export default function EmployeesPage() {
             <div className="content-header">
                 <h1 className="content-header__title">Employees</h1>
                 <div className="content-header__actions">
+                    {isAdmin && <ActivityButton entityType="Employee" />}
                     <input
                         type="text"
                         className="search-input"

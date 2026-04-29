@@ -274,6 +274,7 @@ export default function PcaFormPage() {
     const respiteEnabled = enabledServices.includes('Respite');
     const iadlAnyEnabled = hmEnabled || respiteEnabled;
     const submitted = data?.timesheet?.status === 'submitted';
+    const authLimits = data?.authLimits || {};
 
     const updateEntry = (idx, field, value) => {
         setEntries((prev) => prev.map((e, i) => (i === idx ? { ...e, [field]: value } : e)));
@@ -349,8 +350,18 @@ export default function PcaFormPage() {
                 if (aS < bE && bS < aE) return `Day ${DAY_SHORT[e.dayOfWeek]}: Homemaker and Respite times overlap`;
             }
         }
+        // Authorization limit checks
+        if (authLimits.PAS && Math.round(totalPas * 4) > authLimits.PAS.units) {
+            return `PAS hours (${totalPas.toFixed(2)} hrs) exceed authorized limit of ${authLimits.PAS.hours} hrs`;
+        }
+        if (authLimits.Homemaker && Math.round(totalHm * 4) > authLimits.Homemaker.units) {
+            return `Homemaker hours (${totalHm.toFixed(2)} hrs) exceed authorized limit of ${authLimits.Homemaker.hours} hrs`;
+        }
+        if (authLimits.Respite && Math.round(totalRespite * 4) > authLimits.Respite.units) {
+            return `Respite hours (${totalRespite.toFixed(2)} hrs) exceed authorized limit of ${authLimits.Respite.hours} hrs`;
+        }
         return null;
-    }, [data, entries, pcaFullName, pcaSig, recipientName, recipientSig, pasEnabled, hmEnabled, respiteEnabled]);
+    }, [data, entries, pcaFullName, pcaSig, recipientName, recipientSig, pasEnabled, hmEnabled, respiteEnabled, authLimits, totalPas, totalHm, totalRespite]);
 
     const fieldErrors = useMemo(() => {
         if (!submitAttempted || !data) return {};
@@ -499,6 +510,26 @@ export default function PcaFormPage() {
                     <span><strong>PCA:</strong> {data.pcaName}</span>
                     {submitted && <span className="ts-badge ts-badge--submitted">Submitted</span>}
                 </div>
+                {Object.keys(authLimits).length > 0 && (
+                    <div className="pca-form-auth-limits">
+                        <strong>Authorized Hours:</strong>
+                        {authLimits.PAS && (
+                            <span className={`pca-form-auth-chip${Math.round(totalPas * 4) > authLimits.PAS.units ? ' pca-form-auth-chip--exceeded' : ''}`}>
+                                PAS: {authLimits.PAS.hours} hrs ({authLimits.PAS.units} units)
+                            </span>
+                        )}
+                        {authLimits.Homemaker && (
+                            <span className={`pca-form-auth-chip${Math.round(totalHm * 4) > authLimits.Homemaker.units ? ' pca-form-auth-chip--exceeded' : ''}`}>
+                                Homemaker: {authLimits.Homemaker.hours} hrs ({authLimits.Homemaker.units} units)
+                            </span>
+                        )}
+                        {authLimits.Respite && (
+                            <span className={`pca-form-auth-chip${Math.round(totalRespite * 4) > authLimits.Respite.units ? ' pca-form-auth-chip--exceeded' : ''}`}>
+                                Respite: {authLimits.Respite.hours} hrs ({authLimits.Respite.units} units)
+                            </span>
+                        )}
+                    </div>
+                )}
             </div>
 
             {!submitted && hasUnsavedChanges && (
@@ -551,9 +582,27 @@ export default function PcaFormPage() {
 
                         <div className="sdr-totals-bar">
                             <div className="sdr-total-item"><span>Total</span><strong>{totalAll.toFixed(2)} hrs / {Math.round(totalAll * 4)} units</strong></div>
-                            {pasEnabled && <div className="sdr-total-item"><span>PAS</span><strong>{totalPas.toFixed(2)} hrs / {Math.round(totalPas * 4)} units</strong></div>}
-                            {hmEnabled && <div className="sdr-total-item"><span>Homemaker</span><strong>{totalHm.toFixed(2)} hrs / {Math.round(totalHm * 4)} units</strong></div>}
-                            {respiteEnabled && <div className="sdr-total-item"><span>Respite</span><strong>{totalRespite.toFixed(2)} hrs / {Math.round(totalRespite * 4)} units</strong></div>}
+                            {pasEnabled && (
+                                <div className={`sdr-total-item${authLimits.PAS && Math.round(totalPas * 4) > authLimits.PAS.units ? ' sdr-total-item--exceeded' : ''}`}>
+                                    <span>PAS</span>
+                                    <strong>{totalPas.toFixed(2)} hrs / {Math.round(totalPas * 4)} units{authLimits.PAS ? ` of ${authLimits.PAS.units}` : ''}</strong>
+                                    {authLimits.PAS && Math.round(totalPas * 4) > authLimits.PAS.units && <span className="sdr-total-warning">Exceeds authorized limit</span>}
+                                </div>
+                            )}
+                            {hmEnabled && (
+                                <div className={`sdr-total-item${authLimits.Homemaker && Math.round(totalHm * 4) > authLimits.Homemaker.units ? ' sdr-total-item--exceeded' : ''}`}>
+                                    <span>Homemaker</span>
+                                    <strong>{totalHm.toFixed(2)} hrs / {Math.round(totalHm * 4)} units{authLimits.Homemaker ? ` of ${authLimits.Homemaker.units}` : ''}</strong>
+                                    {authLimits.Homemaker && Math.round(totalHm * 4) > authLimits.Homemaker.units && <span className="sdr-total-warning">Exceeds authorized limit</span>}
+                                </div>
+                            )}
+                            {respiteEnabled && (
+                                <div className={`sdr-total-item${authLimits.Respite && Math.round(totalRespite * 4) > authLimits.Respite.units ? ' sdr-total-item--exceeded' : ''}`}>
+                                    <span>Respite</span>
+                                    <strong>{totalRespite.toFixed(2)} hrs / {Math.round(totalRespite * 4)} units{authLimits.Respite ? ` of ${authLimits.Respite.units}` : ''}</strong>
+                                    {authLimits.Respite && Math.round(totalRespite * 4) > authLimits.Respite.units && <span className="sdr-total-warning">Exceeds authorized limit</span>}
+                                </div>
+                            )}
                         </div>
 
                         <div className="sdr-section">

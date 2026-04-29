@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
 import * as api from '../api';
-import * as XLSX from 'xlsx';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
@@ -9,6 +8,7 @@ import { fmtDate, daysClass } from '../utils/dates';
 import { statusLabel } from '../utils/status';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
+import { ActivityButton, EntityActivityButton } from '../components/common/ActivityDrawer';
 
 // ── Client Form Modal ──
 function ClientFormModal({ client, onSave, onClose, insuranceTypeNames }) {
@@ -200,10 +200,10 @@ function BulkImportModal({ onImport, onClose }) {
     const [error, setError] = useState('');
     const [fileName, setFileName] = useState('');
 
-    const excelDateToString = (v) => {
+    const excelDateToString = (v, XLSXLib) => {
         if (!v && v !== 0) return '';
-        if (typeof v === 'number') {
-            const d = XLSX.SSF.parse_date_code(v);
+        if (typeof v === 'number' && XLSXLib) {
+            const d = XLSXLib.SSF.parse_date_code(v);
             if (d) return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`;
         }
         const str = String(v).trim();
@@ -212,7 +212,7 @@ function BulkImportModal({ onImport, onClose }) {
         return isNaN(dt.getTime()) ? '' : dt.toISOString().slice(0, 10);
     };
 
-    const parseParentChildRows = (rawRows) => {
+    const parseParentChildRows = (rawRows, XLSXLib) => {
         const clients = [];
         let current = null;
 
@@ -249,8 +249,8 @@ function BulkImportModal({ onImport, onClose }) {
                     serviceCode,
                     serviceName: serviceName || serviceCode,
                     authorizedUnits: parseInt(authorizedUnits, 10) || 0,
-                    authorizationStartDate: excelDateToString(authStart),
-                    authorizationEndDate: excelDateToString(authEnd),
+                    authorizationStartDate: excelDateToString(authStart, XLSXLib),
+                    authorizationEndDate: excelDateToString(authEnd, XLSXLib),
                     notes,
                 });
             }
@@ -278,13 +278,14 @@ function BulkImportModal({ onImport, onClose }) {
             reader.readAsText(file);
         } else if (['csv', 'xlsx', 'xls'].includes(ext)) {
             const reader = new FileReader();
-            reader.onload = (evt) => {
+            reader.onload = async (evt) => {
                 try {
+                    const XLSX = await import('xlsx');
                     const wb = XLSX.read(evt.target.result, { type: 'array', cellDates: false });
                     const sheet = wb.Sheets[wb.SheetNames[0]];
                     const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true });
                     if (!rawRows.length) throw new Error('Spreadsheet is empty');
-                    const clients = parseParentChildRows(rawRows);
+                    const clients = parseParentChildRows(rawRows, XLSX);
                     if (!clients.length) throw new Error('No valid client rows found. Make sure column B has client names.');
                     setPreview(clients);
                     setError('');
@@ -597,6 +598,7 @@ export default function ClientsPage() {
             <div className="content-header">
                 <h1 className="content-header__title">Clients</h1>
                 <div className="content-header__actions">
+                    {isAdmin && <ActivityButton entityType="Client" />}
                     <input
                         type="text"
                         className="search-input"
@@ -922,6 +924,7 @@ export default function ClientsPage() {
                             onClick={() => { setModal({ type: 'client', client: drawerClient }); }}>
                             {Icons.edit} Edit Client
                         </button>
+                        {isAdmin && <EntityActivityButton entityType="Client" entityId={drawerClient.id} />}
                     </div>
 
                     <ClientNotesSection client={drawerClient} onSaved={(updated) => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment, memo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
@@ -8,6 +8,8 @@ import { fmtDate } from '../utils/dates';
 import { hhmm12 } from '../utils/time';
 import { visitRowClass } from '../utils/status';
 import { useToast } from '../hooks/useToast';
+import { useAuth } from '../hooks/useAuth';
+import { ActivityButton } from '../components/common/ActivityDrawer';
 
 // ────────────────────────────────────────
 // PayrollUploadModal
@@ -95,7 +97,7 @@ function deriveServiceCode(serviceName) {
     return '';
 }
 
-function PayrollClientGroup({ clientName, visits, onVisitChange, authMap, mergedOriginalsMap }) {
+const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits, onVisitChange, authMap, mergedOriginalsMap }) {
     // Match server normalizeName: lowercase, strip non-alphanumeric, sort words
     const clientKey = (clientName || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').trim().split(/\s+/).filter(Boolean).sort().join(' ');
     const clientAuthMap = (authMap && authMap[clientKey]) || {};
@@ -341,13 +343,13 @@ function PayrollClientGroup({ clientName, visits, onVisitChange, authMap, merged
             </table>
         </div>
     );
-}
+});
 
 // ────────────────────────────────────────
 // PayrollEditableText — generic inline text editor for any visit field
 // Used for clientName, employeeName, callInTime, callOutTime
 // ────────────────────────────────────────
-function PayrollEditableText({ value, displayValue, placeholder, highlight, onSave, width = 130 }) {
+const PayrollEditableText = memo(function PayrollEditableText({ value, displayValue, placeholder, highlight, onSave, width = 130 }) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft]     = useState(value || '');
     const [saving, setSaving]   = useState(false);
@@ -410,12 +412,12 @@ function PayrollEditableText({ value, displayValue, placeholder, highlight, onSa
             {isEmpty ? placeholder : (displayValue ?? value)}
         </span>
     );
-}
+});
 
 // ────────────────────────────────────────
 // PayrollEditableUnits — inline number editor
 // ────────────────────────────────────────
-function PayrollEditableUnits({ visit, onChange }) {
+const PayrollEditableUnits = memo(function PayrollEditableUnits({ visit, onChange }) {
     const [editing, setEditing] = useState(false);
     const [value, setValue]     = useState(String(visit.finalPayableUnits));
     const [saving, setSaving]   = useState(false);
@@ -464,12 +466,12 @@ function PayrollEditableUnits({ visit, onChange }) {
             {visit.finalPayableUnits}
         </span>
     );
-}
+});
 
 // ────────────────────────────────────────
 // PayrollEditableNotes — inline text editor
 // ────────────────────────────────────────
-function PayrollEditableNotes({ visit, onChange }) {
+const PayrollEditableNotes = memo(function PayrollEditableNotes({ visit, onChange }) {
     const [editing, setEditing] = useState(false);
     const [value, setValue]     = useState(visit.notes || '');
     const [saving, setSaving]   = useState(false);
@@ -513,14 +515,21 @@ function PayrollEditableNotes({ visit, onChange }) {
             {value || 'add note…'}
         </span>
     );
-}
+});
 
 // ────────────────────────────────────────
 // PayrollRunDetail
 // ────────────────────────────────────────
 function PayrollRunDetail({ run, onVisitChange, authMap }) {
     const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [legendFilter, setLegendFilter] = useState(null);
+
+    // Debounce search to avoid re-rendering hundreds of rows on every keystroke
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedSearch(search), 300);
+        return () => clearTimeout(timer);
+    }, [search]);
 
     // Build lookup: mergedVisitId → [originalRows] for displaying originals under merged rows
     const mergedOriginalsMap = useMemo(() => {
@@ -549,13 +558,13 @@ function PayrollRunDetail({ run, onVisitChange, authMap }) {
             return true;
         }) : all;
 
-        if (!search.trim()) return byFilter;
-        const q = search.trim().toLowerCase();
+        if (!debouncedSearch.trim()) return byFilter;
+        const q = debouncedSearch.trim().toLowerCase();
         return byFilter.filter((v) =>
             (v.clientName || '').toLowerCase().includes(q) ||
             (v.employeeName || '').toLowerCase().includes(q)
         );
-    }, [run.visits, search, legendFilter]);
+    }, [run.visits, debouncedSearch, legendFilter]);
 
     // Service code sort order: PCS → S5125/S5130 (interleaved by date) → S5150 → S5135 → SDPC
     // S5125 (Attendant) and S5130 (Homemaker) share priority — they pair on the same day in EVV
@@ -697,6 +706,7 @@ function PayrollRunDetail({ run, onVisitChange, authMap }) {
 // PayrollPage
 // ────────────────────────────────────────
 function PayrollPage() {
+    const { isAdmin } = useAuth();
     const { showToast, showUndoToast } = useToast();
     const { runId } = useParams();
     const navigate = useNavigate();
@@ -850,6 +860,7 @@ function PayrollPage() {
                         </span>
                     </div>
                     <div className="content-header__actions">
+                        {isAdmin && <ActivityButton entityType="PayrollRun" />}
                         <button className="btn btn--primary btn--sm" onClick={handleExport} disabled={exporting}>
                             {Icons.download} {exporting ? 'Exporting…' : 'Export XLSX'}
                         </button>
@@ -867,6 +878,7 @@ function PayrollPage() {
             <div className="content-header">
                 <h1 className="content-header__title">Payroll Runs</h1>
                 <div className="content-header__actions">
+                    {isAdmin && <ActivityButton entityType="PayrollRun" />}
                     {!showArchived && (
                         <button className="archive-toggle" onClick={() => setShowArchived(true)}>
                             {Icons.archive} View Archived

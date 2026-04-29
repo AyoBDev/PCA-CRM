@@ -122,6 +122,44 @@ async function getPcaForm(req, res, next) {
 
     const enabledServices = JSON.parse(link.client.enabledServices || '["PAS","Homemaker"]');
 
+    // Fetch active authorizations for this client
+    const authorizations = await prisma.authorization.findMany({
+      where: {
+        clientId: link.clientId,
+      },
+      select: {
+        serviceCode: true,
+        serviceName: true,
+        authorizedUnits: true,
+        authorizationStartDate: true,
+        authorizationEndDate: true,
+      },
+    });
+
+    // Build a map of service → authorized weekly units
+    // Service code mapping: PCS/PAS → PAS, S5130 → Homemaker, S5150 → Respite
+    const authLimits = {};
+    for (const auth of authorizations) {
+      const code = auth.serviceCode;
+      let service = null;
+      if (code === 'PCS' || code === 'PAS') service = 'PAS';
+      else if (code === 'S5130') service = 'Homemaker';
+      else if (code === 'S5150') service = 'Respite';
+      if (service) {
+        // authorizedUnits are weekly 15-min units
+        if (!authLimits[service] || auth.authorizedUnits > authLimits[service].units) {
+          authLimits[service] = {
+            units: auth.authorizedUnits,
+            hours: Math.round((auth.authorizedUnits / 4) * 100) / 100,
+            serviceCode: code,
+            serviceName: auth.serviceName || service,
+            startDate: auth.authorizationStartDate,
+            endDate: auth.authorizationEndDate,
+          };
+        }
+      }
+    }
+
     // If no timesheet exists yet, return placeholder data without persisting.
     // A real timesheet will only be created when the user saves (PUT).
     if (!timesheet) {
@@ -146,6 +184,7 @@ async function getPcaForm(req, res, next) {
           enabledServices,
         },
         pcaName: link.pcaName,
+        authLimits,
         timesheet: {
           id: null,
           clientId: link.clientId,
@@ -172,6 +211,7 @@ async function getPcaForm(req, res, next) {
         enabledServices,
       },
       pcaName: link.pcaName,
+      authLimits,
       timesheet,
     });
   } catch (err) {
@@ -280,6 +320,41 @@ async function updatePcaForm(req, res, next) {
         }
       }
 
+      // Check authorization limits
+      const authz = await prisma.authorization.findMany({
+        where: { clientId: link.clientId },
+        select: { serviceCode: true, authorizedUnits: true },
+      });
+      const authMap = {};
+      for (const a of authz) {
+        let svc = null;
+        if (a.serviceCode === 'PCS' || a.serviceCode === 'PAS') svc = 'PAS';
+        else if (a.serviceCode === 'S5130') svc = 'Homemaker';
+        else if (a.serviceCode === 'S5150') svc = 'Respite';
+        if (svc && (!authMap[svc] || a.authorizedUnits > authMap[svc])) {
+          authMap[svc] = a.authorizedUnits;
+        }
+      }
+
+      // Compute total hours per service from submitted entries
+      let checkPas = 0, checkHm = 0, checkRespite = 0;
+      for (const entry of (entries || [])) {
+        const f = filterByEnabledServices(entry, enabledServices);
+        checkPas += computeTotalHoursWithBlocks(f.adlTimeIn, f.adlTimeOut, f.adlTimeBlocks);
+        checkHm += computeTotalHoursWithBlocks(f.iadlTimeIn, f.iadlTimeOut, f.iadlTimeBlocks);
+        checkRespite += computeTotalHoursWithBlocks(f.respiteTimeIn, f.respiteTimeOut, f.respiteTimeBlocks);
+      }
+
+      if (authMap.PAS && Math.round(checkPas * 4) > authMap.PAS) {
+        errors.push(`PAS hours (${checkPas.toFixed(2)} hrs / ${Math.round(checkPas * 4)} units) exceed authorized limit of ${(authMap.PAS / 4).toFixed(2)} hrs / ${authMap.PAS} units`);
+      }
+      if (authMap.Homemaker && Math.round(checkHm * 4) > authMap.Homemaker) {
+        errors.push(`Homemaker hours (${checkHm.toFixed(2)} hrs / ${Math.round(checkHm * 4)} units) exceed authorized limit of ${(authMap.Homemaker / 4).toFixed(2)} hrs / ${authMap.Homemaker} units`);
+      }
+      if (authMap.Respite && Math.round(checkRespite * 4) > authMap.Respite) {
+        errors.push(`Respite hours (${checkRespite.toFixed(2)} hrs / ${Math.round(checkRespite * 4)} units) exceed authorized limit of ${(authMap.Respite / 4).toFixed(2)} hrs / ${authMap.Respite} units`);
+      }
+
       if (errors.length > 0) {
         return res.status(400).json({ error: errors.join('; ') });
       }
@@ -364,6 +439,29 @@ async function updatePcaForm(req, res, next) {
       include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
     });
 
+    // Fetch auth limits for response
+    const authzForResp = await prisma.authorization.findMany({
+      where: { clientId: link.clientId },
+      select: { serviceCode: true, serviceName: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true },
+    });
+    const respAuthLimits = {};
+    for (const auth of authzForResp) {
+      let service = null;
+      if (auth.serviceCode === 'PCS' || auth.serviceCode === 'PAS') service = 'PAS';
+      else if (auth.serviceCode === 'S5130') service = 'Homemaker';
+      else if (auth.serviceCode === 'S5150') service = 'Respite';
+      if (service && (!respAuthLimits[service] || auth.authorizedUnits > respAuthLimits[service].units)) {
+        respAuthLimits[service] = {
+          units: auth.authorizedUnits,
+          hours: Math.round((auth.authorizedUnits / 4) * 100) / 100,
+          serviceCode: auth.serviceCode,
+          serviceName: auth.serviceName || service,
+          startDate: auth.authorizationStartDate,
+          endDate: auth.authorizationEndDate,
+        };
+      }
+    }
+
     res.json({
       client: {
         id: link.client.id,
@@ -371,6 +469,7 @@ async function updatePcaForm(req, res, next) {
         enabledServices,
       },
       pcaName: link.pcaName,
+      authLimits: respAuthLimits,
       timesheet: updated,
     });
   } catch (err) {

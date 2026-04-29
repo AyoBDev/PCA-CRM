@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../lib/prisma');
 const { isEmailConfigured, sendEmail } = require('../services/notificationService');
+const audit = require('../services/auditService');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'nvbestpca-secret';
 const TOKEN_EXPIRY = '24h';
@@ -36,6 +37,7 @@ async function login(req, res, next) {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
         const token = signToken(user);
+        audit.logAction({ userId: user.id, userName: user.name, userRole: user.role, action: 'LOGIN', entityType: 'User', entityId: user.id, entityName: user.name });
         res.json({
             token,
             user: { id: user.id, email: user.email, name: user.name, role: user.role },
@@ -75,6 +77,7 @@ async function register(req, res, next) {
             },
         });
         res.status(201).json({ id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'User', entityId: user.id, entityName: user.name });
 
         // Send welcome email with login credentials (fire-and-forget)
         if (isEmailConfigured()) {
@@ -124,6 +127,7 @@ async function deleteUser(req, res, next) {
         const user = await prisma.user.findUnique({ where: { id } });
         if (!user) return res.status(404).json({ error: 'User not found' });
         const archived = await prisma.user.update({ where: { id }, data: { archivedAt: new Date() } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'ARCHIVE', entityType: 'User', entityId: id, entityName: user.name });
         res.json({ id: archived.id, email: archived.email, name: archived.name, role: archived.role });
     } catch (err) { next(err); }
 }
@@ -135,6 +139,7 @@ async function restoreUser(req, res, next) {
         const user = await prisma.user.findUnique({ where: { id } });
         if (!user) return res.status(404).json({ error: 'User not found' });
         const restored = await prisma.user.update({ where: { id }, data: { archivedAt: null } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'RESTORE', entityType: 'User', entityId: id, entityName: restored.name });
         res.json({ id: restored.id, email: restored.email, name: restored.name, role: restored.role, phone: restored.phone });
     } catch (err) { next(err); }
 }
@@ -174,6 +179,7 @@ async function resetPassword(req, res, next) {
             ).catch(err => console.error('Password reset email failed:', err.message));
         }
 
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'RESET_PASSWORD', entityType: 'User', entityId: id, entityName: user.name });
         res.json({ success: true });
     } catch (err) { next(err); }
 }
@@ -186,6 +192,7 @@ async function permanentlyDeleteUser(req, res, next) {
         if (!user) return res.status(404).json({ error: 'User not found' });
         if (!user.archivedAt) return res.status(400).json({ error: 'Only archived users can be permanently deleted' });
         await prisma.user.delete({ where: { id } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'PERMANENT_DELETE', entityType: 'User', entityId: id, entityName: user.name });
         res.json({ success: true });
     } catch (err) { next(err); }
 }
@@ -193,6 +200,7 @@ async function permanentlyDeleteUser(req, res, next) {
 async function bulkPermanentlyDeleteUsers(req, res, next) {
     try {
         const result = await prisma.user.deleteMany({ where: { archivedAt: { not: null } } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'BULK_DELETE', entityType: 'User', entityId: 0, entityName: '', metadata: { count: result.count } });
         res.json({ success: true, count: result.count });
     } catch (err) { next(err); }
 }
@@ -210,6 +218,7 @@ async function toggleUserActive(req, res, next) {
             where: { id },
             data: { active: !user.active },
         });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'TOGGLE_ACTIVE', entityType: 'User', entityId: id, entityName: updated.name, changes: audit.diffFields(user, updated, ['active']) });
         res.json({ id: updated.id, email: updated.email, name: updated.name, role: updated.role, active: updated.active });
     } catch (err) { next(err); }
 }
