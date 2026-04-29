@@ -81,9 +81,6 @@ npx prisma migrate dev
 npm run db:seed
 ```
 
-This creates a default admin account:
-- **Email:** admin@nvbestpca.com
-- **Password:** admin123
 
 ### Running the App
 
