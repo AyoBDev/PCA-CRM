@@ -5,21 +5,20 @@ const prisma = new PrismaClient();
 
 async function main() {
     const email = 'admin@nvbestpca.com';
-    const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) {
-        console.log('Admin user already exists, skipping seed.');
-        return;
-    }
     const passwordHash = await bcrypt.hash('admin123', 10);
-    await prisma.user.create({
-        data: {
+
+    await prisma.user.upsert({
+        where: { email },
+        update: { passwordHash },   // force reset password on every deploy
+        create: {
             email,
             passwordHash,
             name: 'Admin',
             role: 'admin',
         },
     });
-    console.log('✅ Default admin created: admin@nvbestpca.com / admin123');
+
+    console.log('✅ Admin upserted: admin@nvbestpca.com / admin123');
 }
 
 main()
