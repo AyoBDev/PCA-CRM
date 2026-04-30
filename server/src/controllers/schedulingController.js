@@ -575,6 +575,121 @@ async function updateShift(req, res, next) {
     }
 }
 
+// POST /api/shifts/:id/repeat — retroactively make a single shift repeat weekly
+async function repeatShift(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const { repeatUntil } = req.body;
+        if (!repeatUntil) return res.status(400).json({ error: 'repeatUntil date is required' });
+
+        const existing = await prisma.shift.findUnique({ where: { id }, include: shiftInclude });
+        if (!existing) return res.status(404).json({ error: 'Shift not found' });
+        if (existing.archivedAt) return res.status(400).json({ error: 'Cannot repeat an archived shift' });
+
+        // Build list of weekly dates from this shift forward
+        const shiftDateStr = existing.shiftDate.toISOString().slice(0, 10);
+        const dates = [];
+        const weekMs = 7 * 24 * 60 * 60 * 1000;
+        const endMs = new Date(repeatUntil + 'T12:00:00.000Z').getTime();
+        let cursorMs = new Date(shiftDateStr + 'T12:00:00.000Z').getTime() + weekMs;
+        while (cursorMs <= endMs) {
+            dates.push(new Date(cursorMs).toISOString().slice(0, 10));
+            cursorMs += weekMs;
+        }
+        if (dates.length === 0) {
+            return res.status(400).json({ error: 'Repeat-until date must be at least one week after the shift date' });
+        }
+
+        // Check authorization
+        const authorizedCodes = await getAuthorizedServiceCodes(existing.clientId);
+        if (!authorizedCodes.has(existing.serviceCode)) {
+            return res.status(400).json({ error: `Service ${existing.serviceCode} is no longer authorized for this client` });
+        }
+
+        const proposed = dates.map(d => ({ serviceCode: existing.serviceCode, shiftDate: d, startTime: existing.startTime, endTime: existing.endTime }));
+        const authCheck = await checkAuthorizationLimits(existing.clientId, proposed);
+        if (!authCheck.allowed) {
+            const authHrs = Math.round((authCheck.authorized / 4) * 100) / 100;
+            const schedHrs = Math.round((authCheck.currentlyScheduled / 4) * 100) / 100;
+            const proposedHrs = Math.round((authCheck.proposed / 4) * 100) / 100;
+            return res.status(400).json({
+                error: 'authorization_exceeded',
+                message: `Exceeds authorized hours for ${authCheck.serviceCode} (week of ${authCheck.weekStart}). Authorized: ${authHrs} hrs, Already scheduled: ${schedHrs} hrs, Attempting to add: ${proposedHrs} hrs.`,
+                details: authCheck,
+            });
+        }
+
+        // Check overlaps
+        const allConflicts = [];
+        for (const date of dates) {
+            const conflicts = await checkOverlaps({
+                employeeId: existing.employeeId,
+                shiftDate: date,
+                startTime: existing.startTime,
+                endTime: existing.endTime,
+            });
+            for (const c of conflicts) {
+                allConflicts.push({
+                    date,
+                    conflictWith: { id: c.id, clientName: c.client?.clientName || '', startTime: c.startTime, endTime: c.endTime },
+                });
+            }
+        }
+        if (allConflicts.length > 0) {
+            const empName = existing.employee?.name || '';
+            return res.status(409).json({
+                error: 'overlap',
+                message: `${empName} already has ${allConflicts.length} overlapping shift${allConflicts.length > 1 ? 's' : ''}`,
+                conflicts: allConflicts,
+            });
+        }
+
+        // Generate recurring group ID and update original shift
+        const groupId = existing.recurringGroupId || `rg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        if (!existing.recurringGroupId) {
+            await prisma.shift.update({ where: { id }, data: { recurringGroupId: groupId } });
+        }
+
+        // Create weekly copies
+        const { hours, units } = computeShiftHours(existing.startTime, existing.endTime);
+        const created = [];
+        for (const date of dates) {
+            const shift = await prisma.shift.create({
+                data: {
+                    clientId: existing.clientId,
+                    employeeId: existing.employeeId,
+                    serviceCode: existing.serviceCode,
+                    shiftDate: new Date(date + 'T00:00:00.000Z'),
+                    startTime: existing.startTime,
+                    endTime: existing.endTime,
+                    hours,
+                    units,
+                    notes: existing.notes || '',
+                    accountNumber: existing.accountNumber || '',
+                    sandataClientId: existing.sandataClientId || '',
+                    recurringGroupId: groupId,
+                },
+                include: shiftInclude,
+            });
+            created.push(enrichShift(shift));
+        }
+
+        for (const shift of created) {
+            audit.logAction({
+                userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+                action: 'CREATE', entityType: 'Shift', entityId: shift.id,
+                entityName: `${shift.client?.clientName || ''} - ${shift.employee?.name || ''}`,
+                metadata: { shiftDate: shift.shiftDate, serviceCode: shift.serviceCode, repeatedFrom: id },
+            });
+        }
+
+        // Notify employee
+        await autoNotify(existing.employeeId, existing.shiftDate, req);
+
+        res.status(201).json({ shifts: created, count: created.length, groupId });
+    } catch (err) { next(err); }
+}
+
 // DELETE /api/shifts/:id?group=true (soft-delete → archive)
 async function deleteShift(req, res, next) {
     try {
@@ -774,4 +889,4 @@ async function authCheck(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listShifts, createShift, updateShift, deleteShift, deleteAllShifts, getClientSchedule, getEmployeeSchedule, authCheck, restoreShift };
+module.exports = { listShifts, createShift, updateShift, deleteShift, deleteAllShifts, getClientSchedule, getEmployeeSchedule, authCheck, restoreShift, repeatShift };

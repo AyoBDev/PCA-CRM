@@ -60,7 +60,7 @@ function toLocalDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, defaultDate, defaultClientId, defaultEmployeeId, defaultStartTime, weekStart: propWeekStart }) {
+function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete, onClose, defaultDate, defaultClientId, defaultEmployeeId, defaultStartTime, weekStart: propWeekStart }) {
     const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const isEdit = !!shift;
 
@@ -153,6 +153,10 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
 
     const [recurring, setRecurring] = useState(false);
     const [repeatUntil, setRepeatUntil] = useState('');
+
+    // Edit mode: repeat weekly (retroactive)
+    const [editRepeat, setEditRepeat] = useState(false);
+    const [editRepeatUntil, setEditRepeatUntil] = useState('');
 
     const [authInfo, setAuthInfo] = useState(null);
 
@@ -255,6 +259,22 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
         return d.toISOString().slice(0, 10);
     })();
 
+    // Edit mode repeat: compute preview count and min date
+    const editRepeatMin = (() => {
+        if (!shiftDate) return '';
+        const d = new Date(shiftDate + 'T12:00:00Z');
+        d.setDate(d.getDate() + 7);
+        return d.toISOString().slice(0, 10);
+    })();
+
+    const editRepeatCount = (() => {
+        if (!editRepeat || !editRepeatUntil || !shiftDate) return 0;
+        const start = new Date(shiftDate + 'T12:00:00Z');
+        const end = new Date(editRepeatUntil + 'T12:00:00Z');
+        if (end < start) return 0;
+        return Math.floor((end - start) / (7 * 24 * 60 * 60 * 1000));
+    })();
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!empSearch.trim()) return;
@@ -290,6 +310,10 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                     accountNumber, sandataClientId,
                 };
                 await onSave(data);
+                // If repeat weekly was toggled on, create recurring copies
+                if (editRepeat && editRepeatUntil && onRepeat) {
+                    await onRepeat(shift.id, { repeatUntil: editRepeatUntil });
+                }
             } else {
                 // Multi-day bulk create
                 const bulkShifts = [];
@@ -501,6 +525,30 @@ function ShiftFormModal({ shift, clients, employees, onSave, onDelete, onClose, 
                                 <option value="cancelled">Cancelled</option>
                             </select>
                         </div>
+                        {/* Repeat Weekly — only show for shifts not already in a recurring group */}
+                        {!shift.recurringGroupId && (
+                            <div className="sched-recurring">
+                                <label className="sched-recurring__toggle">
+                                    <input type="checkbox" checked={editRepeat} onChange={e => setEditRepeat(e.target.checked)} />
+                                    <span>Repeat weekly</span>
+                                </label>
+                                {editRepeat && (
+                                    <div className="sched-recurring__options">
+                                        <div className="form-group" style={{ marginBottom: 0 }}>
+                                            <label htmlFor="editRepeatUntil">Repeat until</label>
+                                            <input id="editRepeatUntil" type="date" value={editRepeatUntil}
+                                                onChange={e => setEditRepeatUntil(e.target.value)}
+                                                min={editRepeatMin} required={editRepeat} />
+                                        </div>
+                                        {editRepeatCount > 0 && (
+                                            <div className="sched-recurring__preview">
+                                                Will create <strong>{editRepeatCount} additional shift{editRepeatCount !== 1 ? 's' : ''}</strong> (weekly copies)
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </>
                 ) : (
                     /* ─── CREATE MODE: multi-day weekly ─── */
@@ -1242,6 +1290,15 @@ export default function SchedulingPage() {
         }
     };
 
+    const handleRepeatShift = async (shiftId, data) => {
+        try {
+            const result = await api.repeatShift(shiftId, data);
+            showToast(`${result.count} weekly shift${result.count !== 1 ? 's' : ''} created`);
+            refetchAll();
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    };
 
     const handleDeleteShift = async (shiftId, deleteGroup = false) => {
         try {
@@ -1567,6 +1624,7 @@ export default function SchedulingPage() {
                     employees={employees}
                     weekStart={weekStart}
                     onSave={handleSaveShift}
+                    onRepeat={handleRepeatShift}
                     onDelete={handleDeleteShift}
                     onClose={() => setModal(null)}
                 />

@@ -950,8 +950,8 @@ export default function ClientsPage() {
                                             <td>{auth.serviceCategory || '—'}</td>
                                             <td>{auth.serviceCode}</td>
                                             <td>{auth.authorizedUnits}</td>
-                                            <td>{auth.authorizationStartDate ? new Date(auth.authorizationStartDate).toLocaleDateString() : '—'}</td>
-                                            <td>{auth.authorizationEndDate ? new Date(auth.authorizationEndDate).toLocaleDateString() : '—'}</td>
+                                            <td>{fmtDate(auth.authorizationStartDate)}</td>
+                                            <td>{fmtDate(auth.authorizationEndDate)}</td>
                                             <td><span className={`status-cell status-cell--${auth.statusColor}`}>{statusLabel(auth.status)}</span></td>
                                             <td>
                                                 <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'auth', auth, clientId: drawerClient.id })} title="Edit">{Icons.edit}</button>

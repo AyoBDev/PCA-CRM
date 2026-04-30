@@ -1,8 +1,8 @@
 export function fmtDate(d) {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-US', {
-        year: 'numeric', month: 'numeric', day: 'numeric',
-    });
+    const dt = new Date(d);
+    // Use UTC components to avoid timezone shift (dates stored as UTC midnight)
+    return `${dt.getUTCMonth() + 1}/${dt.getUTCDate()}/${dt.getUTCFullYear()}`;
 }
 
 export function daysClass(days) {

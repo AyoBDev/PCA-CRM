@@ -97,7 +97,7 @@ function deriveServiceCode(serviceName) {
     return '';
 }
 
-const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits, onVisitChange, authMap, mergedOriginalsMap }) {
+const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits, onVisitChange, authMap, mergedOriginalsMap, readOnly }) {
     // Match server normalizeName: lowercase, strip non-alphanumeric, sort words
     const clientKey = (clientName || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').trim().split(/\s+/).filter(Boolean).sort().join(' ');
     const clientAuthMap = (authMap && authMap[clientKey]) || {};
@@ -226,6 +226,7 @@ const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits
                         <Fragment key={v.id}>
                         <tr className={visitRowClass(v)} style={empColor ? { borderLeft: `4px solid ${empColor}` } : undefined}>
                             <td>
+                                {readOnly ? (v.clientName || <em style={{ color: 'hsl(270 50% 40%)' }}>missing client…</em>) : (
                                 <PayrollEditableText
                                     value={v.clientName}
                                     placeholder="missing client…"
@@ -235,8 +236,10 @@ const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits
                                         onVisitChange(v.id, updated);
                                     }}
                                 />
+                                )}
                             </td>
                             <td style={empColor ? { color: empColor, fontWeight: 600, whiteSpace: 'nowrap' } : undefined}>
+                                {readOnly ? (v.employeeName || <em style={{ color: 'hsl(270 50% 40%)' }}>missing employee…</em>) : (
                                 <PayrollEditableText
                                     value={v.employeeName}
                                     placeholder="missing employee…"
@@ -246,10 +249,12 @@ const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits
                                         onVisitChange(v.id, updated);
                                     }}
                                 />
+                                )}
                             </td>
                             <td>{v.service || '—'}</td>
                             <td>{v.visitDate ? new Date(v.visitDate).toLocaleDateString('en-US', { timeZone: 'UTC' }) : <em style={{ color: 'hsl(270 50% 40%)' }}>missing</em>}</td>
                             <td style={v.earlyCallIn ? { background: 'hsl(38 96% 88%)', fontWeight: 600 } : undefined}>
+                                {readOnly ? (hhmm12(v.callInTime) || <em style={{ color: 'hsl(270 50% 40%)' }}>—</em>) : (
                                 <PayrollEditableText
                                     value={v.callInTime}
                                     displayValue={hhmm12(v.callInTime)}
@@ -261,8 +266,10 @@ const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits
                                     }}
                                     width={75}
                                 />
+                                )}
                             </td>
                             <td style={(v.lateCallOut || v.nextDayCallOut) ? { background: 'hsl(38 96% 88%)', fontWeight: 600 } : undefined}>
+                                {readOnly ? (hhmm12(v.callOutTime) || <em style={{ color: 'hsl(270 50% 40%)' }}>—</em>) : (
                                 <PayrollEditableText
                                     value={v.callOutTime}
                                     displayValue={hhmm12(v.callOutTime)}
@@ -274,14 +281,17 @@ const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits
                                     }}
                                     width={75}
                                 />
+                                )}
                             </td>
                             <td>{v.visitStatus}</td>
                             <td style={v.unitsRaw > 28 && !v.voidFlag && !v.needsReview ? { background: 'hsl(0 84% 92%)', fontWeight: 700 } : undefined}>{v.unitsRaw}</td>
                             <td>
+                                {readOnly ? (v.voidFlag ? <span style={{ color: 'hsl(var(--destructive))' }}>VOID</span> : v.finalPayableUnits) : (
                                 <PayrollEditableUnits
                                     visit={v}
                                     onChange={(newUnits) => onVisitChange(v.id, { finalPayableUnits: newUnits })}
                                 />
+                                )}
                             </td>
                             <td>{v.overlapId || ''}</td>
                             <td>
@@ -290,10 +300,12 @@ const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits
                                     : (v.voidReason || '')}
                             </td>
                             <td>
+                                {readOnly ? (v.notes || '—') : (
                                 <PayrollEditableNotes
                                     visit={v}
                                     onChange={(newNotes) => onVisitChange(v.id, { notes: newNotes })}
                                 />
+                                )}
                             </td>
                         </tr>
                         {originals && originals.map((orig) => {
@@ -520,7 +532,7 @@ const PayrollEditableNotes = memo(function PayrollEditableNotes({ visit, onChang
 // ────────────────────────────────────────
 // PayrollRunDetail
 // ────────────────────────────────────────
-function PayrollRunDetail({ run, onVisitChange, authMap }) {
+function PayrollRunDetail({ run, onVisitChange, authMap, readOnly }) {
     const [search, setSearch] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [legendFilter, setLegendFilter] = useState(null);
@@ -690,7 +702,7 @@ function PayrollRunDetail({ run, onVisitChange, authMap }) {
             </div>
 
             {clientGroups.map(([clientName, visits]) => (
-                <PayrollClientGroup key={clientName} clientName={clientName} visits={visits} onVisitChange={onVisitChange} authMap={authMap} mergedOriginalsMap={mergedOriginalsMap} />
+                <PayrollClientGroup key={clientName} clientName={clientName} visits={visits} onVisitChange={onVisitChange} authMap={authMap} mergedOriginalsMap={mergedOriginalsMap} readOnly={readOnly} />
             ))}
 
             {clientGroups.length === 0 && (
@@ -867,7 +879,7 @@ function PayrollPage() {
                     </div>
                 </div>
                 <div className="page-content">
-                    <PayrollRunDetail run={selectedRun} onVisitChange={handleVisitChange} authMap={selectedRun.authMap || {}} />
+                    <PayrollRunDetail run={selectedRun} onVisitChange={handleVisitChange} authMap={selectedRun.authMap || {}} readOnly={!isAdmin} />
                 </div>
             </div>
         );
@@ -879,12 +891,12 @@ function PayrollPage() {
                 <h1 className="content-header__title">Payroll Runs</h1>
                 <div className="content-header__actions">
                     {isAdmin && <ActivityButton entityType="PayrollRun" />}
-                    {!showArchived && (
+                    {!showArchived && isAdmin && (
                         <button className="archive-toggle" onClick={() => setShowArchived(true)}>
                             {Icons.archive} View Archived
                         </button>
                     )}
-                    {!showArchived && (
+                    {!showArchived && isAdmin && (
                         <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'upload' })}>
                             {Icons.upload} New Run
                         </button>
@@ -947,6 +959,7 @@ function PayrollPage() {
                                             </span>
                                         </td>
                                         <td style={{ fontSize: 12 }}>{fmtDate(run.createdAt)}</td>
+                                        {isAdmin && (
                                         <td onClick={(e) => e.stopPropagation()}>
                                             {showArchived ? (<>
                                                 <button className="btn btn--restore" onClick={() => handleRestore(run)} title="Restore">
@@ -969,6 +982,7 @@ function PayrollPage() {
                                                 </button>
                                             )}
                                         </td>
+                                        )}
                                     </tr>
                                 ))}
                             </tbody>

@@ -93,6 +93,7 @@ const {
     deleteAllShifts,
     authCheck,
     restoreShift,
+    repeatShift,
 } = require('../controllers/schedulingController');
 const {
     listEmployees,
@@ -202,14 +203,14 @@ router.delete('/permanent-links/:id', requireRole('admin', 'user', 'pca'), delet
 
 // Payroll
 router.get('/payroll/runs',                requireRole('admin', 'user', 'pca'), listPayrollRuns);
-router.post('/payroll/runs',               requireRole('admin', 'user', 'pca'), upload.single('file'), uploadPayrollRun);
+router.post('/payroll/runs',               requireRole('admin'), upload.single('file'), uploadPayrollRun);
 router.delete('/payroll/runs/bulk-permanent', requireRole('admin'), bulkPermanentlyDeletePayrollRuns);
 router.get('/payroll/runs/:id',            requireRole('admin', 'user', 'pca'), getPayrollRun);
-router.put('/payroll/runs/:id/restore',    requireRole('admin', 'user', 'pca'), restorePayrollRun);
-router.delete('/payroll/runs/:id',         requireRole('admin', 'user', 'pca'), deletePayrollRun);
+router.put('/payroll/runs/:id/restore',    requireRole('admin'), restorePayrollRun);
+router.delete('/payroll/runs/:id',         requireRole('admin'), deletePayrollRun);
 router.delete('/payroll/runs/:id/permanent', requireRole('admin'), permanentlyDeletePayrollRun);
 router.get('/payroll/runs/:id/export',     requireRole('admin', 'user', 'pca'), exportPayrollRun);
-router.patch('/payroll/visits/:id',        requireRole('admin', 'user', 'pca'), updatePayrollVisit);
+router.patch('/payroll/visits/:id',        requireRole('admin'), updatePayrollVisit);
 
 // Employees
 router.get('/employees',       requireRole('admin', 'user', 'pca'), listEmployees);
@@ -227,6 +228,7 @@ router.get('/shifts/auth-check',            requireRole('admin', 'user', 'pca'),
 router.get('/shifts/client/:clientId',      requireRole('admin', 'user', 'pca'), getClientSchedule);
 router.get('/shifts/employee/:employeeId',  requireRole('admin', 'user', 'pca'), getEmployeeSchedule);
 router.post('/shifts',                      requireRole('admin', 'user', 'pca'), createShift);
+router.post('/shifts/:id/repeat',            requireRole('admin', 'user', 'pca'), repeatShift);
 router.put('/shifts/:id/restore',           requireRole('admin', 'user', 'pca'), restoreShift);
 router.put('/shifts/:id',                   requireRole('admin', 'user', 'pca'), updateShift);
 router.delete('/shifts/all',                requireRole('admin', 'user', 'pca'), deleteAllShifts);
