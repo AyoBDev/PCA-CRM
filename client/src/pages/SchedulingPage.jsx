@@ -10,6 +10,29 @@ import ScheduleDelivery from './scheduling/ScheduleDelivery';
 
 const VALID_ACCOUNT_NUMBERS = ['71040', '71119', '71120', '71635'];
 
+// Distinct colors for visually distinguishing multiple clients
+const CLIENT_COLORS = [
+    { color: '#3B82F6', bg: '#EFF6FF' },   // Blue
+    { color: '#8B5CF6', bg: '#F5F3FF' },   // Purple
+    { color: '#06B6D4', bg: '#ECFEFF' },   // Cyan
+    { color: '#F59E0B', bg: '#FFFBEB' },   // Amber
+    { color: '#EC4899', bg: '#FDF2F8' },   // Pink
+    { color: '#22C55E', bg: '#F0FDF4' },   // Green
+    { color: '#EF4444', bg: '#FEF2F2' },   // Red
+    { color: '#6366F1', bg: '#EEF2FF' },   // Indigo
+    { color: '#14B8A6', bg: '#F0FDFA' },   // Teal
+    { color: '#F97316', bg: '#FFF7ED' },   // Orange
+];
+
+function buildClientColorMap(shifts) {
+    const names = [...new Set(shifts.map(s => s.client?.clientName).filter(Boolean))].sort();
+    const map = {};
+    names.forEach((name, i) => {
+        map[name] = CLIENT_COLORS[i % CLIENT_COLORS.length];
+    });
+    return map;
+}
+
 const SERVICE_COLORS = {
     PCS:   { color: '#3B82F6', bg: '#EFF6FF', label: 'PCA' },
     S5125: { color: '#22C55E', bg: '#F0FDF4', label: 'Attendant Care' },
@@ -905,7 +928,7 @@ function HoursSummaryBar({ summaryViewBy, unitSummaries, shifts }) {
     );
 }
 
-function ScheduleOverviewTable({ shifts, overlapIds, onEditShift }) {
+function ScheduleOverviewTable({ shifts, overlapIds, onEditShift, clientColorMap }) {
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const sorted = [...shifts].sort((a, b) => {
         const da = new Date(a.shiftDate).getTime();
@@ -913,6 +936,7 @@ function ScheduleOverviewTable({ shifts, overlapIds, onEditShift }) {
         if (da !== db) return da - db;
         return (a.startTime || '').localeCompare(b.startTime || '');
     });
+    const hasMultipleClients = clientColorMap && Object.keys(clientColorMap).length > 1;
 
     return (
         <div className="sched-overview-table-wrap">
@@ -935,10 +959,14 @@ function ScheduleOverviewTable({ shifts, overlapIds, onEditShift }) {
                         const isOverlap = overlapIds && overlapIds.has(s.id);
                         const dateStr = toLocalDateStr(s.shiftDate);
                         const dayIdx = new Date(dateStr + 'T00:00:00').getDay();
+                        const cc = hasMultipleClients && s.client?.clientName ? clientColorMap[s.client.clientName] : null;
                         return (
-                            <tr key={s.id} className={`sched-overview-table__row ${isOverlap ? 'sched-overview-table__row--overlap' : ''} ${s.status === 'cancelled' ? 'sched-overview-table__row--cancelled' : ''}`} onClick={() => onEditShift(s)} style={{ cursor: 'pointer' }}>
+                            <tr key={s.id} className={`sched-overview-table__row ${isOverlap ? 'sched-overview-table__row--overlap' : ''} ${s.status === 'cancelled' ? 'sched-overview-table__row--cancelled' : ''}`} onClick={() => onEditShift(s)} style={{ cursor: 'pointer', borderLeft: cc ? `3px solid ${cc.color}` : undefined }}>
                                 <td>{dayNames[dayIdx]}</td>
-                                <td>{s.client?.clientName || '—'}</td>
+                                <td>
+                                    {cc && <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: cc.color, marginRight: 6, verticalAlign: 'middle' }} />}
+                                    {s.client?.clientName || '—'}
+                                </td>
                                 <td>{s.displayEmployeeName || '—'}</td>
                                 <td><span className="sched-service-badge" style={{ background: colorInfo.color }}>{colorInfo.label}</span></td>
                                 <td className="sched-overview-table__time">{hhmm12(s.startTime)} - {hhmm12(s.endTime)}</td>
@@ -952,7 +980,7 @@ function ScheduleOverviewTable({ shifts, overlapIds, onEditShift }) {
 }
 
 // Matrix view: rows = employee/client, columns = 7 days of the week, cells = shift chips
-function ScheduleMatrix({ shifts, weekStart, rowBy, onEditShift, overlapIds }) {
+function ScheduleMatrix({ shifts, weekStart, rowBy, onEditShift, overlapIds, clientColorMap }) {
     const dayAbbr = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const days = [];
     const dayHeads = [];
@@ -1006,9 +1034,14 @@ function ScheduleMatrix({ shifts, weekStart, rowBy, onEditShift, overlapIds }) {
                     </tr>
                 </thead>
                 <tbody>
-                    {rowList.map((row) => (
+                    {rowList.map((row) => {
+                        const rowCC = rowBy === 'client' && clientColorMap && Object.keys(clientColorMap).length > 1 ? clientColorMap[row.label] : null;
+                        return (
                         <tr key={row.label}>
-                            <td className="sched-matrix__row-label">{row.label}</td>
+                            <td className="sched-matrix__row-label">
+                                {rowCC && <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: rowCC.color, marginRight: 6, verticalAlign: 'middle' }} />}
+                                {row.label}
+                            </td>
                             {days.map((dateStr) => {
                                 const cellShifts = row.cells[dateStr] || [];
                                 const isToday = dateStr === todayStr;
@@ -1023,12 +1056,14 @@ function ScheduleMatrix({ shifts, weekStart, rowBy, onEditShift, overlapIds }) {
                                             const label = rowBy === 'employee'
                                                 ? (s.client?.clientName || '—')
                                                 : (s.displayEmployeeName || 'Unassigned');
+                                            const cc = clientColorMap && Object.keys(clientColorMap).length > 1 && s.client?.clientName ? clientColorMap[s.client.clientName] : null;
                                             return (
                                                 <button
                                                     key={s.id}
                                                     className={`sched-matrix__chip ${isCancelled ? 'sched-matrix__chip--cancelled' : ''} ${isOverlap ? 'sched-matrix__chip--overlap' : ''}`}
                                                     style={{
-                                                        '--chip-color': colorInfo.color,
+                                                        '--chip-color': cc ? cc.color : colorInfo.color,
+                                                        background: cc ? cc.bg : undefined,
                                                     }}
                                                     onClick={() => onEditShift(s)}
                                                     title={`${label} — ${colorInfo.label} — ${hhmm12(s.startTime)} - ${hhmm12(s.endTime)}`}
@@ -1045,7 +1080,7 @@ function ScheduleMatrix({ shifts, weekStart, rowBy, onEditShift, overlapIds }) {
                                 );
                             })}
                         </tr>
-                    ))}
+                    );})}
                 </tbody>
             </table>
         </div>
@@ -1086,6 +1121,10 @@ export default function SchedulingPage() {
     });
     const [modal, setModal] = useState(null);
     const [summaryViewBy, setSummaryViewBy] = useState('client');
+
+    // Build client color maps for visual distinction
+    const allClientColorMap = useMemo(() => buildClientColorMap(allShifts), [allShifts]);
+    const employeeClientColorMap = useMemo(() => buildClientColorMap(employeeShifts), [employeeShifts]);
 
     const fetchClients = useCallback(async () => {
         try {
@@ -1375,7 +1414,7 @@ export default function SchedulingPage() {
                                         </tbody>
                                     </table>
                                 )}
-                                <ScheduleMatrix shifts={clientShifts} weekStart={weekStart} rowBy="employee" onEditShift={handleEditShift} overlapIds={clientOverlapIds} />
+                                <ScheduleMatrix shifts={clientShifts} weekStart={weekStart} rowBy="employee" onEditShift={handleEditShift} overlapIds={clientOverlapIds} clientColorMap={null} />
                             </>
                         )}
                     </ScheduleCard>
@@ -1465,7 +1504,7 @@ export default function SchedulingPage() {
                                         </div>
                                     );
                                 })()}
-                                <ScheduleMatrix shifts={employeeShifts} weekStart={weekStart} rowBy="client" onEditShift={handleEditShift} overlapIds={employeeOverlapIds} />
+                                <ScheduleMatrix shifts={employeeShifts} weekStart={weekStart} rowBy="client" onEditShift={handleEditShift} overlapIds={employeeOverlapIds} clientColorMap={employeeClientColorMap} />
                             </>
                         )}
                     </ScheduleCard>
@@ -1498,7 +1537,7 @@ export default function SchedulingPage() {
                             No shifts scheduled this week. Click + Create Shift to get started.
                         </div>
                     ) : (
-                        <ScheduleOverviewTable shifts={allShifts} overlapIds={allOverlapIds} onEditShift={handleEditShift} />
+                        <ScheduleOverviewTable shifts={allShifts} overlapIds={allOverlapIds} onEditShift={handleEditShift} clientColorMap={allClientColorMap} />
                     )}
                 </ScheduleCard>
 
