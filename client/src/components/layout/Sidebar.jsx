@@ -119,7 +119,7 @@ export default function Sidebar() {
                         <div className="sidebar__user-email">{user?.email}</div>
                     </div>
                 </div>
-                <button className="btn btn--outline btn--sm" style={{ margin: '8px 12px', width: 'calc(100% - 24px)' }} onClick={handleLogout} title="Sign Out">
+                <button className="sidebar__signout-btn" onClick={handleLogout} title="Sign Out">
                     {Icons.logOut} Sign Out
                 </button>
             </div>

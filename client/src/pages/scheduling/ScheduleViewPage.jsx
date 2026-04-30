@@ -4,6 +4,18 @@ import * as api from '../../api';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+// Distinct colors for visually distinguishing multiple clients
+const CLIENT_COLORS = [
+    { color: '#3B82F6', bg: '#EFF6FF', border: '#93C5FD' },   // Blue
+    { color: '#8B5CF6', bg: '#F5F3FF', border: '#C4B5FD' },   // Purple
+    { color: '#06B6D4', bg: '#ECFEFF', border: '#67E8F9' },   // Cyan
+    { color: '#F59E0B', bg: '#FFFBEB', border: '#FCD34D' },   // Amber
+    { color: '#EC4899', bg: '#FDF2F8', border: '#F9A8D4' },   // Pink
+    { color: '#22C55E', bg: '#F0FDF4', border: '#86EFAC' },   // Green
+    { color: '#EF4444', bg: '#FEF2F2', border: '#FCA5A5' },   // Red
+    { color: '#6366F1', bg: '#EEF2FF', border: '#A5B4FC' },   // Indigo
+];
+
 function hhmm12(t) {
     if (!t) return '';
     const [h, m] = t.split(':').map(Number);
@@ -77,6 +89,18 @@ export default function ScheduleViewPage() {
         return map;
     }, [data]);
 
+    // Assign a distinct color to each unique client
+    const clientColorMap = useMemo(() => {
+        if (!data) return {};
+        const uniqueClients = [...new Set(data.shifts.map(s => s.client?.clientName).filter(Boolean))].sort();
+        const map = {};
+        uniqueClients.forEach((name, i) => {
+            map[name] = CLIENT_COLORS[i % CLIENT_COLORS.length];
+        });
+        return map;
+    }, [data]);
+    const hasMultipleClients = Object.keys(clientColorMap).length > 1;
+
     const handlePrevWeek = () => setWeekStart(addDays(weekStart, -7));
     const handleNextWeek = () => setWeekStart(addDays(weekStart, 7));
     const handleThisWeek = () => setWeekStart(getSunday(localToday()));
@@ -142,8 +166,10 @@ export default function ScheduleViewPage() {
                                 <tbody>
                                     {weekDays.filter(({ date }) => (shiftsByDate[date] || []).length > 0).map(({ date, dayName: dn }) => {
                                         const dayShifts = shiftsByDate[date];
-                                        return dayShifts.map((shift, idx) => (
-                                            <tr key={shift.id}>
+                                        return dayShifts.map((shift, idx) => {
+                                            const cc = hasMultipleClients && shift.client?.clientName ? clientColorMap[shift.client.clientName] : null;
+                                            return (
+                                            <tr key={shift.id} style={cc ? { borderLeft: `3px solid ${cc.color}`, background: cc.bg } : undefined}>
                                                 {idx === 0 && (
                                                     <td rowSpan={dayShifts.length} className="schedule-view-table__day">
                                                         <span className="schedule-view-table__day-name">{dn}</span>
@@ -151,7 +177,10 @@ export default function ScheduleViewPage() {
                                                     </td>
                                                 )}
                                                 <td className="schedule-view-table__time" data-label="Time">{hhmm12(shift.startTime)} - {hhmm12(shift.endTime)}</td>
-                                                <td className="schedule-view-table__client" data-label="Client">{shift.client?.clientName || '—'}</td>
+                                                <td className="schedule-view-table__client" data-label="Client">
+                                                    {cc && <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: cc.color, marginRight: 6, verticalAlign: 'middle' }} />}
+                                                    {shift.client?.clientName || '—'}
+                                                </td>
                                                 <td data-label="Service">
                                                     <span className="schedule-view-table__service-badge">
                                                         {shift.serviceLabel || shift.serviceCode}
@@ -170,10 +199,22 @@ export default function ScheduleViewPage() {
                                                     )}
                                                 </td>
                                             </tr>
-                                        ));
+                                        );});
                                     })}
                                 </tbody>
                             </table>
+                        )}
+
+                        {/* Client color legend */}
+                        {hasMultipleClients && data.shifts.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', padding: '12px 0', borderTop: '1px solid hsl(var(--border))', marginTop: 8 }}>
+                                {Object.entries(clientColorMap).map(([name, cc]) => (
+                                    <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: cc.color, flexShrink: 0 }} />
+                                        <span style={{ color: 'hsl(var(--foreground))' }}>{name}</span>
+                                    </div>
+                                ))}
+                            </div>
                         )}
 
                         {/* Footer */}
