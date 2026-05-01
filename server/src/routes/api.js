@@ -110,6 +110,19 @@ const { sendSchedules, getNotificationStatus, getScheduleConfirm, confirmSchedul
 const { createLink, listLinks, deleteLink, getScheduleView } = require('../controllers/employeeScheduleLinkController');
 const { getAuditLogs, getEntityAuditLogs } = require('../controllers/auditController');
 const { exportBackup } = require('../controllers/backupController');
+const {
+    addCareTeamMember,
+    removeCareTeamMember,
+    listHospitalVisits,
+    createHospitalVisit,
+    updateHospitalVisit,
+    deleteHospitalVisit,
+    listIncidents,
+    createIncident,
+    updateIncident,
+    deleteIncident,
+} = require('../controllers/carePlanController');
+const { uploadDocument, downloadDocument, deleteDocument } = require('../controllers/documentController');
 const { authenticate, requireRole } = require('../middleware/authMiddleware');
 
 const router = express.Router();
@@ -162,6 +175,27 @@ router.delete('/clients/:id/permanent', requireRole('admin'), permanentlyDeleteC
 router.post('/clients/:clientId/authorizations', requireRole('admin', 'user', 'pca'), createAuthorization);
 router.put('/authorizations/:id', requireRole('admin', 'user', 'pca'), updateAuthorization);
 router.delete('/authorizations/:id', requireRole('admin', 'user', 'pca'), deleteAuthorization);
+
+// Care Team
+router.post('/clients/:clientId/care-team', requireRole('admin', 'user', 'pca'), addCareTeamMember);
+router.delete('/clients/:clientId/care-team/:id', requireRole('admin', 'user', 'pca'), removeCareTeamMember);
+
+// Client Documents
+router.post('/clients/:clientId/documents', requireRole('admin', 'user', 'pca'), upload.single('file'), uploadDocument);
+router.get('/documents/:id/download', requireRole('admin', 'user', 'pca'), downloadDocument);
+router.delete('/documents/:id', requireRole('admin', 'user', 'pca'), deleteDocument);
+
+// Hospital Visits
+router.get('/clients/:clientId/hospital-visits', requireRole('admin', 'user', 'pca'), listHospitalVisits);
+router.post('/clients/:clientId/hospital-visits', requireRole('admin', 'user', 'pca'), createHospitalVisit);
+router.put('/hospital-visits/:id', requireRole('admin', 'user', 'pca'), updateHospitalVisit);
+router.delete('/hospital-visits/:id', requireRole('admin', 'user', 'pca'), deleteHospitalVisit);
+
+// Incidents
+router.get('/clients/:clientId/incidents', requireRole('admin', 'user', 'pca'), listIncidents);
+router.post('/clients/:clientId/incidents', requireRole('admin', 'user', 'pca'), createIncident);
+router.put('/incidents/:id', requireRole('admin', 'user', 'pca'), updateIncident);
+router.delete('/incidents/:id', requireRole('admin', 'user', 'pca'), deleteIncident);
 
 // Insurance Type routes
 router.get('/insurance-types', requireRole('admin', 'user', 'pca'), listInsuranceTypes);

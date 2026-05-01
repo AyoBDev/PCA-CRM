@@ -23,7 +23,13 @@ async function getClient(req, res, next) {
         const id = Number(req.params.id);
         const client = await prisma.client.findUnique({
             where: { id },
-            include: { authorizations: { orderBy: { createdAt: 'asc' } } },
+            include: {
+                authorizations: { orderBy: { createdAt: 'asc' } },
+                careTeam: { include: { employee: true }, orderBy: { assignedAt: 'desc' } },
+                documents: { include: { uploader: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } },
+                hospitalVisits: { orderBy: { visitDate: 'desc' } },
+                incidents: { orderBy: { incidentDate: 'desc' } },
+            },
         });
         if (!client) return res.status(404).json({ error: 'Client not found' });
         res.json(enrichClient(client));
