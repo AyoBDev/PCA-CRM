@@ -133,6 +133,65 @@ export const updateAuthorization = (id, data) =>
 export const deleteAuthorization = (id) =>
     request(`/authorizations/${id}`, { method: 'DELETE' });
 
+// Care Team
+export const addCareTeamMember = (clientId, data) =>
+    request(`/clients/${clientId}/care-team`, { method: 'POST', body: JSON.stringify(data) });
+export const removeCareTeamMember = (clientId, id) =>
+    request(`/clients/${clientId}/care-team/${id}`, { method: 'DELETE' });
+
+// Client Documents
+export const uploadDocument = (clientId, formData) => {
+    const headers = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    return fetch(`${BASE}/clients/${clientId}/documents`, {
+        method: 'POST',
+        headers,
+        body: formData,
+    }).then(async (res) => {
+        if (res.status === 401) {
+            clearToken();
+            window.dispatchEvent(new Event('auth:logout'));
+            throw new Error('Session expired. Please log in again.');
+        }
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.error || `HTTP ${res.status}`);
+        }
+        return res.json();
+    });
+};
+export const downloadDocument = (id) => {
+    const headers = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    return fetch(`${BASE}/documents/${id}/download`, { headers })
+        .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.blob();
+        });
+};
+export const deleteDocument = (id) =>
+    request(`/documents/${id}`, { method: 'DELETE' });
+
+// Hospital Visits
+export const getHospitalVisits = (clientId) =>
+    request(`/clients/${clientId}/hospital-visits`);
+export const createHospitalVisit = (clientId, data) =>
+    request(`/clients/${clientId}/hospital-visits`, { method: 'POST', body: JSON.stringify(data) });
+export const updateHospitalVisit = (id, data) =>
+    request(`/hospital-visits/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const deleteHospitalVisit = (id) =>
+    request(`/hospital-visits/${id}`, { method: 'DELETE' });
+
+// Incidents
+export const getIncidents = (clientId) =>
+    request(`/clients/${clientId}/incidents`);
+export const createIncident = (clientId, data) =>
+    request(`/clients/${clientId}/incidents`, { method: 'POST', body: JSON.stringify(data) });
+export const updateIncident = (id, data) =>
+    request(`/incidents/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const deleteIncident = (id) =>
+    request(`/incidents/${id}`, { method: 'DELETE' });
+
 // Insurance Types
 export const getInsuranceTypes = ({ archived } = {}) => request(`/insurance-types${archived ? '?archived=true' : ''}`);
 export const createInsuranceType = (data) =>
