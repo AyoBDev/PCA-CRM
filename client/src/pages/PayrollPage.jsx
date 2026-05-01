@@ -532,6 +532,26 @@ const PayrollEditableNotes = memo(function PayrollEditableNotes({ visit, onChang
 // ────────────────────────────────────────
 // PayrollRunDetail
 // ────────────────────────────────────────
+// Service code sort order: PCS → S5125/S5130 (interleaved by date) → S5150 → S5135 → SDPC
+const SVC_ORDER = { PCS: 0, S5125: 1, S5130: 1, S5150: 2, S5135: 3, SDPC: 4 };
+const SVC_NAME_RULES = [
+    { terms: ['self', 'directed'],  order: 4 },
+    { terms: ['self', 'direct'],    order: 4 },
+    { terms: ['personal', 'care'],  order: 0 },
+    { terms: ['homemaker'],         order: 1 },
+    { terms: ['attendant'],         order: 1 },
+    { terms: ['companion'],         order: 3 },
+    { terms: ['respite'],           order: 2 },
+];
+function getKnownSvcOrder(v) {
+    if (v.serviceCode && SVC_ORDER[v.serviceCode] != null) return SVC_ORDER[v.serviceCode];
+    const lower = (v.service || '').toLowerCase();
+    for (const rule of SVC_NAME_RULES) {
+        if (rule.terms.every((t) => lower.includes(t))) return rule.order;
+    }
+    return null;
+}
+const isUnknownClient = (name) => !name || name === '(Unknown Client)' || /^\d/.test(name) || /^\(/.test(name);
 function PayrollRunDetail({ run, onVisitChange, authMap, readOnly }) {
     const [search, setSearch] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -555,49 +575,42 @@ function PayrollRunDetail({ run, onVisitChange, authMap, readOnly }) {
         return map;
     }, [run.visits]);
 
-    const visibleVisits = useMemo(() => {
-        // Exclude mergedInto reference rows — they are shown inline under their parent
+    // Precompute lowercase names for fast search (avoids repeated toLowerCase on each keystroke)
+    const searchableVisits = useMemo(() => {
         const all = run.visits.filter((v) => v.mergedInto == null);
+        return all.map(v => ({
+            v,
+            clientLower: (v.clientName || '').toLowerCase(),
+            empLower: (v.employeeName || '').toLowerCase(),
+        }));
+    }, [run.visits]);
 
-        const byFilter = legendFilter ? all.filter((v) => {
-            if (legendFilter === 'void')        return v.voidFlag;
-            if (legendFilter === 'incomplete')  return v.isIncomplete;
-            if (legendFilter === 'unauthorized') return v.isUnauthorized;
-            if (legendFilter === 'overlap')     return !!v.overlapId;
-            if (legendFilter === 'overcap')     return v.unitsRaw > 28 && !v.voidFlag;
-            if (legendFilter === 'timeflag')    return v.earlyCallIn || v.lateCallOut || v.nextDayCallOut;
-            if (legendFilter === 'review')      return v.needsReview;
-            return true;
-        }) : all;
+    const visibleVisits = useMemo(() => {
+        let filtered = searchableVisits;
 
-        if (!debouncedSearch.trim()) return byFilter;
-        const q = debouncedSearch.trim().toLowerCase();
-        return byFilter.filter((v) =>
-            (v.clientName || '').toLowerCase().includes(q) ||
-            (v.employeeName || '').toLowerCase().includes(q)
-        );
-    }, [run.visits, debouncedSearch, legendFilter]);
-
-    // Service code sort order: PCS → S5125/S5130 (interleaved by date) → S5150 → S5135 → SDPC
-    // S5125 (Attendant) and S5130 (Homemaker) share priority — they pair on the same day in EVV
-    const svcOrder = { PCS: 0, S5125: 1, S5130: 1, S5150: 2, S5135: 3, SDPC: 4 };
-    const svcNameRules = [
-        { terms: ['self', 'directed'],  order: 4 },
-        { terms: ['self', 'direct'],    order: 4 },
-        { terms: ['personal', 'care'],  order: 0 },
-        { terms: ['homemaker'],         order: 1 },
-        { terms: ['attendant'],         order: 1 },
-        { terms: ['companion'],         order: 3 },
-        { terms: ['respite'],           order: 2 },
-    ];
-    const getKnownSvcOrder = (v) => {
-        if (v.serviceCode && svcOrder[v.serviceCode] != null) return svcOrder[v.serviceCode];
-        const lower = (v.service || '').toLowerCase();
-        for (const rule of svcNameRules) {
-            if (rule.terms.every((t) => lower.includes(t))) return rule.order;
+        if (legendFilter) {
+            filtered = filtered.filter(({ v }) => {
+                if (legendFilter === 'void')        return v.voidFlag;
+                if (legendFilter === 'incomplete')  return v.isIncomplete;
+                if (legendFilter === 'unauthorized') return v.isUnauthorized;
+                if (legendFilter === 'overlap')     return !!v.overlapId;
+                if (legendFilter === 'overcap')     return v.unitsRaw > 28 && !v.voidFlag;
+                if (legendFilter === 'timeflag')    return v.earlyCallIn || v.lateCallOut || v.nextDayCallOut;
+                if (legendFilter === 'review')      return v.needsReview;
+                return true;
+            });
         }
-        return null; // truly unknown service
-    };
+
+        if (debouncedSearch.trim()) {
+            const q = debouncedSearch.trim().toLowerCase();
+            filtered = filtered.filter(({ clientLower, empLower }) =>
+                clientLower.includes(q) || empLower.includes(q)
+            );
+        }
+
+        return filtered.map(({ v }) => v);
+    }, [searchableVisits, debouncedSearch, legendFilter]);
+
     const clientGroups = useMemo(() => {
         const map = new Map();
         for (const v of visibleVisits) {
@@ -611,16 +624,18 @@ function PayrollRunDetail({ run, onVisitChange, authMap, readOnly }) {
         for (const [, arr] of map) {
             const orders = arr.map(v => getKnownSvcOrder(v));
 
+            // Precompute date strings to avoid repeated Date parsing in O(n²) loop
+            const dateStrs = arr.map(v => v.visitDate ? new Date(v.visitDate).toISOString().slice(0, 10) : '');
+
             // Resolve unknown service orders by matching to same-date group
             for (let i = 0; i < orders.length; i++) {
                 if (orders[i] != null) continue;
-                const vDateStr = arr[i].visitDate ? new Date(arr[i].visitDate).toISOString().slice(0, 10) : '';
+                const vDateStr = dateStrs[i];
                 // Count how many known visits each service group has on the same date
                 const groupCounts = new Map();
                 for (let j = 0; j < arr.length; j++) {
                     if (j === i || orders[j] == null) continue;
-                    const jDateStr = arr[j].visitDate ? new Date(arr[j].visitDate).toISOString().slice(0, 10) : '';
-                    if (jDateStr === vDateStr) {
+                    if (dateStrs[j] === vDateStr) {
                         groupCounts.set(orders[j], (groupCounts.get(orders[j]) || 0) + 1);
                     }
                 }
@@ -653,7 +668,6 @@ function PayrollRunDetail({ run, onVisitChange, authMap, readOnly }) {
             for (let i = 0; i < arr.length; i++) arr[i] = sortKeys[i].v;
         }
         // Sort client groups: real names first (alphabetical), then unknown/phone at bottom
-        const isUnknownClient = (name) => !name || name === '(Unknown Client)' || /^\d/.test(name) || /^\(/.test(name);
         return [...map.entries()].sort((a, b) => {
             const aBottom = isUnknownClient(a[0]);
             const bBottom = isUnknownClient(b[0]);

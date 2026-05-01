@@ -2689,12 +2689,13 @@ button.sdr-section-tag:hover:not(:disabled) {
 
 /* ── PCA Schedule View (public page) ── */
 .signing-card.schedule-view-card {
-  max-width: 1100px;
+  max-width: 1200px;
   width: 100%;
   box-sizing: border-box;
   padding: 28px 32px;
   margin-top: 24px;
   text-align: left;
+  overflow-x: auto;
 }
 
 .schedule-view-table {
@@ -2721,6 +2722,7 @@ button.sdr-section-tag:hover:not(:disabled) {
   border-bottom: 1px solid hsl(var(--border));
   vertical-align: top;
   line-height: 1.5;
+  white-space: nowrap;
 }
 
 .schedule-view-table tbody tr:last-child td {
@@ -2735,13 +2737,15 @@ button.sdr-section-tag:hover:not(:disabled) {
 
 .schedule-view-table__day-name {
   display: block;
-  font-weight: 600;
-  font-size: 14px;
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: 0.3px;
 }
 
 .schedule-view-table__day-date {
   display: block;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 600;
   color: hsl(var(--muted-foreground));
   margin-top: 2px;
 }
@@ -2771,6 +2775,8 @@ button.sdr-section-tag:hover:not(:disabled) {
   font-size: 13px;
   color: hsl(var(--muted-foreground));
   word-break: break-word;
+  white-space: normal;
+  min-width: 180px;
 }
 
 .schedule-view-table__meta {
@@ -2847,6 +2853,79 @@ button.sdr-section-tag:hover:not(:disabled) {
   .schedule-view-table__details::before {
     display: block;
     margin-bottom: 2px;
+  }
+}
+
+/* ── Schedule View: Hours Summary ── */
+.schedule-view-hours {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: hsl(var(--muted) / 0.4);
+  border-radius: 8px;
+  border: 1px solid hsl(var(--border));
+}
+.schedule-view-hours__weekly {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-right: 16px;
+  border-right: 1px solid hsl(var(--border));
+}
+.schedule-view-hours__weekly-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.schedule-view-hours__weekly-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+}
+.schedule-view-hours__daily {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  justify-content: space-around;
+}
+.schedule-view-hours__day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 36px;
+}
+.schedule-view-hours__day-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+}
+.schedule-view-hours__day-hrs {
+  font-size: 14px;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+}
+.schedule-view-hours__day--active .schedule-view-hours__day-name {
+  color: hsl(var(--foreground));
+}
+.schedule-view-hours__day--active .schedule-view-hours__day-hrs {
+  color: hsl(217 91% 50%);
+  font-weight: 700;
+}
+@media (max-width: 640px) {
+  .schedule-view-hours {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .schedule-view-hours__weekly {
+    padding-right: 0;
+    border-right: none;
+    padding-bottom: 8px;
+    border-bottom: 1px solid hsl(var(--border));
+    width: 100%;
   }
 }
 

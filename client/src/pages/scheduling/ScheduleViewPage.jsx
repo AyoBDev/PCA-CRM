@@ -23,6 +23,15 @@ function hhmm12(t) {
     return `${hr}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
 }
 
+function computeShiftHours(startTime, endTime) {
+    if (!startTime || !endTime) return 0;
+    const [sh, sm] = startTime.split(':').map(Number);
+    const [eh, em] = endTime.split(':').map(Number);
+    let startMin = sh * 60 + sm, endMin = eh * 60 + em;
+    if (endMin <= startMin) endMin += 24 * 60;
+    return Math.round(((endMin - startMin) / 60) * 100) / 100;
+}
+
 function localToday() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -101,6 +110,20 @@ export default function ScheduleViewPage() {
     }, [data]);
     const hasMultipleClients = Object.keys(clientColorMap).length > 1;
 
+    // Compute daily and weekly total hours
+    const hoursSummary = useMemo(() => {
+        if (!data || data.shifts.length === 0) return null;
+        const dailyMap = {};
+        let weeklyTotal = 0;
+        for (const s of data.shifts) {
+            const d = s.shiftDate.split('T')[0];
+            const hrs = computeShiftHours(s.startTime, s.endTime);
+            dailyMap[d] = (dailyMap[d] || 0) + hrs;
+            weeklyTotal += hrs;
+        }
+        return { daily: dailyMap, weekly: Math.round(weeklyTotal * 100) / 100 };
+    }, [data]);
+
     const handlePrevWeek = () => setWeekStart(addDays(weekStart, -7));
     const handleNextWeek = () => setWeekStart(addDays(weekStart, 7));
     const handleThisWeek = () => setWeekStart(getSunday(localToday()));
@@ -151,6 +174,27 @@ export default function ScheduleViewPage() {
                                 No shifts scheduled for this week.
                             </div>
                         ) : (
+                            <>
+                            {/* Hours summary */}
+                            {hoursSummary && (
+                                <div className="schedule-view-hours">
+                                    <div className="schedule-view-hours__weekly">
+                                        <span className="schedule-view-hours__weekly-label">Weekly Total</span>
+                                        <span className="schedule-view-hours__weekly-value">{hoursSummary.weekly} hrs</span>
+                                    </div>
+                                    <div className="schedule-view-hours__daily">
+                                        {weekDays.map(({ date, dayName: dn }) => {
+                                            const dayHrs = Math.round((hoursSummary.daily[date] || 0) * 100) / 100;
+                                            return (
+                                                <div key={date} className={`schedule-view-hours__day ${dayHrs > 0 ? 'schedule-view-hours__day--active' : ''}`}>
+                                                    <span className="schedule-view-hours__day-name">{dn.slice(0, 3)}</span>
+                                                    <span className="schedule-view-hours__day-hrs">{dayHrs > 0 ? `${dayHrs}h` : '—'}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                             <table className="schedule-view-table">
                                 <thead>
                                     <tr>
@@ -203,6 +247,7 @@ export default function ScheduleViewPage() {
                                     })}
                                 </tbody>
                             </table>
+                            </>
                         )}
 
                         {/* Client color legend */}

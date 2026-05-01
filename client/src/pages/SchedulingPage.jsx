@@ -60,22 +60,24 @@ function toLocalDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete, onClose, defaultDate, defaultClientId, defaultEmployeeId, defaultStartTime, weekStart: propWeekStart }) {
+function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete, onClose, defaultDate, defaultClientId, defaultEmployeeId, defaultStartTime, weekStart: propWeekStart, draft, onClearDraft }) {
     const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const isEdit = !!shift;
 
-    // Shared fields
-    const [clientId, setClientId] = useState(shift?.clientId || defaultClientId || '');
-    const [employeeId, setEmployeeId] = useState(shift?.employeeId || defaultEmployeeId || '');
-    const [notes, setNotes] = useState(shift?.notes || '');
+    // Shared fields — restore from draft if available (create mode only)
+    const d = !isEdit && draft;
+    const [clientId, setClientId] = useState(d?.clientId || shift?.clientId || defaultClientId || '');
+    const [employeeId, setEmployeeId] = useState(d?.employeeId || shift?.employeeId || defaultEmployeeId || '');
+    const [notes, setNotes] = useState(d?.notes || shift?.notes || '');
     const [status, setStatus] = useState(shift?.status || 'scheduled');
     const [saving, setSaving] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
-    const [accountNumber, setAccountNumber] = useState(shift?.accountNumber || '');
-    const [sandataClientId, setSandataClientId] = useState(shift?.sandataClientId || '');
+    const [accountNumber, setAccountNumber] = useState(d?.accountNumber || shift?.accountNumber || '');
+    const [sandataClientId, setSandataClientId] = useState(d?.sandataClientId || shift?.sandataClientId || '');
 
     // Employee search
     const [empSearch, setEmpSearch] = useState(() => {
+        if (d?.empSearch) return d.empSearch;
         if (shift?.employeeId) { const e = employees.find(e => e.id === shift.employeeId); return e ? e.name : ''; }
         if (defaultEmployeeId) { const e = employees.find(e => e.id === Number(defaultEmployeeId)); return e ? e.name : ''; }
         return '';
@@ -116,8 +118,11 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
             if (auth.authorizationEndDate && new Date(auth.authorizationEndDate) < now) continue;
             const code = deriveCode(auth);
             if (!code) continue;
-            if (!map[code]) map[code] = { units: 0 };
+            if (!map[code]) map[code] = { units: 0, category: '' };
             map[code].units += auth.authorizedUnits || 0;
+            if (auth.serviceCategory && !map[code].category) {
+                map[code].category = auth.serviceCategory;
+            }
         }
         return map;
     }, [selectedClient]);
@@ -141,7 +146,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
     }
 
     const [dayEntries, setDayEntries] = useState(() =>
-        DAY_NAMES.map((_, i) => ({
+        d?.dayEntries || DAY_NAMES.map((_, i) => ({
             enabled: defaultDate ? weekDates[i] === defaultDate : false,
             serviceCode: 'PCS',
             startTime: defaultStartTime || '09:00',
@@ -151,8 +156,8 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
         }))
     );
 
-    const [recurring, setRecurring] = useState(false);
-    const [repeatUntil, setRepeatUntil] = useState('');
+    const [recurring, setRecurring] = useState(d?.recurring || false);
+    const [repeatUntil, setRepeatUntil] = useState(d?.repeatUntil || '');
 
     // Edit mode: repeat weekly (retroactive)
     const [editRepeat, setEditRepeat] = useState(false);
@@ -275,6 +280,40 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
         return Math.floor((end - start) / (7 * 24 * 60 * 60 * 1000));
     })();
 
+    // Collect current form state as a draft snapshot
+    const collectDraft = () => ({
+        clientId, employeeId, empSearch, notes, accountNumber, sandataClientId,
+        dayEntries, recurring, repeatUntil,
+    });
+
+    const handleClose = () => {
+        if (!isEdit) {
+            onClose(collectDraft());
+        } else {
+            onClose();
+        }
+    };
+
+    const handleClear = () => {
+        setClientId('');
+        setEmployeeId('');
+        setEmpSearch('');
+        setNotes('');
+        setAccountNumber('');
+        setSandataClientId('');
+        setRecurring(false);
+        setRepeatUntil('');
+        setDayEntries(DAY_NAMES.map(() => ({
+            enabled: false,
+            serviceCode: 'PCS',
+            startTime: '09:00',
+            endTime: '13:00',
+            accountNumber: '',
+            sandataClientId: '',
+        })));
+        if (onClearDraft) onClearDraft();
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!empSearch.trim()) return;
@@ -344,7 +383,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
     };
 
     return (
-        <Modal onClose={onClose}>
+        <Modal onClose={handleClose}>
             <h2 className="modal__title">{isEdit ? 'Edit Shift' : 'Create Weekly Schedule'}</h2>
             <p className="modal__desc">{isEdit ? 'Update the shift details below.' : 'Select days, set service type and times for each.'}</p>
             <form onSubmit={handleSubmit}>
@@ -423,6 +462,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                     <table className="sched-modal-auth-table">
                         <thead>
                             <tr>
+                                <th>Category</th>
                                 <th>Service</th>
                                 <th>Units</th>
                                 <th>Hours</th>
@@ -431,14 +471,16 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                         <tbody>
                             {authorizedServices.map(code => {
                                 const info = SERVICE_COLORS[code] || { color: '#6B7280', label: code };
-                                const units = authorizedServiceMap[code]?.units || 0;
+                                const svcData = authorizedServiceMap[code];
+                                const units = svcData?.units || 0;
                                 const hrs = Math.round((units / 4) * 100) / 100;
                                 return (
                                     <tr key={code}>
+                                        <td style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>{svcData?.category || '—'}</td>
                                         <td>
                                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                                                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: info.color, flexShrink: 0 }} />
-                                                {info.label}
+                                                {info.label} ({code})
                                             </span>
                                         </td>
                                         <td>{units}</td>
@@ -479,7 +521,8 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                                         {clientId && authorizedServices.length > 0
                                             ? authorizedServices.map(code => {
                                                 const info = SERVICE_COLORS[code] || { label: code };
-                                                return <option key={code} value={code}>{info.label} ({code})</option>;
+                                                const cat = authorizedServiceMap[code]?.category;
+                                                return <option key={code} value={code}>{cat ? `${cat} — ` : ''}{info.label} ({code})</option>;
                                             })
                                             : Object.entries(SERVICE_COLORS).map(([code, info]) => (
                                                 <option key={code} value={code}>{info.label} ({code})</option>
@@ -583,7 +626,8 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                                                             {clientId && authorizedServices.length > 0
                                                                 ? authorizedServices.map(code => {
                                                                     const info = SERVICE_COLORS[code] || { label: code };
-                                                                    return <option key={code} value={code}>{info.label}</option>;
+                                                                    const cat = authorizedServiceMap[code]?.category;
+                                                                    return <option key={code} value={code}>{cat ? `${cat} — ` : ''}{info.label}</option>;
                                                                 })
                                                                 : Object.entries(SERVICE_COLORS).map(([code, info]) => (
                                                                     <option key={code} value={code}>{info.label}</option>
@@ -709,7 +753,12 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                             )}
                         </div>
                     )}
-                    <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
+                    {!isEdit && (clientId || employeeId || empSearch || dayEntries.some(de => de.enabled)) && (
+                        <button type="button" className="btn btn--outline" style={{ marginRight: 'auto', color: 'hsl(var(--muted-foreground))', fontSize: 12 }} onClick={handleClear}>
+                            Clear
+                        </button>
+                    )}
+                    <button type="button" className="btn btn--outline" onClick={handleClose}>Cancel</button>
                     <button type="submit" className="btn btn--primary" disabled={saving || (!isEdit && enabledCount === 0) || (clientId && authorizedServices.length === 0)}>
                         {saving ? 'Saving…' : isEdit ? 'Update Shift' : `Create ${enabledCount} Shift${enabledCount !== 1 ? 's' : ''}`}
                     </button>
@@ -1168,6 +1217,7 @@ export default function SchedulingPage() {
         return toLocalDateStr(d);
     });
     const [modal, setModal] = useState(null);
+    const createDraftRef = useRef(null);
     const [summaryViewBy, setSummaryViewBy] = useState('client');
 
     // Build client color maps for visual distinction
@@ -1279,6 +1329,7 @@ export default function SchedulingPage() {
                 else showToast('Shift created');
             }
             setModal(null);
+            createDraftRef.current = null;
             refetchAll();
             fetchEmployees();
         } catch (err) {
@@ -1626,7 +1677,12 @@ export default function SchedulingPage() {
                     onSave={handleSaveShift}
                     onRepeat={handleRepeatShift}
                     onDelete={handleDeleteShift}
-                    onClose={() => setModal(null)}
+                    onClose={(draft) => {
+                        if (draft && !modal.shift) createDraftRef.current = draft;
+                        setModal(null);
+                    }}
+                    draft={!modal.shift ? createDraftRef.current : null}
+                    onClearDraft={() => { createDraftRef.current = null; }}
                 />
             )}
 
