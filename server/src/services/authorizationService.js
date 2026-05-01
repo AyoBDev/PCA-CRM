@@ -139,6 +139,44 @@ function enrichClient(client) {
   };
 }
 
+/**
+ * Filter an array of authorization records to those active during a given week.
+ * Uses date range overlap: authStart <= weekEnd AND authEnd >= weekStart.
+ * Auths with null dates are treated as open-ended (always active).
+ *
+ * @param {Array} auths - authorization records with authorizationStartDate / authorizationEndDate
+ * @param {Date|string} weekStart - first day of the week (Sunday)
+ * @param {Date|string} weekEnd   - last day of the week (Saturday)
+ * @returns {Array} filtered authorizations active during the week
+ */
+function filterAuthsByWeek(auths, weekStart, weekEnd) {
+  const ws = weekStart instanceof Date ? weekStart : new Date(weekStart);
+  const we = weekEnd instanceof Date ? weekEnd : new Date(weekEnd);
+  // Normalize to UTC midnight for consistent comparison
+  const wsMs = Date.UTC(ws.getUTCFullYear(), ws.getUTCMonth(), ws.getUTCDate());
+  const weMs = Date.UTC(we.getUTCFullYear(), we.getUTCMonth(), we.getUTCDate());
+
+  return auths.filter(auth => {
+    // If no start date, treat as active from the beginning of time
+    let startOk = true;
+    if (auth.authorizationStartDate) {
+      const sd = new Date(auth.authorizationStartDate);
+      const sdMs = Date.UTC(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate());
+      // Auth must start on or before the week ends
+      startOk = sdMs <= weMs;
+    }
+    // If no end date, treat as active indefinitely
+    let endOk = true;
+    if (auth.authorizationEndDate) {
+      const ed = new Date(auth.authorizationEndDate);
+      const edMs = Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate());
+      // Auth must end on or after the week starts
+      endOk = edMs >= wsMs;
+    }
+    return startOk && endOk;
+  });
+}
+
 module.exports = {
   REMINDER_WINDOWS,
   STATUS_RANK,
@@ -148,4 +186,5 @@ module.exports = {
   computeStatus,
   enrichAuthorization,
   enrichClient,
+  filterAuthsByWeek,
 };

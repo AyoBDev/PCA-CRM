@@ -131,7 +131,7 @@ export default function UsersPage() {
                         </button>
                     </div>
                 )}
-                {users.length === 0 ? (
+                {users.filter((u) => u.role !== 'admin').length === 0 ? (
                     <div className="empty-state">
                         <div className="empty-state__icon">{Icons.users}</div>
                         <div className="empty-state__title">{showArchived ? 'No archived users' : 'No users yet'}</div>
@@ -142,7 +142,7 @@ export default function UsersPage() {
                         <table className="data-table">
                             <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
                             <tbody>
-                                {users.map((u) => (
+                                {users.filter((u) => u.role !== 'admin').map((u) => (
                                     <tr key={u.id}>
                                         <td style={{ fontWeight: 500 }}>{u.name}</td>
                                         <td>{u.email}</td>
@@ -199,7 +199,6 @@ export default function UsersPage() {
                             <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
                                 <option value="pca">PCA (Caregiver)</option>
                                 <option value="user">User (Staff)</option>
-                                <option value="admin">Admin</option>
                             </select>
                         </div>
                         <div className="form-actions">

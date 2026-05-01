@@ -1,5 +1,6 @@
 const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
+const { filterAuthsByWeek } = require('../services/authorizationService');
 
 // ── Activity definitions (match the paper form) ──────
 const ADL_ACTIVITIES = [
@@ -68,24 +69,37 @@ async function listTimesheets(req, res, next) {
             orderBy: { weekStart: 'desc' },
         });
 
-        // Build auth limits per client for the timesheets in view
+        // Build auth limits per client, filtered by each timesheet's week dates
         const clientIds = [...new Set(timesheets.map(t => t.clientId).filter(Boolean))];
         const auths = clientIds.length > 0 ? await prisma.authorization.findMany({
             where: { clientId: { in: clientIds } },
-            select: { clientId: true, serviceCode: true, serviceName: true, authorizedUnits: true },
+            select: { clientId: true, serviceCode: true, serviceName: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true },
         }) : [];
-        const authByClient = {};
+        // Group all auths by clientId for efficient per-timesheet filtering
+        const authsByClientId = {};
         for (const a of auths) {
-            const svc = deriveTimesheetService(a);
-            if (!svc) continue;
-            if (!authByClient[a.clientId]) authByClient[a.clientId] = {};
-            authByClient[a.clientId][svc] = (authByClient[a.clientId][svc] || 0) + (a.authorizedUnits || 0);
+            if (!authsByClientId[a.clientId]) authsByClientId[a.clientId] = [];
+            authsByClientId[a.clientId].push(a);
         }
 
-        const enriched = timesheets.map(ts => ({
-            ...ts,
-            authLimits: authByClient[ts.clientId] || null,
-        }));
+        const enriched = timesheets.map(ts => {
+            if (!ts.clientId || !authsByClientId[ts.clientId]) {
+                return { ...ts, authLimits: null };
+            }
+            // Filter auths to those active during this timesheet's week
+            const wsDate = new Date(ts.weekStart);
+            const weDate = new Date(wsDate);
+            weDate.setUTCDate(weDate.getUTCDate() + 6);
+            const activeAuths = filterAuthsByWeek(authsByClientId[ts.clientId], wsDate, weDate);
+
+            const limits = {};
+            for (const a of activeAuths) {
+                const svc = deriveTimesheetService(a);
+                if (!svc) continue;
+                limits[svc] = (limits[svc] || 0) + (a.authorizedUnits || 0);
+            }
+            return { ...ts, authLimits: Object.keys(limits).length > 0 ? limits : null };
+        });
 
         res.json(enriched);
     } catch (err) { next(err); }

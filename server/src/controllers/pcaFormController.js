@@ -1,4 +1,5 @@
 const prisma = require('../lib/prisma');
+const { filterAuthsByWeek } = require('../services/authorizationService');
 
 function roundTo15(timeStr) {
   if (!timeStr) return null;
@@ -138,8 +139,11 @@ async function getPcaForm(req, res, next) {
 
     const enabledServices = JSON.parse(link.client.enabledServices || '["PAS","Homemaker"]');
 
-    // Fetch active authorizations for this client
-    const authorizations = await prisma.authorization.findMany({
+    // Fetch authorizations for this client, filtered to the viewed week
+    const weekEnd = new Date(weekStart);
+    weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
+
+    const allAuthorizations = await prisma.authorization.findMany({
       where: {
         clientId: link.clientId,
       },
@@ -151,6 +155,9 @@ async function getPcaForm(req, res, next) {
         authorizationEndDate: true,
       },
     });
+
+    // Filter to authorizations active during this timesheet's week
+    const authorizations = filterAuthsByWeek(allAuthorizations, weekStart, weekEnd);
 
     // Build a map of service → authorized weekly units
     // Service code mapping: PCS/PAS → PAS, S5130 → Homemaker, S5150 → Respite
@@ -335,11 +342,14 @@ async function updatePcaForm(req, res, next) {
         }
       }
 
-      // Check authorization limits
-      const authz = await prisma.authorization.findMany({
+      // Check authorization limits — filter by timesheet week
+      const submitWeekEnd = new Date(weekStart);
+      submitWeekEnd.setUTCDate(submitWeekEnd.getUTCDate() + 6);
+      const allAuthz = await prisma.authorization.findMany({
         where: { clientId: link.clientId },
-        select: { serviceCode: true, serviceName: true, authorizedUnits: true },
+        select: { serviceCode: true, serviceName: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true },
       });
+      const authz = filterAuthsByWeek(allAuthz, weekStart, submitWeekEnd);
       const authMap = {};
       for (const a of authz) {
         const svc = deriveTimesheetService(a);
@@ -451,11 +461,14 @@ async function updatePcaForm(req, res, next) {
       include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
     });
 
-    // Fetch auth limits for response
-    const authzForResp = await prisma.authorization.findMany({
+    // Fetch auth limits for response — filtered by timesheet week
+    const respWeekEnd = new Date(weekStart);
+    respWeekEnd.setUTCDate(respWeekEnd.getUTCDate() + 6);
+    const allAuthzForResp = await prisma.authorization.findMany({
       where: { clientId: link.clientId },
       select: { serviceCode: true, serviceName: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true },
     });
+    const authzForResp = filterAuthsByWeek(allAuthzForResp, weekStart, respWeekEnd);
     const respAuthLimits = {};
     for (const auth of authzForResp) {
       const service = deriveTimesheetService(auth);

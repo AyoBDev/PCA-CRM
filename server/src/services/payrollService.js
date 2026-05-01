@@ -1,5 +1,7 @@
 'use strict';
 
+const { filterAuthsByWeek } = require('./authorizationService');
+
 // ── Constants ──────────────────────────────────────────────
 const CLIP_START     = 4 * 60 + 30;   // 04:30 — minimum allowed start
 const CLIP_END       = 23 * 60 + 30;  // 23:30 — maximum allowed end
@@ -381,21 +383,12 @@ function getWeekKey(date) {
 /**
  * Deduct finalPayableUnits against authorization balances from the DB.
  * Units are capped per week independently (each week gets a fresh budget).
+ * Authorizations are filtered by the week's date range so only active auths apply.
  * No auth found    → mark isUnauthorized, keep payable (matches GAS continue).
  * Balance = 0      → void with "No authorized units remaining (void)".
  * Partial balance  → reduce, reason includes remaining count.
  */
 function applyAuthCap(visits, clientsWithAuths) {
-    // Build auth map: normalized clientName || serviceCode → weekly authorized units
-    const authMap = new Map();
-    for (const client of clientsWithAuths) {
-        const normClient = normalizeName(client.clientName);
-        for (const auth of client.authorizations) {
-            const key = `${normClient}||${auth.serviceCode}`;
-            authMap.set(key, (authMap.get(key) || 0) + auth.authorizedUnits);
-        }
-    }
-
     // Group visits by week
     const weekGroups = new Map();
     for (const v of visits) {
@@ -405,9 +398,22 @@ function applyAuthCap(visits, clientsWithAuths) {
         weekGroups.get(weekKey).push(v);
     }
 
-    // Apply cap per week independently
+    // Apply cap per week independently — build a date-filtered auth map for each week
     for (const [weekKey, weekVisits] of weekGroups) {
-        const balanceMap = new Map(authMap); // Fresh balance each week
+        const weekStart = new Date(weekKey + 'T00:00:00.000Z');
+        const weekEnd = new Date(weekStart);
+        weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
+
+        // Build auth balance map filtered to this week's date range
+        const balanceMap = new Map();
+        for (const client of clientsWithAuths) {
+            const normClient = normalizeName(client.clientName);
+            const activeAuths = filterAuthsByWeek(client.authorizations, weekStart, weekEnd);
+            for (const auth of activeAuths) {
+                const key = `${normClient}||${auth.serviceCode}`;
+                balanceMap.set(key, (balanceMap.get(key) || 0) + (auth.authorizedUnits || 0));
+            }
+        }
 
         for (const v of weekVisits) {
             const key = `${normalizeName(v.clientName)}||${v.serviceCode}`;

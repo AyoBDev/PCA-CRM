@@ -9,6 +9,7 @@ const {
 } = require('../services/schedulingService');
 const { isSmsConfigured, isEmailConfigured, sendSms, sendEmail } = require('../services/notificationService');
 const audit = require('../services/auditService');
+const { filterAuthsByWeek } = require('../services/authorizationService');
 
 const VALID_ACCOUNT_NUMBERS = ['71040', '71119', '71120', '71635'];
 
@@ -39,22 +40,19 @@ async function checkAuthorizationLimits(clientId, proposedShifts, excludeShiftId
         proposedByCodeWeek[key].units += units;
     }
 
-    const now = new Date();
+    // Fetch all auths for this client once
+    const allAuths = await prisma.authorization.findMany({
+        where: { clientId: Number(clientId) },
+    });
+
     for (const { serviceCode, weekStart, units: proposedUnits } of Object.values(proposedByCodeWeek)) {
-        // Find authorized units for this service code
-        // Look up by exact code first, then try resolving via serviceName for TIMESHEETS entries
-        const auths = await prisma.authorization.findMany({
-            where: {
-                clientId: Number(clientId),
-                OR: [
-                    { authorizationEndDate: null },
-                    { authorizationEndDate: { gte: now } },
-                ],
-            },
-        });
+        const { weekStart: ws, weekEnd: we } = getWeekRange(weekStart);
+
+        // Filter auths to those active during this shift's week
+        const activeAuths = filterAuthsByWeek(allAuths, ws, we);
 
         let authorized = 0;
-        for (const a of auths) {
+        for (const a of activeAuths) {
             let code = a.serviceCode;
             if (code === 'TIMESHEETS' || !code) {
                 code = deriveCodeFromName(a.serviceName);
@@ -67,7 +65,6 @@ async function checkAuthorizationLimits(clientId, proposedShifts, excludeShiftId
         if (authorized === 0) continue; // No authorization found — service code validation handles this
 
         // Get currently scheduled units for this week (excluding the shift being edited)
-        const { weekStart: ws, weekEnd: we } = getWeekRange(weekStart);
         const where = {
             clientId: Number(clientId),
             serviceCode,
@@ -97,18 +94,30 @@ async function checkAuthorizationLimits(clientId, proposedShifts, excludeShiftId
 }
 
 // Get the set of real service codes authorized for a client (resolves TIMESHEETS via serviceName)
-async function getAuthorizedServiceCodes(clientId) {
-    const now = new Date();
-    const auths = await prisma.authorization.findMany({
-        where: {
-            clientId: Number(clientId),
-            OR: [
-                { authorizationEndDate: null },
-                { authorizationEndDate: { gte: now } },
-            ],
-        },
-        select: { serviceCode: true, serviceName: true },
+// Optional shiftDates: array of YYYY-MM-DD strings — if provided, checks each date's week for active auths
+async function getAuthorizedServiceCodes(clientId, shiftDates) {
+    const allAuths = await prisma.authorization.findMany({
+        where: { clientId: Number(clientId) },
+        select: { serviceCode: true, serviceName: true, authorizationStartDate: true, authorizationEndDate: true },
     });
+
+    // If shift dates provided, filter auths to those active during any of the shift weeks
+    let auths;
+    if (shiftDates && shiftDates.length > 0) {
+        const activeSet = new Set();
+        for (const dateStr of shiftDates) {
+            const { weekStart, weekEnd } = getWeekRange(dateStr);
+            for (const a of filterAuthsByWeek(allAuths, weekStart, weekEnd)) {
+                activeSet.add(a);
+            }
+        }
+        auths = [...activeSet];
+    } else {
+        // Fallback: filter to auths not expired as of now
+        const now = new Date();
+        auths = filterAuthsByWeek(allAuths, now, now);
+    }
+
     const codes = new Set();
     for (const a of auths) {
         if (a.serviceCode && a.serviceCode !== 'TIMESHEETS') {
@@ -232,7 +241,7 @@ async function listShifts(req, res, next) {
         const enriched = shifts.map(enrichShift);
         const overlaps = detectOverlaps(shifts);
 
-        // Unit summaries per client
+        // Unit summaries per client — filter auths to the viewed week
         const clientIds = [...new Set(shifts.map(s => s.clientId))];
         const auths = await prisma.authorization.findMany({
             where: { clientId: { in: clientIds } },
@@ -245,7 +254,8 @@ async function listShifts(req, res, next) {
         const unitSummaries = {};
         for (const cid of clientIds) {
             const clientShifts = shifts.filter(s => s.clientId === cid);
-            unitSummaries[cid] = computeUnitSummary(clientShifts, authsByClient[cid] || []);
+            const activeAuths = filterAuthsByWeek(authsByClient[cid] || [], range.weekStart, range.weekEnd);
+            unitSummaries[cid] = computeUnitSummary(clientShifts, activeAuths);
         }
 
         res.json({
@@ -272,8 +282,8 @@ async function createShift(req, res, next) {
                 return res.status(400).json({ error: `Invalid account number. Must be one of: ${VALID_ACCOUNT_NUMBERS.join(', ')}` });
             }
 
-            // Validate all service codes are authorized for this client
-            const authorizedCodes = await getAuthorizedServiceCodes(clientId);
+            // Validate all service codes are authorized for this client (check each shift's date)
+            const authorizedCodes = await getAuthorizedServiceCodes(clientId, bulkShifts.map(s => s.shiftDate));
             const unauthorized = [...new Set(bulkShifts.map(s => s.serviceCode))].filter(c => !authorizedCodes.has(c));
             if (unauthorized.length > 0) {
                 return res.status(400).json({ error: `Service${unauthorized.length > 1 ? 's' : ''} not authorized for this client: ${unauthorized.join(', ')}` });
@@ -365,12 +375,6 @@ async function createShift(req, res, next) {
             return res.status(400).json({ error: `Invalid account number. Must be one of: ${VALID_ACCOUNT_NUMBERS.join(', ')}` });
         }
 
-        // Validate service is authorized for this client
-        const singleAuthorizedCodes = await getAuthorizedServiceCodes(clientId);
-        if (!singleAuthorizedCodes.has(serviceCode)) {
-            return res.status(400).json({ error: `Service ${serviceCode} is not authorized for this client` });
-        }
-
         const { hours, units } = computeShiftHours(startTime, endTime);
         const baseData = {
             clientId: Number(clientId),
@@ -397,6 +401,12 @@ async function createShift(req, res, next) {
                 dates.push(new Date(cursorMs).toISOString().slice(0, 10));
                 cursorMs += weekMs;
             }
+        }
+
+        // Validate service is authorized for this client (check shift dates)
+        const singleAuthorizedCodes = await getAuthorizedServiceCodes(clientId, dates);
+        if (!singleAuthorizedCodes.has(serviceCode)) {
+            return res.status(400).json({ error: `Service ${serviceCode} is not authorized for this client` });
         }
 
         // Check authorization limits for all dates
@@ -600,8 +610,8 @@ async function repeatShift(req, res, next) {
             return res.status(400).json({ error: 'Repeat-until date must be at least one week after the shift date' });
         }
 
-        // Check authorization
-        const authorizedCodes = await getAuthorizedServiceCodes(existing.clientId);
+        // Check authorization (pass proposed dates for date-aware filtering)
+        const authorizedCodes = await getAuthorizedServiceCodes(existing.clientId, dates);
         if (!authorizedCodes.has(existing.serviceCode)) {
             return res.status(400).json({ error: `Service ${existing.serviceCode} is no longer authorized for this client` });
         }
@@ -769,7 +779,8 @@ async function getClientSchedule(req, res, next) {
         });
 
         const enriched = shifts.map(enrichShift);
-        const unitSummary = computeUnitSummary(shifts, client.authorizations);
+        const activeAuths = filterAuthsByWeek(client.authorizations, range.weekStart, range.weekEnd);
+        const unitSummary = computeUnitSummary(shifts, activeAuths);
 
         // Detect overlaps: fetch ALL shifts this week for the employees in this client's shifts
         const employeeIds = [...new Set(shifts.map(s => s.employeeId))];
@@ -846,24 +857,9 @@ async function authCheck(req, res, next) {
 
         const { weekStart: ws, weekEnd: we } = getWeekRange(weekStart);
 
-        const [auth, scheduledShifts] = await Promise.all([
-            prisma.authorization.findFirst({
-                where: {
-                    clientId: Number(clientId),
-                    serviceCode,
-                    OR: [
-                        { authorizationStartDate: null },
-                        { authorizationStartDate: { lte: new Date(we) } },
-                    ],
-                    AND: [
-                        {
-                            OR: [
-                                { authorizationEndDate: null },
-                                { authorizationEndDate: { gte: new Date(ws) } },
-                            ],
-                        },
-                    ],
-                },
+        const [allAuths, scheduledShifts] = await Promise.all([
+            prisma.authorization.findMany({
+                where: { clientId: Number(clientId) },
             }),
             prisma.shift.findMany({
                 where: {
@@ -876,7 +872,18 @@ async function authCheck(req, res, next) {
             }),
         ]);
 
-        const authorized = auth?.authorizedUnits || 0;
+        // Filter auths active during this week and sum for the requested service code
+        const activeAuths = filterAuthsByWeek(allAuths, ws, we);
+        let authorized = 0;
+        for (const a of activeAuths) {
+            let code = a.serviceCode;
+            if (code === 'TIMESHEETS' || !code) {
+                code = deriveCodeFromName(a.serviceName);
+            }
+            if (code === serviceCode) {
+                authorized += a.authorizedUnits || 0;
+            }
+        }
         const scheduled = scheduledShifts.reduce((sum, s) => sum + s.units, 0);
 
         res.json({

@@ -3,6 +3,7 @@
 const XLSX = require('xlsx');
 const prisma = require('../lib/prisma');
 const { processPayrollRows, parseTimeToMinutes, minutesToHHMM, applyTimeRules, calcUnits, normalizeName } = require('../services/payrollService');
+const { filterAuthsByWeek } = require('../services/authorizationService');
 const audit = require('../services/auditService');
 
 // ── Column aliases accepted from the XLSX header row ──────
@@ -218,14 +219,24 @@ async function uploadPayrollRun(req, res, next) {
         });
 
         // ── Snapshot authorization data at upload time ────────
+        // Store individual auth records with date ranges so payroll can be reviewed
+        // with the correct units for any given week.
         const authSnapshot = {};
         for (const client of clientsWithAuths) {
             const norm = normalizeName(client.clientName);
-            if (!authSnapshot[norm]) authSnapshot[norm] = {};
+            if (!authSnapshot[norm]) authSnapshot[norm] = { _records: [] };
             for (const auth of client.authorizations) {
                 const code = auth.serviceCode || auth.service || '';
                 if (!code) continue;
-                authSnapshot[norm][code] = (authSnapshot[norm][code] || 0) + (auth.authorizedUnits || 0);
+                authSnapshot[norm]._records.push({
+                    serviceCode: code,
+                    authorizedUnits: auth.authorizedUnits || 0,
+                    startDate: auth.authorizationStartDate ? new Date(auth.authorizationStartDate).toISOString().split('T')[0] : null,
+                    endDate: auth.authorizationEndDate ? new Date(auth.authorizationEndDate).toISOString().split('T')[0] : null,
+                });
+                // Also keep the summed format for backward compatibility with old UI reads
+                if (!authSnapshot[norm][code]) authSnapshot[norm][code] = 0;
+                authSnapshot[norm][code] += (auth.authorizedUnits || 0);
             }
         }
 
@@ -437,17 +448,28 @@ async function getPayrollRun(req, res, next) {
         let authMap = {};
         const snapshot = run.authorizationSnapshot;
         if (snapshot && snapshot !== '{}') {
-            authMap = JSON.parse(snapshot);
+            const parsed = JSON.parse(snapshot);
+            // New snapshot format includes _records with date ranges — pass them through
+            // so the frontend can display date-aware auth data.
+            // Old format is just { normalizedClient: { serviceCode: units } } — keep as-is.
+            authMap = parsed;
         } else {
-            // Fallback for runs created before the snapshot feature
+            // Fallback for runs created before the snapshot feature — use live data
             const allClients = await prisma.client.findMany({ include: { authorizations: true } });
             for (const client of allClients) {
                 const norm = normalizeName(client.clientName);
-                if (!authMap[norm]) authMap[norm] = {};
+                if (!authMap[norm]) authMap[norm] = { _records: [] };
                 for (const auth of client.authorizations) {
                     const code = auth.serviceCode || auth.service || '';
                     if (!code) continue;
-                    authMap[norm][code] = (authMap[norm][code] || 0) + (auth.authorizedUnits || 0);
+                    authMap[norm]._records.push({
+                        serviceCode: code,
+                        authorizedUnits: auth.authorizedUnits || 0,
+                        startDate: auth.authorizationStartDate ? new Date(auth.authorizationStartDate).toISOString().split('T')[0] : null,
+                        endDate: auth.authorizationEndDate ? new Date(auth.authorizationEndDate).toISOString().split('T')[0] : null,
+                    });
+                    if (!authMap[norm][code]) authMap[norm][code] = 0;
+                    authMap[norm][code] += (auth.authorizedUnits || 0);
                 }
             }
         }

@@ -11,6 +11,9 @@ jest.mock('../../lib/prisma', () => ({
   timesheetEntry: {
     update: jest.fn(),
   },
+  authorization: {
+    findMany: jest.fn().mockResolvedValue([]),
+  },
 }));
 
 const prisma = require('../../lib/prisma');
@@ -96,40 +99,20 @@ describe('getPcaForm', () => {
     );
   });
 
-  test('auto-creates timesheet if none exists for current week', async () => {
+  test('returns placeholder entries if no timesheet exists for current week', async () => {
     prisma.permanentLink.findUnique.mockResolvedValue(activeLink);
     prisma.timesheet.findFirst.mockResolvedValue(null);
-    prisma.timesheet.create.mockResolvedValue(sampleTimesheet);
     const { req, res, next } = mockReqRes({ params: { token: 'test-token' } });
 
     await getPcaForm(req, res, next);
 
-    expect(prisma.timesheet.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          clientId: activeLink.clientId,
-          pcaName: activeLink.pcaName,
-          entries: expect.objectContaining({ create: expect.any(Array) }),
-        }),
-      })
-    );
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ timesheet: sampleTimesheet })
-    );
-  });
-
-  test('created timesheet has 7 entries', async () => {
-    prisma.permanentLink.findUnique.mockResolvedValue(activeLink);
-    prisma.timesheet.findFirst.mockResolvedValue(null);
-    prisma.timesheet.create.mockResolvedValue(sampleTimesheet);
-    const { req, res, next } = mockReqRes({ params: { token: 'test-token' } });
-
-    await getPcaForm(req, res, next);
-
-    const createCall = prisma.timesheet.create.mock.calls[0][0];
-    expect(createCall.data.entries.create).toHaveLength(7);
-    expect(createCall.data.entries.create[0].dayOfWeek).toBe(0);
-    expect(createCall.data.entries.create[6].dayOfWeek).toBe(6);
+    // getPcaForm no longer auto-creates — it returns placeholder entries
+    expect(prisma.timesheet.create).not.toHaveBeenCalled();
+    const call = res.json.mock.calls[0][0];
+    expect(call.timesheet.id).toBeNull();
+    expect(call.timesheet.entries).toHaveLength(7);
+    expect(call.timesheet.entries[0].dayOfWeek).toBe(0);
+    expect(call.timesheet.entries[6].dayOfWeek).toBe(6);
   });
 
   test('returns parsed enabledServices in client object', async () => {
@@ -206,11 +189,16 @@ describe('updatePcaForm save', () => {
         data: expect.not.objectContaining({ status: 'submitted' }),
       })
     );
-    expect(res.json).toHaveBeenCalledWith({ timesheet: updatedTimesheet });
+    const call = res.json.mock.calls[0][0];
+    expect(call.timesheet).toEqual(updatedTimesheet);
+    expect(call.client).toBeDefined();
+    expect(call.pcaName).toBe('Jane Doe');
+    expect(call.authLimits).toBeDefined();
   });
 
-  test('returns 404 when no timesheet found for current week', async () => {
+  test('auto-creates timesheet when none exists for current week', async () => {
     prisma.timesheet.findFirst.mockResolvedValue(null);
+    prisma.timesheet.create.mockResolvedValue(sampleTimesheet);
     const { req, res, next } = mockReqRes({
       params: { token: 'test-token' },
       body: { action: 'save', entries: [] },
@@ -218,8 +206,7 @@ describe('updatePcaForm save', () => {
 
     await updatePcaForm(req, res, next);
 
-    expect(res.status).toHaveBeenCalledWith(404);
-    expect(res.json).toHaveBeenCalledWith({ error: 'No timesheet found for current week' });
+    expect(prisma.timesheet.create).toHaveBeenCalled();
   });
 
   test('returns 400 when timesheet already submitted', async () => {
@@ -235,15 +222,19 @@ describe('updatePcaForm save', () => {
     expect(res.json).toHaveBeenCalledWith({ error: 'Timesheet already submitted' });
   });
 
-  test('skips entries without an id', async () => {
+  test('maps entries by dayOfWeek when no id provided', async () => {
     const { req, res, next } = mockReqRes({
       params: { token: 'test-token' },
-      body: { action: 'save', entries: [{ dayOfWeek: 0 /* no id */ }] },
+      body: { action: 'save', entries: [{ dayOfWeek: 0 /* no id — matched by dayOfWeek */ }] },
     });
 
     await updatePcaForm(req, res, next);
 
-    expect(prisma.timesheetEntry.update).not.toHaveBeenCalled();
+    // Entry with dayOfWeek: 0 matches dbEntry id: 1 from sampleTimesheet
+    expect(prisma.timesheetEntry.update).toHaveBeenCalledTimes(1);
+    expect(prisma.timesheetEntry.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 1 } })
+    );
   });
 
   test('returns 404 for invalid token', async () => {
@@ -466,7 +457,10 @@ describe('updatePcaForm submit', () => {
         }),
       })
     );
-    expect(res.json).toHaveBeenCalledWith({ timesheet: updatedTimesheet });
+    const call = res.json.mock.calls[0][0];
+    expect(call.timesheet).toEqual(updatedTimesheet);
+    expect(call.client).toBeDefined();
+    expect(call.authLimits).toBeDefined();
   });
 
   test('filters out disabled services before validation — Homemaker/Respite overlap ignored when Respite not enabled', async () => {
@@ -514,6 +508,8 @@ describe('updatePcaForm submit', () => {
 
     // Should NOT reject — Respite is filtered out
     expect(res.status).not.toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith({ timesheet: updatedTimesheet });
+    const call = res.json.mock.calls[0][0];
+    expect(call.timesheet).toEqual(updatedTimesheet);
+    expect(call.client).toBeDefined();
   });
 });
