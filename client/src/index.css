@@ -198,6 +198,15 @@ body {
   opacity: 1;
 }
 
+.sidebar__nav-item--sub {
+  padding-left: 36px !important;
+  font-size: 13px;
+}
+.sidebar--collapsed .sidebar__nav-item--sub {
+  padding-left: 14px !important;
+  font-size: 12px;
+}
+
 .sidebar__footer {
   padding: 12px 8px;
   border-top: 1px solid var(--sidebar-border);
