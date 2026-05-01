@@ -18,7 +18,8 @@ model User {
   archivedAt   DateTime? @map("archived_at")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
-  employee     Employee?
+  employee          Employee?
+  uploadedDocuments ClientDocument[]
 
   @@map("users")
 }
@@ -45,8 +46,9 @@ model Employee {
   user          User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
   shifts        Shift[]
   notifications ScheduleNotification[]
-  scheduleLink  EmployeeScheduleLink?
-  archivedAt    DateTime?              @map("archived_at")
+  scheduleLink        EmployeeScheduleLink?
+  careTeamAssignments ClientCareTeam[]
+  archivedAt          DateTime?              @map("archived_at")
   createdAt     DateTime               @default(now()) @map("created_at")
   updatedAt     DateTime               @updatedAt @map("updated_at")
 
@@ -98,10 +100,87 @@ model Client {
   timesheets      Timesheet[]
   shifts          Shift[]
   permanentLinks  PermanentLink[]
+  careTeam        ClientCareTeam[]
+  documents       ClientDocument[]
+  hospitalVisits  HospitalVisit[]
+  incidents       Incident[]
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
   @@map("clients")
+}
+
+model ClientCareTeam {
+  id         Int      @id @default(autoincrement())
+  clientId   Int      @map("client_id")
+  employeeId Int      @map("employee_id")
+  role       String   @default("agency_pca") @map("role")
+  assignedAt DateTime @default(now()) @map("assigned_at")
+  notes      String   @default("") @map("notes")
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([clientId])
+  @@index([employeeId])
+  @@map("client_care_team")
+}
+
+model ClientDocument {
+  id         Int      @id @default(autoincrement())
+  clientId   Int      @map("client_id")
+  category   String   @map("category")
+  fileName   String   @map("file_name")
+  filePath   String   @map("file_path")
+  fileSize   Int      @map("file_size")
+  mimeType   String   @default("") @map("mime_type")
+  uploadedBy Int?     @map("uploaded_by")
+  notes      String   @default("") @map("notes")
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  uploader   User?    @relation(fields: [uploadedBy], references: [id], onDelete: SetNull)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([clientId])
+  @@map("client_documents")
+}
+
+model HospitalVisit {
+  id           Int      @id @default(autoincrement())
+  clientId     Int      @map("client_id")
+  visitDate    DateTime @map("visit_date")
+  visitTime    String   @default("") @map("visit_time")
+  providerName String   @default("") @map("provider_name")
+  location     String   @default("") @map("location")
+  purpose      String   @default("") @map("purpose")
+  status       String   @default("upcoming") @map("status")
+  notes        String   @default("") @map("notes")
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([clientId])
+  @@map("hospital_visits")
+}
+
+model Incident {
+  id           Int       @id @default(autoincrement())
+  clientId     Int       @map("client_id")
+  incidentDate DateTime  @map("incident_date")
+  description  String    @default("") @map("description")
+  severity     String    @default("minor") @map("severity")
+  reportedBy   String    @default("") @map("reported_by")
+  status       String    @default("open") @map("status")
+  resolvedAt   DateTime? @map("resolved_at")
+  resolution   String    @default("") @map("resolution")
+  notes        String    @default("") @map("notes")
+  client       Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([clientId])
+  @@map("incidents")
 }
 
 model Authorization {
