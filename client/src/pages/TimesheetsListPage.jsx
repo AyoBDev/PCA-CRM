@@ -150,14 +150,31 @@ export default function TimesheetsListPage() {
                         <table className="data-table">
                             <thead><tr><th>PCA Name</th><th>Client</th><th>Week</th><th>PAS Hrs</th><th>HM Hrs</th><th>Respite Hrs</th><th>Total</th><th>Status</th><th style={{ width: showArchived ? 160 : 80 }}>Actions</th></tr></thead>
                             <tbody>
-                                {timesheets.map((ts) => (
+                                {timesheets.map((ts) => {
+                                    const al = ts.authLimits;
+                                    const pasAuth = al?.PAS ? Math.round((al.PAS / 4) * 100) / 100 : null;
+                                    const hmAuth = al?.Homemaker ? Math.round((al.Homemaker / 4) * 100) / 100 : null;
+                                    const respAuth = al?.Respite ? Math.round((al.Respite / 4) * 100) / 100 : null;
+                                    const pasOver = pasAuth != null && ts.totalPasHours > pasAuth;
+                                    const hmOver = hmAuth != null && ts.totalHmHours > hmAuth;
+                                    const respOver = respAuth != null && (ts.totalRespiteHours || 0) > respAuth;
+                                    return (
                                     <tr key={ts.id} className="clickable-row" onClick={() => setActiveTimesheetId(ts.id)}>
                                         <td style={{ fontWeight: 500 }}>{ts.pcaName}</td>
                                         <td>{ts.client?.clientName}</td>
                                         <td style={{ fontSize: 13 }}>{formatWeek(ts.weekStart.split('T')[0])}</td>
-                                        <td>{ts.totalPasHours.toFixed(2)}</td>
-                                        <td>{ts.totalHmHours.toFixed(2)}</td>
-                                        <td>{(ts.totalRespiteHours || 0).toFixed(2)}</td>
+                                        <td>
+                                            <span style={pasOver ? { color: '#ef4444', fontWeight: 600 } : undefined}>{ts.totalPasHours.toFixed(2)}</span>
+                                            {pasAuth != null && <span className="ts-auth-limit"> / {pasAuth}</span>}
+                                        </td>
+                                        <td>
+                                            <span style={hmOver ? { color: '#ef4444', fontWeight: 600 } : undefined}>{ts.totalHmHours.toFixed(2)}</span>
+                                            {hmAuth != null && <span className="ts-auth-limit"> / {hmAuth}</span>}
+                                        </td>
+                                        <td>
+                                            <span style={respOver ? { color: '#ef4444', fontWeight: 600 } : undefined}>{(ts.totalRespiteHours || 0).toFixed(2)}</span>
+                                            {respAuth != null && <span className="ts-auth-limit"> / {respAuth}</span>}
+                                        </td>
                                         <td><strong>{ts.totalHours.toFixed(2)}</strong></td>
                                         <td><span className={`ts-badge ts-badge--${ts.status}`}>{ts.status}</span></td>
                                         <td onClick={(e) => e.stopPropagation()}>
@@ -171,7 +188,8 @@ export default function TimesheetsListPage() {
                                             )}
                                         </td>
                                     </tr>
-                                ))}
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>

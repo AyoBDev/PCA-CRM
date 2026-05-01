@@ -38,6 +38,22 @@ function computeHours(timeIn, timeOut) {
 // ── CRUD ─────────────────────────────────────────
 
 // GET /api/timesheets
+// Derive timesheet service (PAS/Homemaker/Respite) from an authorization record.
+// Handles serviceCode === 'TIMESHEETS' by falling back to serviceName-based matching.
+function deriveTimesheetService(auth) {
+    const code = auth.serviceCode;
+    if (code === 'PCS' || code === 'PAS') return 'PAS';
+    if (code === 'S5130') return 'Homemaker';
+    if (code === 'S5150') return 'Respite';
+    if (code === 'TIMESHEETS' || !code) {
+        const name = (auth.serviceName || '').toLowerCase();
+        if (name === 'pas' || name === 'pca' || (name.includes('personal') && name.includes('care'))) return 'PAS';
+        if (name === 'hm' || name.includes('homemaker')) return 'Homemaker';
+        if (name.includes('respite')) return 'Respite';
+    }
+    return null;
+}
+
 async function listTimesheets(req, res, next) {
     try {
         const where = req.query.archived === 'true' ? { archivedAt: { not: null } } : { archivedAt: null };
@@ -51,7 +67,27 @@ async function listTimesheets(req, res, next) {
             include: { client: { select: { id: true, clientName: true } }, entries: true },
             orderBy: { weekStart: 'desc' },
         });
-        res.json(timesheets);
+
+        // Build auth limits per client for the timesheets in view
+        const clientIds = [...new Set(timesheets.map(t => t.clientId).filter(Boolean))];
+        const auths = clientIds.length > 0 ? await prisma.authorization.findMany({
+            where: { clientId: { in: clientIds } },
+            select: { clientId: true, serviceCode: true, serviceName: true, authorizedUnits: true },
+        }) : [];
+        const authByClient = {};
+        for (const a of auths) {
+            const svc = deriveTimesheetService(a);
+            if (!svc) continue;
+            if (!authByClient[a.clientId]) authByClient[a.clientId] = {};
+            authByClient[a.clientId][svc] = (authByClient[a.clientId][svc] || 0) + (a.authorizedUnits || 0);
+        }
+
+        const enriched = timesheets.map(ts => ({
+            ...ts,
+            authLimits: authByClient[ts.clientId] || null,
+        }));
+
+        res.json(enriched);
     } catch (err) { next(err); }
 }
 

@@ -1621,6 +1621,12 @@ body {
   color: hsl(142 76% 28%);
 }
 
+.ts-auth-limit {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  font-weight: 400;
+}
+
 /* SDR Client info bar */
 .sdr-client-info {
   display: flex;

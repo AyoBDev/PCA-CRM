@@ -33,6 +33,22 @@ function computeTotalHoursWithBlocks(timeIn, timeOut, timeBlocksJson) {
   return Math.round(total * 100) / 100;
 }
 
+// Derive the timesheet service name (PAS/Homemaker/Respite) from an authorization record.
+// Handles serviceCode === 'TIMESHEETS' by falling back to serviceName-based matching.
+function deriveTimesheetService(auth) {
+  const code = auth.serviceCode;
+  if (code === 'PCS' || code === 'PAS') return 'PAS';
+  if (code === 'S5130') return 'Homemaker';
+  if (code === 'S5150') return 'Respite';
+  if (code === 'TIMESHEETS' || !code) {
+    const name = (auth.serviceName || '').toLowerCase();
+    if (name === 'pas' || name === 'pca' || (name.includes('personal') && name.includes('care'))) return 'PAS';
+    if (name === 'hm' || name.includes('homemaker')) return 'Homemaker';
+    if (name.includes('respite')) return 'Respite';
+  }
+  return null;
+}
+
 function getCurrentWeekStart() {
   const now = new Date();
   const utcDay = now.getUTCDay();
@@ -138,25 +154,24 @@ async function getPcaForm(req, res, next) {
 
     // Build a map of service → authorized weekly units
     // Service code mapping: PCS/PAS → PAS, S5130 → Homemaker, S5150 → Respite
+    // Also handles TIMESHEETS entries by deriving service from serviceName
     const authLimits = {};
     for (const auth of authorizations) {
-      const code = auth.serviceCode;
-      let service = null;
-      if (code === 'PCS' || code === 'PAS') service = 'PAS';
-      else if (code === 'S5130') service = 'Homemaker';
-      else if (code === 'S5150') service = 'Respite';
+      const service = deriveTimesheetService(auth);
       if (service) {
-        // authorizedUnits are weekly 15-min units
-        if (!authLimits[service] || auth.authorizedUnits > authLimits[service].units) {
+        // authorizedUnits are weekly 15-min units — accumulate across matching auths
+        if (!authLimits[service]) {
           authLimits[service] = {
-            units: auth.authorizedUnits,
-            hours: Math.round((auth.authorizedUnits / 4) * 100) / 100,
-            serviceCode: code,
+            units: 0,
+            hours: 0,
+            serviceCode: auth.serviceCode,
             serviceName: auth.serviceName || service,
             startDate: auth.authorizationStartDate,
             endDate: auth.authorizationEndDate,
           };
         }
+        authLimits[service].units += auth.authorizedUnits || 0;
+        authLimits[service].hours = Math.round((authLimits[service].units / 4) * 100) / 100;
       }
     }
 
@@ -323,16 +338,13 @@ async function updatePcaForm(req, res, next) {
       // Check authorization limits
       const authz = await prisma.authorization.findMany({
         where: { clientId: link.clientId },
-        select: { serviceCode: true, authorizedUnits: true },
+        select: { serviceCode: true, serviceName: true, authorizedUnits: true },
       });
       const authMap = {};
       for (const a of authz) {
-        let svc = null;
-        if (a.serviceCode === 'PCS' || a.serviceCode === 'PAS') svc = 'PAS';
-        else if (a.serviceCode === 'S5130') svc = 'Homemaker';
-        else if (a.serviceCode === 'S5150') svc = 'Respite';
-        if (svc && (!authMap[svc] || a.authorizedUnits > authMap[svc])) {
-          authMap[svc] = a.authorizedUnits;
+        const svc = deriveTimesheetService(a);
+        if (svc) {
+          authMap[svc] = (authMap[svc] || 0) + (a.authorizedUnits || 0);
         }
       }
 
@@ -446,19 +458,20 @@ async function updatePcaForm(req, res, next) {
     });
     const respAuthLimits = {};
     for (const auth of authzForResp) {
-      let service = null;
-      if (auth.serviceCode === 'PCS' || auth.serviceCode === 'PAS') service = 'PAS';
-      else if (auth.serviceCode === 'S5130') service = 'Homemaker';
-      else if (auth.serviceCode === 'S5150') service = 'Respite';
-      if (service && (!respAuthLimits[service] || auth.authorizedUnits > respAuthLimits[service].units)) {
-        respAuthLimits[service] = {
-          units: auth.authorizedUnits,
-          hours: Math.round((auth.authorizedUnits / 4) * 100) / 100,
-          serviceCode: auth.serviceCode,
-          serviceName: auth.serviceName || service,
-          startDate: auth.authorizationStartDate,
-          endDate: auth.authorizationEndDate,
-        };
+      const service = deriveTimesheetService(auth);
+      if (service) {
+        if (!respAuthLimits[service]) {
+          respAuthLimits[service] = {
+            units: 0,
+            hours: 0,
+            serviceCode: auth.serviceCode,
+            serviceName: auth.serviceName || service,
+            startDate: auth.authorizationStartDate,
+            endDate: auth.authorizationEndDate,
+          };
+        }
+        respAuthLimits[service].units += auth.authorizedUnits || 0;
+        respAuthLimits[service].hours = Math.round((respAuthLimits[service].units / 4) * 100) / 100;
       }
     }
 
