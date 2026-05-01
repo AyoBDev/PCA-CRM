@@ -6,7 +6,9 @@ import Layout from './components/layout/Layout';
 // Lazy-loaded pages
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
-const ClientsPage = lazy(() => import('./pages/ClientsPage'));
+const AuthorizationsPage = lazy(() => import('./pages/AuthorizationsPage'));
+const ClientsListPage = lazy(() => import('./pages/ClientsListPage'));
+const ClientDetailPage = lazy(() => import('./pages/ClientDetailPage'));
 const TimesheetsListPage = lazy(() => import('./pages/TimesheetsListPage'));
 const SignRedirectPage = lazy(() => import('./pages/SignRedirectPage'));
 const PcaFormPage = lazy(() => import('./pages/PcaFormPage'));
@@ -50,7 +52,9 @@ function AppRoutes() {
 
                 {/* Protected routes with layout */}
                 <Route path="/dashboard" element={<ProtectedRoute staffOnly><Layout><DashboardPage /></Layout></ProtectedRoute>} />
-                <Route path="/clients" element={<ProtectedRoute staffOnly><Layout><ClientsPage /></Layout></ProtectedRoute>} />
+                <Route path="/clients" element={<ProtectedRoute staffOnly><Layout><ClientsListPage /></Layout></ProtectedRoute>} />
+                <Route path="/clients/:clientId" element={<ProtectedRoute staffOnly><Layout><ClientDetailPage /></Layout></ProtectedRoute>} />
+                <Route path="/authorizations" element={<ProtectedRoute staffOnly><Layout><AuthorizationsPage /></Layout></ProtectedRoute>} />
                 <Route path="/timesheets" element={<ProtectedRoute><Layout><TimesheetsListPage /></Layout></ProtectedRoute>} />
                 <Route path="/permanent-links" element={<ProtectedRoute staffOnly><Layout><PermanentLinksPage /></Layout></ProtectedRoute>} />
                 <Route path="/scheduling" element={<ProtectedRoute staffOnly><Layout><SchedulingPage /></Layout></ProtectedRoute>} />
