@@ -8,15 +8,26 @@ import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 
 const DOC_CATEGORIES = [
-    { value: 'admission_packet', label: 'Client Admission Packets' },
-    { value: 'auth_pca', label: 'PCA Service Authorization' },
-    { value: 'auth_waiver', label: 'Waiver Service Authorization' },
-    { value: 'auth_iso', label: 'ISO Service Authorization' },
-    { value: 'transfer', label: 'Transfer Documents' },
-    { value: 'discharge', label: 'Client Discharge Documents' },
-    { value: 'supervisor_review', label: 'Supervisor Review Documents' },
-    { value: 'other', label: 'Other' },
+    { value: 'admission_packet', label: 'Client Admission Packets', color: '#3b82f6' },
+    { value: 'auth_pca', label: 'PCA Service Authorization', color: '#22c55e' },
+    { value: 'auth_waiver', label: 'Waiver Service Authorization', color: '#f59e0b' },
+    { value: 'auth_iso', label: 'ISO Service Authorization', color: '#06b6d4' },
+    { value: 'transfer', label: 'Transfer Documents', color: '#8b5cf6' },
+    { value: 'discharge', label: 'Client Discharge Documents', color: '#ef4444' },
+    { value: 'supervisor_review', label: 'Supervisor Review Documents', color: '#64748b' },
+    { value: 'other', label: 'Other', color: '#94a3b8' },
 ];
+
+// Color mapping for authorization service code groups
+const AUTH_COLORS = {
+    PCS: { accent: '#22c55e', bg: 'hsl(142 76% 96%)', label: 'PCA Service Authorization' },
+    SDPC: { accent: '#8b5cf6', bg: 'hsl(270 76% 96%)', label: 'SDPC Service Authorization' },
+    S5130: { accent: '#f59e0b', bg: 'hsl(38 100% 96%)', label: 'Homemaker Service Authorization' },
+    S5150: { accent: '#06b6d4', bg: 'hsl(188 80% 96%)', label: 'Respite Service Authorization' },
+    S5125: { accent: '#3b82f6', bg: 'hsl(217 91% 96%)', label: 'Attendant Care Authorization' },
+    S5135: { accent: '#ec4899', bg: 'hsl(330 80% 96%)', label: 'Companion Service Authorization' },
+};
+const DEFAULT_AUTH_COLOR = { accent: '#64748b', bg: 'hsl(215 20% 96%)', label: 'Service Authorization' };
 
 function formatDate(d) {
     if (!d) return '\u2014';
@@ -48,6 +59,7 @@ export default function ClientDetailPage() {
     const [client, setClient] = useState(null);
     const [loading, setLoading] = useState(true);
     const [employees, setEmployees] = useState([]);
+    const [expandedFolders, setExpandedFolders] = useState({});
 
     // Modal states
     const [showCareTeamModal, setShowCareTeamModal] = useState(false);
@@ -262,7 +274,20 @@ export default function ClientDetailPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
-    if (loading) return <div className="page-content"><div className="empty-state"><div className="empty-state__desc">Loading...</div></div></div>;
+    const toggleFolder = (key) => {
+        setExpandedFolders(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    if (loading) {
+        return (
+            <div className="page-content">
+                <div className="cp-loading">
+                    <div className="cp-loading__spinner" />
+                    <div>Loading care plan...</div>
+                </div>
+            </div>
+        );
+    }
     if (!client) return <div className="page-content"><div className="empty-state"><div className="empty-state__title">Client not found</div></div></div>;
 
     const enabledServices = (() => { try { return JSON.parse(client.enabledServices); } catch { return []; } })();
@@ -271,6 +296,7 @@ export default function ClientDetailPage() {
         acc[d.category].push(d);
         return acc;
     }, {});
+    const totalDocs = (client.documents || []).length;
 
     // Group authorizations by service code category for display
     const authGroups = {};
@@ -280,12 +306,6 @@ export default function ClientDetailPage() {
         authGroups[key].push(a);
     });
 
-    const statusDot = (status) => {
-        if (status === 'upcoming') return <span className="cp-timeline-dot cp-timeline-dot--blue" />;
-        if (status === 'completed') return <span className="cp-timeline-dot cp-timeline-dot--green" />;
-        return <span className="cp-timeline-dot cp-timeline-dot--gray" />;
-    };
-
     return (
         <>
             {/* Page Header */}
@@ -294,36 +314,62 @@ export default function ClientDetailPage() {
                     <button className="btn btn--ghost btn--icon" onClick={() => navigate('/clients')} title="Back to clients">
                         {Icons.chevronLeft}
                     </button>
-                    <h1 className="content-header__title" style={{ margin: 0 }}>Care Plans</h1>
+                    <div>
+                        <h1 className="content-header__title" style={{ margin: 0 }}>Care Plans</h1>
+                        <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', marginTop: 2 }}>
+                            Client Profile & Care Management
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div className="page-content">
-                {/* ═══ TOP ROW: Client Profile | Conditions/Services | Care Team | Notes ═══ */}
-                <div className="cp-top-row">
-                    {/* Client Profile Card */}
-                    <div className="cp-profile-card">
-                        <div className="cp-profile-avatar">
+            <div className="page-content cp-page">
+
+                {/* ═══ TOP ROW: Client Profile Banner ═══ */}
+                <div className="cp-hero">
+                    {/* Profile Section */}
+                    <div className="cp-hero__profile">
+                        <div className="cp-hero__avatar">
                             {client.clientName.charAt(0).toUpperCase()}
                         </div>
-                        <div className="cp-profile-info">
-                            <h2 className="cp-profile-name">{client.clientName}</h2>
-                            <div className="cp-profile-details">
-                                {client.medicaidId && <div>MRN: <strong>{client.medicaidId}</strong></div>}
-                                {client.insuranceType && <div>Insurance: <strong>{client.insuranceType}</strong></div>}
-                                {client.phone && <div>Phone: {client.phone}</div>}
-                                {client.address && <div>Address: {client.address}</div>}
+                        <div className="cp-hero__info">
+                            <h2 className="cp-hero__name">{client.clientName}</h2>
+                            <div className="cp-hero__fields">
+                                {client.medicaidId && (
+                                    <div className="cp-hero__field">
+                                        <span className="cp-hero__field-label">MRN</span>
+                                        <span className="cp-hero__field-value">{client.medicaidId}</span>
+                                    </div>
+                                )}
+                                {client.insuranceType && (
+                                    <div className="cp-hero__field">
+                                        <span className="cp-hero__field-label">Insurance</span>
+                                        <span className="cp-hero__field-value">{client.insuranceType}</span>
+                                    </div>
+                                )}
+                                {client.phone && (
+                                    <div className="cp-hero__field">
+                                        <span className="cp-hero__field-label">Phone</span>
+                                        <span className="cp-hero__field-value">{client.phone}</span>
+                                    </div>
+                                )}
+                                {client.address && (
+                                    <div className="cp-hero__field">
+                                        <span className="cp-hero__field-label">Address</span>
+                                        <span className="cp-hero__field-value">{client.address}</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
 
-                    {/* Services Card */}
-                    <div className="cp-section-card">
-                        <div className="cp-section-label">Services</div>
+                    {/* Services */}
+                    <div className="cp-hero__section">
+                        <div className="cp-hero__section-title">Services</div>
                         {enabledServices.length > 0 ? (
                             <div className="cp-services-list">
                                 {enabledServices.map(s => (
-                                    <span key={s} className="ts-badge ts-badge--submitted" style={{ fontSize: 11 }}>{s}</span>
+                                    <span key={s} className="cp-service-chip">{s}</span>
                                 ))}
                             </div>
                         ) : (
@@ -331,17 +377,17 @@ export default function ClientDetailPage() {
                         )}
                     </div>
 
-                    {/* Care Team Card */}
-                    <div className="cp-section-card">
-                        <div className="cp-section-header-inline">
-                            <div className="cp-section-label">Care Team</div>
-                            <button className="btn btn--primary btn--sm" onClick={() => setShowCareTeamModal(true)}>{Icons.plus} Assign</button>
+                    {/* Care Team */}
+                    <div className="cp-hero__section">
+                        <div className="cp-hero__section-header">
+                            <div className="cp-hero__section-title">Care Team</div>
+                            <button className="btn btn--outline btn--xs" onClick={() => setShowCareTeamModal(true)}>{Icons.plus} Assign</button>
                         </div>
                         {(!client.careTeam || client.careTeam.length === 0) ? (
                             <p className="cp-empty-text">No PCA assigned yet.</p>
                         ) : (
                             <ol className="cp-care-team-list">
-                                {client.careTeam.map((m, i) => (
+                                {client.careTeam.map(m => (
                                     <li key={m.id} className="cp-care-team-item">
                                         <span className="cp-care-team-name">{m.employee.name}</span>
                                         <span className="cp-care-team-role">
@@ -356,16 +402,16 @@ export default function ClientDetailPage() {
                         )}
                     </div>
 
-                    {/* Notes Card */}
-                    <div className="cp-section-card">
-                        <div className="cp-section-header-inline">
-                            <div className="cp-section-label">Notes</div>
+                    {/* Notes */}
+                    <div className="cp-hero__section">
+                        <div className="cp-hero__section-header">
+                            <div className="cp-hero__section-title">Notes</div>
                             {!editingNotes ? (
-                                <button className="btn btn--ghost btn--sm" onClick={() => setEditingNotes(true)}>{Icons.edit}</button>
+                                <button className="btn btn--ghost btn--xs" onClick={() => setEditingNotes(true)}>{Icons.edit}</button>
                             ) : (
                                 <div style={{ display: 'flex', gap: 4 }}>
-                                    <button className="btn btn--outline btn--sm" onClick={() => { setEditingNotes(false); setNotesValue(client.notes || ''); }}>Cancel</button>
-                                    <button className="btn btn--primary btn--sm" onClick={handleSaveNotes}>Save</button>
+                                    <button className="btn btn--outline btn--xs" onClick={() => { setEditingNotes(false); setNotesValue(client.notes || ''); }}>Cancel</button>
+                                    <button className="btn btn--primary btn--xs" onClick={handleSaveNotes}>Save</button>
                                 </div>
                             )}
                         </div>
@@ -374,13 +420,16 @@ export default function ClientDetailPage() {
                                 value={notesValue}
                                 onChange={(e) => setNotesValue(e.target.value)}
                                 rows={4}
-                                style={{ width: '100%', resize: 'vertical', fontSize: 13 }}
+                                className="cp-notes-textarea"
                                 placeholder="Add notes about this client..."
                             />
                         ) : (
                             <div className="cp-notes-content">
-                                {notesValue ? notesValue.split('\n').map((line, i) => (
-                                    <div key={i}>{line.startsWith('•') || line.startsWith('-') ? line : `• ${line}`}</div>
+                                {notesValue ? notesValue.split('\n').filter(l => l.trim()).map((line, i) => (
+                                    <div key={i} className="cp-notes-line">
+                                        <span className="cp-notes-bullet" />
+                                        {line.replace(/^[-\u2022]\s*/, '')}
+                                    </div>
                                 )) : <span className="cp-empty-text">No notes yet.</span>}
                             </div>
                         )}
@@ -389,66 +438,102 @@ export default function ClientDetailPage() {
 
                 {/* ═══ MAIN CONTENT: Two-column layout ═══ */}
                 <div className="cp-main-grid">
-                    {/* ─── LEFT COLUMN: Care Plan Overview + Documents ─── */}
+                    {/* ─── LEFT COLUMN ─── */}
                     <div className="cp-left-col">
                         {/* Care Plan Overview */}
-                        <div className="cp-card">
+                        <div className="cp-card cp-card--elevated">
                             <div className="cp-card__header">
                                 <h3 className="cp-card__title">
                                     <span className="cp-card__dot cp-card__dot--green" />
                                     Care Plan Overview
                                 </h3>
-                                <button className="btn btn--outline btn--sm" onClick={() => navigate(`/authorizations`)}>{Icons.eye} View Authorizations</button>
+                                <button className="btn btn--outline btn--sm" onClick={() => navigate('/authorizations')}>{Icons.eye} View Authorizations</button>
                             </div>
                             <div className="cp-card__body">
                                 {Object.keys(authGroups).length === 0 ? (
-                                    <p className="cp-empty-text">No authorizations on file. <a href="#" onClick={(e) => { e.preventDefault(); navigate('/authorizations'); }} style={{ color: 'hsl(var(--primary))' }}>Add one</a></p>
+                                    <div className="cp-empty-state-card">
+                                        <div className="cp-empty-state-card__icon">{Icons.clipboard}</div>
+                                        <p>No authorizations on file.</p>
+                                        <button className="btn btn--outline btn--sm" onClick={() => navigate('/authorizations')}>Add Authorization</button>
+                                    </div>
                                 ) : (
                                     <div className="cp-auth-sections">
-                                        {Object.entries(authGroups).map(([code, auths]) => (
-                                            <div key={code} className="cp-auth-group">
-                                                <h4 className="cp-auth-group__title">{code} Service Authorization</h4>
-                                                {auths.map(a => (
-                                                    <div key={a.id} className="cp-auth-item">
-                                                        <div className="cp-auth-item__name">{a.serviceName || a.serviceCategory || code}</div>
-                                                        <div className="cp-auth-item__meta">
-                                                            {a.authorizedUnits > 0 && <span>{a.authorizedUnits} units</span>}
-                                                            {a.authorizationStartDate && <span>From {formatDate(a.authorizationStartDate)}</span>}
-                                                            {a.authorizationEndDate && <span>To {formatDate(a.authorizationEndDate)}</span>}
-                                                        </div>
+                                        {Object.entries(authGroups).map(([code, auths]) => {
+                                            const colors = AUTH_COLORS[code] || DEFAULT_AUTH_COLOR;
+                                            return (
+                                                <div key={code} className="cp-auth-group" style={{ '--auth-accent': colors.accent, '--auth-bg': colors.bg }}>
+                                                    <div className="cp-auth-group__bar" />
+                                                    <div className="cp-auth-group__content">
+                                                        <h4 className="cp-auth-group__title">{colors.label || `${code} Service Authorization`}</h4>
+                                                        {auths.map(a => (
+                                                            <div key={a.id} className="cp-auth-item">
+                                                                <div className="cp-auth-item__row">
+                                                                    <span className="cp-auth-item__dot" style={{ background: colors.accent }} />
+                                                                    <span className="cp-auth-item__name">{a.serviceName || a.serviceCategory || code}</span>
+                                                                    {a.authorizedUnits > 0 && (
+                                                                        <span className="cp-auth-item__units">{a.authorizedUnits} units</span>
+                                                                    )}
+                                                                </div>
+                                                                {(a.authorizationStartDate || a.authorizationEndDate) && (
+                                                                    <div className="cp-auth-item__dates">
+                                                                        {a.authorizationStartDate && formatDate(a.authorizationStartDate)}
+                                                                        {a.authorizationStartDate && a.authorizationEndDate && ' \u2013 '}
+                                                                        {a.authorizationEndDate && formatDate(a.authorizationEndDate)}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))}
                                                     </div>
-                                                ))}
-                                            </div>
-                                        ))}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
                         </div>
 
                         {/* Documents — Folder-style categories */}
-                        <div className="cp-card">
+                        <div className="cp-card cp-card--elevated">
                             <div className="cp-card__header">
-                                <h3 className="cp-card__title">{Icons.folder} Documents</h3>
+                                <h3 className="cp-card__title">
+                                    {Icons.folder} Documents
+                                    {totalDocs > 0 && <span className="cp-card__count">{totalDocs}</span>}
+                                </h3>
                                 <button className="btn btn--primary btn--sm" onClick={() => { setDocCategory('admission_packet'); setShowDocUploadModal(true); }}>{Icons.upload} Upload</button>
                             </div>
                             <div className="cp-card__body cp-doc-folders">
                                 {DOC_CATEGORIES.map(cat => {
                                     const docs = docsByCategory[cat.value] || [];
+                                    const isExpanded = expandedFolders[cat.value] !== false && docs.length > 0;
                                     return (
-                                        <div key={cat.value} className="cp-doc-folder">
-                                            <div className="cp-doc-folder__header" style={{ color: docs.length > 0 ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))' }}>
-                                                {Icons.folder}
+                                        <div key={cat.value} className={`cp-doc-folder ${docs.length > 0 ? 'cp-doc-folder--has-files' : ''}`}>
+                                            <button
+                                                className="cp-doc-folder__header"
+                                                onClick={() => docs.length > 0 && toggleFolder(cat.value)}
+                                                style={{ '--folder-color': cat.color }}
+                                            >
+                                                <span className="cp-doc-folder__chevron" style={{ opacity: docs.length > 0 ? 1 : 0, transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+                                                    {Icons.chevronRight}
+                                                </span>
+                                                <span className="cp-doc-folder__icon">{Icons.folder}</span>
                                                 <span className="cp-doc-folder__name">{cat.label}</span>
-                                                {docs.length > 0 && <span className="cp-doc-folder__count">({docs.length})</span>}
-                                            </div>
-                                            {docs.length > 0 && (
+                                                {docs.length > 0 && <span className="cp-doc-folder__count">{docs.length}</span>}
+                                                <button
+                                                    className="btn btn--ghost btn--icon cp-doc-folder__upload"
+                                                    title={`Upload to ${cat.label}`}
+                                                    onClick={(e) => { e.stopPropagation(); setDocCategory(cat.value); setShowDocUploadModal(true); }}
+                                                >
+                                                    {Icons.upload}
+                                                </button>
+                                            </button>
+                                            {isExpanded && docs.length > 0 && (
                                                 <div className="cp-doc-folder__files">
                                                     {docs.map(doc => (
                                                         <div key={doc.id} className="cp-doc-file">
                                                             <span className="cp-doc-file__icon">{Icons.paperclip}</span>
                                                             <span className="cp-doc-file__name">{doc.fileName}</span>
-                                                            <span className="cp-doc-file__size">{formatFileSize(doc.fileSize)}</span>
-                                                            <span className="cp-doc-file__date">{formatDate(doc.createdAt)}</span>
+                                                            <span className="cp-doc-file__meta">{formatFileSize(doc.fileSize)}</span>
+                                                            <span className="cp-doc-file__meta">{formatDate(doc.createdAt)}</span>
                                                             <div className="cp-doc-file__actions">
                                                                 <button className="btn btn--ghost btn--icon" title="Download" onClick={() => handleDownloadDoc(doc)}>{Icons.download}</button>
                                                                 <button className="btn btn--danger-ghost btn--icon" title="Delete" onClick={() => setConfirmDelete({ type: 'doc', item: doc })}>{Icons.trash}</button>
@@ -464,39 +549,48 @@ export default function ClientDetailPage() {
                         </div>
                     </div>
 
-                    {/* ─── RIGHT COLUMN: Hospital Reporting, Incidents, Supervisor Review ─── */}
+                    {/* ─── RIGHT COLUMN ─── */}
                     <div className="cp-right-col">
                         {/* Hospital Reporting */}
-                        <div className="cp-card">
-                            <div className="cp-card__header">
+                        <div className="cp-card cp-card--elevated">
+                            <div className="cp-card__header cp-card__header--hospital">
                                 <div>
-                                    <div className="cp-section-label" style={{ color: 'hsl(0 84% 60%)', fontWeight: 700, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Hospital Reporting</div>
-                                    <h3 className="cp-card__title" style={{ marginTop: 2 }}>Visit & Progress Tracking</h3>
+                                    <div className="cp-card__supertitle cp-card__supertitle--red">Hospital Reporting</div>
+                                    <h3 className="cp-card__title">Visit & Progress Tracking</h3>
                                 </div>
                                 <button className="btn btn--outline btn--sm" onClick={() => openVisitModal()}>{Icons.plus} Schedule Visit</button>
                             </div>
                             <div className="cp-card__body">
                                 {(!client.hospitalVisits || client.hospitalVisits.length === 0) ? (
-                                    <p className="cp-empty-text">No hospital visits recorded.</p>
+                                    <div className="cp-empty-state-card">
+                                        <div className="cp-empty-state-card__icon">{Icons.building}</div>
+                                        <p>No hospital visits recorded.</p>
+                                        <button className="btn btn--outline btn--sm" onClick={() => openVisitModal()}>Schedule First Visit</button>
+                                    </div>
                                 ) : (
                                     <div className="cp-visit-timeline">
-                                        {client.hospitalVisits.map(v => (
+                                        {client.hospitalVisits.map((v, i) => (
                                             <div key={v.id} className="cp-visit-entry">
-                                                {statusDot(v.status)}
-                                                <div className="cp-visit-entry__content">
-                                                    <div className="cp-visit-entry__title">{v.purpose || 'Hospital Visit'}</div>
+                                                <div className="cp-visit-entry__track">
+                                                    <span className={`cp-timeline-dot cp-timeline-dot--${v.status === 'completed' ? 'green' : v.status === 'cancelled' ? 'gray' : 'blue'}`} />
+                                                    {i < client.hospitalVisits.length - 1 && <span className="cp-timeline-line" />}
+                                                </div>
+                                                <div className="cp-visit-entry__card">
+                                                    <div className="cp-visit-entry__top">
+                                                        <div className="cp-visit-entry__title">{v.purpose || 'Hospital Visit'}</div>
+                                                        <span className={`ts-badge ts-badge--${v.status === 'completed' ? 'submitted' : v.status === 'cancelled' ? 'draft' : 'upcoming'}`}>
+                                                            {v.status.toUpperCase()}
+                                                        </span>
+                                                    </div>
                                                     <div className="cp-visit-entry__meta">
                                                         {formatDateTime(v.visitDate, v.visitTime)}
                                                         {v.providerName && <> &bull; {v.providerName}</>}
                                                         {v.location && <> &bull; {v.location}</>}
                                                     </div>
-                                                </div>
-                                                <div className="cp-visit-entry__actions">
-                                                    <span className={`ts-badge ts-badge--${v.status === 'completed' ? 'submitted' : v.status === 'cancelled' ? 'draft' : 'upcoming'}`}>
-                                                        {v.status.toUpperCase()}
-                                                    </span>
-                                                    <button className="btn btn--ghost btn--icon" title="Edit" onClick={() => openVisitModal(v)}>{Icons.edit}</button>
-                                                    <button className="btn btn--danger-ghost btn--icon" title="Delete" onClick={() => setConfirmDelete({ type: 'visit', item: v })}>{Icons.trash}</button>
+                                                    <div className="cp-visit-entry__actions">
+                                                        <button className="btn btn--ghost btn--icon" title="Edit" onClick={() => openVisitModal(v)}>{Icons.edit}</button>
+                                                        <button className="btn btn--danger-ghost btn--icon" title="Delete" onClick={() => setConfirmDelete({ type: 'visit', item: v })}>{Icons.trash}</button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))}
@@ -506,23 +600,31 @@ export default function ClientDetailPage() {
                         </div>
 
                         {/* Incident Reporting */}
-                        <div className="cp-card">
+                        <div className="cp-card cp-card--elevated">
                             <div className="cp-card__header">
                                 <h3 className="cp-card__title">Incident Reporting</h3>
                                 <button className="btn btn--primary btn--sm" onClick={() => openIncidentModal()}>{Icons.plus} Report Incident</button>
                             </div>
                             <div className="cp-card__body">
                                 {(!client.incidents || client.incidents.length === 0) ? (
-                                    <p className="cp-empty-text">No incidents reported.</p>
+                                    <div className="cp-empty-state-card">
+                                        <div className="cp-empty-state-card__icon">{Icons.checkCircle}</div>
+                                        <p>No incidents reported.</p>
+                                    </div>
                                 ) : (
                                     <div className="cp-incident-list">
                                         {client.incidents.map(inc => (
-                                            <div key={inc.id} className={`cp-incident-entry ${inc.status === 'open' ? 'cp-incident-entry--open' : ''}`}>
+                                            <div key={inc.id} className={`cp-incident-entry ${inc.status === 'open' ? 'cp-incident-entry--open' : 'cp-incident-entry--resolved'}`}>
                                                 <div className="cp-incident-entry__icon">
                                                     {inc.status === 'open' ? Icons.alertCircle : Icons.checkCircle}
                                                 </div>
                                                 <div className="cp-incident-entry__content">
-                                                    <div className="cp-incident-entry__title">{inc.description || 'Incident'}</div>
+                                                    <div className="cp-incident-entry__top">
+                                                        <div className="cp-incident-entry__title">{inc.description || 'Incident'}</div>
+                                                        <span className={`ts-badge ts-badge--${inc.status === 'resolved' ? 'submitted' : 'draft'}`}>
+                                                            {inc.status === 'resolved' ? 'RESOLVED' : 'OPEN'}
+                                                        </span>
+                                                    </div>
                                                     <div className="cp-incident-entry__meta">
                                                         {formatDate(inc.incidentDate)}
                                                         {inc.reportedBy && <> &bull; Reported by {inc.reportedBy}</>}
@@ -530,11 +632,8 @@ export default function ClientDetailPage() {
                                                     </div>
                                                 </div>
                                                 <div className="cp-incident-entry__actions">
-                                                    <span className={`ts-badge ts-badge--${inc.status === 'resolved' ? 'submitted' : 'draft'}`}>
-                                                        {inc.status === 'resolved' ? 'RESOLVED' : 'OPEN'}
-                                                    </span>
                                                     {inc.status === 'open' && (
-                                                        <button className="btn btn--ghost btn--icon" title="Resolve" onClick={() => handleResolveIncident(inc)}>{Icons.checkCircle}</button>
+                                                        <button className="btn btn--success btn--xs" title="Resolve" onClick={() => handleResolveIncident(inc)}>{Icons.checkCircle} Resolve</button>
                                                     )}
                                                     <button className="btn btn--ghost btn--icon" title="Edit" onClick={() => openIncidentModal(inc)}>{Icons.edit}</button>
                                                     <button className="btn btn--danger-ghost btn--icon" title="Delete" onClick={() => setConfirmDelete({ type: 'incident', item: inc })}>{Icons.trash}</button>
@@ -547,22 +646,28 @@ export default function ClientDetailPage() {
                         </div>
 
                         {/* Supervisor Review Documents */}
-                        <div className="cp-card">
+                        <div className="cp-card cp-card--elevated">
                             <div className="cp-card__header">
-                                <h3 className="cp-card__title" style={{ textTransform: 'uppercase', fontSize: 13, letterSpacing: '0.05em', color: 'hsl(var(--muted-foreground))' }}>Supervisor Review Documents</h3>
+                                <h3 className="cp-card__title">
+                                    <span className="cp-card__supertitle" style={{ color: '#64748b' }}>Supervisor Review Documents</span>
+                                </h3>
                                 <button className="btn btn--outline btn--sm" onClick={() => { setDocCategory('supervisor_review'); setShowDocUploadModal(true); }}>{Icons.upload} Upload</button>
                             </div>
                             <div className="cp-card__body">
                                 {(!docsByCategory['supervisor_review'] || docsByCategory['supervisor_review'].length === 0) ? (
-                                    <p className="cp-empty-text">No supervisor review documents uploaded.</p>
+                                    <div className="cp-empty-state-card">
+                                        <div className="cp-empty-state-card__icon">{Icons.fileText}</div>
+                                        <p>No supervisor review documents.</p>
+                                        <button className="btn btn--outline btn--sm" onClick={() => { setDocCategory('supervisor_review'); setShowDocUploadModal(true); }}>Upload First Document</button>
+                                    </div>
                                 ) : (
                                     <div className="cp-doc-folder__files">
                                         {docsByCategory['supervisor_review'].map(doc => (
                                             <div key={doc.id} className="cp-doc-file">
                                                 <span className="cp-doc-file__icon">{Icons.paperclip}</span>
                                                 <span className="cp-doc-file__name">{doc.fileName}</span>
-                                                <span className="cp-doc-file__size">{formatFileSize(doc.fileSize)}</span>
-                                                <div className="cp-doc-file__actions">
+                                                <span className="cp-doc-file__meta">{formatFileSize(doc.fileSize)}</span>
+                                                <div className="cp-doc-file__actions" style={{ opacity: 1 }}>
                                                     <button className="btn btn--ghost btn--icon" title="Download" onClick={() => handleDownloadDoc(doc)}>{Icons.download}</button>
                                                     <button className="btn btn--danger-ghost btn--icon" title="Delete" onClick={() => setConfirmDelete({ type: 'doc', item: doc })}>{Icons.trash}</button>
                                                 </div>
