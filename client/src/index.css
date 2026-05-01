@@ -4537,3 +4537,485 @@ button.sdr-section-tag:hover:not(:disabled) {
 .signing-missing li {
     margin-bottom: 2px;
 }
+
+/* ═══════════════════════════════════════════════
+   Care Plan Detail Page — Dashboard Layout
+   ═══════════════════════════════════════════════ */
+
+/* ─── Top Row: Profile | Services | Care Team | Notes ─── */
+.cp-top-row {
+  display: grid;
+  grid-template-columns: 1.5fr 0.8fr 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.cp-profile-card {
+  display: flex;
+  gap: 16px;
+  padding: 20px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  align-items: flex-start;
+}
+
+.cp-profile-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.cp-profile-info {
+  min-width: 0;
+}
+
+.cp-profile-name {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  line-height: 1.2;
+}
+
+.cp-profile-details {
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cp-profile-details strong {
+  color: hsl(var(--foreground));
+  font-weight: 600;
+}
+
+/* Shared section card for top row */
+.cp-section-card {
+  padding: 16px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.cp-section-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  margin-bottom: 10px;
+}
+
+.cp-section-header-inline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.cp-section-header-inline .cp-section-label {
+  margin-bottom: 0;
+}
+
+.cp-services-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cp-care-team-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  counter-reset: ct;
+}
+
+.cp-care-team-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  font-size: 13px;
+  counter-increment: ct;
+}
+
+.cp-care-team-item::before {
+  content: counter(ct) ". ";
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+}
+
+.cp-care-team-name {
+  font-weight: 500;
+}
+
+.cp-care-team-role {
+  color: hsl(var(--muted-foreground));
+  font-size: 12px;
+}
+
+.cp-inline-action {
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.cp-care-team-item:hover .cp-inline-action {
+  opacity: 1;
+}
+
+.cp-notes-content {
+  font-size: 13px;
+  color: hsl(var(--foreground));
+  line-height: 1.6;
+}
+
+.cp-empty-text {
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
+  margin: 0;
+}
+
+/* ─── Main Grid: Left (wider) + Right ─── */
+.cp-main-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.cp-left-col,
+.cp-right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ─── Card Component ─── */
+.cp-card {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.cp-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.cp-card__title {
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.cp-card__title svg {
+  width: 16px;
+  height: 16px;
+  color: hsl(var(--muted-foreground));
+}
+
+.cp-card__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.cp-card__dot--green {
+  background: hsl(142 76% 36%);
+}
+
+.cp-card__body {
+  padding: 16px 20px;
+}
+
+/* ─── Authorization Groups ─── */
+.cp-auth-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cp-auth-group__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: hsl(var(--primary));
+  margin: 0 0 8px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.cp-auth-item {
+  padding: 6px 0;
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+}
+
+.cp-auth-item:last-child {
+  border-bottom: none;
+}
+
+.cp-auth-item__name {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.cp-auth-item__meta {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  display: flex;
+  gap: 12px;
+  margin-top: 2px;
+}
+
+/* ─── Document Folders ─── */
+.cp-doc-folders {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 20px !important;
+}
+
+.cp-doc-folder {
+  border-bottom: 1px solid hsl(var(--border) / 0.4);
+  padding-bottom: 8px;
+}
+
+.cp-doc-folder:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.cp-doc-folder__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: default;
+}
+
+.cp-doc-folder__header svg {
+  width: 16px;
+  height: 16px;
+}
+
+.cp-doc-folder__name {
+  flex: 1;
+}
+
+.cp-doc-folder__count {
+  font-weight: 400;
+  color: hsl(var(--muted-foreground));
+  font-size: 12px;
+}
+
+.cp-doc-folder__files {
+  padding: 4px 0 4px 24px;
+}
+
+.cp-doc-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.cp-doc-file__icon {
+  color: hsl(var(--muted-foreground));
+  display: flex;
+}
+
+.cp-doc-file__icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.cp-doc-file__name {
+  font-weight: 500;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cp-doc-file__size,
+.cp-doc-file__date {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+
+.cp-doc-file__actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.cp-doc-file:hover .cp-doc-file__actions {
+  opacity: 1;
+}
+
+/* ─── Hospital Visit Timeline ─── */
+.cp-visit-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cp-visit-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--card));
+}
+
+.cp-timeline-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+
+.cp-timeline-dot--blue {
+  background: hsl(217 91% 60%);
+}
+
+.cp-timeline-dot--green {
+  background: hsl(142 76% 36%);
+}
+
+.cp-timeline-dot--gray {
+  background: hsl(var(--muted-foreground));
+}
+
+.cp-visit-entry__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.cp-visit-entry__title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.cp-visit-entry__meta {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+
+.cp-visit-entry__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ─── Upcoming badge ─── */
+.ts-badge--upcoming {
+  background: hsl(217 91% 60% / 0.12);
+  color: hsl(217 91% 45%);
+}
+
+/* ─── Incident List ─── */
+.cp-incident-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cp-incident-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
+}
+
+.cp-incident-entry--open {
+  background: hsl(0 80% 97%);
+  border-color: hsl(0 60% 88%);
+}
+
+.cp-incident-entry__icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  display: flex;
+}
+
+.cp-incident-entry--open .cp-incident-entry__icon {
+  color: hsl(0 84% 60%);
+}
+
+.cp-incident-entry__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.cp-incident-entry__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.cp-incident-entry__title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.cp-incident-entry__meta {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+
+.cp-incident-entry__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 1200px) {
+  .cp-top-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .cp-main-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .cp-top-row {
+    grid-template-columns: 1fr;
+  }
+  .cp-main-grid {
+    grid-template-columns: 1fr;
+  }
+}
