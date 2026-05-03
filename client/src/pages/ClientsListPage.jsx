@@ -14,7 +14,10 @@ export default function ClientsListPage() {
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
-    const [form, setForm] = useState({ clientName: '', medicaidId: '', insuranceType: 'MEDICAID', address: '', phone: '' });
+    const [form, setForm] = useState({
+        clientName: '', medicaidId: '', insuranceType: 'MEDICAID', address: '', phone: '',
+        dob: '', paNumber: '', doctorName: '', doctorPhone: '', backupDoctorName: '', backupDoctorPhone: '', critical: false,
+    });
     const [insuranceTypes, setInsuranceTypes] = useState([]);
     const [saving, setSaving] = useState(false);
 
@@ -48,10 +51,20 @@ export default function ClientsListPage() {
                 insuranceType: form.insuranceType,
                 address: form.address,
                 phone: form.phone,
+                dob: form.dob || null,
+                paNumber: form.paNumber,
+                doctorName: form.doctorName,
+                doctorPhone: form.doctorPhone,
+                backupDoctorName: form.backupDoctorName,
+                backupDoctorPhone: form.backupDoctorPhone,
+                critical: form.critical,
             });
             showToast(`"${client.clientName}" created`);
             setShowCreateModal(false);
-            setForm({ clientName: '', medicaidId: '', insuranceType: 'MEDICAID', address: '', phone: '' });
+            setForm({
+                clientName: '', medicaidId: '', insuranceType: 'MEDICAID', address: '', phone: '',
+                dob: '', paNumber: '', doctorName: '', doctorPhone: '', backupDoctorName: '', backupDoctorPhone: '', critical: false,
+            });
             navigate(`/clients/${client.id}`);
         } catch (err) {
             showToast(err.message, 'error');
@@ -111,7 +124,10 @@ export default function ClientsListPage() {
                             <tbody>
                                 {filtered.map(c => (
                                     <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/clients/${c.id}`)}>
-                                        <td style={{ fontWeight: 500 }}>{c.clientName}</td>
+                                        <td style={{ fontWeight: 500 }}>
+                                            {c.clientName}
+                                            {c.critical && <span className="ts-badge ts-badge--critical" style={{ marginLeft: 6 }}>Critical</span>}
+                                        </td>
                                         <td>{c.medicaidId || '\u2014'}</td>
                                         <td><span className="ts-badge ts-badge--draft">{c.insuranceType}</span></td>
                                         <td>{c.phone || '\u2014'}</td>
@@ -160,6 +176,36 @@ export default function ClientsListPage() {
                         <div className="form-group">
                             <label>Address</label>
                             <input type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Optional" />
+                        </div>
+                        <div className="form-group">
+                            <label>Date of Birth</label>
+                            <input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} />
+                        </div>
+                        <div className="form-group">
+                            <label>PA#</label>
+                            <input type="text" value={form.paNumber} onChange={(e) => setForm({ ...form, paNumber: e.target.value })} placeholder="Optional" />
+                        </div>
+                        <div className="form-group">
+                            <label>Doctor Name</label>
+                            <input type="text" value={form.doctorName} onChange={(e) => setForm({ ...form, doctorName: e.target.value })} placeholder="Optional" />
+                        </div>
+                        <div className="form-group">
+                            <label>Doctor Phone</label>
+                            <input type="text" value={form.doctorPhone} onChange={(e) => setForm({ ...form, doctorPhone: e.target.value })} placeholder="Optional" />
+                        </div>
+                        <div className="form-group">
+                            <label>Backup Doctor Name</label>
+                            <input type="text" value={form.backupDoctorName} onChange={(e) => setForm({ ...form, backupDoctorName: e.target.value })} placeholder="Optional" />
+                        </div>
+                        <div className="form-group">
+                            <label>Backup Doctor Phone</label>
+                            <input type="text" value={form.backupDoctorPhone} onChange={(e) => setForm({ ...form, backupDoctorPhone: e.target.value })} placeholder="Optional" />
+                        </div>
+                        <div className="form-group">
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <input type="checkbox" checked={form.critical} onChange={(e) => setForm({ ...form, critical: e.target.checked })} />
+                                Critical List
+                            </label>
                         </div>
                         <div className="form-actions">
                             <button type="button" className="btn btn--outline" onClick={() => setShowCreateModal(false)}>Cancel</button>
