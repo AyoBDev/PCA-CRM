@@ -29,6 +29,7 @@ async function getClient(req, res, next) {
                 documents: { include: { uploader: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } },
                 hospitalVisits: { orderBy: { visitDate: 'desc' } },
                 incidents: { orderBy: { incidentDate: 'desc' } },
+                clientNotes: { orderBy: { date: 'desc' } },
             },
         });
         if (!client) return res.status(404).json({ error: 'Client not found' });
@@ -41,7 +42,7 @@ async function getClient(req, res, next) {
 // POST /api/clients
 async function createClient(req, res, next) {
     try {
-        const { clientName, medicaidId, insuranceType, address, phone, gateCode, notes, enabledServices } = req.body;
+        const { clientName, medicaidId, insuranceType, address, phone, gateCode, notes, enabledServices, dob, paNumber, doctorName, doctorPhone, backupDoctorName, backupDoctorPhone, critical } = req.body;
         if (!clientName || typeof clientName !== 'string' || !clientName.trim()) {
             return res.status(400).json({ error: 'clientName is required' });
         }
@@ -55,6 +56,13 @@ async function createClient(req, res, next) {
                 gateCode: (gateCode || '').trim(),
                 notes: (notes || '').trim(),
                 enabledServices: enabledServices || '["PAS","Homemaker"]',
+                dob: dob ? new Date(dob) : null,
+                paNumber: (paNumber || '').trim(),
+                doctorName: (doctorName || '').trim(),
+                doctorPhone: (doctorPhone || '').trim(),
+                backupDoctorName: (backupDoctorName || '').trim(),
+                backupDoctorPhone: (backupDoctorPhone || '').trim(),
+                critical: critical === true,
             },
             include: { authorizations: true },
         });
@@ -69,7 +77,7 @@ async function createClient(req, res, next) {
 async function updateClient(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const { clientName, medicaidId, insuranceType, address, phone, gateCode, notes, enabledServices } = req.body;
+        const { clientName, medicaidId, insuranceType, address, phone, gateCode, notes, enabledServices, dob, paNumber, doctorName, doctorPhone, backupDoctorName, backupDoctorPhone, critical } = req.body;
         if (!clientName || typeof clientName !== 'string' || !clientName.trim()) {
             return res.status(400).json({ error: 'clientName is required' });
         }
@@ -85,10 +93,17 @@ async function updateClient(req, res, next) {
                 gateCode: (gateCode || '').trim(),
                 notes: (notes || '').trim(),
                 enabledServices: enabledServices || '["PAS","Homemaker"]',
+                dob: dob ? new Date(dob) : null,
+                paNumber: (paNumber || '').trim(),
+                doctorName: (doctorName || '').trim(),
+                doctorPhone: (doctorPhone || '').trim(),
+                backupDoctorName: (backupDoctorName || '').trim(),
+                backupDoctorPhone: (backupDoctorPhone || '').trim(),
+                critical: critical === true,
             },
             include: { authorizations: { orderBy: { createdAt: 'asc' } } },
         });
-        const changes = audit.diffFields(oldClient, updated, ['clientName', 'medicaidId', 'insuranceType', 'address', 'phone', 'gateCode', 'notes', 'enabledServices']);
+        const changes = audit.diffFields(oldClient, updated, ['clientName', 'medicaidId', 'insuranceType', 'address', 'phone', 'gateCode', 'notes', 'enabledServices', 'dob', 'paNumber', 'doctorName', 'doctorPhone', 'backupDoctorName', 'backupDoctorPhone', 'critical']);
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Client', entityId: updated.id, entityName: updated.clientName, changes });
         res.json(enrichClient(updated));
     } catch (err) {
@@ -101,13 +116,20 @@ async function updateClient(req, res, next) {
 async function patchClient(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const { address, phone, gateCode, notes, enabledServices } = req.body;
+        const { address, phone, gateCode, notes, enabledServices, dob, paNumber, doctorName, doctorPhone, backupDoctorName, backupDoctorPhone, critical } = req.body;
         const data = {};
         if (address !== undefined) data.address = address;
         if (phone !== undefined) data.phone = phone;
         if (gateCode !== undefined) data.gateCode = gateCode;
         if (notes !== undefined) data.notes = notes;
         if (enabledServices !== undefined) data.enabledServices = enabledServices;
+        if (dob !== undefined) data.dob = dob ? new Date(dob) : null;
+        if (paNumber !== undefined) data.paNumber = paNumber;
+        if (doctorName !== undefined) data.doctorName = doctorName;
+        if (doctorPhone !== undefined) data.doctorPhone = doctorPhone;
+        if (backupDoctorName !== undefined) data.backupDoctorName = backupDoctorName;
+        if (backupDoctorPhone !== undefined) data.backupDoctorPhone = backupDoctorPhone;
+        if (critical !== undefined) data.critical = critical;
 
         if (Object.keys(data).length === 0) {
             return res.status(400).json({ error: 'No valid fields provided' });
