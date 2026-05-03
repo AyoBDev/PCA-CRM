@@ -333,7 +333,10 @@ export default function ClientDetailPage() {
                             {client.clientName.charAt(0).toUpperCase()}
                         </div>
                         <div className="cp-hero__info">
-                            <h2 className="cp-hero__name">{client.clientName}</h2>
+                            <h2 className="cp-hero__name">
+                                {client.clientName}
+                                {client.critical && <span className="ts-badge ts-badge--critical" style={{ marginLeft: 8 }}>Critical</span>}
+                            </h2>
                             <div className="cp-hero__fields">
                                 {client.medicaidId && (
                                     <div className="cp-hero__field">
@@ -357,6 +360,37 @@ export default function ClientDetailPage() {
                                     <div className="cp-hero__field">
                                         <span className="cp-hero__field-label">Address</span>
                                         <span className="cp-hero__field-value">{client.address}</span>
+                                    </div>
+                                )}
+                                {client.dob && (
+                                    <div className="cp-hero__field">
+                                        <span className="cp-hero__field-label">D.O.B.</span>
+                                        <span className="cp-hero__field-value">
+                                            {new Date(client.dob).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                            {' '}({Math.floor((Date.now() - new Date(client.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} yrs)
+                                        </span>
+                                    </div>
+                                )}
+                                {client.paNumber && (
+                                    <div className="cp-hero__field">
+                                        <span className="cp-hero__field-label">PA#</span>
+                                        <span className="cp-hero__field-value">{client.paNumber}</span>
+                                    </div>
+                                )}
+                                {client.doctorName && (
+                                    <div className="cp-hero__field">
+                                        <span className="cp-hero__field-label">Doctor</span>
+                                        <span className="cp-hero__field-value">
+                                            {client.doctorName}{client.doctorPhone ? ` \u2022 ${client.doctorPhone}` : ''}
+                                        </span>
+                                    </div>
+                                )}
+                                {client.backupDoctorName && (
+                                    <div className="cp-hero__field">
+                                        <span className="cp-hero__field-label">Backup Doctor</span>
+                                        <span className="cp-hero__field-value">
+                                            {client.backupDoctorName}{client.backupDoctorPhone ? ` \u2022 ${client.backupDoctorPhone}` : ''}
+                                        </span>
                                     </div>
                                 )}
                             </div>
@@ -676,6 +710,45 @@ export default function ClientDetailPage() {
                                     </div>
                                 )}
                             </div>
+                        </div>
+
+                        {/* Client Notes / Renewal History */}
+                        <div className="cp-card cp-card--elevated">
+                            <div className="cp-card__header">
+                                <h3 className="cp-card__title">
+                                    <span className="cp-card__dot" style={{ background: '#8b5cf6' }} />
+                                    Renewal History
+                                </h3>
+                                <span className="cp-card__count">{(client.clientNotes || []).length}</span>
+                            </div>
+                            {(!client.clientNotes || client.clientNotes.length === 0) ? (
+                                <div className="cp-empty-card">
+                                    <div className="cp-empty-card__icon">{Icons.fileText}</div>
+                                    <div className="cp-empty-card__text">No renewal history</div>
+                                </div>
+                            ) : (
+                                <div className="cp-timeline">
+                                    {client.clientNotes.map(note => (
+                                        <div key={note.id} className="cp-visit-entry">
+                                            <div className="cp-visit-entry__track">
+                                                <div className="cp-timeline-dot" style={{ '--dot-color': note.type === '60_DAY_RENEWAL' ? '#f59e0b' : note.type === '30_DAY_RENEWAL' ? '#ef4444' : '#8b5cf6' }} />
+                                                <div className="cp-timeline-line" />
+                                            </div>
+                                            <div className="cp-visit-entry__content">
+                                                <div className="cp-visit-entry__header">
+                                                    <span className={`ts-badge ${note.type === '60_DAY_RENEWAL' ? 'ts-badge--draft' : note.type === '30_DAY_RENEWAL' ? 'ts-badge--submitted' : 'ts-badge--upcoming'}`}>
+                                                        {note.type === '60_DAY_RENEWAL' ? '60-Day Notice' : note.type === '30_DAY_RENEWAL' ? '30-Day Notice' : 'Renewal Notice'}
+                                                    </span>
+                                                    <span className="cp-visit-entry__date">{formatDate(note.date)}</span>
+                                                </div>
+                                                <div className="cp-visit-entry__details" style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', marginTop: 4, whiteSpace: 'pre-wrap', maxHeight: 60, overflow: 'hidden' }}>
+                                                    {note.content.substring(0, 200)}{note.content.length > 200 ? '...' : ''}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
