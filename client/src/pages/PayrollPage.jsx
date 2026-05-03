@@ -116,6 +116,7 @@ const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits
         // Build summary from authorizations first (so all authorized codes show)
         const result = new Map();
         for (const [code, authorized] of Object.entries(clientAuthMap)) {
+            if (code === '_records') continue;
             const reported = reportedMap.get(code) || 0;
             result.set(code, { reported, authorized });
         }
