@@ -94,6 +94,13 @@ model Client {
   phone           String          @default("") @map("phone")
   gateCode        String          @default("") @map("gate_code")
   notes           String          @default("") @map("notes")
+  dob               DateTime? @map("dob")
+  paNumber          String    @default("") @map("pa_number")
+  doctorName        String    @default("") @map("doctor_name")
+  doctorPhone       String    @default("") @map("doctor_phone")
+  backupDoctorName  String    @default("") @map("backup_doctor_name")
+  backupDoctorPhone String    @default("") @map("backup_doctor_phone")
+  critical          Boolean   @default(false) @map("critical")
   enabledServices String          @default("[\"PAS\",\"Homemaker\"]") @map("enabled_services")
   archivedAt      DateTime?       @map("archived_at")
   authorizations  Authorization[]
@@ -104,10 +111,24 @@ model Client {
   documents       ClientDocument[]
   hospitalVisits  HospitalVisit[]
   incidents       Incident[]
+  clientNotes     ClientNote[]
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
   @@map("clients")
+}
+
+model ClientNote {
+  id        Int      @id @default(autoincrement())
+  clientId  Int      @map("client_id")
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  date      DateTime
+  type      String   @default("")
+  content   String   @default("")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([clientId])
+  @@map("client_notes")
 }
 
 model ClientCareTeam {
