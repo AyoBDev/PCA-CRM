@@ -149,6 +149,7 @@ async function checkOverlaps({ employeeId, shiftDate, startTime, endTime, exclud
         employeeId: Number(employeeId),
         shiftDate: { gte: dateStart, lte: dateEnd },
         status: { not: 'cancelled' },
+        archivedAt: null,
     };
 
     if (excludeId) where.id = { not: Number(excludeId) };
