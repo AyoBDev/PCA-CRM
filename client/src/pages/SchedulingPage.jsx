@@ -1697,8 +1697,30 @@ export default function SchedulingPage() {
                         {modal.overlapConflicts && modal.overlapConflicts.length > 0 && (
                             <div className="sched-overlap-confirm__list">
                                 {modal.overlapConflicts.map((c, i) => (
-                                    <div key={i} className="sched-overlap-confirm__item">
-                                        <strong>{c.date}</strong> — conflicts with {c.conflictWith.clientName} ({hhmm12(c.conflictWith.startTime)} - {hhmm12(c.conflictWith.endTime)})
+                                    <div key={i} className="sched-overlap-confirm__item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                        <span>
+                                            <strong>{c.date}</strong> — conflicts with {c.conflictWith.clientName} ({hhmm12(c.conflictWith.startTime)} - {hhmm12(c.conflictWith.endTime)})
+                                        </span>
+                                        {isAdmin && c.conflictWith.id && (
+                                            <button
+                                                className="btn btn--danger btn--xs"
+                                                onClick={async () => {
+                                                    try {
+                                                        await api.deleteShift(c.conflictWith.id);
+                                                        showToast('Conflicting shift removed');
+                                                        setModal(prev => ({
+                                                            ...prev,
+                                                            overlapWarning: null,
+                                                            overlapData: null,
+                                                            overlapConflicts: null,
+                                                        }));
+                                                        refetchAll();
+                                                    } catch (err) { showToast(err.message, 'error'); }
+                                                }}
+                                            >
+                                                {Icons.trash} Delete
+                                            </button>
+                                        )}
                                     </div>
                                 ))}
                             </div>

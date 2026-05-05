@@ -78,6 +78,7 @@ const {
     uploadPayrollRun,
     listPayrollRuns,
     getPayrollRun,
+    updatePayrollRun,
     deletePayrollRun,
     restorePayrollRun,
     permanentlyDeletePayrollRun,
@@ -244,6 +245,7 @@ router.get('/payroll/runs',                requireRole('admin', 'user', 'pca'), 
 router.post('/payroll/runs',               requireRole('admin'), upload.single('file'), uploadPayrollRun);
 router.delete('/payroll/runs/bulk-permanent', requireRole('admin'), bulkPermanentlyDeletePayrollRuns);
 router.get('/payroll/runs/:id',            requireRole('admin', 'user', 'pca'), getPayrollRun);
+router.patch('/payroll/runs/:id',          requireRole('admin'), updatePayrollRun);
 router.put('/payroll/runs/:id/restore',    requireRole('admin'), restorePayrollRun);
 router.delete('/payroll/runs/:id',         requireRole('admin'), deletePayrollRun);
 router.delete('/payroll/runs/:id/permanent', requireRole('admin'), permanentlyDeletePayrollRun);
