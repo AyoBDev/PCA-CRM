@@ -912,7 +912,7 @@ function PayrollPage() {
                                 setEditingRunName(true);
                             }} title={isAdmin ? 'Click to rename' : undefined}>
                                 {selectedRun.name}
-                                {isAdmin && <span style={{ marginLeft: 6, opacity: 0.4, fontSize: 14 }}>{Icons.edit}</span>}
+                                {isAdmin && <span style={{ marginLeft: 6, opacity: 0.4, display: 'inline-flex', width: 14, height: 14 }}>{Icons.edit}</span>}
                             </h1>
                         )}
                         <span style={{ fontSize: 12, color: 'hsl(240 3.8% 46.1%)' }}>
