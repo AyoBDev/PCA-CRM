@@ -7,6 +7,7 @@ import { useAuth } from '../../hooks/useAuth';
 const PATH_TO_PAGE = {
     '/dashboard': 'dashboard',
     '/clients': 'clients',
+    '/authorizations': 'authorizations',
     '/timesheets': 'timesheets',
     '/permanent-links': 'permanentLinks',
     '/scheduling': 'scheduling',
@@ -25,7 +26,9 @@ export default function Sidebar() {
         () => localStorage.getItem('sidebarCollapsed') === 'true'
     );
 
-    const activePage = PATH_TO_PAGE[location.pathname] || (location.pathname.startsWith('/payroll') ? 'payroll' : '');
+    const activePage = PATH_TO_PAGE[location.pathname]
+        || (location.pathname.startsWith('/payroll') ? 'payroll' : '')
+        || (location.pathname.startsWith('/clients/') ? 'clients' : '');
 
     const handleToggle = () => {
         setCollapsed((prev) => {
@@ -70,9 +73,14 @@ export default function Sidebar() {
                     </button>
                 )}
                 {isStaff && (
-                    <button className={`sidebar__nav-item ${activePage === 'clients' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/clients')} title="Clients">
-                        {Icons.users} Clients
-                    </button>
+                    <>
+                        <button className={`sidebar__nav-item ${activePage === 'clients' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/clients')} title="Clients">
+                            {Icons.users} Clients
+                        </button>
+                        <button className={`sidebar__nav-item sidebar__nav-item--sub ${activePage === 'authorizations' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/authorizations')} title="Authorizations">
+                            {Icons.clipboard} Authorizations
+                        </button>
+                    </>
                 )}
                 <button className={`sidebar__nav-item ${activePage === 'timesheets' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/timesheets')} title="Timesheets">
                     {Icons.fileText} Timesheets

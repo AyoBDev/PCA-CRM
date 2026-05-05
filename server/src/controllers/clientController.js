@@ -23,7 +23,14 @@ async function getClient(req, res, next) {
         const id = Number(req.params.id);
         const client = await prisma.client.findUnique({
             where: { id },
-            include: { authorizations: { orderBy: { createdAt: 'asc' } } },
+            include: {
+                authorizations: { orderBy: { createdAt: 'asc' } },
+                careTeam: { include: { employee: true }, orderBy: { assignedAt: 'desc' } },
+                documents: { include: { uploader: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } },
+                hospitalVisits: { orderBy: { visitDate: 'desc' } },
+                incidents: { orderBy: { incidentDate: 'desc' } },
+                clientNotes: { orderBy: { date: 'desc' } },
+            },
         });
         if (!client) return res.status(404).json({ error: 'Client not found' });
         res.json(enrichClient(client));
@@ -35,7 +42,7 @@ async function getClient(req, res, next) {
 // POST /api/clients
 async function createClient(req, res, next) {
     try {
-        const { clientName, medicaidId, insuranceType, address, phone, gateCode, notes, enabledServices } = req.body;
+        const { clientName, medicaidId, insuranceType, address, secondaryAddress, phone, secondaryPhone, email, gender, gateCode, notes, pcaNotes, caregiverRequirements, mainServices, enabledServices, dob, paNumber, doctorName, doctorPhone, backupDoctorName, backupDoctorPhone, emergencyContactName, emergencyContactPhone, emergencyContactRelation, secondaryEmergencyName, secondaryEmergencyPhone, secondaryEmergencyRelation, critical } = req.body;
         if (!clientName || typeof clientName !== 'string' || !clientName.trim()) {
             return res.status(400).json({ error: 'clientName is required' });
         }
@@ -45,10 +52,30 @@ async function createClient(req, res, next) {
                 medicaidId: (medicaidId || '').trim(),
                 insuranceType: insuranceType || 'MEDICAID',
                 address: (address || '').trim(),
+                secondaryAddress: (secondaryAddress || '').trim(),
                 phone: (phone || '').trim(),
+                secondaryPhone: (secondaryPhone || '').trim(),
+                email: (email || '').trim(),
+                gender: (gender || '').trim(),
                 gateCode: (gateCode || '').trim(),
                 notes: (notes || '').trim(),
+                pcaNotes: (pcaNotes || '').trim(),
+                caregiverRequirements: (caregiverRequirements || '').trim(),
+                mainServices: (mainServices || '').trim(),
                 enabledServices: enabledServices || '["PAS","Homemaker"]',
+                dob: dob ? new Date(dob) : null,
+                paNumber: (paNumber || '').trim(),
+                doctorName: (doctorName || '').trim(),
+                doctorPhone: (doctorPhone || '').trim(),
+                backupDoctorName: (backupDoctorName || '').trim(),
+                backupDoctorPhone: (backupDoctorPhone || '').trim(),
+                emergencyContactName: (emergencyContactName || '').trim(),
+                emergencyContactPhone: (emergencyContactPhone || '').trim(),
+                emergencyContactRelation: (emergencyContactRelation || '').trim(),
+                secondaryEmergencyName: (secondaryEmergencyName || '').trim(),
+                secondaryEmergencyPhone: (secondaryEmergencyPhone || '').trim(),
+                secondaryEmergencyRelation: (secondaryEmergencyRelation || '').trim(),
+                critical: critical === true,
             },
             include: { authorizations: true },
         });
@@ -63,7 +90,7 @@ async function createClient(req, res, next) {
 async function updateClient(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const { clientName, medicaidId, insuranceType, address, phone, gateCode, notes, enabledServices } = req.body;
+        const { clientName, medicaidId, insuranceType, address, secondaryAddress, phone, secondaryPhone, email, gender, gateCode, notes, pcaNotes, caregiverRequirements, mainServices, enabledServices, dob, paNumber, doctorName, doctorPhone, backupDoctorName, backupDoctorPhone, emergencyContactName, emergencyContactPhone, emergencyContactRelation, secondaryEmergencyName, secondaryEmergencyPhone, secondaryEmergencyRelation, critical } = req.body;
         if (!clientName || typeof clientName !== 'string' || !clientName.trim()) {
             return res.status(400).json({ error: 'clientName is required' });
         }
@@ -75,14 +102,34 @@ async function updateClient(req, res, next) {
                 medicaidId: (medicaidId || '').trim(),
                 insuranceType: insuranceType || 'MEDICAID',
                 address: (address || '').trim(),
+                secondaryAddress: (secondaryAddress || '').trim(),
                 phone: (phone || '').trim(),
+                secondaryPhone: (secondaryPhone || '').trim(),
+                email: (email || '').trim(),
+                gender: (gender || '').trim(),
                 gateCode: (gateCode || '').trim(),
                 notes: (notes || '').trim(),
+                pcaNotes: (pcaNotes || '').trim(),
+                caregiverRequirements: (caregiverRequirements || '').trim(),
+                mainServices: (mainServices || '').trim(),
                 enabledServices: enabledServices || '["PAS","Homemaker"]',
+                dob: dob ? new Date(dob) : null,
+                paNumber: (paNumber || '').trim(),
+                doctorName: (doctorName || '').trim(),
+                doctorPhone: (doctorPhone || '').trim(),
+                backupDoctorName: (backupDoctorName || '').trim(),
+                backupDoctorPhone: (backupDoctorPhone || '').trim(),
+                emergencyContactName: (emergencyContactName || '').trim(),
+                emergencyContactPhone: (emergencyContactPhone || '').trim(),
+                emergencyContactRelation: (emergencyContactRelation || '').trim(),
+                secondaryEmergencyName: (secondaryEmergencyName || '').trim(),
+                secondaryEmergencyPhone: (secondaryEmergencyPhone || '').trim(),
+                secondaryEmergencyRelation: (secondaryEmergencyRelation || '').trim(),
+                critical: critical === true,
             },
             include: { authorizations: { orderBy: { createdAt: 'asc' } } },
         });
-        const changes = audit.diffFields(oldClient, updated, ['clientName', 'medicaidId', 'insuranceType', 'address', 'phone', 'gateCode', 'notes', 'enabledServices']);
+        const changes = audit.diffFields(oldClient, updated, ['clientName', 'medicaidId', 'insuranceType', 'address', 'secondaryAddress', 'phone', 'secondaryPhone', 'email', 'gender', 'gateCode', 'notes', 'pcaNotes', 'caregiverRequirements', 'mainServices', 'enabledServices', 'dob', 'paNumber', 'doctorName', 'doctorPhone', 'backupDoctorName', 'backupDoctorPhone', 'emergencyContactName', 'emergencyContactPhone', 'emergencyContactRelation', 'secondaryEmergencyName', 'secondaryEmergencyPhone', 'secondaryEmergencyRelation', 'critical']);
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Client', entityId: updated.id, entityName: updated.clientName, changes });
         res.json(enrichClient(updated));
     } catch (err) {
@@ -95,13 +142,33 @@ async function updateClient(req, res, next) {
 async function patchClient(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const { address, phone, gateCode, notes, enabledServices } = req.body;
+        const { address, secondaryAddress, phone, secondaryPhone, email, gender, gateCode, notes, pcaNotes, caregiverRequirements, mainServices, enabledServices, dob, paNumber, doctorName, doctorPhone, backupDoctorName, backupDoctorPhone, emergencyContactName, emergencyContactPhone, emergencyContactRelation, secondaryEmergencyName, secondaryEmergencyPhone, secondaryEmergencyRelation, critical } = req.body;
         const data = {};
         if (address !== undefined) data.address = address;
+        if (secondaryAddress !== undefined) data.secondaryAddress = secondaryAddress;
         if (phone !== undefined) data.phone = phone;
+        if (secondaryPhone !== undefined) data.secondaryPhone = secondaryPhone;
+        if (email !== undefined) data.email = email;
+        if (gender !== undefined) data.gender = gender;
         if (gateCode !== undefined) data.gateCode = gateCode;
         if (notes !== undefined) data.notes = notes;
+        if (pcaNotes !== undefined) data.pcaNotes = pcaNotes;
+        if (caregiverRequirements !== undefined) data.caregiverRequirements = caregiverRequirements;
+        if (mainServices !== undefined) data.mainServices = mainServices;
         if (enabledServices !== undefined) data.enabledServices = enabledServices;
+        if (dob !== undefined) data.dob = dob ? new Date(dob) : null;
+        if (paNumber !== undefined) data.paNumber = paNumber;
+        if (doctorName !== undefined) data.doctorName = doctorName;
+        if (doctorPhone !== undefined) data.doctorPhone = doctorPhone;
+        if (backupDoctorName !== undefined) data.backupDoctorName = backupDoctorName;
+        if (backupDoctorPhone !== undefined) data.backupDoctorPhone = backupDoctorPhone;
+        if (emergencyContactName !== undefined) data.emergencyContactName = emergencyContactName;
+        if (emergencyContactPhone !== undefined) data.emergencyContactPhone = emergencyContactPhone;
+        if (emergencyContactRelation !== undefined) data.emergencyContactRelation = emergencyContactRelation;
+        if (secondaryEmergencyName !== undefined) data.secondaryEmergencyName = secondaryEmergencyName;
+        if (secondaryEmergencyPhone !== undefined) data.secondaryEmergencyPhone = secondaryEmergencyPhone;
+        if (secondaryEmergencyRelation !== undefined) data.secondaryEmergencyRelation = secondaryEmergencyRelation;
+        if (critical !== undefined) data.critical = critical;
 
         if (Object.keys(data).length === 0) {
             return res.status(400).json({ error: 'No valid fields provided' });

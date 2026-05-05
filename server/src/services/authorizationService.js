@@ -125,17 +125,12 @@ function enrichClient(client) {
     auths.map((a) => `${a.serviceCode}:${a.daysToExpire}`).join(' / ') || '—';
 
   return {
-    id: client.id,
-    clientName: client.clientName,
-    medicaidId: client.medicaidId || '',
-    insuranceType: client.insuranceType || 'MEDICAID',
+    ...client,
     serviceSummary,
     overallStatus,
     statusColor,
     daysSummary,
     authorizations: auths,
-    createdAt: client.createdAt,
-    updatedAt: client.updatedAt,
   };
 }
 
