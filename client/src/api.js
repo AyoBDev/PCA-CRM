@@ -130,6 +130,10 @@ export const createAuthorization = (clientId, data) =>
     request(`/clients/${clientId}/authorizations`, { method: 'POST', body: JSON.stringify(data) });
 export const updateAuthorization = (id, data) =>
     request(`/authorizations/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const archiveAuthorization = (id) =>
+    request(`/authorizations/${id}/archive`, { method: 'PUT' });
+export const restoreAuthorization = (id) =>
+    request(`/authorizations/${id}/restore`, { method: 'PUT' });
 export const deleteAuthorization = (id) =>
     request(`/authorizations/${id}`, { method: 'DELETE' });
 

@@ -29,7 +29,9 @@ async function createAuthorization(req, res, next) {
                 serviceCategory: (req.body.serviceCategory || '').trim(),
                 serviceCode: req.body.serviceCode,
                 serviceName: (req.body.serviceName || '').trim(),
+                authorizationNumber: (req.body.authorizationNumber || '').trim(),
                 authorizedUnits: parseInt(req.body.authorizedUnits) || 0,
+                authorizedHours: parseFloat(req.body.authorizedHours) || 0,
                 authorizationStartDate: req.body.authorizationStartDate
                     ? new Date(req.body.authorizationStartDate)
                     : null,
@@ -59,7 +61,9 @@ async function updateAuthorization(req, res, next) {
                 serviceCategory: (req.body.serviceCategory || '').trim(),
                 serviceCode: req.body.serviceCode,
                 serviceName: (req.body.serviceName || '').trim(),
+                authorizationNumber: (req.body.authorizationNumber || '').trim(),
                 authorizedUnits: parseInt(req.body.authorizedUnits) || 0,
+                authorizedHours: parseFloat(req.body.authorizedHours) || 0,
                 authorizationStartDate: req.body.authorizationStartDate
                     ? new Date(req.body.authorizationStartDate)
                     : null,
@@ -68,11 +72,49 @@ async function updateAuthorization(req, res, next) {
             },
         });
 
-        const changes = audit.diffFields(oldAuth, auth, ['serviceCode', 'serviceName', 'authorizedUnits', 'authorizationStartDate', 'authorizationEndDate', 'notes']);
+        const changes = audit.diffFields(oldAuth, auth, ['serviceCode', 'serviceName', 'authorizationNumber', 'authorizedUnits', 'authorizedHours', 'authorizationStartDate', 'authorizationEndDate', 'notes']);
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: auth.id, entityName: auth.serviceCode, changes });
         res.json(enrichAuthorization(auth));
     } catch (err) {
         if (err.code === 'P2025') return res.status(404).json({ error: 'Authorization not found' });
+        next(err);
+    }
+}
+
+// PUT /api/authorizations/:id/archive
+async function archiveAuthorization(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const auth = await prisma.authorization.findUnique({ where: { id } });
+        if (!auth) return res.status(404).json({ error: 'Authorization not found' });
+
+        const archived = await prisma.authorization.update({
+            where: { id },
+            data: { archivedAt: new Date() },
+        });
+
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'ARCHIVE', entityType: 'Authorization', entityId: id, entityName: auth.serviceCode });
+        res.json(enrichAuthorization(archived));
+    } catch (err) {
+        next(err);
+    }
+}
+
+// PUT /api/authorizations/:id/restore
+async function restoreAuthorization(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const auth = await prisma.authorization.findUnique({ where: { id } });
+        if (!auth) return res.status(404).json({ error: 'Authorization not found' });
+
+        const restored = await prisma.authorization.update({
+            where: { id },
+            data: { archivedAt: null },
+        });
+
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'RESTORE', entityType: 'Authorization', entityId: id, entityName: auth.serviceCode });
+        res.json(enrichAuthorization(restored));
+    } catch (err) {
         next(err);
     }
 }
@@ -98,4 +140,4 @@ async function deleteAuthorization(req, res, next) {
     }
 }
 
-module.exports = { createAuthorization, updateAuthorization, deleteAuthorization };
+module.exports = { createAuthorization, updateAuthorization, archiveAuthorization, restoreAuthorization, deleteAuthorization };

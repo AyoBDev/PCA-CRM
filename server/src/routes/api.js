@@ -17,6 +17,8 @@ const {
 const {
     createAuthorization,
     updateAuthorization,
+    archiveAuthorization,
+    restoreAuthorization,
     deleteAuthorization,
 } = require('../controllers/authorizationController');
 const {
@@ -174,6 +176,8 @@ router.delete('/clients/:id/permanent', requireRole('admin'), permanentlyDeleteC
 // Authorization routes
 router.post('/clients/:clientId/authorizations', requireRole('admin', 'user', 'pca'), createAuthorization);
 router.put('/authorizations/:id', requireRole('admin', 'user', 'pca'), updateAuthorization);
+router.put('/authorizations/:id/archive', requireRole('admin', 'user', 'pca'), archiveAuthorization);
+router.put('/authorizations/:id/restore', requireRole('admin', 'user', 'pca'), restoreAuthorization);
 router.delete('/authorizations/:id', requireRole('admin', 'user', 'pca'), deleteAuthorization);
 
 // Care Team

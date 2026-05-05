@@ -68,6 +68,11 @@ function computeAge(dob) {
     return Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
 }
 
+function unitsToHours(units) {
+    if (!units) return '\u2014';
+    return (units / 4).toFixed(1);
+}
+
 export default function ClientDetailPage() {
     const { clientId } = useParams();
     const navigate = useNavigate();
@@ -98,12 +103,34 @@ export default function ClientDetailPage() {
     const [editingNotes, setEditingNotes] = useState(false);
     const [notesValue, setNotesValue] = useState('');
 
+    // Edit Client modal
+    const [showEditClientModal, setShowEditClientModal] = useState(false);
+    const [editClientForm, setEditClientForm] = useState({});
+
+    // PCA Notes / Caregiver Requirements / Main Services
+    const [editingPcaNotes, setEditingPcaNotes] = useState(false);
+    const [pcaNotesValue, setPcaNotesValue] = useState('');
+    const [editingCaregiverReqs, setEditingCaregiverReqs] = useState(false);
+    const [caregiverReqsValue, setCaregiverReqsValue] = useState('');
+    const [editingMainServices, setEditingMainServices] = useState(false);
+    const [mainServicesValue, setMainServicesValue] = useState('');
+
+    // Insurance tab - authorization modals
+    const [showAuthModal, setShowAuthModal] = useState(false);
+    const [editingAuth, setEditingAuth] = useState(null);
+    const [authForm, setAuthForm] = useState({ serviceCode: '', authorizationNumber: '', authorizedUnits: '', authorizedHours: '', authorizationStartDate: '', authorizationEndDate: '', notes: '' });
+    const [authServiceGroup, setAuthServiceGroup] = useState('');
+    const [expandedAuthHistory, setExpandedAuthHistory] = useState({});
+
     const fetchClient = useCallback(async () => {
         try {
             setLoading(true);
             const data = await api.getClient(Number(clientId));
             setClient(data);
             setNotesValue(data.notes || '');
+            setPcaNotesValue(data.pcaNotes || '');
+            setCaregiverReqsValue(data.caregiverRequirements || '');
+            setMainServicesValue(data.mainServices || '');
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
@@ -293,8 +320,144 @@ export default function ClientDetailPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    const handleSavePcaNotes = async () => {
+        try {
+            await api.patchClient(client.id, { pcaNotes: pcaNotesValue });
+            showToast('PCA notes saved');
+            setEditingPcaNotes(false);
+            fetchClient();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleSaveCaregiverReqs = async () => {
+        try {
+            await api.patchClient(client.id, { caregiverRequirements: caregiverReqsValue });
+            showToast('Caregiver requirements saved');
+            setEditingCaregiverReqs(false);
+            fetchClient();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleSaveMainServices = async () => {
+        try {
+            await api.patchClient(client.id, { mainServices: mainServicesValue });
+            showToast('Main services saved');
+            setEditingMainServices(false);
+            fetchClient();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     const toggleFolder = (key) => {
         setExpandedFolders(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    // Edit Client modal handlers
+    const openEditClientModal = () => {
+        setEditClientForm({
+            clientName: client.clientName || '',
+            medicaidId: client.medicaidId || '',
+            insuranceType: client.insuranceType || '',
+            address: client.address || '',
+            secondaryAddress: client.secondaryAddress || '',
+            phone: client.phone || '',
+            secondaryPhone: client.secondaryPhone || '',
+            email: client.email || '',
+            gender: client.gender || '',
+            dob: client.dob ? new Date(client.dob).toISOString().split('T')[0] : '',
+            gateCode: client.gateCode || '',
+            doctorName: client.doctorName || '',
+            doctorPhone: client.doctorPhone || '',
+            backupDoctorName: client.backupDoctorName || '',
+            backupDoctorPhone: client.backupDoctorPhone || '',
+            critical: client.critical || false,
+            emergencyContactName: client.emergencyContactName || '',
+            emergencyContactPhone: client.emergencyContactPhone || '',
+            emergencyContactRelation: client.emergencyContactRelation || '',
+            secondaryEmergencyName: client.secondaryEmergencyName || '',
+            secondaryEmergencyPhone: client.secondaryEmergencyPhone || '',
+            secondaryEmergencyRelation: client.secondaryEmergencyRelation || '',
+        });
+        setShowEditClientModal(true);
+    };
+
+    const handleSaveEditClient = async (e) => {
+        e.preventDefault();
+        setSaving(true);
+        try {
+            const { clientName, ...rest } = editClientForm;
+            await api.updateClient(client.id, clientName, rest);
+            showToast('Client updated');
+            setShowEditClientModal(false);
+            fetchClient();
+        } catch (err) { showToast(err.message, 'error'); }
+        finally { setSaving(false); }
+    };
+
+    // Authorization handlers
+    const openAuthModal = (auth = null, serviceCode = '') => {
+        if (auth) {
+            setEditingAuth(auth);
+            setAuthForm({
+                serviceCode: auth.serviceCode || '',
+                authorizationNumber: auth.authorizationNumber || '',
+                authorizedUnits: auth.authorizedUnits || '',
+                authorizedHours: auth.authorizedHours || '',
+                authorizationStartDate: auth.authorizationStartDate ? new Date(auth.authorizationStartDate).toISOString().split('T')[0] : '',
+                authorizationEndDate: auth.authorizationEndDate ? new Date(auth.authorizationEndDate).toISOString().split('T')[0] : '',
+                notes: auth.notes || '',
+            });
+        } else {
+            setEditingAuth(null);
+            setAuthForm({
+                serviceCode: serviceCode,
+                authorizationNumber: '',
+                authorizedUnits: '',
+                authorizedHours: '',
+                authorizationStartDate: '',
+                authorizationEndDate: '',
+                notes: '',
+            });
+        }
+        setAuthServiceGroup(serviceCode);
+        setShowAuthModal(true);
+    };
+
+    const handleSaveAuth = async (e) => {
+        e.preventDefault();
+        setSaving(true);
+        try {
+            const data = {
+                ...authForm,
+                authorizedUnits: authForm.authorizedUnits ? Number(authForm.authorizedUnits) : null,
+                authorizedHours: authForm.authorizedHours ? Number(authForm.authorizedHours) : null,
+            };
+            if (editingAuth) {
+                await api.updateAuthorization(editingAuth.id, data);
+                showToast('Authorization updated');
+            } else {
+                await api.createAuthorization(client.id, data);
+                showToast('Authorization created');
+            }
+            setShowAuthModal(false);
+            fetchClient();
+        } catch (err) { showToast(err.message, 'error'); }
+        finally { setSaving(false); }
+    };
+
+    const handleArchiveAuth = async (authId) => {
+        try {
+            await api.archiveAuthorization(authId);
+            showToast('Authorization archived');
+            fetchClient();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleRestoreAuth = async (authId) => {
+        try {
+            await api.restoreAuthorization(authId);
+            showToast('Authorization restored');
+            fetchClient();
+        } catch (err) { showToast(err.message, 'error'); }
     };
 
     if (loading) {
@@ -326,7 +489,6 @@ export default function ClientDetailPage() {
 
     const openIncidents = (client.incidents || []).filter(i => i.status === 'open').length;
 
-    // Build timeline: merge hospital visits + renewal notes, sorted by date descending
     const timelineItems = [
         ...(client.hospitalVisits || []).map(v => ({
             type: 'visit',
@@ -339,6 +501,18 @@ export default function ClientDetailPage() {
             data: n,
         })),
     ].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    // For insurance tab: split auths into current vs archived per service group
+    const authGroupsForInsurance = {};
+    (client.authorizations || []).forEach(a => {
+        const key = a.serviceCode || a.serviceCategory || 'Other';
+        if (!authGroupsForInsurance[key]) authGroupsForInsurance[key] = { current: [], archived: [] };
+        if (a.archivedAt) {
+            authGroupsForInsurance[key].archived.push(a);
+        } else {
+            authGroupsForInsurance[key].current.push(a);
+        }
+    });
 
     return (
         <>
@@ -357,7 +531,7 @@ export default function ClientDetailPage() {
                 </div>
                 <div className="content-header__actions">
                     <EntityActivityButton entityType="Client" entityId={client.id} />
-                    <button className="btn btn--outline btn--sm" onClick={() => navigate(`/clients/${client.id}/edit`)}>
+                    <button className="btn btn--outline btn--sm" onClick={openEditClientModal}>
                         {Icons.edit} Edit Client
                     </button>
                 </div>
@@ -365,7 +539,7 @@ export default function ClientDetailPage() {
 
             <div className="page-content cp-page">
 
-                {/* ═══ BIO DATA CARD ═══ */}
+                {/* BIO DATA CARD */}
                 <div className="cp-bio">
                     <div className="cp-bio__main">
                         <div className="cp-bio__avatar">
@@ -410,10 +584,22 @@ export default function ClientDetailPage() {
                                 </span>
                             </div>
                         )}
+                        {client.gender && (
+                            <div className="cp-bio__field">
+                                <span className="cp-bio__field-label">Gender</span>
+                                <span className="cp-bio__field-value">{client.gender}</span>
+                            </div>
+                        )}
                         {client.insuranceType && (
                             <div className="cp-bio__field">
                                 <span className="cp-bio__field-label">Insurance</span>
                                 <span className="cp-bio__field-value">{client.insuranceType}</span>
+                            </div>
+                        )}
+                        {client.email && (
+                            <div className="cp-bio__field">
+                                <span className="cp-bio__field-label">Email</span>
+                                <span className="cp-bio__field-value">{client.email}</span>
                             </div>
                         )}
                         {client.phone && (
@@ -422,16 +608,22 @@ export default function ClientDetailPage() {
                                 <span className="cp-bio__field-value">{client.phone}</span>
                             </div>
                         )}
+                        {client.secondaryPhone && (
+                            <div className="cp-bio__field">
+                                <span className="cp-bio__field-label">Secondary Phone</span>
+                                <span className="cp-bio__field-value">{client.secondaryPhone}</span>
+                            </div>
+                        )}
                         {client.address && (
                             <div className="cp-bio__field">
                                 <span className="cp-bio__field-label">Address</span>
                                 <span className="cp-bio__field-value">{client.address}</span>
                             </div>
                         )}
-                        {client.paNumber && (
+                        {client.secondaryAddress && (
                             <div className="cp-bio__field">
-                                <span className="cp-bio__field-label">PA#</span>
-                                <span className="cp-bio__field-value">{client.paNumber}</span>
+                                <span className="cp-bio__field-label">Secondary Address</span>
+                                <span className="cp-bio__field-value">{client.secondaryAddress}</span>
                             </div>
                         )}
                         {client.doctorName && (
@@ -451,9 +643,38 @@ export default function ClientDetailPage() {
                             </div>
                         )}
                     </div>
+
+                    {/* Emergency Contacts */}
+                    {(client.emergencyContactName || client.secondaryEmergencyName) && (
+                        <div className="cp-bio__fields" style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid hsl(var(--border))' }}>
+                            <div style={{ gridColumn: '1 / -1', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'hsl(var(--muted-foreground))', marginBottom: 4 }}>
+                                Emergency Contacts
+                            </div>
+                            {client.emergencyContactName && (
+                                <div className="cp-bio__field">
+                                    <span className="cp-bio__field-label">Primary</span>
+                                    <span className="cp-bio__field-value">
+                                        {client.emergencyContactName}
+                                        {client.emergencyContactRelation && ` (${client.emergencyContactRelation})`}
+                                        {client.emergencyContactPhone && ` \u2022 ${client.emergencyContactPhone}`}
+                                    </span>
+                                </div>
+                            )}
+                            {client.secondaryEmergencyName && (
+                                <div className="cp-bio__field">
+                                    <span className="cp-bio__field-label">Secondary</span>
+                                    <span className="cp-bio__field-value">
+                                        {client.secondaryEmergencyName}
+                                        {client.secondaryEmergencyRelation && ` (${client.secondaryEmergencyRelation})`}
+                                        {client.secondaryEmergencyPhone && ` \u2022 ${client.secondaryEmergencyPhone}`}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
-                {/* ═══ TAB NAVIGATION ═══ */}
+                {/* TAB NAVIGATION */}
                 <div className="cp-tabs">
                     {TABS.map(tab => (
                         <button
@@ -475,10 +696,10 @@ export default function ClientDetailPage() {
                     ))}
                 </div>
 
-                {/* ═══ TAB CONTENT ═══ */}
+                {/* TAB CONTENT */}
                 <div className="cp-tab-content">
 
-                    {/* ── SUMMARY TAB ── */}
+                    {/* SUMMARY TAB */}
                     {activeTab === 'summary' && (
                         <div className="cp-tab-panel">
                             <div className="cp-summary-grid">
@@ -604,6 +825,111 @@ export default function ClientDetailPage() {
                                     </div>
                                 </div>
 
+                                {/* PCA Match Notes */}
+                                <div className="cp-card cp-card--elevated">
+                                    <div className="cp-card__header">
+                                        <h3 className="cp-card__title">PCA Match Notes</h3>
+                                        {!editingPcaNotes ? (
+                                            <button className="btn btn--ghost btn--xs" onClick={() => setEditingPcaNotes(true)}>{Icons.edit}</button>
+                                        ) : (
+                                            <div style={{ display: 'flex', gap: 4 }}>
+                                                <button className="btn btn--outline btn--xs" onClick={() => { setEditingPcaNotes(false); setPcaNotesValue(client.pcaNotes || ''); }}>Cancel</button>
+                                                <button className="btn btn--primary btn--xs" onClick={handleSavePcaNotes}>Save</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="cp-card__body">
+                                        {editingPcaNotes ? (
+                                            <textarea
+                                                value={pcaNotesValue}
+                                                onChange={(e) => setPcaNotesValue(e.target.value)}
+                                                rows={4}
+                                                className="cp-notes-textarea"
+                                                placeholder="Notes about PCA matching preferences..."
+                                            />
+                                        ) : (
+                                            <div className="cp-notes-content">
+                                                {pcaNotesValue ? pcaNotesValue.split('\n').filter(l => l.trim()).map((line, i) => (
+                                                    <div key={i} className="cp-notes-line">
+                                                        <span className="cp-notes-bullet" />
+                                                        {line.replace(/^[-\u2022]\s*/, '')}
+                                                    </div>
+                                                )) : <span className="cp-empty-text">No PCA match notes yet.</span>}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Caregiver Requirements */}
+                                <div className="cp-card cp-card--elevated">
+                                    <div className="cp-card__header">
+                                        <h3 className="cp-card__title">Caregiver Requirements</h3>
+                                        {!editingCaregiverReqs ? (
+                                            <button className="btn btn--ghost btn--xs" onClick={() => setEditingCaregiverReqs(true)}>{Icons.edit}</button>
+                                        ) : (
+                                            <div style={{ display: 'flex', gap: 4 }}>
+                                                <button className="btn btn--outline btn--xs" onClick={() => { setEditingCaregiverReqs(false); setCaregiverReqsValue(client.caregiverRequirements || ''); }}>Cancel</button>
+                                                <button className="btn btn--primary btn--xs" onClick={handleSaveCaregiverReqs}>Save</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="cp-card__body">
+                                        {editingCaregiverReqs ? (
+                                            <textarea
+                                                value={caregiverReqsValue}
+                                                onChange={(e) => setCaregiverReqsValue(e.target.value)}
+                                                rows={4}
+                                                className="cp-notes-textarea"
+                                                placeholder="Specific caregiver requirements..."
+                                            />
+                                        ) : (
+                                            <div className="cp-notes-content">
+                                                {caregiverReqsValue ? caregiverReqsValue.split('\n').filter(l => l.trim()).map((line, i) => (
+                                                    <div key={i} className="cp-notes-line">
+                                                        <span className="cp-notes-bullet" />
+                                                        {line.replace(/^[-\u2022]\s*/, '')}
+                                                    </div>
+                                                )) : <span className="cp-empty-text">No caregiver requirements specified.</span>}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Main Services Required */}
+                                <div className="cp-card cp-card--elevated">
+                                    <div className="cp-card__header">
+                                        <h3 className="cp-card__title">Main Services Required</h3>
+                                        {!editingMainServices ? (
+                                            <button className="btn btn--ghost btn--xs" onClick={() => setEditingMainServices(true)}>{Icons.edit}</button>
+                                        ) : (
+                                            <div style={{ display: 'flex', gap: 4 }}>
+                                                <button className="btn btn--outline btn--xs" onClick={() => { setEditingMainServices(false); setMainServicesValue(client.mainServices || ''); }}>Cancel</button>
+                                                <button className="btn btn--primary btn--xs" onClick={handleSaveMainServices}>Save</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="cp-card__body">
+                                        {editingMainServices ? (
+                                            <textarea
+                                                value={mainServicesValue}
+                                                onChange={(e) => setMainServicesValue(e.target.value)}
+                                                rows={4}
+                                                className="cp-notes-textarea"
+                                                placeholder="Main services this client requires..."
+                                            />
+                                        ) : (
+                                            <div className="cp-notes-content">
+                                                {mainServicesValue ? mainServicesValue.split('\n').filter(l => l.trim()).map((line, i) => (
+                                                    <div key={i} className="cp-notes-line">
+                                                        <span className="cp-notes-bullet" />
+                                                        {line.replace(/^[-\u2022]\s*/, '')}
+                                                    </div>
+                                                )) : <span className="cp-empty-text">No main services specified.</span>}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
                                 {/* Quick Stats */}
                                 <div className="cp-card cp-card--elevated">
                                     <div className="cp-card__header">
@@ -634,7 +960,7 @@ export default function ClientDetailPage() {
                         </div>
                     )}
 
-                    {/* ── TIMELINE TAB ── */}
+                    {/* TIMELINE TAB */}
                     {activeTab === 'timeline' && (
                         <div className="cp-tab-panel">
                             <div className="cp-card cp-card--elevated">
@@ -680,7 +1006,6 @@ export default function ClientDetailPage() {
                                                         </div>
                                                     );
                                                 }
-                                                // Renewal note
                                                 const note = item.data;
                                                 return (
                                                     <div key={`n-${note.id}`} className="cp-visit-entry">
@@ -709,7 +1034,7 @@ export default function ClientDetailPage() {
                         </div>
                     )}
 
-                    {/* ── DIAGNOSES TAB (placeholder) ── */}
+                    {/* DIAGNOSES TAB */}
                     {activeTab === 'diagnoses' && (
                         <div className="cp-tab-panel">
                             <div className="cp-card cp-card--elevated">
@@ -727,7 +1052,7 @@ export default function ClientDetailPage() {
                         </div>
                     )}
 
-                    {/* ── MAR TAB (placeholder) ── */}
+                    {/* MAR TAB */}
                     {activeTab === 'mar' && (
                         <div className="cp-tab-panel">
                             <div className="cp-card cp-card--elevated">
@@ -745,7 +1070,7 @@ export default function ClientDetailPage() {
                         </div>
                     )}
 
-                    {/* ── ADL TAB (placeholder) ── */}
+                    {/* ADL TAB */}
                     {activeTab === 'adl' && (
                         <div className="cp-tab-panel">
                             <div className="cp-card cp-card--elevated">
@@ -763,7 +1088,7 @@ export default function ClientDetailPage() {
                         </div>
                     )}
 
-                    {/* ── ASSESSMENT TAB (placeholder) ── */}
+                    {/* ASSESSMENT TAB */}
                     {activeTab === 'assessment' && (
                         <div className="cp-tab-panel">
                             <div className="cp-card cp-card--elevated">
@@ -781,7 +1106,7 @@ export default function ClientDetailPage() {
                         </div>
                     )}
 
-                    {/* ── CARE PLAN TAB (Documents) ── */}
+                    {/* CARE PLAN TAB (Documents) */}
                     {activeTab === 'care-plan' && (
                         <div className="cp-tab-panel">
                             <div className="cp-card cp-card--elevated">
@@ -841,7 +1166,7 @@ export default function ClientDetailPage() {
                         </div>
                     )}
 
-                    {/* ── ENCOUNTER TAB (placeholder) ── */}
+                    {/* ENCOUNTER TAB */}
                     {activeTab === 'encounter' && (
                         <div className="cp-tab-panel">
                             <div className="cp-card cp-card--elevated">
@@ -859,12 +1184,13 @@ export default function ClientDetailPage() {
                         </div>
                     )}
 
-                    {/* ── INSURANCE TAB ── */}
+                    {/* INSURANCE TAB */}
                     {activeTab === 'insurance' && (
                         <div className="cp-tab-panel">
                             <div className="cp-card cp-card--elevated">
                                 <div className="cp-card__header">
                                     <h3 className="cp-card__title">Insurance & Authorizations</h3>
+                                    <button className="btn btn--primary btn--sm" onClick={() => openAuthModal(null, '')}>{Icons.plus} Add Authorization</button>
                                 </div>
                                 <div className="cp-card__body">
                                     <div className="cp-insurance-detail">
@@ -881,50 +1207,127 @@ export default function ClientDetailPage() {
                                             <span className="cp-insurance-value">{client.paNumber || '\u2014'}</span>
                                         </div>
                                     </div>
-                                    <h4 style={{ fontSize: 13, fontWeight: 600, margin: '20px 0 12px', color: 'hsl(var(--foreground))' }}>Authorization Details</h4>
-                                    {Object.keys(authGroups).length === 0 ? (
+
+                                    <h4 style={{ fontSize: 13, fontWeight: 600, margin: '20px 0 12px', color: 'hsl(var(--foreground))' }}>Authorizations by Service</h4>
+
+                                    {Object.keys(authGroupsForInsurance).length === 0 ? (
                                         <div className="cp-empty-state-card">
                                             <div className="cp-empty-state-card__icon">{Icons.clipboard}</div>
                                             <p>No authorizations on file.</p>
                                         </div>
                                     ) : (
-                                        <table className="data-table" style={{ fontSize: 12 }}>
-                                            <thead>
-                                                <tr>
-                                                    <th>Service</th>
-                                                    <th>Code</th>
-                                                    <th>Units</th>
-                                                    <th>Start</th>
-                                                    <th>End</th>
-                                                    <th>Status</th>
-                                                    <th>Days</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {(client.authorizations || []).map(a => (
-                                                    <tr key={a.id}>
-                                                        <td>{a.serviceName || a.serviceCategory || '\u2014'}</td>
-                                                        <td><code>{a.serviceCode}</code></td>
-                                                        <td>{a.authorizedUnits || '\u2014'}</td>
-                                                        <td>{formatDate(a.authorizationStartDate)}</td>
-                                                        <td>{formatDate(a.authorizationEndDate)}</td>
-                                                        <td>
-                                                            <span className={`ts-badge ts-badge--${a.status === 'Expired' ? 'critical' : a.status === 'Renewal Reminder' ? 'draft' : 'submitted'}`}>
-                                                                {a.status}
-                                                            </span>
-                                                        </td>
-                                                        <td>{a.daysToExpire !== null ? a.daysToExpire : '\u2014'}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+                                        <div className="cp-auth-sections">
+                                            {Object.entries(authGroupsForInsurance).map(([code, { current, archived }]) => {
+                                                const colors = AUTH_COLORS[code] || DEFAULT_AUTH_COLOR;
+                                                const historyExpanded = expandedAuthHistory[code];
+                                                return (
+                                                    <div key={code} className="cp-auth-group" style={{ '--auth-accent': colors.accent, '--auth-bg': colors.bg }}>
+                                                        <div className="cp-auth-group__bar" />
+                                                        <div className="cp-auth-group__content">
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                                                                <h4 className="cp-auth-group__title" style={{ margin: 0 }}>{colors.label || `${code} Service Authorization`}</h4>
+                                                                <button className="btn btn--outline btn--xs" onClick={() => openAuthModal(null, code)}>{Icons.plus} Add</button>
+                                                            </div>
+
+                                                            {current.length === 0 && (
+                                                                <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '8px 0' }}>No current authorizations.</div>
+                                                            )}
+
+                                                            {current.map(a => (
+                                                                <div key={a.id} className="cp-auth-item" style={{ padding: '8px 0', borderBottom: '1px solid hsl(var(--border))' }}>
+                                                                    <div className="cp-auth-item__row">
+                                                                        <span className="cp-auth-item__dot" style={{ background: colors.accent }} />
+                                                                        <span className="cp-auth-item__name">{a.serviceName || a.serviceCategory || code}</span>
+                                                                        {a.authorizationNumber && (
+                                                                            <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontFamily: 'var(--font-mono, monospace)' }}>#{a.authorizationNumber}</span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, margin: '4px 0' }}>
+                                                                        {a.authorizedUnits > 0 && (
+                                                                            <span><strong>{a.authorizedUnits}</strong> units ({unitsToHours(a.authorizedUnits)} hrs)</span>
+                                                                        )}
+                                                                        {a.authorizedHours > 0 && (
+                                                                            <span><strong>{a.authorizedHours}</strong> hours</span>
+                                                                        )}
+                                                                    </div>
+                                                                    {(a.authorizationStartDate || a.authorizationEndDate) && (
+                                                                        <div className="cp-auth-item__dates">
+                                                                            {a.authorizationStartDate && formatDate(a.authorizationStartDate)}
+                                                                            {a.authorizationStartDate && a.authorizationEndDate && ' \u2013 '}
+                                                                            {a.authorizationEndDate && formatDate(a.authorizationEndDate)}
+                                                                        </div>
+                                                                    )}
+                                                                    {a.notes && (
+                                                                        <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', marginTop: 2 }}>{a.notes}</div>
+                                                                    )}
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 6 }}>
+                                                                        {a.daysToExpire !== null && (
+                                                                            <span className={`ts-badge ts-badge--${a.status === 'Expired' ? 'critical' : a.status === 'Renewal Reminder' ? 'draft' : 'submitted'}`}>
+                                                                                {a.status} {a.daysToExpire >= 0 ? `(${a.daysToExpire}d)` : `(${Math.abs(a.daysToExpire)}d ago)`}
+                                                                            </span>
+                                                                        )}
+                                                                        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+                                                                            <button className="btn btn--ghost btn--xs" onClick={() => openAuthModal(a, code)}>{Icons.edit} Edit</button>
+                                                                            <button className="btn btn--ghost btn--xs" onClick={() => handleArchiveAuth(a.id)}>{Icons.archive} Archive</button>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+
+                                                            {archived.length > 0 && (
+                                                                <div style={{ marginTop: 8 }}>
+                                                                    <button
+                                                                        className="btn btn--ghost btn--xs"
+                                                                        onClick={() => setExpandedAuthHistory(prev => ({ ...prev, [code]: !prev[code] }))}
+                                                                        style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}
+                                                                    >
+                                                                        {historyExpanded ? Icons.chevronRight : Icons.chevronRight} History ({archived.length})
+                                                                    </button>
+                                                                    {historyExpanded && (
+                                                                        <div style={{ opacity: 0.7, marginTop: 4 }}>
+                                                                            {archived.map(a => (
+                                                                                <div key={a.id} className="cp-auth-item" style={{ padding: '6px 0', borderBottom: '1px dashed hsl(var(--border))' }}>
+                                                                                    <div className="cp-auth-item__row">
+                                                                                        <span className="cp-auth-item__dot" style={{ background: '#94a3b8' }} />
+                                                                                        <span className="cp-auth-item__name" style={{ textDecoration: 'line-through' }}>{a.serviceName || a.serviceCategory || code}</span>
+                                                                                        {a.authorizationNumber && (
+                                                                                            <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontFamily: 'var(--font-mono, monospace)' }}>#{a.authorizationNumber}</span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, margin: '4px 0' }}>
+                                                                                        {a.authorizedUnits > 0 && (
+                                                                                            <span>{a.authorizedUnits} units ({unitsToHours(a.authorizedUnits)} hrs)</span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    {(a.authorizationStartDate || a.authorizationEndDate) && (
+                                                                                        <div className="cp-auth-item__dates">
+                                                                                            {a.authorizationStartDate && formatDate(a.authorizationStartDate)}
+                                                                                            {a.authorizationStartDate && a.authorizationEndDate && ' \u2013 '}
+                                                                                            {a.authorizationEndDate && formatDate(a.authorizationEndDate)}
+                                                                                        </div>
+                                                                                    )}
+                                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                                                                                        <span className="ts-badge ts-badge--draft">Archived</span>
+                                                                                        <button className="btn btn--ghost btn--xs" style={{ marginLeft: 'auto' }} onClick={() => handleRestoreAuth(a.id)}>{Icons.rotateCcw} Restore</button>
+                                                                                    </div>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     )}
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {/* ── INCIDENTS TAB ── */}
+                    {/* INCIDENTS TAB */}
                     {activeTab === 'incidents' && (
                         <div className="cp-tab-panel">
                             <div className="cp-card cp-card--elevated">
@@ -977,7 +1380,7 @@ export default function ClientDetailPage() {
                         </div>
                     )}
 
-                    {/* ── SCHEDULE TAB ── */}
+                    {/* SCHEDULE TAB */}
                     {activeTab === 'schedule' && (
                         <div className="cp-tab-panel">
                             <div className="cp-card cp-card--elevated">
@@ -1000,7 +1403,7 @@ export default function ClientDetailPage() {
                 </div>
             </div>
 
-            {/* ═══ MODALS ═══ */}
+            {/* MODALS */}
 
             {showCareTeamModal && (
                 <Modal onClose={() => setShowCareTeamModal(false)}>
@@ -1132,6 +1535,190 @@ export default function ClientDetailPage() {
                         <div className="form-actions">
                             <button type="button" className="btn btn--outline" onClick={() => setShowIncidentModal(false)}>Cancel</button>
                             <button type="submit" className="btn btn--primary" disabled={saving || !incidentForm.incidentDate}>{saving ? 'Saving...' : editingIncident ? 'Update' : 'Report Incident'}</button>
+                        </div>
+                    </form>
+                </Modal>
+            )}
+
+            {/* Edit Client Modal */}
+            {showEditClientModal && (
+                <Modal onClose={() => setShowEditClientModal(false)}>
+                    <h2 className="modal__title">Edit Client</h2>
+                    <p className="modal__desc">Update client information and emergency contacts.</p>
+                    <form onSubmit={handleSaveEditClient} style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+                        <div className="form-group">
+                            <label>Client Name</label>
+                            <input type="text" value={editClientForm.clientName} onChange={(e) => setEditClientForm({ ...editClientForm, clientName: e.target.value })} required />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div className="form-group">
+                                <label>Medicaid ID</label>
+                                <input type="text" value={editClientForm.medicaidId} onChange={(e) => setEditClientForm({ ...editClientForm, medicaidId: e.target.value })} />
+                            </div>
+                            <div className="form-group">
+                                <label>Insurance Type</label>
+                                <input type="text" value={editClientForm.insuranceType} onChange={(e) => setEditClientForm({ ...editClientForm, insuranceType: e.target.value })} />
+                            </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div className="form-group">
+                                <label>Gender</label>
+                                <select value={editClientForm.gender} onChange={(e) => setEditClientForm({ ...editClientForm, gender: e.target.value })}>
+                                    <option value="">Select...</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label>Date of Birth</label>
+                                <input type="date" value={editClientForm.dob} onChange={(e) => setEditClientForm({ ...editClientForm, dob: e.target.value })} />
+                            </div>
+                        </div>
+                        <div className="form-group">
+                            <label>Email</label>
+                            <input type="email" value={editClientForm.email} onChange={(e) => setEditClientForm({ ...editClientForm, email: e.target.value })} />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div className="form-group">
+                                <label>Phone</label>
+                                <input type="text" value={editClientForm.phone} onChange={(e) => setEditClientForm({ ...editClientForm, phone: e.target.value })} />
+                            </div>
+                            <div className="form-group">
+                                <label>Secondary Phone</label>
+                                <input type="text" value={editClientForm.secondaryPhone} onChange={(e) => setEditClientForm({ ...editClientForm, secondaryPhone: e.target.value })} />
+                            </div>
+                        </div>
+                        <div className="form-group">
+                            <label>Address</label>
+                            <input type="text" value={editClientForm.address} onChange={(e) => setEditClientForm({ ...editClientForm, address: e.target.value })} />
+                        </div>
+                        <div className="form-group">
+                            <label>Secondary Address</label>
+                            <input type="text" value={editClientForm.secondaryAddress} onChange={(e) => setEditClientForm({ ...editClientForm, secondaryAddress: e.target.value })} />
+                        </div>
+                        <div className="form-group">
+                            <label>Gate Code</label>
+                            <input type="text" value={editClientForm.gateCode} onChange={(e) => setEditClientForm({ ...editClientForm, gateCode: e.target.value })} />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div className="form-group">
+                                <label>Doctor Name</label>
+                                <input type="text" value={editClientForm.doctorName} onChange={(e) => setEditClientForm({ ...editClientForm, doctorName: e.target.value })} />
+                            </div>
+                            <div className="form-group">
+                                <label>Doctor Phone</label>
+                                <input type="text" value={editClientForm.doctorPhone} onChange={(e) => setEditClientForm({ ...editClientForm, doctorPhone: e.target.value })} />
+                            </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div className="form-group">
+                                <label>Backup Doctor Name</label>
+                                <input type="text" value={editClientForm.backupDoctorName} onChange={(e) => setEditClientForm({ ...editClientForm, backupDoctorName: e.target.value })} />
+                            </div>
+                            <div className="form-group">
+                                <label>Backup Doctor Phone</label>
+                                <input type="text" value={editClientForm.backupDoctorPhone} onChange={(e) => setEditClientForm({ ...editClientForm, backupDoctorPhone: e.target.value })} />
+                            </div>
+                        </div>
+                        <div className="form-group">
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <input type="checkbox" checked={editClientForm.critical} onChange={(e) => setEditClientForm({ ...editClientForm, critical: e.target.checked })} />
+                                Critical / Fall Risk
+                            </label>
+                        </div>
+
+                        <h4 style={{ fontSize: 13, fontWeight: 600, margin: '16px 0 8px', borderTop: '1px solid hsl(var(--border))', paddingTop: 12 }}>Emergency Contacts</h4>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                            <div className="form-group">
+                                <label>Primary Name</label>
+                                <input type="text" value={editClientForm.emergencyContactName} onChange={(e) => setEditClientForm({ ...editClientForm, emergencyContactName: e.target.value })} />
+                            </div>
+                            <div className="form-group">
+                                <label>Primary Phone</label>
+                                <input type="text" value={editClientForm.emergencyContactPhone} onChange={(e) => setEditClientForm({ ...editClientForm, emergencyContactPhone: e.target.value })} />
+                            </div>
+                            <div className="form-group">
+                                <label>Primary Relation</label>
+                                <input type="text" value={editClientForm.emergencyContactRelation} onChange={(e) => setEditClientForm({ ...editClientForm, emergencyContactRelation: e.target.value })} />
+                            </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                            <div className="form-group">
+                                <label>Secondary Name</label>
+                                <input type="text" value={editClientForm.secondaryEmergencyName} onChange={(e) => setEditClientForm({ ...editClientForm, secondaryEmergencyName: e.target.value })} />
+                            </div>
+                            <div className="form-group">
+                                <label>Secondary Phone</label>
+                                <input type="text" value={editClientForm.secondaryEmergencyPhone} onChange={(e) => setEditClientForm({ ...editClientForm, secondaryEmergencyPhone: e.target.value })} />
+                            </div>
+                            <div className="form-group">
+                                <label>Secondary Relation</label>
+                                <input type="text" value={editClientForm.secondaryEmergencyRelation} onChange={(e) => setEditClientForm({ ...editClientForm, secondaryEmergencyRelation: e.target.value })} />
+                            </div>
+                        </div>
+
+                        <div className="form-actions">
+                            <button type="button" className="btn btn--outline" onClick={() => setShowEditClientModal(false)}>Cancel</button>
+                            <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</button>
+                        </div>
+                    </form>
+                </Modal>
+            )}
+
+            {/* Authorization Modal */}
+            {showAuthModal && (
+                <Modal onClose={() => setShowAuthModal(false)}>
+                    <h2 className="modal__title">{editingAuth ? 'Edit Authorization' : 'Add Authorization'}</h2>
+                    <form onSubmit={handleSaveAuth}>
+                        <div className="form-group">
+                            <label>Service Code</label>
+                            <select
+                                value={authForm.serviceCode}
+                                onChange={(e) => setAuthForm({ ...authForm, serviceCode: e.target.value })}
+                                disabled={!!editingAuth}
+                                required
+                            >
+                                <option value="">Select service code...</option>
+                                <option value="PCS">PCS - Personal Care</option>
+                                <option value="SDPC">SDPC - Self Directed</option>
+                                <option value="S5125">S5125 - Attendant Care</option>
+                                <option value="S5130">S5130 - Homemaker</option>
+                                <option value="S5150">S5150 - Respite</option>
+                                <option value="S5135">S5135 - Companion</option>
+                            </select>
+                        </div>
+                        <div className="form-group">
+                            <label>Authorization Number</label>
+                            <input type="text" value={authForm.authorizationNumber} onChange={(e) => setAuthForm({ ...authForm, authorizationNumber: e.target.value })} placeholder="Auth number" />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div className="form-group">
+                                <label>Authorized Units (15-min)</label>
+                                <input type="number" value={authForm.authorizedUnits} onChange={(e) => setAuthForm({ ...authForm, authorizedUnits: e.target.value })} placeholder="e.g. 120" />
+                            </div>
+                            <div className="form-group">
+                                <label>Authorized Hours</label>
+                                <input type="number" step="0.5" value={authForm.authorizedHours} onChange={(e) => setAuthForm({ ...authForm, authorizedHours: e.target.value })} placeholder="e.g. 30" />
+                            </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div className="form-group">
+                                <label>Start Date</label>
+                                <input type="date" value={authForm.authorizationStartDate} onChange={(e) => setAuthForm({ ...authForm, authorizationStartDate: e.target.value })} />
+                            </div>
+                            <div className="form-group">
+                                <label>End Date</label>
+                                <input type="date" value={authForm.authorizationEndDate} onChange={(e) => setAuthForm({ ...authForm, authorizationEndDate: e.target.value })} />
+                            </div>
+                        </div>
+                        <div className="form-group">
+                            <label>Notes</label>
+                            <textarea value={authForm.notes} onChange={(e) => setAuthForm({ ...authForm, notes: e.target.value })} rows={2} placeholder="Optional notes" />
+                        </div>
+                        <div className="form-actions">
+                            <button type="button" className="btn btn--outline" onClick={() => setShowAuthModal(false)}>Cancel</button>
+                            <button type="submit" className="btn btn--primary" disabled={saving || !authForm.serviceCode}>{saving ? 'Saving...' : editingAuth ? 'Update' : 'Create'}</button>
                         </div>
                     </form>
                 </Modal>
