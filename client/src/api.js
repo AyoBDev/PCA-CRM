@@ -256,6 +256,7 @@ export const exportTimesheetPdf = (id) =>
 // ── Payroll ──
 export const getPayrollRuns   = ({ archived } = {})    => request(`/payroll/runs${archived ? '?archived=true' : ''}`);
 export const getPayrollRun    = (id)  => request(`/payroll/runs/${id}`);
+export const updatePayrollRun = (id, data) => request(`/payroll/runs/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 export const deletePayrollRun   = (id)  => request(`/payroll/runs/${id}`, { method: 'DELETE' });
 export const restorePayrollRun  = (id)  => request(`/payroll/runs/${id}/restore`, { method: 'PUT' });
 export const permanentlyDeletePayrollRun = (id) => request(`/payroll/runs/${id}/permanent`, { method: 'DELETE' });

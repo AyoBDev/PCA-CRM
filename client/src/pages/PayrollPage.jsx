@@ -745,6 +745,8 @@ function PayrollPage() {
     const [modal, setModal]             = useState(null);
     const [exporting, setExporting]     = useState(false);
     const [showArchived, setShowArchived] = useState(false);
+    const [editingRunName, setEditingRunName] = useState(false);
+    const [runNameValue, setRunNameValue] = useState('');
 
     // Optimistically update a visit field in selectedRun state after a successful PATCH
     // patch may be a plain object (optimistic update) or a full visit from the server
@@ -881,7 +883,38 @@ function PayrollPage() {
                         <button className="btn btn--outline btn--sm" onClick={() => { setSelectedRun(null); onNavigate('payroll'); }}>
                             ← Back
                         </button>
-                        <h1 className="content-header__title">{selectedRun.name}</h1>
+                        {editingRunName ? (
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                if (!runNameValue.trim()) return;
+                                try {
+                                    const updated = await api.updatePayrollRun(selectedRun.id, { name: runNameValue.trim() });
+                                    setSelectedRun(prev => ({ ...prev, name: updated.name }));
+                                    setRuns(prev => prev.map(r => r.id === selectedRun.id ? { ...r, name: updated.name } : r));
+                                    showToast('Run renamed');
+                                } catch (err) { showToast(err.message, 'error'); }
+                                setEditingRunName(false);
+                            }} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <input
+                                    type="text"
+                                    value={runNameValue}
+                                    onChange={(e) => setRunNameValue(e.target.value)}
+                                    style={{ fontSize: 18, fontWeight: 600, padding: '2px 8px', width: 300 }}
+                                    autoFocus
+                                />
+                                <button type="submit" className="btn btn--primary btn--xs">Save</button>
+                                <button type="button" className="btn btn--outline btn--xs" onClick={() => setEditingRunName(false)}>Cancel</button>
+                            </form>
+                        ) : (
+                            <h1 className="content-header__title" style={{ cursor: isAdmin ? 'pointer' : 'default' }} onClick={() => {
+                                if (!isAdmin) return;
+                                setRunNameValue(selectedRun.name);
+                                setEditingRunName(true);
+                            }} title={isAdmin ? 'Click to rename' : undefined}>
+                                {selectedRun.name}
+                                {isAdmin && <span style={{ marginLeft: 6, opacity: 0.4, fontSize: 14 }}>{Icons.edit}</span>}
+                            </h1>
+                        )}
                         <span style={{ fontSize: 12, color: 'hsl(240 3.8% 46.1%)' }}>
                             {selectedRun.totalVisits} visits · {selectedRun.totalPayable} payable units
                         </span>

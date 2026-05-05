@@ -747,6 +747,26 @@ async function updatePayrollVisit(req, res, next) {
     }
 }
 
+/**
+ * PATCH /api/payroll/runs/:id  (rename)
+ */
+async function updatePayrollRun(req, res, next) {
+    try {
+        const id = parseInt(req.params.id);
+        const { name } = req.body;
+        if (!name || typeof name !== 'string' || !name.trim()) {
+            return res.status(400).json({ error: 'name is required' });
+        }
+        const run = await prisma.payrollRun.findUnique({ where: { id } });
+        if (!run) return res.status(404).json({ error: 'Payroll run not found' });
+        const updated = await prisma.payrollRun.update({ where: { id }, data: { name: name.trim() } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'PayrollRun', entityId: id, entityName: updated.name, changes: [{ field: 'name', oldValue: run.name, newValue: updated.name }] });
+        return res.json(updated);
+    } catch (err) {
+        return next(err);
+    }
+}
+
 async function permanentlyDeletePayrollRun(req, res, next) {
     try {
         const id = parseInt(req.params.id);
@@ -771,6 +791,7 @@ module.exports = {
     uploadPayrollRun,
     listPayrollRuns,
     getPayrollRun,
+    updatePayrollRun,
     deletePayrollRun,
     restorePayrollRun,
     permanentlyDeletePayrollRun,
