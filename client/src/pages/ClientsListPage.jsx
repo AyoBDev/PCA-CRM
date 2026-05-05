@@ -6,6 +6,16 @@ import Modal from '../components/common/Modal';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 
+const STATUS_STYLES = {
+    Expired: { bg: 'hsl(0 84% 95%)', color: 'hsl(0 72% 45%)', border: 'hsl(0 72% 85%)' },
+    'Renewal Reminder': { bg: 'hsl(38 100% 95%)', color: 'hsl(32 95% 40%)', border: 'hsl(38 92% 80%)' },
+    OK: { bg: 'hsl(142 76% 94%)', color: 'hsl(142 60% 30%)', border: 'hsl(142 60% 80%)' },
+};
+
+function parseServices(enabledServices) {
+    try { return JSON.parse(enabledServices || '[]'); } catch { return []; }
+}
+
 export default function ClientsListPage() {
     const { isAdmin } = useAuth();
     const { showToast } = useToast();
@@ -75,7 +85,7 @@ export default function ClientsListPage() {
 
     const filtered = clients.filter(c =>
         c.clientName.toLowerCase().includes(search.toLowerCase()) ||
-        c.medicaidId.toLowerCase().includes(search.toLowerCase())
+        (c.medicaidId || '').toLowerCase().includes(search.toLowerCase())
     );
 
     return (
@@ -114,34 +124,57 @@ export default function ClientsListPage() {
                         <table className="data-table">
                             <thead>
                                 <tr>
-                                    <th>Client Name</th>
+                                    <th>Client</th>
+                                    <th>Status</th>
+                                    <th>Program</th>
                                     <th>Medicaid ID</th>
-                                    <th>Insurance Type</th>
-                                    <th>Phone</th>
-                                    <th>Actions</th>
+                                    <th>Services</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {filtered.map(c => (
-                                    <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/clients/${c.id}`)}>
-                                        <td style={{ fontWeight: 500 }}>
-                                            {c.clientName}
-                                            {c.critical && <span className="ts-badge ts-badge--critical" style={{ marginLeft: 6 }}>Critical</span>}
-                                        </td>
-                                        <td>{c.medicaidId || '\u2014'}</td>
-                                        <td><span className="ts-badge ts-badge--draft">{c.insuranceType}</span></td>
-                                        <td>{c.phone || '\u2014'}</td>
-                                        <td>
-                                            <button
-                                                className="btn btn--ghost btn--icon"
-                                                title="View care plan"
-                                                onClick={(e) => { e.stopPropagation(); navigate(`/clients/${c.id}`); }}
-                                            >
-                                                {Icons.eye}
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {filtered.map(c => {
+                                    const services = parseServices(c.enabledServices);
+                                    const statusStyle = STATUS_STYLES[c.overallStatus] || STATUS_STYLES.OK;
+                                    return (
+                                        <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/clients/${c.id}`)}>
+                                            <td>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                    <div className="cl-avatar cl-avatar--sm">{(c.clientName || 'U').charAt(0).toUpperCase()}</div>
+                                                    <div>
+                                                        <div style={{ fontWeight: 500, lineHeight: 1.3 }}>
+                                                            {c.clientName}
+                                                            {c.critical && <span className="ts-badge ts-badge--critical" style={{ marginLeft: 6 }}>Critical</span>}
+                                                        </div>
+                                                        {c.phone && <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>{c.phone}</div>}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span
+                                                    className="ts-badge"
+                                                    style={{ background: statusStyle.bg, color: statusStyle.color, border: `1px solid ${statusStyle.border}` }}
+                                                >
+                                                    {c.overallStatus || 'OK'}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span className="ts-badge ts-badge--draft">{c.insuranceType || '\u2014'}</span>
+                                            </td>
+                                            <td style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 12 }}>{c.medicaidId || '\u2014'}</td>
+                                            <td>
+                                                {services.length > 0 ? (
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                                        {services.map(s => (
+                                                            <span key={s} className="cp-service-chip cp-service-chip--sm">{s}</span>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12 }}>{'\u2014'}</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
