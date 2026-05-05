@@ -472,7 +472,9 @@ export default function ClientDetailPage() {
     }
     if (!client) return <div className="page-content"><div className="empty-state"><div className="empty-state__title">Client not found</div></div></div>;
 
-    const enabledServices = (() => { try { return JSON.parse(client.enabledServices); } catch { return []; } })();
+    const activeServiceCodes = [...new Set(
+        (client.authorizations || []).filter(a => !a.archivedAt).map(a => a.serviceCode)
+    )];
     const docsByCategory = (client.documents || []).reduce((acc, d) => {
         if (!acc[d.category]) acc[d.category] = [];
         acc[d.category].push(d);
@@ -562,16 +564,21 @@ export default function ClientDetailPage() {
                                         {openIncidents} Open Incident{openIncidents > 1 ? 's' : ''}
                                     </span>
                                 )}
-                                {enabledServices.map(s => (
-                                    <span key={s} className="cp-service-chip cp-service-chip--sm">{s}</span>
-                                ))}
+                                {activeServiceCodes.map(code => {
+                                    const colors = AUTH_COLORS[code] || DEFAULT_AUTH_COLOR;
+                                    return (
+                                        <span key={code} className="cp-service-chip cp-service-chip--sm" style={{ background: colors.bg, color: colors.accent, borderColor: colors.accent }}>
+                                            {colors.label?.replace(' Authorization', '').replace(' Service', '') || code}
+                                        </span>
+                                    );
+                                })}
                             </div>
                         </div>
                     </div>
                     <div className="cp-bio__fields">
                         {client.medicaidId && (
                             <div className="cp-bio__field">
-                                <span className="cp-bio__field-label">MRN</span>
+                                <span className="cp-bio__field-label">Client ID #</span>
                                 <span className="cp-bio__field-value" style={{ fontFamily: 'var(--font-mono, monospace)' }}>{client.medicaidId}</span>
                             </div>
                         )}
@@ -644,34 +651,6 @@ export default function ClientDetailPage() {
                         )}
                     </div>
 
-                    {/* Emergency Contacts */}
-                    {(client.emergencyContactName || client.secondaryEmergencyName) && (
-                        <div className="cp-bio__fields" style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid hsl(var(--border))' }}>
-                            <div style={{ gridColumn: '1 / -1', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'hsl(var(--muted-foreground))', marginBottom: 4 }}>
-                                Emergency Contacts
-                            </div>
-                            {client.emergencyContactName && (
-                                <div className="cp-bio__field">
-                                    <span className="cp-bio__field-label">Primary</span>
-                                    <span className="cp-bio__field-value">
-                                        {client.emergencyContactName}
-                                        {client.emergencyContactRelation && ` (${client.emergencyContactRelation})`}
-                                        {client.emergencyContactPhone && ` \u2022 ${client.emergencyContactPhone}`}
-                                    </span>
-                                </div>
-                            )}
-                            {client.secondaryEmergencyName && (
-                                <div className="cp-bio__field">
-                                    <span className="cp-bio__field-label">Secondary</span>
-                                    <span className="cp-bio__field-value">
-                                        {client.secondaryEmergencyName}
-                                        {client.secondaryEmergencyRelation && ` (${client.secondaryEmergencyRelation})`}
-                                        {client.secondaryEmergencyPhone && ` \u2022 ${client.secondaryEmergencyPhone}`}
-                                    </span>
-                                </div>
-                            )}
-                        </div>
-                    )}
                 </div>
 
                 {/* TAB NAVIGATION */}
@@ -786,6 +765,54 @@ export default function ClientDetailPage() {
                                                     </li>
                                                 ))}
                                             </ol>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Emergency Contacts */}
+                                <div className="cp-card cp-card--elevated">
+                                    <div className="cp-card__header">
+                                        <h3 className="cp-card__title">Emergency Contacts</h3>
+                                        <button className="btn btn--outline btn--xs" onClick={openEditClientModal}>{Icons.plus} Add Contact</button>
+                                    </div>
+                                    <div className="cp-card__body">
+                                        {!client.emergencyContactName && !client.secondaryEmergencyName ? (
+                                            <div className="cp-empty-state-card">
+                                                <div className="cp-empty-state-card__icon">{Icons.users}</div>
+                                                <p>No emergency contacts on file.</p>
+                                                <button className="btn btn--outline btn--sm" onClick={openEditClientModal}>Add Contact</button>
+                                            </div>
+                                        ) : (
+                                            <div className="cp-contact-list">
+                                                {client.emergencyContactName && (
+                                                    <div className="cp-contact-card">
+                                                        <div className="cp-contact-card__badge">Primary</div>
+                                                        <div className="cp-contact-card__name">{client.emergencyContactName}</div>
+                                                        {client.emergencyContactRelation && (
+                                                            <div className="cp-contact-card__relation">{client.emergencyContactRelation}</div>
+                                                        )}
+                                                        {client.emergencyContactPhone && (
+                                                            <div className="cp-contact-card__phone">
+                                                                {client.emergencyContactPhone}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                {client.secondaryEmergencyName && (
+                                                    <div className="cp-contact-card">
+                                                        <div className="cp-contact-card__badge cp-contact-card__badge--secondary">Secondary</div>
+                                                        <div className="cp-contact-card__name">{client.secondaryEmergencyName}</div>
+                                                        {client.secondaryEmergencyRelation && (
+                                                            <div className="cp-contact-card__relation">{client.secondaryEmergencyRelation}</div>
+                                                        )}
+                                                        {client.secondaryEmergencyPhone && (
+                                                            <div className="cp-contact-card__phone">
+                                                                {client.secondaryEmergencyPhone}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                 </div>

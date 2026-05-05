@@ -4824,7 +4824,7 @@ button.sdr-section-tag:hover:not(:disabled) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
+  padding: 10px 14px;
   border-bottom: 1px solid hsl(var(--border));
   background: hsl(var(--card));
 }
@@ -4834,7 +4834,7 @@ button.sdr-section-tag:hover:not(:disabled) {
 }
 
 .cp-card__title {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -4889,7 +4889,7 @@ button.sdr-section-tag:hover:not(:disabled) {
 }
 
 .cp-card__body {
-  padding: 16px 20px;
+  padding: 12px 14px;
 }
 
 /* ─── Empty State Cards ─── */
@@ -4928,7 +4928,7 @@ button.sdr-section-tag:hover:not(:disabled) {
 .cp-auth-sections {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
 }
 
 .cp-auth-group {
@@ -4948,14 +4948,14 @@ button.sdr-section-tag:hover:not(:disabled) {
 
 .cp-auth-group__content {
   flex: 1;
-  padding: 12px 16px;
+  padding: 8px 12px;
 }
 
 .cp-auth-group__title {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--auth-accent, hsl(var(--primary)));
-  margin: 0 0 8px 0;
+  margin: 0 0 4px 0;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -5446,6 +5446,56 @@ button.sdr-section-tag:hover:not(:disabled) {
   color: hsl(32 95% 40%);
   border: 1px solid hsl(38 92% 80%);
 }
+.cp-chip--sdpc {
+  background: hsl(270 76% 96%);
+  color: hsl(270 60% 40%);
+  border: 1px solid hsl(270 60% 80%);
+}
+
+/* ═══ Emergency Contact Cards ═══ */
+.cp-contact-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.cp-contact-card {
+  padding: 12px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--card));
+}
+.cp-contact-card__badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: hsl(217 91% 95%);
+  color: hsl(217 91% 40%);
+  margin-bottom: 8px;
+}
+.cp-contact-card__badge--secondary {
+  background: hsl(215 20% 94%);
+  color: hsl(215 14% 45%);
+}
+.cp-contact-card__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+.cp-contact-card__relation {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  margin-top: 2px;
+}
+.cp-contact-card__phone {
+  font-size: 13px;
+  color: hsl(var(--foreground));
+  margin-top: 6px;
+  font-family: var(--font-mono, monospace);
+}
 
 /* ═══ Tab Navigation ═══ */
 .cp-tabs {
@@ -5519,7 +5569,7 @@ button.sdr-section-tag:hover:not(:disabled) {
 .cp-summary-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 12px;
 }
 
 /* ═══ Quick Stats ═══ */

@@ -4,11 +4,16 @@
  * Sheet 1: Client data with D.O.B., doctor info, PA#, etc.
  * Sheet 2: Renewal notification history → ClientNote records
  *
- * Usage:  node prisma/import-monday-xlsx.js <path-to-xlsx>
+ * Usage:  node prisma/import-monday-xlsx.js <path-to-xlsx> [--existing-only]
+ *
+ * Flags:
+ *   --existing-only  Only update clients that already exist in the DB.
+ *                    Skips creating new clients. Does NOT touch authorizations.
+ *                    Use this when running against production to avoid disrupting data.
  *
  * Behavior: Additive/upsert by client name (case-insensitive).
- *   - Existing clients: updated with non-empty XLSX values
- *   - New clients: created
+ *   - Existing clients: updated with non-empty XLSX values (bio fields only, never authorizations)
+ *   - New clients: created (unless --existing-only flag is set)
  *   - No clients or data deleted
  */
 
@@ -119,7 +124,7 @@ function isStructuralRow(row) {
 
 // ── Sheet 1: Client Data ──
 
-async function importClients(ws) {
+async function importClients(ws, { existingOnly = false } = {}) {
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true });
     const stats = { created: 0, updated: 0, skipped: 0, errors: [] };
 
@@ -184,6 +189,8 @@ async function importClients(ws) {
                 });
                 stats.updated++;
                 console.log(`  Updated: ${name} (id=${existing.id})`);
+            } else if (existingOnly) {
+                stats.skipped++;
             } else {
                 data.clientName = name;
                 await prisma.client.create({ data });
@@ -240,6 +247,14 @@ async function importNotes(ws) {
                 continue;
             }
 
+            // Skip if an identical note already exists (idempotent)
+            const existing = await prisma.clientNote.findFirst({
+                where: { clientId: client.id, date, content },
+            });
+            if (existing) {
+                continue;
+            }
+
             await prisma.clientNote.create({
                 data: {
                     clientId: client.id,
@@ -261,22 +276,29 @@ async function importNotes(ws) {
 // ── Main ──
 
 async function main() {
-    const filePath = process.argv[2];
+    const args = process.argv.slice(2);
+    const existingOnly = args.includes('--existing-only');
+    const filePath = args.find(a => !a.startsWith('--'));
+
     if (!filePath) {
-        console.error('Usage: node prisma/import-monday-xlsx.js <path-to-xlsx>');
+        console.error('Usage: node prisma/import-monday-xlsx.js <path-to-xlsx> [--existing-only]');
         process.exit(1);
     }
 
+    if (existingOnly) {
+        console.log('\n⚠️  --existing-only mode: will only UPDATE existing clients, not create new ones.\n');
+    }
+
     const resolved = path.resolve(filePath);
-    console.log(`\nReading: ${resolved}\n`);
+    console.log(`Reading: ${resolved}\n`);
 
     const wb = XLSX.readFile(resolved);
     console.log(`Sheets: ${wb.SheetNames.join(', ')}\n`);
 
     const clientSheet = wb.Sheets[wb.SheetNames[0]];
     console.log('=== Importing Clients (Sheet 1) ===');
-    const clientStats = await importClients(clientSheet);
-    console.log(`\nClients: ${clientStats.created} created, ${clientStats.updated} updated, ${clientStats.errors.length} errors\n`);
+    const clientStats = await importClients(clientSheet, { existingOnly });
+    console.log(`\nClients: ${clientStats.created} created, ${clientStats.updated} updated, ${clientStats.skipped} skipped, ${clientStats.errors.length} errors\n`);
 
     if (wb.SheetNames.length > 1) {
         const notesSheet = wb.Sheets[wb.SheetNames[1]];
