@@ -463,11 +463,9 @@ function InlineAuthNote({ client, onSaved }) {
     return (
         <span className="auth-note-trigger" onClick={(e) => { e.stopPropagation(); setEditing(true); }}>
             {hasNote ? (
-                <span className="auth-note-badge auth-note-badge--has-note" title={client.notes}>
-                    {client.notes.length > 30 ? client.notes.slice(0, 30) + '…' : client.notes}
-                </span>
+                <span className="auth-note-dot auth-note-dot--has-note" title={client.notes} />
             ) : (
-                <span className="auth-note-badge auth-note-badge--empty">+ note</span>
+                <span className="auth-note-dot auth-note-dot--empty" title="Add note" />
             )}
         </span>
     );
