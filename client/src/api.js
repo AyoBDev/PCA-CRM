@@ -176,6 +176,39 @@ export const downloadDocument = (id) => {
 export const deleteDocument = (id) =>
     request(`/documents/${id}`, { method: 'DELETE' });
 
+// Authorization Documents
+export const uploadAuthDocument = (authId, formData) => {
+    const headers = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    return fetch(`${BASE}/authorizations/${authId}/documents`, {
+        method: 'POST',
+        headers,
+        body: formData,
+    }).then(async (res) => {
+        if (res.status === 401) {
+            clearToken();
+            window.dispatchEvent(new Event('auth:logout'));
+            throw new Error('Session expired. Please log in again.');
+        }
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.error || `HTTP ${res.status}`);
+        }
+        return res.json();
+    });
+};
+export const downloadAuthDocument = (id) => {
+    const headers = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    return fetch(`${BASE}/auth-documents/${id}/download`, { headers })
+        .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.blob();
+        });
+};
+export const deleteAuthDocument = (id) =>
+    request(`/auth-documents/${id}`, { method: 'DELETE' });
+
 // Hospital Visits
 export const getHospitalVisits = (clientId) =>
     request(`/clients/${clientId}/hospital-visits`);

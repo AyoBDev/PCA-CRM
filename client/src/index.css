@@ -5650,6 +5650,163 @@ button.sdr-section-tag:hover:not(:disabled) {
   font-size: 13px;
 }
 
+/* ═══ Bio Status Select ═══ */
+.cp-bio__status-select {
+  padding: 3px 8px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  font-size: 12px;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  cursor: pointer;
+  text-transform: capitalize;
+}
+.cp-bio__status-select:focus {
+  outline: none;
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.1);
+}
+
+/* ═══ Service-Centric Auth View ═══ */
+.cp-auth-group__header-clickable {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: 4px 0;
+  margin-bottom: 4px;
+}
+.cp-auth-group__header-clickable:hover .cp-auth-group__title {
+  color: hsl(var(--primary));
+}
+.cp-auth-group__summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.cp-auth-expanded {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 4px;
+}
+.cp-auth-detail-row {
+  border-bottom: 1px solid hsl(var(--border));
+  padding: 10px 0;
+}
+.cp-auth-detail-row:last-child {
+  border-bottom: none;
+}
+.cp-auth-detail-row__main {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.cp-auth-detail-row__info {
+  flex: 1;
+  min-width: 0;
+}
+.cp-auth-detail-row__name {
+  font-weight: 500;
+  font-size: 13px;
+}
+.cp-auth-detail-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  margin-top: 2px;
+}
+.cp-auth-detail-row__status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.cp-auth-detail-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.cp-auth-attachments {
+  margin-top: 6px;
+  padding-left: 16px;
+}
+.cp-auth-attachments__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  padding: 2px 0;
+}
+.cp-auth-attachments__toggle:hover {
+  color: hsl(var(--foreground));
+}
+.cp-auth-attachments__toggle svg {
+  width: 12px;
+  height: 12px;
+}
+.cp-auth-attachments__list {
+  margin-top: 6px;
+  padding: 8px;
+  background: hsl(var(--muted) / 0.3);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cp-auth-attachments__empty {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+.cp-auth-attachments__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  padding: 3px 0;
+}
+.cp-auth-attachments__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: hsl(var(--primary));
+}
+.cp-auth-attachments__name:hover {
+  text-decoration: underline;
+}
+.cp-auth-attachments__name svg {
+  width: 12px;
+  height: 12px;
+}
+.cp-auth-attachments__upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  color: hsl(var(--primary));
+  padding: 4px 0;
+  margin-top: 4px;
+}
+.cp-auth-attachments__upload:hover {
+  text-decoration: underline;
+}
+.cp-auth-attachments__upload svg {
+  width: 12px;
+  height: 12px;
+}
+
 /* ═══ Client List Filters ═══ */
 .cl-filters {
   display: flex;
