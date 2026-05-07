@@ -5919,6 +5919,14 @@ button.sdr-section-tag:hover:not(:disabled) {
   color: hsl(var(--primary-foreground));
 }
 
+/* ═══ Critical Client Row ═══ */
+.cl-row--critical {
+  background: hsl(0 84% 97%);
+}
+.cl-row--critical:hover {
+  background: hsl(0 84% 94%) !important;
+}
+
 /* ═══ Auth Note Indicator (Master Sheet) ═══ */
 .auth-note-trigger {
   display: inline-flex;
@@ -5934,19 +5942,20 @@ button.sdr-section-tag:hover:not(:disabled) {
   height: 18px;
   border-radius: 4px;
   color: hsl(var(--muted-foreground));
-  opacity: 0;
+  opacity: 0.35;
   transition: opacity 0.15s, color 0.15s, background 0.15s;
 }
 .auth-note-indicator svg {
   width: 12px;
   height: 12px;
 }
+.auth-note-indicator:hover,
 tr:hover .auth-note-indicator {
-  opacity: 0.6;
+  opacity: 0.7;
 }
-tr:hover .auth-note-indicator:hover {
-  opacity: 1;
+.auth-note-indicator:hover {
   background: hsl(var(--muted));
+  opacity: 1;
 }
 .auth-note-indicator--has-note {
   opacity: 1;
@@ -5954,9 +5963,6 @@ tr:hover .auth-note-indicator:hover {
 }
 .auth-note-indicator--has-note:hover {
   background: hsl(38 100% 95%);
-}
-tr:hover .auth-note-indicator--has-note {
-  opacity: 1;
 }
 .row-client__client-name--has-note {
   color: hsl(32 95% 35%);

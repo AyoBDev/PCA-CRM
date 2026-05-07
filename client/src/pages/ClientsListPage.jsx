@@ -84,8 +84,10 @@ export default function ClientsListPage() {
         }
     };
 
+    const getEffectiveStatus = (c) => c.critical ? 'inactive' : (c.clientStatus || 'active');
+
     const filtered = clients.filter(c => {
-        if (statusFilter !== 'all' && (c.clientStatus || 'active') !== statusFilter) return false;
+        if (statusFilter !== 'all' && getEffectiveStatus(c) !== statusFilter) return false;
         if (!search) return true;
         const s = search.toLowerCase();
         return c.clientName.toLowerCase().includes(s) || (c.medicaidId || '').toLowerCase().includes(s);
@@ -132,7 +134,7 @@ export default function ClientsListPage() {
                                 {opt.label}
                                 {opt.value !== 'all' && (
                                     <span className="cl-filters__tab-count">
-                                        {clients.filter(c => (c.clientStatus || 'active') === opt.value).length}
+                                        {clients.filter(c => getEffectiveStatus(c) === opt.value).length}
                                     </span>
                                 )}
                             </button>
@@ -166,14 +168,13 @@ export default function ClientsListPage() {
                                     const services = parseServices(c.enabledServices);
                                     const statusStyle = STATUS_STYLES[c.overallStatus] || STATUS_STYLES.OK;
                                     return (
-                                        <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/clients/${c.id}`)}>
+                                        <tr key={c.id} className={c.critical ? 'cl-row--critical' : ''} style={{ cursor: 'pointer' }} onClick={() => navigate(`/clients/${c.id}`)}>
                                             <td>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                                     <div className="cl-avatar cl-avatar--sm">{(c.clientName || 'U').charAt(0).toUpperCase()}</div>
                                                     <div>
                                                         <div style={{ fontWeight: 500, lineHeight: 1.3 }}>
                                                             {c.clientName}
-                                                            {c.critical && <span className="ts-badge ts-badge--critical" style={{ marginLeft: 6 }}>Critical</span>}
                                                         </div>
                                                         {c.phone && <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>{c.phone}</div>}
                                                     </div>
