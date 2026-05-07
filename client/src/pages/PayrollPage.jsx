@@ -298,7 +298,7 @@ const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits
                             <td>
                                 {v.needsReview
                                     ? <span style={{ color: 'hsl(270 50% 40%)', fontWeight: 600 }}>{v.reviewReason}</span>
-                                    : (v.voidReason || '')}
+                                    : (v.voidReason || v.overlapReason || '')}
                             </td>
                             <td>
                                 {readOnly ? (v.notes || '—') : (

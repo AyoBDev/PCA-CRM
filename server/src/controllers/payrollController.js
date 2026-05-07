@@ -474,22 +474,6 @@ async function getPayrollRun(req, res, next) {
             }
         }
 
-        // Build clientNotesMap from live data (notes are not auth-related)
-        const clients = await prisma.client.findMany({ select: { clientName: true, notes: true } });
-        const clientNotesMap = {};
-        for (const client of clients) {
-            const norm = normalizeName(client.clientName);
-            if (client.notes) clientNotesMap[norm] = client.notes;
-        }
-
-        // Enrich visits: fill empty notes with client-level notes
-        for (const visit of run.visits) {
-            if (!visit.notes && visit.clientName) {
-                const norm = normalizeName(visit.clientName);
-                if (clientNotesMap[norm]) visit.notes = clientNotesMap[norm];
-            }
-        }
-
         const { authorizationSnapshot: _snap, ...runData } = run;
         return res.json({ ...runData, authMap });
     } catch (err) {
