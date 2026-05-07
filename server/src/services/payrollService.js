@@ -322,6 +322,53 @@ function detectOverlaps(visits) {
         }
     }
 
+    // Second pass: detect overlaps for same CLIENT with different employees
+    const byClient = new Map();
+    for (const v of visits) {
+        if (v.voidFlag) continue;
+        const cn = normalizeName(v.clientName);
+        if (!cn) continue;
+        if (!byClient.has(cn)) byClient.set(cn, []);
+        byClient.get(cn).push(v);
+    }
+
+    for (const group of byClient.values()) {
+        if (group.length < 2) continue;
+        group.sort((a, b) => {
+            const da = a.visitDate instanceof Date ? a.visitDate.getTime() : new Date(a.visitDate).getTime();
+            const db = b.visitDate instanceof Date ? b.visitDate.getTime() : new Date(b.visitDate).getTime();
+            if (da !== db) return da - db;
+            return a.callInMinutes - b.callInMinutes;
+        });
+
+        const active = [];
+        for (const cur of group) {
+            const still = active.filter((x) => x.callOutMinutes > cur.callInMinutes);
+
+            for (const prev of still) {
+                if (prev.voidFlag || cur.voidFlag) continue;
+                if (normalizeName(prev.employeeName) === normalizeName(cur.employeeName)) continue; // already handled above
+                const dp = prev.visitDate instanceof Date ? prev.visitDate.toISOString().split('T')[0] : new Date(prev.visitDate).toISOString().split('T')[0];
+                const dc = cur.visitDate instanceof Date ? cur.visitDate.toISOString().split('T')[0] : new Date(cur.visitDate).toISOString().split('T')[0];
+                if (dp !== dc) continue;
+
+                const overlaps = prev.callInMinutes < cur.callOutMinutes && cur.callInMinutes < prev.callOutMinutes;
+                if (!overlaps) continue;
+
+                overlapCounter++;
+                const oid = `O${overlapCounter}`;
+                cur.overlapFlag = true;
+                cur.overlapReason = `Overlap: same client, different employees (${prev.employeeName} ${minutesToHHMM(prev.callInMinutes)}-${minutesToHHMM(prev.callOutMinutes)})`;
+                cur.overlapId = oid;
+                prev.overlapFlag = true;
+                prev.overlapReason = `Overlap: same client, different employees (${cur.employeeName} ${minutesToHHMM(cur.callInMinutes)}-${minutesToHHMM(cur.callOutMinutes)})`;
+                if (!prev.overlapId) prev.overlapId = oid;
+            }
+
+            active.push(cur);
+        }
+    }
+
     return visits;
 }
 
