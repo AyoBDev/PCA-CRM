@@ -5927,56 +5927,60 @@ button.sdr-section-tag:hover:not(:disabled) {
   background: hsl(0 84% 94%) !important;
 }
 
-/* ═══ Auth Note Indicator (Master Sheet) ═══ */
+/* ═══ Auth Note (Master Sheet) ═══ */
 .auth-note-trigger {
   display: inline-flex;
   align-items: center;
-  margin-left: 4px;
+  margin-left: 6px;
   cursor: pointer;
 }
-.auth-note-indicator {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
+.auth-note-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 500;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background 0.15s, opacity 0.15s;
+}
+.auth-note-badge--has-note {
+  background: hsl(38 100% 92%);
+  color: hsl(32 95% 35%);
+  border: 1px solid hsl(38 92% 78%);
+}
+.auth-note-badge--has-note:hover {
+  background: hsl(38 100% 86%);
+}
+.auth-note-badge--empty {
+  background: transparent;
   color: hsl(var(--muted-foreground));
-  opacity: 0.35;
-  transition: opacity 0.15s, color 0.15s, background 0.15s;
+  border: 1px dashed hsl(var(--border));
+  opacity: 0;
 }
-.auth-note-indicator svg {
-  width: 12px;
-  height: 12px;
+tr:hover .auth-note-badge--empty {
+  opacity: 1;
 }
-.auth-note-indicator:hover,
-tr:hover .auth-note-indicator {
-  opacity: 0.7;
-}
-.auth-note-indicator:hover {
+.auth-note-badge--empty:hover {
   background: hsl(var(--muted));
-  opacity: 1;
-}
-.auth-note-indicator--has-note {
-  opacity: 1;
-  color: hsl(32 95% 44%);
-}
-.auth-note-indicator--has-note:hover {
-  background: hsl(38 100% 95%);
+  border-style: solid;
+  color: hsl(var(--foreground));
 }
 .row-client__client-name--has-note {
   color: hsl(32 95% 35%);
 }
 .auth-note-editor {
   display: inline-flex;
-  margin-left: 4px;
+  margin-left: 6px;
 }
 .auth-note-editor__input {
-  width: 200px;
-  padding: 2px 6px;
+  width: 220px;
+  padding: 3px 8px;
   border: 1px solid hsl(var(--primary));
-  border-radius: var(--radius);
-  font-size: 12px;
+  border-radius: 9999px;
+  font-size: 11px;
   background: hsl(var(--background));
   color: hsl(var(--foreground));
   box-shadow: 0 0 0 2px hsl(var(--primary) / 0.1);
