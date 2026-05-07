@@ -412,6 +412,69 @@ function ClientNotesSection({ client, onSaved }) {
     );
 }
 
+// ── Inline Auth Note Editor ──
+function InlineAuthNote({ client, onSaved }) {
+    const [editing, setEditing] = useState(false);
+    const [value, setValue] = useState(client.notes || '');
+    const [saving, setSaving] = useState(false);
+    const inputRef = useRef(null);
+    const { showToast } = useToast();
+
+    useEffect(() => { setValue(client.notes || ''); }, [client.notes]);
+    useEffect(() => { if (editing && inputRef.current) inputRef.current.focus(); }, [editing]);
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const updated = await api.patchClient(client.id, { notes: value.trim() });
+            onSaved(updated);
+            setEditing(false);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') handleSave();
+        if (e.key === 'Escape') { setValue(client.notes || ''); setEditing(false); }
+    };
+
+    const hasNote = !!(client.notes && client.notes.trim());
+
+    if (editing) {
+        return (
+            <div className="auth-note-editor" onClick={(e) => e.stopPropagation()}>
+                <input
+                    ref={inputRef}
+                    className="auth-note-editor__input"
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onBlur={handleSave}
+                    placeholder="e.g. Submitted on 05/01"
+                    disabled={saving}
+                />
+            </div>
+        );
+    }
+
+    return (
+        <span className="auth-note-trigger" onClick={(e) => { e.stopPropagation(); setEditing(true); }}>
+            {hasNote ? (
+                <span className="auth-note-indicator auth-note-indicator--has-note" title={client.notes}>
+                    {Icons.fileText}
+                </span>
+            ) : (
+                <span className="auth-note-indicator" title="Add note">
+                    {Icons.plus}
+                </span>
+            )}
+        </span>
+    );
+}
+
 // ── Authorizations Page ──
 export default function AuthorizationsPage() {
     const { isAdmin } = useAuth();
@@ -762,7 +825,13 @@ export default function AuthorizationsPage() {
                                                                 >
                                                                     {Icons.chevronRight}
                                                                 </button>
-                                                                <span className="row-client__client-name">{client.clientName}</span>
+                                                                <span className={`row-client__client-name ${client.notes?.trim() ? 'row-client__client-name--has-note' : ''}`}>
+                                                                    {client.clientName}
+                                                                </span>
+                                                                <InlineAuthNote client={client} onSaved={(updated) => {
+                                                                    setClients(prev => prev.map(c => c.id === updated.id ? { ...c, notes: updated.notes } : c));
+                                                                    if (drawerClient?.id === updated.id) setDrawerClient(prev => ({ ...prev, notes: updated.notes }));
+                                                                }} />
                                                             </div>
                                                         </td>
                                                         <td style={{ color: 'hsl(240 3.8% 46.1%)', fontSize: 12 }}>{client.medicaidId || '—'}</td>

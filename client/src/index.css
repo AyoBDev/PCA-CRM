@@ -5650,6 +5650,178 @@ button.sdr-section-tag:hover:not(:disabled) {
   font-size: 13px;
 }
 
+/* ═══ Client List Filters ═══ */
+.cl-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.cl-filters__search {
+  position: relative;
+  max-width: 360px;
+}
+.cl-filters__search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: hsl(var(--muted-foreground));
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+.cl-filters__search-icon svg {
+  width: 15px;
+  height: 15px;
+}
+.cl-filters__search-input {
+  width: 100%;
+  padding: 7px 32px 7px 32px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  font-size: 13px;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.cl-filters__search-input:focus {
+  outline: none;
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.1);
+}
+.cl-filters__search-input::placeholder {
+  color: hsl(var(--muted-foreground));
+}
+.cl-filters__search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  color: hsl(var(--muted-foreground));
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.cl-filters__search-clear:hover {
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted));
+}
+.cl-filters__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cl-filters__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 9999px;
+  background: hsl(var(--background));
+  color: hsl(var(--muted-foreground));
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cl-filters__tab:hover {
+  border-color: hsl(var(--foreground) / 0.2);
+  color: hsl(var(--foreground));
+}
+.cl-filters__tab--active {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary));
+}
+.cl-filters__tab--active:hover {
+  background: hsl(var(--primary) / 0.9);
+  border-color: hsl(var(--primary) / 0.9);
+  color: hsl(var(--primary-foreground));
+}
+.cl-filters__tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 600;
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+.cl-filters__tab--active .cl-filters__tab-count {
+  background: hsl(var(--primary-foreground) / 0.2);
+  color: hsl(var(--primary-foreground));
+}
+
+/* ═══ Auth Note Indicator (Master Sheet) ═══ */
+.auth-note-trigger {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  cursor: pointer;
+}
+.auth-note-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  color: hsl(var(--muted-foreground));
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+.auth-note-indicator svg {
+  width: 12px;
+  height: 12px;
+}
+tr:hover .auth-note-indicator {
+  opacity: 0.6;
+}
+tr:hover .auth-note-indicator:hover {
+  opacity: 1;
+  background: hsl(var(--muted));
+}
+.auth-note-indicator--has-note {
+  opacity: 1;
+  color: hsl(32 95% 44%);
+}
+.auth-note-indicator--has-note:hover {
+  background: hsl(38 100% 95%);
+}
+tr:hover .auth-note-indicator--has-note {
+  opacity: 1;
+}
+.row-client__client-name--has-note {
+  color: hsl(32 95% 35%);
+}
+.auth-note-editor {
+  display: inline-flex;
+  margin-left: 4px;
+}
+.auth-note-editor__input {
+  width: 200px;
+  padding: 2px 6px;
+  border: 1px solid hsl(var(--primary));
+  border-radius: var(--radius);
+  font-size: 12px;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.1);
+}
+.auth-note-editor__input:focus {
+  outline: none;
+}
+
 /* ═══ Responsive ═══ */
 @media (max-width: 1200px) {
   .cp-summary-grid {

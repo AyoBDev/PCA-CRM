@@ -22,6 +22,7 @@ export default function ClientsListPage() {
     const navigate = useNavigate();
     const [clients, setClients] = useState([]);
     const [search, setSearch] = useState('');
+    const [statusFilter, setStatusFilter] = useState('active');
     const [loading, setLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [form, setForm] = useState({
@@ -83,32 +84,61 @@ export default function ClientsListPage() {
         }
     };
 
-    const filtered = clients.filter(c =>
-        c.clientName.toLowerCase().includes(search.toLowerCase()) ||
-        (c.medicaidId || '').toLowerCase().includes(search.toLowerCase())
-    );
+    const filtered = clients.filter(c => {
+        if (statusFilter !== 'all' && (c.clientStatus || 'active') !== statusFilter) return false;
+        if (!search) return true;
+        const s = search.toLowerCase();
+        return c.clientName.toLowerCase().includes(s) || (c.medicaidId || '').toLowerCase().includes(s);
+    });
 
     return (
         <>
             <div className="content-header">
                 <h1 className="content-header__title">Clients</h1>
                 <div className="content-header__actions">
-                    <div className="search-input" style={{ position: 'relative' }}>
-                        <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--muted-foreground))' }}>{Icons.search}</span>
-                        <input
-                            type="text"
-                            placeholder="Search clients..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            style={{ paddingLeft: 36 }}
-                        />
-                    </div>
                     <button className="btn btn--primary btn--sm" onClick={() => setShowCreateModal(true)}>
                         {Icons.plus} Add Client
                     </button>
                 </div>
             </div>
             <div className="page-content">
+                <div className="cl-filters">
+                    <div className="cl-filters__search">
+                        <span className="cl-filters__search-icon">{Icons.search}</span>
+                        <input
+                            type="text"
+                            className="cl-filters__search-input"
+                            placeholder="Search by name or Medicaid ID..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                        />
+                        {search && (
+                            <button className="cl-filters__search-clear" onClick={() => setSearch('')}>&times;</button>
+                        )}
+                    </div>
+                    <div className="cl-filters__tabs">
+                        {[
+                            { value: 'active', label: 'Active' },
+                            { value: 'inactive', label: 'Inactive' },
+                            { value: 'discharged', label: 'Discharged' },
+                            { value: 'transferred', label: 'Transferred' },
+                            { value: 'all', label: 'All' },
+                        ].map(opt => (
+                            <button
+                                key={opt.value}
+                                className={`cl-filters__tab ${statusFilter === opt.value ? 'cl-filters__tab--active' : ''}`}
+                                onClick={() => setStatusFilter(opt.value)}
+                            >
+                                {opt.label}
+                                {opt.value !== 'all' && (
+                                    <span className="cl-filters__tab-count">
+                                        {clients.filter(c => (c.clientStatus || 'active') === opt.value).length}
+                                    </span>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </div>
                 {loading ? (
                     <div className="empty-state">
                         <div className="empty-state__desc">Loading clients...</div>
