@@ -593,6 +593,23 @@ export default function ClientDetailPage() {
                             <div className="cp-bio__name-row">
                                 <h2 className="cp-bio__name">{client.clientName}</h2>
                                 {client.critical && <span className="ts-badge ts-badge--critical">Critical</span>}
+                                <select
+                                    className="cp-bio__status-select"
+                                    value={client.clientStatus || 'active'}
+                                    onChange={async (e) => {
+                                        const val = e.target.value;
+                                        try {
+                                            await api.patchClient(client.id, { clientStatus: val });
+                                            setClient(prev => ({ ...prev, clientStatus: val }));
+                                            showToast('Status updated');
+                                        } catch (err) { showToast(err.message, 'error'); }
+                                    }}
+                                >
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                    <option value="discharged">Discharged</option>
+                                    <option value="transferred">Transferred</option>
+                                </select>
                             </div>
                             <div className="cp-bio__chips">
                                 {client.insuranceType && (
@@ -691,26 +708,6 @@ export default function ClientDetailPage() {
                                 </span>
                             </div>
                         )}
-                        <div className="cp-bio__field">
-                            <span className="cp-bio__field-label">Status</span>
-                            <select
-                                className="cp-bio__status-select"
-                                value={client.clientStatus || 'active'}
-                                onChange={async (e) => {
-                                    const val = e.target.value;
-                                    try {
-                                        await api.patchClient(client.id, { clientStatus: val });
-                                        setClient(prev => ({ ...prev, clientStatus: val }));
-                                        showToast('Status updated');
-                                    } catch (err) { showToast(err.message, 'error'); }
-                                }}
-                            >
-                                <option value="active">Active</option>
-                                <option value="inactive">Inactive</option>
-                                <option value="discharged">Discharged</option>
-                                <option value="transferred">Transferred</option>
-                            </select>
-                        </div>
                     </div>
 
                 </div>
