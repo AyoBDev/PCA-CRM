@@ -417,10 +417,11 @@ function AuthNoteIcon({ client, onClick }) {
     const hasNote = !!(client.notes && client.notes.trim());
     return (
         <span
-            className="auth-note-trigger"
+            className={`auth-note-icon ${hasNote ? 'auth-note-icon--has-note' : 'auth-note-icon--empty'}`}
             onClick={(e) => { e.stopPropagation(); onClick(client); }}
+            title={hasNote ? client.notes : 'Add note'}
         >
-            <span className={`auth-note-dot ${hasNote ? 'auth-note-dot--has-note' : 'auth-note-dot--empty'}`} />
+            {Icons.fileText}
         </span>
     );
 }
