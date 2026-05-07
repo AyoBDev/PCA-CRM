@@ -413,22 +413,31 @@ function ClientNotesSection({ client, onSaved }) {
 }
 
 // ── Inline Auth Note Editor ──
-function InlineAuthNote({ client, onSaved }) {
-    const [editing, setEditing] = useState(false);
+function AuthNoteIcon({ client, onClick }) {
+    const hasNote = !!(client.notes && client.notes.trim());
+    return (
+        <span
+            className="auth-note-trigger"
+            onClick={(e) => { e.stopPropagation(); onClick(client); }}
+        >
+            <span className={`auth-note-dot ${hasNote ? 'auth-note-dot--has-note' : 'auth-note-dot--empty'}`} />
+        </span>
+    );
+}
+
+function NoteDrawer({ client, onClose, onSaved }) {
     const [value, setValue] = useState(client.notes || '');
     const [saving, setSaving] = useState(false);
-    const inputRef = useRef(null);
     const { showToast } = useToast();
 
-    useEffect(() => { setValue(client.notes || ''); }, [client.notes]);
-    useEffect(() => { if (editing && inputRef.current) inputRef.current.focus(); }, [editing]);
+    const hasChanges = value !== (client.notes || '');
 
     const handleSave = async () => {
         setSaving(true);
         try {
             const updated = await api.patchClient(client.id, { notes: value.trim() });
             onSaved(updated);
-            setEditing(false);
+            showToast('Note saved');
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
@@ -436,38 +445,35 @@ function InlineAuthNote({ client, onSaved }) {
         }
     };
 
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter') handleSave();
-        if (e.key === 'Escape') { setValue(client.notes || ''); setEditing(false); }
-    };
-
-    const hasNote = !!(client.notes && client.notes.trim());
-
-    if (editing) {
-        return (
-            <div className="auth-note-editor" onClick={(e) => e.stopPropagation()}>
-                <input
-                    ref={inputRef}
-                    className="auth-note-editor__input"
+    return (
+        <DrawerPanel onClose={onClose}>
+            <div className="drawer-header">
+                <h2 className="drawer-header__name">{client.clientName}</h2>
+                <div className="drawer-header__meta">
+                    <span>Authorization Note</span>
+                </div>
+            </div>
+            <div className="drawer-section">
+                <h3 className="drawer-section__title">Note</h3>
+                <textarea
+                    className="drawer-field__input drawer-field__textarea"
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onBlur={handleSave}
-                    placeholder="e.g. Submitted on 05/01"
-                    disabled={saving}
+                    placeholder="e.g. Submitted on 05/01/2026"
+                    rows={5}
                 />
+                {hasChanges && (
+                    <button
+                        className="btn btn--primary btn--sm"
+                        onClick={handleSave}
+                        disabled={saving}
+                        style={{ marginTop: 10 }}
+                    >
+                        {saving ? 'Saving…' : 'Save Note'}
+                    </button>
+                )}
             </div>
-        );
-    }
-
-    return (
-        <span className="auth-note-trigger" onClick={(e) => { e.stopPropagation(); setEditing(true); }}>
-            {hasNote ? (
-                <span className="auth-note-dot auth-note-dot--has-note" title={client.notes} />
-            ) : (
-                <span className="auth-note-dot auth-note-dot--empty" title="Add note" />
-            )}
-        </span>
+        </DrawerPanel>
     );
 }
 
@@ -487,6 +493,7 @@ export default function AuthorizationsPage() {
     const [showArchived, setShowArchived] = useState(false);
     const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(null);
     const [confirmBulkPermanentDelete, setConfirmBulkPermanentDelete] = useState(false);
+    const [noteDrawerClient, setNoteDrawerClient] = useState(null);
 
     const fetchClients = useCallback(async () => {
         try {
@@ -824,10 +831,7 @@ export default function AuthorizationsPage() {
                                                                 <span className={`row-client__client-name ${client.notes?.trim() ? 'row-client__client-name--has-note' : ''}`}>
                                                                     {client.clientName}
                                                                 </span>
-                                                                <InlineAuthNote client={client} onSaved={(updated) => {
-                                                                    setClients(prev => prev.map(c => c.id === updated.id ? { ...c, notes: updated.notes } : c));
-                                                                    if (drawerClient?.id === updated.id) setDrawerClient(prev => ({ ...prev, notes: updated.notes }));
-                                                                }} />
+                                                                <AuthNoteIcon client={client} onClick={setNoteDrawerClient} />
                                                             </div>
                                                         </td>
                                                         <td style={{ color: 'hsl(240 3.8% 46.1%)', fontSize: 12 }}>{client.medicaidId || '—'}</td>
@@ -1033,6 +1037,18 @@ export default function AuthorizationsPage() {
                         </button>
                     </div>
                 </DrawerPanel>
+            )}
+
+            {noteDrawerClient && (
+                <NoteDrawer
+                    client={noteDrawerClient}
+                    onClose={() => setNoteDrawerClient(null)}
+                    onSaved={(updated) => {
+                        setClients(prev => prev.map(c => c.id === updated.id ? { ...c, notes: updated.notes } : c));
+                        if (drawerClient?.id === updated.id) setDrawerClient(prev => ({ ...prev, notes: updated.notes }));
+                        setNoteDrawerClient(prev => ({ ...prev, notes: updated.notes }));
+                    }}
+                />
             )}
         </>
     );
