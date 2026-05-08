@@ -126,6 +126,33 @@ function AuthFormModal({ auth, clientId, onSave, onClose }) {
     const [notes, setNotes] = useState(auth?.notes || '');
     const isEdit = !!auth;
 
+    // Parse pasted date text into YYYY-MM-DD for date inputs
+    const handleDatePaste = (setter) => (e) => {
+        const text = (e.clipboardData || window.clipboardData).getData('text').trim();
+        if (!text) return;
+        let parsed = null;
+        // Try YYYY-MM-DD or YYYY/MM/DD
+        let m = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+        if (m) parsed = `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+        // Try MM/DD/YYYY or MM-DD-YYYY
+        if (!parsed) {
+            m = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+            if (m) parsed = `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+        }
+        // Try Month DD, YYYY or Mon DD, YYYY (e.g. "May 8, 2026" or "January 15, 2026")
+        if (!parsed) {
+            m = text.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
+            if (m) {
+                const d = new Date(`${m[1]} ${m[2]}, ${m[3]}`);
+                if (!isNaN(d)) parsed = d.toISOString().split('T')[0];
+            }
+        }
+        if (parsed && !isNaN(new Date(parsed + 'T00:00:00'))) {
+            e.preventDefault();
+            setter(parsed);
+        }
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
         onSave({
@@ -173,11 +200,11 @@ function AuthFormModal({ auth, clientId, onSave, onClose }) {
                     </div>
                     <div className="form-group">
                         <label>Auth Start</label>
-                        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} onPaste={handleDatePaste(setStartDate)} />
                     </div>
                     <div className="form-group">
                         <label>Auth End</label>
-                        <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
+                        <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} onPaste={handleDatePaste(setEndDate)} required />
                     </div>
                 </div>
                 <div className="form-group">

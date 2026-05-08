@@ -426,6 +426,30 @@ export default function ClientDetailPage() {
         setShowAuthModal(true);
     };
 
+    // Parse pasted date text into YYYY-MM-DD for date inputs
+    const handleAuthDatePaste = (field) => (e) => {
+        const text = (e.clipboardData || window.clipboardData).getData('text').trim();
+        if (!text) return;
+        let parsed = null;
+        let m = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+        if (m) parsed = `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+        if (!parsed) {
+            m = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+            if (m) parsed = `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+        }
+        if (!parsed) {
+            m = text.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
+            if (m) {
+                const d = new Date(`${m[1]} ${m[2]}, ${m[3]}`);
+                if (!isNaN(d)) parsed = d.toISOString().split('T')[0];
+            }
+        }
+        if (parsed && !isNaN(new Date(parsed + 'T00:00:00'))) {
+            e.preventDefault();
+            setAuthForm(prev => ({ ...prev, [field]: parsed }));
+        }
+    };
+
     const handleSaveAuth = async (e) => {
         e.preventDefault();
         setSaving(true);
@@ -1866,11 +1890,11 @@ export default function ClientDetailPage() {
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                             <div className="form-group">
                                 <label>Start Date</label>
-                                <input type="date" value={authForm.authorizationStartDate} onChange={(e) => setAuthForm({ ...authForm, authorizationStartDate: e.target.value })} />
+                                <input type="date" value={authForm.authorizationStartDate} onChange={(e) => setAuthForm({ ...authForm, authorizationStartDate: e.target.value })} onPaste={handleAuthDatePaste('authorizationStartDate')} />
                             </div>
                             <div className="form-group">
                                 <label>End Date</label>
-                                <input type="date" value={authForm.authorizationEndDate} onChange={(e) => setAuthForm({ ...authForm, authorizationEndDate: e.target.value })} />
+                                <input type="date" value={authForm.authorizationEndDate} onChange={(e) => setAuthForm({ ...authForm, authorizationEndDate: e.target.value })} onPaste={handleAuthDatePaste('authorizationEndDate')} />
                             </div>
                         </div>
                         <div className="form-group">

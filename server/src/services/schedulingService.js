@@ -84,14 +84,34 @@ function timesOverlap(startA, endA, startB, endB) {
 }
 
 /**
+ * Derive a scheduling service code from a service name (handles TIMESHEETS rows).
+ */
+function deriveCodeFromName(name) {
+    if (!name) return null;
+    const lower = name.toLowerCase();
+    if (lower.includes('self') && (lower.includes('directed') || lower.includes('direct'))) return 'SDPC';
+    if (lower.includes('personal') && lower.includes('care')) return 'PCS';
+    if (lower === 'pas' || lower === 'pca') return 'PCS';
+    if (lower.includes('homemaker') || lower === 'hm') return 'S5130';
+    if (lower.includes('attendant')) return 'S5125';
+    if (lower.includes('companion')) return 'S5135';
+    if (lower.includes('respite')) return 'S5150';
+    return null;
+}
+
+/**
  * Compute unit summary: per service code, how many authorized vs scheduled.
- * authorizations: array of { serviceCode, authorizedUnits }
+ * authorizations: array of { serviceCode, serviceName, authorizedUnits }
  * shifts: array of shifts for one client
  */
 function computeUnitSummary(shifts, authorizations) {
     const summary = {};
     for (const auth of authorizations) {
-        const code = auth.serviceCode;
+        let code = auth.serviceCode;
+        if (code === 'TIMESHEETS' || !code) {
+            code = deriveCodeFromName(auth.serviceName);
+        }
+        if (!code) continue;
         if (!summary[code]) summary[code] = { authorized: 0, scheduled: 0, remaining: 0 };
         summary[code].authorized += auth.authorizedUnits || 0;
     }
