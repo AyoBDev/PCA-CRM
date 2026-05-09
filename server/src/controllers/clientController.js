@@ -8,10 +8,17 @@ async function listClients(req, res, next) {
         const where = req.query.archived === 'true' ? { archivedAt: { not: null } } : { archivedAt: null };
         const clients = await prisma.client.findMany({
             where,
-            include: { authorizations: { orderBy: { createdAt: 'asc' } } },
+            include: {
+                authorizations: { orderBy: { createdAt: 'asc' } },
+                timesheets: { orderBy: { weekStart: 'desc' }, take: 1, select: { weekStart: true } },
+            },
             orderBy: { createdAt: 'asc' },
         });
-        res.json(clients.map(enrichClient));
+        res.json(clients.map(c => {
+            const enriched = enrichClient(c);
+            enriched.lastVisit = c.timesheets?.[0]?.weekStart || null;
+            return enriched;
+        }));
     } catch (err) {
         next(err);
     }

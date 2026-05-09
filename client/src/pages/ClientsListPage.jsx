@@ -6,14 +6,22 @@ import Modal from '../components/common/Modal';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 
-const STATUS_STYLES = {
-    Expired: { bg: 'hsl(0 84% 95%)', color: 'hsl(0 72% 45%)', border: 'hsl(0 72% 85%)' },
-    'Renewal Reminder': { bg: 'hsl(38 100% 95%)', color: 'hsl(32 95% 40%)', border: 'hsl(38 92% 80%)' },
-    OK: { bg: 'hsl(142 76% 94%)', color: 'hsl(142 60% 30%)', border: 'hsl(142 60% 80%)' },
+
+function getServiceCodes(client) {
+    const auths = client.authorizations || [];
+    return [...new Set(auths.filter(a => !a.archivedAt).map(a => a.serviceCode).filter(Boolean))];
+}
+
+const CLIENT_STATUS_STYLES = {
+    active: { bg: 'hsl(142 76% 94%)', color: 'hsl(142 60% 30%)', label: 'Active' },
+    inactive: { bg: 'hsl(38 100% 95%)', color: 'hsl(32 95% 40%)', label: 'Inactive' },
+    discharged: { bg: 'hsl(0 84% 95%)', color: 'hsl(0 72% 45%)', label: 'Discharged' },
+    transferred: { bg: 'hsl(217 91% 95%)', color: 'hsl(217 70% 40%)', label: 'Transferred' },
 };
 
-function parseServices(enabledServices) {
-    try { return JSON.parse(enabledServices || '[]'); } catch { return []; }
+function formatShortDate(d) {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 export default function ClientsListPage() {
@@ -31,6 +39,7 @@ export default function ClientsListPage() {
     });
     const [insuranceTypes, setInsuranceTypes] = useState([]);
     const [saving, setSaving] = useState(false);
+    const [menuOpenId, setMenuOpenId] = useState(null);
 
     const fetchClients = useCallback(async () => {
         try {
@@ -51,6 +60,13 @@ export default function ClientsListPage() {
     }, []);
 
     useEffect(() => { fetchClients(); fetchInsuranceTypes(); }, [fetchClients, fetchInsuranceTypes]);
+
+    useEffect(() => {
+        if (!menuOpenId) return;
+        const close = () => setMenuOpenId(null);
+        document.addEventListener('click', close);
+        return () => document.removeEventListener('click', close);
+    }, [menuOpenId]);
 
     const handleCreate = async (e) => {
         e.preventDefault();
@@ -157,41 +173,31 @@ export default function ClientsListPage() {
                             <thead>
                                 <tr>
                                     <th>Client</th>
-                                    <th>Status</th>
-                                    <th>Program</th>
-                                    <th>Medicaid ID</th>
+                                    <th>Client ID</th>
+                                    <th>Gender</th>
+                                    <th>DOB</th>
                                     <th>Services</th>
+                                    <th>Last Visit</th>
+                                    <th>Status</th>
+                                    <th style={{ width: 40 }}></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {filtered.map(c => {
-                                    const services = parseServices(c.enabledServices);
-                                    const statusStyle = STATUS_STYLES[c.overallStatus] || STATUS_STYLES.OK;
+                                    const services = getServiceCodes(c);
+                                    const effectiveStatus = getEffectiveStatus(c);
+                                    const clientStatusStyle = CLIENT_STATUS_STYLES[effectiveStatus] || CLIENT_STATUS_STYLES.active;
                                     return (
                                         <tr key={c.id} className={c.critical ? 'cl-row--critical' : ''} style={{ cursor: 'pointer' }} onClick={() => navigate(`/clients/${c.id}`)}>
                                             <td>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                                     <div className="cl-avatar cl-avatar--sm">{(c.clientName || 'U').charAt(0).toUpperCase()}</div>
-                                                    <div>
-                                                        <div style={{ fontWeight: 500, lineHeight: 1.3 }}>
-                                                            {c.clientName}
-                                                        </div>
-                                                        {c.phone && <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>{c.phone}</div>}
-                                                    </div>
+                                                    <div style={{ fontWeight: 500, lineHeight: 1.3 }}>{c.clientName}</div>
                                                 </div>
                                             </td>
-                                            <td>
-                                                <span
-                                                    className="ts-badge"
-                                                    style={{ background: statusStyle.bg, color: statusStyle.color, border: `1px solid ${statusStyle.border}` }}
-                                                >
-                                                    {c.overallStatus || 'OK'}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <span className="ts-badge ts-badge--draft">{c.insuranceType || '\u2014'}</span>
-                                            </td>
                                             <td style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 12 }}>{c.medicaidId || '\u2014'}</td>
+                                            <td style={{ fontSize: 12 }}>{c.gender || '\u2014'}</td>
+                                            <td style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{formatShortDate(c.dob)}</td>
                                             <td>
                                                 {services.length > 0 ? (
                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -202,6 +208,36 @@ export default function ClientsListPage() {
                                                 ) : (
                                                     <span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12 }}>{'\u2014'}</span>
                                                 )}
+                                            </td>
+                                            <td style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{formatShortDate(c.lastVisit)}</td>
+                                            <td>
+                                                <span
+                                                    className="cl-status-chip"
+                                                    style={{ background: clientStatusStyle.bg, color: clientStatusStyle.color }}
+                                                >
+                                                    {clientStatusStyle.label}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div className="cl-row-menu" style={{ position: 'relative' }}>
+                                                    <button
+                                                        className="btn btn--ghost btn--icon btn--xs"
+                                                        onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === c.id ? null : c.id); }}
+                                                        title="Actions"
+                                                    >
+                                                        {Icons.moreVertical || '\u22ee'}
+                                                    </button>
+                                                    {menuOpenId === c.id && (
+                                                        <div className="cl-row-menu__dropdown" onClick={(e) => e.stopPropagation()}>
+                                                            <button className="cl-row-menu__item" onClick={() => { navigate(`/clients/${c.id}`); setMenuOpenId(null); }}>
+                                                                {Icons.eye} View Details
+                                                            </button>
+                                                            <button className="cl-row-menu__item" onClick={() => { navigate(`/clients/${c.id}`); setMenuOpenId(null); }}>
+                                                                {Icons.edit} Edit Client
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     );

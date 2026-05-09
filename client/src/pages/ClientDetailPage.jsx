@@ -800,6 +800,7 @@ export default function ClientDetailPage() {
                                                                     <div className="cp-auth-group__summary">
                                                                         <span className="ts-badge ts-badge--submitted">{activeAuths.length} active</span>
                                                                         {expiredAuths.length > 0 && <span className="ts-badge ts-badge--critical">{expiredAuths.length} expired</span>}
+                                                                        <button className="btn btn--outline btn--xs" onClick={(e) => { e.stopPropagation(); navigate(`/clients/${clientId}/service/${code}`); }}>{Icons.externalLink || Icons.chevronRight} Open</button>
                                                                         <span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12, marginLeft: 4 }}>
                                                                             {isExpanded ? Icons.chevronDown : Icons.chevronRight}
                                                                         </span>
@@ -1416,6 +1417,7 @@ export default function ClientDetailPage() {
                                                                 <div className="cp-auth-group__summary">
                                                                     <span className="ts-badge ts-badge--submitted">{current.length} active</span>
                                                                     {archived.length > 0 && <span className="ts-badge ts-badge--draft">{archived.length} archived</span>}
+                                                                    <button className="btn btn--outline btn--xs" onClick={(e) => { e.stopPropagation(); navigate(`/clients/${clientId}/service/${code}`); }}>{Icons.externalLink || Icons.chevronRight} Open</button>
                                                                     <button className="btn btn--outline btn--xs" onClick={(e) => { e.stopPropagation(); openAuthModal(null, code); }}>{Icons.plus} Add</button>
                                                                     <span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12 }}>
                                                                         {isExpanded ? Icons.chevronDown : Icons.chevronRight}
