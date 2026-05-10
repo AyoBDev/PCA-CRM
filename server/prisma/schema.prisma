@@ -8,49 +8,51 @@ datasource db {
 }
 
 model User {
-  id           Int       @id @default(autoincrement())
-  email        String    @unique
-  passwordHash String    @map("password_hash")
-  name         String
-  role         String    @default("pca")
-  phone        String    @default("") @map("phone")
-  active       Boolean   @default(true) @map("active")
-  archivedAt   DateTime? @map("archived_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-  employee          Employee?
-  uploadedDocuments ClientDocument[]
+  id                      Int                       @id @default(autoincrement())
+  email                   String                    @unique
+  passwordHash            String                    @map("password_hash")
+  name                    String
+  role                    String                    @default("pca")
+  phone                   String                    @default("") @map("phone")
+  active                  Boolean                   @default(true) @map("active")
+  archivedAt              DateTime?                 @map("archived_at")
+  createdAt               DateTime                  @default(now()) @map("created_at")
+  updatedAt               DateTime                  @updatedAt @map("updated_at")
+  authorization_documents authorization_documents[]
+  uploadedDocuments       ClientDocument[]
+  activities              ClientActivity[]
+  employee                Employee?
 
   @@map("users")
 }
 
 model PasswordResetToken {
-  id        Int      @id @default(autoincrement())
-  token     String   @unique @default(uuid())
-  userId    Int      @map("user_id")
-  expiresAt DateTime @map("expires_at")
+  id        Int       @id @default(autoincrement())
+  token     String    @unique @default(uuid())
+  userId    Int       @map("user_id")
+  expiresAt DateTime  @map("expires_at")
   usedAt    DateTime? @map("used_at")
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime  @default(now()) @map("created_at")
 
   @@index([userId])
   @@map("password_reset_tokens")
 }
 
 model Employee {
-  id            Int                    @id @default(autoincrement())
-  name          String
-  phone         String                 @default("") @map("phone")
-  email         String                 @default("") @map("email")
-  active        Boolean                @default(true) @map("active")
-  userId        Int?                   @unique @map("user_id")
-  user          User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
-  shifts        Shift[]
-  notifications ScheduleNotification[]
-  scheduleLink        EmployeeScheduleLink?
-  careTeamAssignments ClientCareTeam[]
+  id                  Int                    @id @default(autoincrement())
+  name                String
+  phone               String                 @default("") @map("phone")
+  email               String                 @default("") @map("email")
+  active              Boolean                @default(true) @map("active")
+  userId              Int?                   @unique @map("user_id")
   archivedAt          DateTime?              @map("archived_at")
-  createdAt     DateTime               @default(now()) @map("created_at")
-  updatedAt     DateTime               @updatedAt @map("updated_at")
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
+  careTeamAssignments ClientCareTeam[]
+  scheduleLink        EmployeeScheduleLink?
+  user                User?                  @relation(fields: [userId], references: [id])
+  notifications       ScheduleNotification[]
+  shifts              Shift[]
 
   @@map("employees")
 }
@@ -59,26 +61,26 @@ model EmployeeScheduleLink {
   id         Int      @id @default(autoincrement())
   token      String   @unique @default(uuid())
   employeeId Int      @unique @map("employee_id")
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   active     Boolean  @default(true)
   createdAt  DateTime @default(now()) @map("created_at")
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@map("employee_schedule_links")
 }
 
 model ScheduleNotification {
-  id                 Int       @id @default(autoincrement())
-  employeeId         Int       @map("employee_id")
-  employee           Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  weekStart          DateTime  @map("week_start")
-  method             String    @map("method")
-  destination        String    @map("destination")
-  status             String    @default("pending") @map("status")
-  confirmationToken  String    @unique @default(uuid()) @map("confirmation_token")
-  confirmedAt        DateTime? @map("confirmed_at")
-  sentAt             DateTime? @map("sent_at")
-  failureReason      String    @default("") @map("failure_reason")
-  createdAt          DateTime  @default(now()) @map("created_at")
+  id                Int       @id @default(autoincrement())
+  employeeId        Int       @map("employee_id")
+  weekStart         DateTime  @map("week_start")
+  method            String    @map("method")
+  destination       String    @map("destination")
+  status            String    @default("pending") @map("status")
+  confirmationToken String    @unique @default(uuid()) @map("confirmation_token")
+  confirmedAt       DateTime? @map("confirmed_at")
+  sentAt            DateTime? @map("sent_at")
+  failureReason     String    @default("") @map("failure_reason")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  employee          Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
   @@index([weekStart])
@@ -86,47 +88,49 @@ model ScheduleNotification {
 }
 
 model Client {
-  id              Int             @id @default(autoincrement())
-  clientName      String          @map("client_name")
-  medicaidId      String          @default("") @map("medicaid_id")
-  insuranceType   String          @default("MEDICAID") @map("insurance_type") // MEDICAID | WAIVER 58 | etc
-  address         String          @default("") @map("address")
-  secondaryAddress String         @default("") @map("secondary_address")
-  phone           String          @default("") @map("phone")
-  secondaryPhone  String          @default("") @map("secondary_phone")
-  email           String          @default("") @map("email")
-  gender          String          @default("") @map("gender") // Male | Female
-  gateCode        String          @default("") @map("gate_code")
-  notes           String          @default("") @map("notes")
-  pcaNotes        String          @default("") @map("pca_notes")
-  caregiverRequirements String    @default("") @map("caregiver_requirements")
-  mainServices    String          @default("") @map("main_services")
-  dob               DateTime? @map("dob")
-  paNumber          String    @default("") @map("pa_number")
-  doctorName        String    @default("") @map("doctor_name")
-  doctorPhone       String    @default("") @map("doctor_phone")
-  backupDoctorName  String    @default("") @map("backup_doctor_name")
-  backupDoctorPhone String    @default("") @map("backup_doctor_phone")
-  emergencyContactName     String @default("") @map("emergency_contact_name")
-  emergencyContactPhone    String @default("") @map("emergency_contact_phone")
-  emergencyContactRelation String @default("") @map("emergency_contact_relation")
-  secondaryEmergencyName     String @default("") @map("secondary_emergency_name")
-  secondaryEmergencyPhone    String @default("") @map("secondary_emergency_phone")
-  secondaryEmergencyRelation String @default("") @map("secondary_emergency_relation")
-  critical          Boolean   @default(false) @map("critical")
-  enabledServices String          @default("[\"PAS\",\"Homemaker\"]") @map("enabled_services")
-  archivedAt      DateTime?       @map("archived_at")
-  authorizations  Authorization[]
-  timesheets      Timesheet[]
-  shifts          Shift[]
-  permanentLinks  PermanentLink[]
-  careTeam        ClientCareTeam[]
-  documents       ClientDocument[]
-  hospitalVisits  HospitalVisit[]
-  incidents       Incident[]
-  clientNotes     ClientNote[]
-  createdAt       DateTime        @default(now()) @map("created_at")
-  updatedAt       DateTime        @updatedAt @map("updated_at")
+  id                         Int              @id @default(autoincrement())
+  clientName                 String           @map("client_name")
+  medicaidId                 String           @default("") @map("medicaid_id")
+  insuranceType              String           @default("MEDICAID") @map("insurance_type")
+  address                    String           @default("") @map("address")
+  phone                      String           @default("") @map("phone")
+  gateCode                   String           @default("") @map("gate_code")
+  notes                      String           @default("") @map("notes")
+  enabledServices            String           @default("[\"PAS\",\"Homemaker\"]") @map("enabled_services")
+  archivedAt                 DateTime?        @map("archived_at")
+  createdAt                  DateTime         @default(now()) @map("created_at")
+  updatedAt                  DateTime         @updatedAt @map("updated_at")
+  backupDoctorName           String           @default("") @map("backup_doctor_name")
+  backupDoctorPhone          String           @default("") @map("backup_doctor_phone")
+  critical                   Boolean          @default(false) @map("critical")
+  dob                        DateTime?        @map("dob")
+  doctorName                 String           @default("") @map("doctor_name")
+  doctorPhone                String           @default("") @map("doctor_phone")
+  paNumber                   String           @default("") @map("pa_number")
+  caregiverRequirements      String           @default("") @map("caregiver_requirements")
+  email                      String           @default("") @map("email")
+  emergencyContactName       String           @default("") @map("emergency_contact_name")
+  emergencyContactPhone      String           @default("") @map("emergency_contact_phone")
+  emergencyContactRelation   String           @default("") @map("emergency_contact_relation")
+  gender                     String           @default("") @map("gender")
+  mainServices               String           @default("") @map("main_services")
+  pcaNotes                   String           @default("") @map("pca_notes")
+  secondaryAddress           String           @default("") @map("secondary_address")
+  secondaryEmergencyName     String           @default("") @map("secondary_emergency_name")
+  secondaryEmergencyPhone    String           @default("") @map("secondary_emergency_phone")
+  secondaryEmergencyRelation String           @default("") @map("secondary_emergency_relation")
+  secondaryPhone             String           @default("") @map("secondary_phone")
+  client_status              String           @default("active")
+  authorizations             Authorization[]
+  careTeam                   ClientCareTeam[]
+  documents                  ClientDocument[]
+  clientNotes                ClientNote[]
+  hospitalVisits             HospitalVisit[]
+  incidents                  Incident[]
+  activities                 ClientActivity[]
+  permanentLinks             PermanentLink[]
+  shifts                     Shift[]
+  timesheets                 Timesheet[]
 
   @@map("clients")
 }
@@ -134,11 +138,11 @@ model Client {
 model ClientNote {
   id        Int      @id @default(autoincrement())
   clientId  Int      @map("client_id")
-  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   date      DateTime
   type      String   @default("")
   content   String   @default("")
   createdAt DateTime @default(now()) @map("created_at")
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@map("client_notes")
@@ -151,10 +155,10 @@ model ClientCareTeam {
   role       String   @default("agency_pca") @map("role")
   assignedAt DateTime @default(now()) @map("assigned_at")
   notes      String   @default("") @map("notes")
-  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@index([employeeId])
@@ -171,10 +175,10 @@ model ClientDocument {
   mimeType   String   @default("") @map("mime_type")
   uploadedBy Int?     @map("uploaded_by")
   notes      String   @default("") @map("notes")
-  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  uploader   User?    @relation(fields: [uploadedBy], references: [id], onDelete: SetNull)
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  uploader   User?    @relation(fields: [uploadedBy], references: [id])
 
   @@index([clientId])
   @@map("client_documents")
@@ -190,9 +194,9 @@ model HospitalVisit {
   purpose      String   @default("") @map("purpose")
   status       String   @default("upcoming") @map("status")
   notes        String   @default("") @map("notes")
-  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@map("hospital_visits")
@@ -209,30 +213,48 @@ model Incident {
   resolvedAt   DateTime? @map("resolved_at")
   resolution   String    @default("") @map("resolution")
   notes        String    @default("") @map("notes")
-  client       Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
+  client       Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@map("incidents")
 }
 
+model ClientActivity {
+  id          Int      @id @default(autoincrement())
+  clientId    Int      @map("client_id")
+  userId      Int      @map("user_id")
+  type        String   @map("type")
+  subject     String   @default("")
+  description String   @default("")
+  contactName String   @default("") @map("contact_name")
+  occurredAt  DateTime @map("occurred_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([clientId])
+  @@map("client_activities")
+}
+
 model Authorization {
-  id                   Int      @id @default(autoincrement())
-  clientId             Int      @map("client_id")
-  serviceCategory      String   @default("") @map("service_category")
-  serviceCode          String   @map("service_code") // PCS | SDPC | TIMESHEETS
-  serviceName          String   @default("") @map("service_name")
-  authorizationNumber  String   @default("") @map("authorization_number")
-  authorizedUnits      Int      @default(0) @map("authorized_units")
-  authorizedHours      Float    @default(0) @map("authorized_hours")
-  authorizationStartDate DateTime? @map("authorization_start_date")
-  authorizationEndDate DateTime? @map("authorization_end_date")
-  notes                String   @default("") @map("notes")
-  archivedAt           DateTime? @map("archived_at")
-  client               Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  createdAt            DateTime @default(now()) @map("created_at")
-  updatedAt            DateTime @updatedAt @map("updated_at")
+  id                      Int                       @id @default(autoincrement())
+  clientId                Int                       @map("client_id")
+  serviceCategory         String                    @default("") @map("service_category")
+  serviceCode             String                    @map("service_code")
+  serviceName             String                    @default("") @map("service_name")
+  authorizedUnits         Int                       @default(0) @map("authorized_units")
+  authorizationStartDate  DateTime?                 @map("authorization_start_date")
+  authorizationEndDate    DateTime?                 @map("authorization_end_date")
+  notes                   String                    @default("") @map("notes")
+  createdAt               DateTime                  @default(now()) @map("created_at")
+  updatedAt               DateTime                  @updatedAt @map("updated_at")
+  archivedAt              DateTime?                 @map("archived_at")
+  authorizationNumber     String                    @default("") @map("authorization_number")
+  authorizedHours         Float                     @default(0) @map("authorized_hours")
+  authorization_documents authorization_documents[]
+  client                  Client                    @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@map("authorizations")
@@ -282,78 +304,75 @@ model Timesheet {
   completionDate      String           @default("") @map("completion_date")
   submittedAt         DateTime?        @map("submitted_at")
   archivedAt          DateTime?        @map("archived_at")
-  client              Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  entries             TimesheetEntry[]
-  signingTokens       SigningToken[]
   createdAt           DateTime         @default(now()) @map("created_at")
   updatedAt           DateTime         @updatedAt @map("updated_at")
+  signingTokens       SigningToken[]
+  entries             TimesheetEntry[]
+  client              Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@unique([clientId, pcaName, weekStart])
   @@map("timesheets")
 }
 
 model TimesheetEntry {
-  id                  Int       @id @default(autoincrement())
-  timesheetId         Int       @map("timesheet_id")
-  dayOfWeek           Int       @map("day_of_week")
-  dateOfService       String    @default("") @map("date_of_service")
-  // ADL / PAS section
-  adlActivities       String    @default("{}") @map("adl_activities")
-  adlTimeIn           String?   @map("adl_time_in")
-  adlTimeOut          String?   @map("adl_time_out")
-  adlHours            Float     @default(0) @map("adl_hours")
-  adlPcaInitials      String    @default("") @map("adl_pca_initials")
-  adlClientInitials   String    @default("") @map("adl_client_initials")
-  adlTimeBlocks       String    @default("[]") @map("adl_time_blocks")       // JSON: [{"in":"HH:MM","out":"HH:MM"}]
-  // IADL / HM section
-  iadlActivities      String    @default("{}") @map("iadl_activities")
-  iadlTimeIn          String?   @map("iadl_time_in")
-  iadlTimeOut         String?   @map("iadl_time_out")
-  iadlHours           Float     @default(0) @map("iadl_hours")
-  iadlPcaInitials     String    @default("") @map("iadl_pca_initials")
-  iadlClientInitials  String    @default("") @map("iadl_client_initials")
-  iadlTimeBlocks      String    @default("[]") @map("iadl_time_blocks")      // JSON: [{"in":"HH:MM","out":"HH:MM"}]
-  // Respite section (mirrors IADL structure)
+  id                    Int       @id @default(autoincrement())
+  timesheetId           Int       @map("timesheet_id")
+  dayOfWeek             Int       @map("day_of_week")
+  dateOfService         String    @default("") @map("date_of_service")
+  adlActivities         String    @default("{}") @map("adl_activities")
+  adlTimeIn             String?   @map("adl_time_in")
+  adlTimeOut            String?   @map("adl_time_out")
+  adlHours              Float     @default(0) @map("adl_hours")
+  adlPcaInitials        String    @default("") @map("adl_pca_initials")
+  adlClientInitials     String    @default("") @map("adl_client_initials")
+  adlTimeBlocks         String    @default("[]") @map("adl_time_blocks")
+  iadlActivities        String    @default("{}") @map("iadl_activities")
+  iadlTimeIn            String?   @map("iadl_time_in")
+  iadlTimeOut           String?   @map("iadl_time_out")
+  iadlHours             Float     @default(0) @map("iadl_hours")
+  iadlPcaInitials       String    @default("") @map("iadl_pca_initials")
+  iadlClientInitials    String    @default("") @map("iadl_client_initials")
+  iadlTimeBlocks        String    @default("[]") @map("iadl_time_blocks")
   respiteActivities     String    @default("{}") @map("respite_activities")
   respiteTimeIn         String?   @map("respite_time_in")
   respiteTimeOut        String?   @map("respite_time_out")
   respiteHours          Float     @default(0) @map("respite_hours")
   respitePcaInitials    String    @default("") @map("respite_pca_initials")
   respiteClientInitials String    @default("") @map("respite_client_initials")
-  respiteTimeBlocks     String    @default("[]") @map("respite_time_blocks") // JSON: [{"in":"HH:MM","out":"HH:MM"}]
-  timesheet           Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+  respiteTimeBlocks     String    @default("[]") @map("respite_time_blocks")
+  timesheet             Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
 
   @@map("timesheet_entries")
 }
 
 model SigningToken {
-  id           Int       @id @default(autoincrement())
-  token        String    @unique
-  timesheetId  Int       @map("timesheet_id")
-  role         String    // "pca" or "client"
-  expiresAt    DateTime  @map("expires_at")
-  usedAt       DateTime? @map("used_at")
-  timesheet    Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
-  createdAt    DateTime  @default(now()) @map("created_at")
+  id          Int       @id @default(autoincrement())
+  token       String    @unique
+  timesheetId Int       @map("timesheet_id")
+  role        String
+  expiresAt   DateTime  @map("expires_at")
+  usedAt      DateTime? @map("used_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  timesheet   Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
 
   @@map("signing_tokens")
 }
 
 model PayrollRun {
-  id           Int            @id @default(autoincrement())
-  name         String
-  fileName     String         @map("file_name")
-  periodStart  DateTime?      @map("period_start")
-  periodEnd    DateTime?      @map("period_end")
-  status       String         @default("processing")
-  totalVisits  Int            @default(0) @map("total_visits")
-  totalPayable Int            @default(0) @map("total_payable")
-  errorMessage           String?        @map("error_message")
-  authorizationSnapshot  String         @default("{}") @map("authorization_snapshot")
-  archivedAt             DateTime?      @map("archived_at")
-  visits                 PayrollVisit[]
-  createdAt    DateTime       @default(now()) @map("created_at")
-  updatedAt    DateTime       @updatedAt @map("updated_at")
+  id                    Int            @id @default(autoincrement())
+  name                  String
+  fileName              String         @map("file_name")
+  periodStart           DateTime?      @map("period_start")
+  periodEnd             DateTime?      @map("period_end")
+  status                String         @default("processing")
+  totalVisits           Int            @default(0) @map("total_visits")
+  totalPayable          Int            @default(0) @map("total_payable")
+  errorMessage          String?        @map("error_message")
+  authorizationSnapshot String         @default("{}") @map("authorization_snapshot")
+  archivedAt            DateTime?      @map("archived_at")
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
+  visits                PayrollVisit[]
 
   @@map("payroll_runs")
 }
@@ -361,7 +380,6 @@ model PayrollRun {
 model PayrollVisit {
   id                Int        @id @default(autoincrement())
   runId             Int        @map("run_id")
-
   clientName        String     @default("") @map("client_name")
   employeeName      String     @default("") @map("employee_name")
   service           String     @default("")
@@ -371,7 +389,6 @@ model PayrollVisit {
   callHoursRaw      Float      @default(0) @map("call_hours_raw")
   visitStatus       String     @default("") @map("visit_status")
   unitsRaw          Int        @default(0) @map("units_raw")
-
   serviceCode       String     @default("") @map("service_code")
   callInTime        String     @default("") @map("call_in_time")
   callOutTime       String     @default("") @map("call_out_time")
@@ -389,9 +406,8 @@ model PayrollVisit {
   earlyCallIn       Boolean    @default(false) @map("early_call_in")
   lateCallOut       Boolean    @default(false) @map("late_call_out")
   nextDayCallOut    Boolean    @default(false) @map("next_day_call_out")
-
-  run               PayrollRun @relation(fields: [runId], references: [id], onDelete: Cascade)
   createdAt         DateTime   @default(now()) @map("created_at")
+  run               PayrollRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 
   @@index([runId])
   @@map("payroll_visits")
@@ -403,20 +419,20 @@ model Shift {
   employeeId       Int?      @map("employee_id")
   serviceCode      String    @map("service_code")
   shiftDate        DateTime  @map("shift_date")
-  startTime        String    @map("start_time")    // HH:MM 24h
-  endTime          String    @map("end_time")      // HH:MM 24h
+  startTime        String    @map("start_time")
+  endTime          String    @map("end_time")
   hours            Float     @default(0)
   units            Int       @default(0)
   notes            String    @default("")
-  status           String    @default("scheduled") // scheduled | completed | cancelled
-  recurringGroupId String    @default("") @map("recurring_group_id") // groups recurring shifts for bulk delete
+  status           String    @default("scheduled")
+  recurringGroupId String    @default("") @map("recurring_group_id")
   accountNumber    String    @default("") @map("account_number")
   sandataClientId  String    @default("") @map("sandata_client_id")
   archivedAt       DateTime? @map("archived_at")
-  client           Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  employee         Employee? @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
+  client           Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  employee         Employee? @relation(fields: [employeeId], references: [id], onDelete: Restrict)
 
   @@index([clientId])
   @@index([employeeId])
@@ -429,12 +445,12 @@ model AuditLog {
   userId     Int      @map("user_id")
   userName   String   @map("user_name")
   userRole   String   @map("user_role")
-  action     String   // CREATE, UPDATE, DELETE, ARCHIVE, RESTORE, SUBMIT, EXPORT, TOGGLE_ACTIVE, RESET_PASSWORD, PERMANENT_DELETE, BULK_DELETE
-  entityType String   @map("entity_type") // Client, Employee, Timesheet, Shift, Authorization, PayrollRun, PayrollVisit, User, Service, InsuranceType, PermanentLink
+  action     String
+  entityType String   @map("entity_type")
   entityId   Int      @map("entity_id")
   entityName String   @default("") @map("entity_name")
-  changes    String   @default("[]") // JSON array of {field, oldValue, newValue}
-  metadata   String   @default("{}") // JSON extra context
+  changes    String   @default("[]")
+  metadata   String   @default("{}")
   createdAt  DateTime @default(now()) @map("created_at")
 
   @@index([entityType, entityId])
@@ -450,9 +466,24 @@ model PermanentLink {
   pcaName   String   @map("pca_name")
   active    Boolean  @default(true)
   createdAt DateTime @default(now()) @map("created_at")
-
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@unique([clientId, pcaName])
   @@map("permanent_links")
+}
+
+model authorization_documents {
+  id               Int           @id @default(autoincrement())
+  authorization_id Int
+  file_name        String
+  file_path        String
+  file_size        Int
+  mime_type        String        @default("")
+  uploaded_by      Int?
+  notes            String        @default("")
+  created_at       DateTime      @default(now())
+  authorizations   Authorization @relation(fields: [authorization_id], references: [id], onDelete: Cascade)
+  users            User?         @relation(fields: [uploaded_by], references: [id])
+
+  @@index([authorization_id])
 }
