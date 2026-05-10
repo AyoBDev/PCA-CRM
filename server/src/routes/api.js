@@ -126,6 +126,7 @@ const {
     deleteIncident,
 } = require('../controllers/carePlanController');
 const { uploadDocument, downloadDocument, deleteDocument } = require('../controllers/documentController');
+const { listActivities, createActivity, deleteActivity } = require('../controllers/activityController');
 const { authenticate, requireRole } = require('../middleware/authMiddleware');
 
 const router = express.Router();
@@ -282,6 +283,11 @@ router.get('/schedule-notifications/status',  requireRole('admin', 'user', 'pca'
 router.get('/employee-schedule-links',        requireRole('admin', 'user', 'pca'), listLinks);
 router.post('/employee-schedule-links',       requireRole('admin', 'user', 'pca'), createLink);
 router.delete('/employee-schedule-links/:id', requireRole('admin', 'user', 'pca'), deleteLink);
+
+// Client Activities
+router.get('/clients/:clientId/activities', listActivities);
+router.post('/clients/:clientId/activities', createActivity);
+router.delete('/activities/:id', requireRole('admin'), deleteActivity);
 
 // Audit Logs (admin only)
 router.get('/audit-logs',                     requireRole('admin'), getAuditLogs);

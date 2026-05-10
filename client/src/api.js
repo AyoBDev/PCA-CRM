@@ -477,6 +477,16 @@ export const uploadPayrollRun = (formData) =>
         return res.json();
     });
 
+// ── Client Activities ──
+export const getClientActivities = (clientId, page = 1) =>
+    request(`/clients/${clientId}/activities?page=${page}`);
+
+export const createClientActivity = (clientId, data) =>
+    request(`/clients/${clientId}/activities`, { method: 'POST', body: JSON.stringify(data) });
+
+export const deleteClientActivity = (id) =>
+    request(`/activities/${id}`, { method: 'DELETE' });
+
 // ── Backup ──
 export async function downloadBackup() {
     const headers = {};
