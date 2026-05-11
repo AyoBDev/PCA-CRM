@@ -107,7 +107,14 @@ export default function ProfileInsuranceTab({
                                                                 <div className="cp-auth-detail-row__main">
                                                                     <span className="cp-auth-item__dot" style={{ background: colors.accent }} />
                                                                     <div className="cp-auth-detail-row__info">
-                                                                        <div className="cp-auth-detail-row__name">{a.serviceName || a.serviceCategory || code}</div>
+                                                                        <div className="cp-auth-detail-row__name">
+                                                                            {a.serviceName || a.serviceCategory || code}
+                                                                            {a.authorizationNumber && (
+                                                                                <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontFamily: 'var(--font-mono, monospace)', marginLeft: 6 }}>
+                                                                                    #{a.authorizationNumber}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
                                                                         <div className="cp-auth-detail-row__meta">
                                                                             {(a.authorizationStartDate || a.authorizationEndDate) && (
                                                                                 <span>{formatDate(a.authorizationStartDate)} – {formatDate(a.authorizationEndDate)}</span>

@@ -48,7 +48,7 @@ const TABS = [
 
 function formatDate(d) {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 }
 
 function formatDateTime(d, t) {
@@ -672,7 +672,7 @@ export default function ClientDetailPage() {
                             <div className="cp-bio__field">
                                 <span className="cp-bio__field-label">D.O.B.</span>
                                 <span className="cp-bio__field-value">
-                                    {new Date(client.dob).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    {new Date(client.dob).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
                                     {' '}({computeAge(client.dob)} yrs)
                                 </span>
                             </div>
