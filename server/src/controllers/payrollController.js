@@ -731,6 +731,27 @@ async function updatePayrollVisit(req, res, next) {
     }
 }
 
+async function updatePayrollVisitNotes(req, res, next) {
+    try {
+        const id = parseInt(req.params.id);
+        const current = await prisma.payrollVisit.findUnique({ where: { id } });
+        if (!current) return res.status(404).json({ error: 'Visit not found.' });
+
+        if (req.body.notes === undefined) {
+            return res.status(400).json({ error: 'notes field is required.' });
+        }
+
+        const visit = await prisma.payrollVisit.update({
+            where: { id },
+            data: { notes: String(req.body.notes) },
+        });
+
+        return res.json(visit);
+    } catch (err) {
+        return next(err);
+    }
+}
+
 /**
  * PATCH /api/payroll/runs/:id  (rename)
  */
@@ -782,4 +803,5 @@ module.exports = {
     bulkPermanentlyDeletePayrollRuns,
     exportPayrollRun,
     updatePayrollVisit,
+    updatePayrollVisitNotes,
 };

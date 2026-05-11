@@ -359,6 +359,8 @@ export const permanentlyDeletePayrollRun = (id) => request(`/payroll/runs/${id}/
 export const bulkPermanentlyDeletePayrollRuns = () => request('/payroll/runs/bulk-permanent', { method: 'DELETE' });
 export const updatePayrollVisit = (id, data) =>
     request(`/payroll/visits/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+export const updatePayrollVisitNotes = (id, notes) =>
+    request(`/payroll/visits/${id}/notes`, { method: 'PATCH', body: JSON.stringify({ notes }) });
 
 // ── Scheduling ──
 export const getShifts = (weekStart, filters = {}) => {

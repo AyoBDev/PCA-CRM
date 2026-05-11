@@ -85,6 +85,7 @@ const {
     bulkPermanentlyDeletePayrollRuns,
     exportPayrollRun,
     updatePayrollVisit,
+    updatePayrollVisitNotes,
 } = require('../controllers/payrollController');
 const {
     listShifts,
@@ -126,6 +127,7 @@ const {
     deleteIncident,
 } = require('../controllers/carePlanController');
 const { uploadDocument, downloadDocument, deleteDocument } = require('../controllers/documentController');
+const { uploadAuthDocument, downloadAuthDocument, deleteAuthDocument } = require('../controllers/authDocumentController');
 const { listActivities, createActivity, deleteActivity } = require('../controllers/activityController');
 const { authenticate, requireRole } = require('../middleware/authMiddleware');
 
@@ -191,6 +193,11 @@ router.post('/clients/:clientId/documents', requireRole('admin', 'user', 'pca'),
 router.get('/documents/:id/download', requireRole('admin', 'user', 'pca'), downloadDocument);
 router.delete('/documents/:id', requireRole('admin', 'user', 'pca'), deleteDocument);
 
+// Authorization Documents
+router.post('/authorizations/:authId/documents', requireRole('admin', 'user', 'pca'), upload.single('file'), uploadAuthDocument);
+router.get('/auth-documents/:id/download', requireRole('admin', 'user', 'pca'), downloadAuthDocument);
+router.delete('/auth-documents/:id', requireRole('admin', 'user', 'pca'), deleteAuthDocument);
+
 // Hospital Visits
 router.get('/clients/:clientId/hospital-visits', requireRole('admin', 'user', 'pca'), listHospitalVisits);
 router.post('/clients/:clientId/hospital-visits', requireRole('admin', 'user', 'pca'), createHospitalVisit);
@@ -252,6 +259,7 @@ router.delete('/payroll/runs/:id',         requireRole('admin'), deletePayrollRu
 router.delete('/payroll/runs/:id/permanent', requireRole('admin'), permanentlyDeletePayrollRun);
 router.get('/payroll/runs/:id/export',     requireRole('admin', 'user', 'pca'), exportPayrollRun);
 router.patch('/payroll/visits/:id',        requireRole('admin'), updatePayrollVisit);
+router.patch('/payroll/visits/:id/notes',  requireRole('admin', 'user', 'pca'), updatePayrollVisitNotes);
 
 // Employees
 router.get('/employees',       requireRole('admin', 'user', 'pca'), listEmployees);

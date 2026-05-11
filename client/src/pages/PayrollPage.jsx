@@ -301,12 +301,10 @@ const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits
                                     : (v.voidReason || v.overlapReason || '')}
                             </td>
                             <td>
-                                {readOnly ? (v.notes || '—') : (
                                 <PayrollEditableNotes
                                     visit={v}
                                     onChange={(newNotes) => onVisitChange(v.id, { notes: newNotes })}
                                 />
-                                )}
                             </td>
                         </tr>
                         {originals && originals.map((orig) => {
@@ -494,7 +492,7 @@ const PayrollEditableNotes = memo(function PayrollEditableNotes({ visit, onChang
         if (trimmed === (visit.notes || '').trim()) { setEditing(false); return; }
         setSaving(true);
         try {
-            await api.updatePayrollVisit(visit.id, { notes: trimmed });
+            await api.updatePayrollVisitNotes(visit.id, trimmed);
             onChange(trimmed);
         } catch (_) {
             setValue(visit.notes || '');
