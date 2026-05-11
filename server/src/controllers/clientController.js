@@ -31,7 +31,15 @@ async function getClient(req, res, next) {
         const client = await prisma.client.findUnique({
             where: { id },
             include: {
-                authorizations: { orderBy: { createdAt: 'asc' } },
+                authorizations: {
+                    orderBy: { createdAt: 'asc' },
+                    include: {
+                        authorization_documents: {
+                            include: { users: { select: { id: true, name: true } } },
+                            orderBy: { created_at: 'desc' }
+                        }
+                    }
+                },
                 careTeam: { include: { employee: true }, orderBy: { assignedAt: 'desc' } },
                 documents: { include: { uploader: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } },
                 hospitalVisits: { orderBy: { visitDate: 'desc' } },
