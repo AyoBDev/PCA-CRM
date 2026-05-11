@@ -35,6 +35,9 @@ app.get('*', (_req, res) => {
 
 // ── Global error handler ──
 app.use((err, _req, res, _next) => {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: 'File is too large. Maximum size is 20 MB.' });
+    }
     console.error('[ERROR]', err.message);
     res.status(500).json({ error: 'Internal server error' });
 });

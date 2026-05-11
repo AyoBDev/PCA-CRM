@@ -76,19 +76,33 @@ function enrichAuthorization(auth) {
   const daysToExpire = computeDaysToExpire(auth.authorizationEndDate);
   const { status, statusColor } = computeStatus(daysToExpire, auth.serviceCode);
 
+  const documents = (auth.authorization_documents || []).map(doc => ({
+    id: doc.id,
+    fileName: doc.file_name,
+    filePath: doc.file_path,
+    fileSize: doc.file_size,
+    mimeType: doc.mime_type,
+    notes: doc.notes || '',
+    createdAt: doc.created_at,
+    uploadedBy: doc.users || null,
+  }));
+
   return {
     id: auth.id,
     clientId: auth.clientId,
     serviceCategory: auth.serviceCategory || '',
     serviceCode: auth.serviceCode,
     serviceName: auth.serviceName || '',
+    authorizationNumber: auth.authorizationNumber || '',
     authorizedUnits: auth.authorizedUnits || 0,
     authorizationStartDate: auth.authorizationStartDate,
     authorizationEndDate: auth.authorizationEndDate,
     notes: auth.notes || '',
+    archivedAt: auth.archivedAt || null,
     daysToExpire,
     status,
     statusColor,
+    documents,
     createdAt: auth.createdAt,
     updatedAt: auth.updatedAt,
   };

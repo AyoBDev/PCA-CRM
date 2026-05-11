@@ -40,6 +40,8 @@ export default function ClientsListPage() {
     const [insuranceTypes, setInsuranceTypes] = useState([]);
     const [saving, setSaving] = useState(false);
     const [menuOpenId, setMenuOpenId] = useState(null);
+    const [sortOrder, setSortOrder] = useState('az');
+    const [previewClient, setPreviewClient] = useState(null);
 
     const fetchClients = useCallback(async () => {
         try {
@@ -107,6 +109,10 @@ export default function ClientsListPage() {
         if (!search) return true;
         const s = search.toLowerCase();
         return c.clientName.toLowerCase().includes(s) || (c.medicaidId || '').toLowerCase().includes(s);
+    }).sort((a, b) => {
+        const nameA = (a.clientName || '').toLowerCase();
+        const nameB = (b.clientName || '').toLowerCase();
+        return sortOrder === 'az' ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
     });
 
     return (
@@ -172,7 +178,9 @@ export default function ClientsListPage() {
                         <table className="data-table">
                             <thead>
                                 <tr>
-                                    <th>Client</th>
+                                    <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setSortOrder(sortOrder === 'az' ? 'za' : 'az')}>
+                                        Client {sortOrder === 'az' ? '↑' : '↓'}
+                                    </th>
                                     <th>Client ID</th>
                                     <th>Gender</th>
                                     <th>DOB</th>
@@ -188,7 +196,7 @@ export default function ClientsListPage() {
                                     const effectiveStatus = getEffectiveStatus(c);
                                     const clientStatusStyle = CLIENT_STATUS_STYLES[effectiveStatus] || CLIENT_STATUS_STYLES.active;
                                     return (
-                                        <tr key={c.id} className={c.critical ? 'cl-row--critical' : ''} style={{ cursor: 'pointer' }} onClick={() => navigate(`/clients/${c.id}`)}>
+                                        <tr key={c.id} className={c.critical ? 'cl-row--critical' : ''} style={{ cursor: 'pointer' }} onClick={() => setPreviewClient(c)}>
                                             <td>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                                     <div className="cl-avatar cl-avatar--sm">{(c.clientName || 'U').charAt(0).toUpperCase()}</div>
@@ -314,6 +322,71 @@ export default function ClientsListPage() {
                             </button>
                         </div>
                     </form>
+                </Modal>
+            )}
+
+            {previewClient && (
+                <Modal onClose={() => setPreviewClient(null)}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                        <div className="cl-avatar" style={{ width: 48, height: 48, fontSize: 20 }}>
+                            {(previewClient.clientName || 'U').charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                            <h2 className="modal__title" style={{ margin: 0 }}>{previewClient.clientName}</h2>
+                            {previewClient.medicaidId && (
+                                <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', fontFamily: 'var(--font-mono, monospace)' }}>
+                                    ID: {previewClient.medicaidId}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 24px', marginBottom: 20 }}>
+                        <div>
+                            <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', marginBottom: 2 }}>Status</div>
+                            <span
+                                className="cl-status-chip"
+                                style={{
+                                    background: (CLIENT_STATUS_STYLES[getEffectiveStatus(previewClient)] || CLIENT_STATUS_STYLES.active).bg,
+                                    color: (CLIENT_STATUS_STYLES[getEffectiveStatus(previewClient)] || CLIENT_STATUS_STYLES.active).color,
+                                }}
+                            >
+                                {(CLIENT_STATUS_STYLES[getEffectiveStatus(previewClient)] || CLIENT_STATUS_STYLES.active).label}
+                            </span>
+                        </div>
+                        <div>
+                            <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', marginBottom: 2 }}>DOB</div>
+                            <div style={{ fontSize: 13 }}>{formatShortDate(previewClient.dob)}</div>
+                        </div>
+                        <div>
+                            <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', marginBottom: 2 }}>Gender</div>
+                            <div style={{ fontSize: 13 }}>{previewClient.gender || '—'}</div>
+                        </div>
+                        <div>
+                            <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', marginBottom: 2 }}>Phone</div>
+                            <div style={{ fontSize: 13 }}>{previewClient.phone || '—'}</div>
+                        </div>
+                        <div style={{ gridColumn: '1 / -1' }}>
+                            <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', marginBottom: 2 }}>Address</div>
+                            <div style={{ fontSize: 13 }}>{previewClient.address || '—'}</div>
+                        </div>
+                        <div style={{ gridColumn: '1 / -1' }}>
+                            <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', marginBottom: 2 }}>Services</div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 2 }}>
+                                {getServiceCodes(previewClient).length > 0
+                                    ? getServiceCodes(previewClient).map(s => (
+                                        <span key={s} className="cp-service-chip cp-service-chip--sm">{s}</span>
+                                    ))
+                                    : <span style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>{'—'}</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                    <div className="form-actions">
+                        <button className="btn btn--outline" onClick={() => setPreviewClient(null)}>Close</button>
+                        <button className="btn btn--primary" onClick={() => { setPreviewClient(null); navigate(`/clients/${previewClient.id}`); }}>
+                            {Icons.eye} View Full Details
+                        </button>
+                    </div>
                 </Modal>
             )}
         </>
