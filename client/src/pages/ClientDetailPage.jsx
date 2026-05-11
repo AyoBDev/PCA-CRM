@@ -600,66 +600,156 @@ export default function ClientDetailPage() {
                         </div>
                     </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                    <EntityActivityButton entityType="client" entityId={Number(clientId)} entityName={client.clientName} />
+                <div className="content-header__actions">
+                    <EntityActivityButton entityType="Client" entityId={client.id} />
+                    <button className="btn btn--outline btn--sm" onClick={openEditClientModal}>
+                        {Icons.edit} Edit Client
+                    </button>
                 </div>
             </div>
 
-            <div className="page-content">
-                {/* Bio Card */}
+            <div className="page-content cp-page">
+
+                {/* BIO DATA CARD */}
                 <div className="cp-bio">
-                    <div className="cp-bio__avatar">
-                        {client.clientName?.charAt(0) || '?'}
-                    </div>
-                    <div className="cp-bio__content">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <h2 style={{ fontSize: 24, fontWeight: 600, margin: 0 }}>{client.clientName}</h2>
-                            {client.critical && (
-                                <span className="badge badge--danger">Critical</span>
-                            )}
+                    <div className="cp-bio__main">
+                        <div className="cp-bio__avatar">
+                            {client.clientName.charAt(0).toUpperCase()}
                         </div>
-                        <div className="cp-bio-meta">
-                            {client.dob && <span>{computeAge(client.dob)} years old</span>}
-                            {client.gender && <span>{client.gender}</span>}
-                            {client.medicaidId && <span>MID: {client.medicaidId}</span>}
-                            {client.insuranceType && <span>{client.insuranceType}</span>}
-                        </div>
-                        <div className="cp-bio-contacts">
-                            {client.phone && <div><strong>Phone:</strong> {client.phone}</div>}
-                            {client.address && <div><strong>Address:</strong> {client.address}</div>}
-                            {client.emergencyContactName && <div><strong>Emergency Contact:</strong> {client.emergencyContactName} ({client.emergencyContactRelation}) - {client.emergencyContactPhone}</div>}
-                        </div>
-                        {activeServiceCodes.length > 0 && (
-                            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                        <div className="cp-bio__info">
+                            <div className="cp-bio__name-row">
+                                <h2 className="cp-bio__name">{client.clientName}</h2>
+                                {client.critical && <span className="ts-badge ts-badge--critical">Critical</span>}
+                                <select
+                                    className="cp-bio__status-select"
+                                    value={client.clientStatus || 'active'}
+                                    onChange={async (e) => {
+                                        const val = e.target.value;
+                                        try {
+                                            await api.patchClient(client.id, { clientStatus: val });
+                                            setClient(prev => ({ ...prev, clientStatus: val }));
+                                            showToast('Status updated');
+                                        } catch (err) { showToast(err.message, 'error'); }
+                                    }}
+                                >
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                    <option value="discharged">Discharged</option>
+                                    <option value="transferred">Transferred</option>
+                                </select>
+                            </div>
+                            <div className="cp-bio__chips">
+                                {client.insuranceType && (
+                                    <span className="cp-chip cp-chip--program">{client.insuranceType}</span>
+                                )}
+                                {client.critical && (
+                                    <span className="cp-chip cp-chip--risk">Fall Risk</span>
+                                )}
+                                {openIncidents > 0 && (
+                                    <span className="cp-chip cp-chip--complaint">
+                                        {openIncidents} Open Incident{openIncidents > 1 ? 's' : ''}
+                                    </span>
+                                )}
                                 {activeServiceCodes.map(code => {
                                     const colors = AUTH_COLORS[code] || DEFAULT_AUTH_COLOR;
                                     return (
-                                        <span key={code} className="cp-bio-service-chip" style={{ '--chip-color': colors.accent }}>
-                                            {code}
+                                        <span key={code} className="cp-service-chip cp-service-chip--sm" style={{ background: colors.bg, color: colors.accent, borderColor: colors.accent }}>
+                                            {colors.label?.replace(' Authorization', '').replace(' Service', '') || code}
                                         </span>
                                     );
                                 })}
                             </div>
+                        </div>
+                    </div>
+                    <div className="cp-bio__fields">
+                        {client.medicaidId && (
+                            <div className="cp-bio__field">
+                                <span className="cp-bio__field-label">Client ID #</span>
+                                <span className="cp-bio__field-value" style={{ fontFamily: 'var(--font-mono, monospace)' }}>{client.medicaidId}</span>
+                            </div>
+                        )}
+                        {client.dob && (
+                            <div className="cp-bio__field">
+                                <span className="cp-bio__field-label">D.O.B.</span>
+                                <span className="cp-bio__field-value">
+                                    {new Date(client.dob).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    {' '}({computeAge(client.dob)} yrs)
+                                </span>
+                            </div>
+                        )}
+                        {client.gender && (
+                            <div className="cp-bio__field">
+                                <span className="cp-bio__field-label">Gender</span>
+                                <span className="cp-bio__field-value">{client.gender}</span>
+                            </div>
+                        )}
+                        {client.insuranceType && (
+                            <div className="cp-bio__field">
+                                <span className="cp-bio__field-label">Insurance</span>
+                                <span className="cp-bio__field-value">{client.insuranceType}</span>
+                            </div>
+                        )}
+                        {client.email && (
+                            <div className="cp-bio__field">
+                                <span className="cp-bio__field-label">Email</span>
+                                <span className="cp-bio__field-value">{client.email}</span>
+                            </div>
+                        )}
+                        {client.phone && (
+                            <div className="cp-bio__field">
+                                <span className="cp-bio__field-label">Phone</span>
+                                <span className="cp-bio__field-value">{client.phone}</span>
+                            </div>
+                        )}
+                        {client.secondaryPhone && (
+                            <div className="cp-bio__field">
+                                <span className="cp-bio__field-label">Secondary Phone</span>
+                                <span className="cp-bio__field-value">{client.secondaryPhone}</span>
+                            </div>
+                        )}
+                        {client.address && (
+                            <div className="cp-bio__field">
+                                <span className="cp-bio__field-label">Address</span>
+                                <span className="cp-bio__field-value">{client.address}</span>
+                            </div>
+                        )}
+                        {client.secondaryAddress && (
+                            <div className="cp-bio__field">
+                                <span className="cp-bio__field-label">Secondary Address</span>
+                                <span className="cp-bio__field-value">{client.secondaryAddress}</span>
+                            </div>
+                        )}
+                        {client.doctorName && (
+                            <div className="cp-bio__field">
+                                <span className="cp-bio__field-label">Doctor</span>
+                                <span className="cp-bio__field-value">
+                                    {client.doctorName}{client.doctorPhone ? ` • ${client.doctorPhone}` : ''}
+                                </span>
+                            </div>
+                        )}
+                        {client.backupDoctorName && (
+                            <div className="cp-bio__field">
+                                <span className="cp-bio__field-label">Backup Doctor</span>
+                                <span className="cp-bio__field-value">
+                                    {client.backupDoctorName}{client.backupDoctorPhone ? ` • ${client.backupDoctorPhone}` : ''}
+                                </span>
+                            </div>
                         )}
                     </div>
-                    {isAdmin && (
-                        <button className="btn btn--outline" onClick={openEditClientModal}>
-                            {Icons.edit} Edit Client
-                        </button>
-                    )}
+
                 </div>
 
-                {/* Tabs */}
+                {/* TAB NAVIGATION */}
                 <div className="cp-tabs">
                     {TABS.map(tab => (
                         <button
                             key={tab.key}
-                            className={activeTab === tab.key ? 'cp-tab cp-tab--active' : 'cp-tab'}
+                            className={`cp-tab ${activeTab === tab.key ? 'cp-tab--active' : ''}`}
                             onClick={() => setActiveTab(tab.key)}
                         >
                             {tab.label}
                             {tab.key === 'incidents' && openIncidents > 0 && (
-                                <span className="cp-tab__badge">{openIncidents}</span>
+                                <span className="cp-tab__badge cp-tab__badge--danger">{openIncidents}</span>
                             )}
                             {tab.key === 'documents' && totalDocs > 0 && (
                                 <span className="cp-tab__badge">{totalDocs}</span>
