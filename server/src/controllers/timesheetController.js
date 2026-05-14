@@ -36,6 +36,15 @@ function computeHours(timeIn, timeOut) {
     return diff > 0 ? Math.round((diff / 60) * 100) / 100 : 0;
 }
 
+function computeTotalHoursWithBlocks(timeIn, timeOut, timeBlocksJson) {
+    let total = computeHours(timeIn, timeOut);
+    try {
+        const blocks = JSON.parse(timeBlocksJson || '[]');
+        for (const b of blocks) total += computeHours(b.in, b.out);
+    } catch {}
+    return Math.round(total * 100) / 100;
+}
+
 // ── CRUD ─────────────────────────────────────────
 
 // GET /api/timesheets
@@ -207,9 +216,9 @@ async function updateTimesheet(req, res, next) {
 
         if (entries && Array.isArray(entries)) {
             for (const entry of entries) {
-                const adlHours = computeHours(entry.adlTimeIn, entry.adlTimeOut);
-                const iadlHours = computeHours(entry.iadlTimeIn, entry.iadlTimeOut);
-                const respiteHours = computeHours(entry.respiteTimeIn, entry.respiteTimeOut);
+                const adlHours = computeTotalHoursWithBlocks(entry.adlTimeIn, entry.adlTimeOut, entry.adlTimeBlocks);
+                const iadlHours = computeTotalHoursWithBlocks(entry.iadlTimeIn, entry.iadlTimeOut, entry.iadlTimeBlocks);
+                const respiteHours = computeTotalHoursWithBlocks(entry.respiteTimeIn, entry.respiteTimeOut, entry.respiteTimeBlocks);
                 totalPasHours += adlHours;
                 totalHmHours += iadlHours;
                 totalRespiteHours += respiteHours;
@@ -222,18 +231,21 @@ async function updateTimesheet(req, res, next) {
                         adlTimeIn: entry.adlTimeIn || null,
                         adlTimeOut: entry.adlTimeOut || null,
                         adlHours,
+                        adlTimeBlocks: entry.adlTimeBlocks || '[]',
                         adlPcaInitials: (entry.adlPcaInitials || '').trim(),
                         adlClientInitials: (entry.adlClientInitials || '').trim(),
                         iadlActivities: typeof entry.iadlActivities === 'string' ? entry.iadlActivities : JSON.stringify(entry.iadlActivities || {}),
                         iadlTimeIn: entry.iadlTimeIn || null,
                         iadlTimeOut: entry.iadlTimeOut || null,
                         iadlHours,
+                        iadlTimeBlocks: entry.iadlTimeBlocks || '[]',
                         iadlPcaInitials: (entry.iadlPcaInitials || '').trim(),
                         iadlClientInitials: (entry.iadlClientInitials || '').trim(),
                         respiteActivities: typeof entry.respiteActivities === 'string' ? entry.respiteActivities : JSON.stringify(entry.respiteActivities || {}),
                         respiteTimeIn: entry.respiteTimeIn || null,
                         respiteTimeOut: entry.respiteTimeOut || null,
-                        respiteHours: computeHours(entry.respiteTimeIn, entry.respiteTimeOut),
+                        respiteHours,
+                        respiteTimeBlocks: entry.respiteTimeBlocks || '[]',
                         respitePcaInitials: (entry.respitePcaInitials || '').trim(),
                         respiteClientInitials: (entry.respiteClientInitials || '').trim(),
                     },
