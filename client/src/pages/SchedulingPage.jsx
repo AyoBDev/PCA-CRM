@@ -1025,7 +1025,78 @@ function HoursSummaryBar({ summaryViewBy, unitSummaries, shifts }) {
     );
 }
 
-function ScheduleOverviewTable({ shifts, overlapIds, onEditShift, clientColorMap }) {
+function BulkEditModal({ count, employees, onSave, onClose, saving }) {
+    const [startTime, setStartTime] = useState('');
+    const [endTime, setEndTime] = useState('');
+    const [employeeId, setEmployeeId] = useState('');
+    const [serviceCode, setServiceCode] = useState('');
+    const [status, setStatus] = useState('');
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        const updates = {};
+        if (startTime) updates.startTime = startTime;
+        if (endTime) updates.endTime = endTime;
+        if (employeeId) updates.employeeId = Number(employeeId);
+        if (serviceCode) updates.serviceCode = serviceCode;
+        if (status) updates.status = status;
+        if (Object.keys(updates).length === 0) return;
+        onSave(updates);
+    };
+
+    const hasChanges = startTime || endTime || employeeId || serviceCode || status;
+
+    return (
+        <Modal onClose={onClose}>
+            <h2 className="modal__title">Bulk Edit {count} Shift{count !== 1 ? 's' : ''}</h2>
+            <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', margin: '0 0 16px' }}>
+                Only fields you fill in will be updated. Leave blank to keep unchanged.
+            </p>
+            <form onSubmit={handleSubmit}>
+                <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="form-group">
+                        <label className="form-label">Start Time</label>
+                        <input type="time" className="form-input" value={startTime} onChange={e => setStartTime(e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                        <label className="form-label">End Time</label>
+                        <input type="time" className="form-input" value={endTime} onChange={e => setEndTime(e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                        <label className="form-label">Employee</label>
+                        <select className="form-input" value={employeeId} onChange={e => setEmployeeId(e.target.value)}>
+                            <option value="">— No change —</option>
+                            {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
+                        </select>
+                    </div>
+                    <div className="form-group">
+                        <label className="form-label">Service Code</label>
+                        <select className="form-input" value={serviceCode} onChange={e => setServiceCode(e.target.value)}>
+                            <option value="">— No change —</option>
+                            {Object.entries(SERVICE_COLORS).map(([code, info]) => <option key={code} value={code}>{info.label} ({code})</option>)}
+                        </select>
+                    </div>
+                    <div className="form-group">
+                        <label className="form-label">Status</label>
+                        <select className="form-input" value={status} onChange={e => setStatus(e.target.value)}>
+                            <option value="">— No change —</option>
+                            <option value="scheduled">Scheduled</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                    </div>
+                </div>
+                <div className="form-actions" style={{ marginTop: 20 }}>
+                    <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn--primary" disabled={!hasChanges || saving}>
+                        {saving ? 'Saving…' : `Update ${count} Shift${count !== 1 ? 's' : ''}`}
+                    </button>
+                </div>
+            </form>
+        </Modal>
+    );
+}
+
+function ScheduleOverviewTable({ shifts, overlapIds, onEditShift, clientColorMap, bulkEditMode, selectedShiftIds, onToggleSelect, onToggleSelectAll }) {
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const sorted = [...shifts].sort((a, b) => {
         const da = new Date(a.shiftDate).getTime();
@@ -1034,12 +1105,14 @@ function ScheduleOverviewTable({ shifts, overlapIds, onEditShift, clientColorMap
         return (a.startTime || '').localeCompare(b.startTime || '');
     });
     const hasMultipleClients = clientColorMap && Object.keys(clientColorMap).length > 1;
+    const allSelected = selectedShiftIds && shifts.length > 0 && selectedShiftIds.size === shifts.length;
 
     return (
         <div className="sched-overview-table-wrap">
             <table className="sched-overview-table">
                 <thead>
                     <tr>
+                        {bulkEditMode && <th style={{ width: 36 }}><input type="checkbox" checked={allSelected} onChange={onToggleSelectAll} /></th>}
                         <th>Day</th>
                         <th>Client</th>
                         <th>Employee</th>
@@ -1049,7 +1122,7 @@ function ScheduleOverviewTable({ shifts, overlapIds, onEditShift, clientColorMap
                 </thead>
                 <tbody>
                     {sorted.length === 0 && (
-                        <tr><td colSpan={5} style={{ textAlign: 'center', padding: 24, color: 'hsl(var(--muted-foreground))' }}>No shifts this week</td></tr>
+                        <tr><td colSpan={bulkEditMode ? 6 : 5} style={{ textAlign: 'center', padding: 24, color: 'hsl(var(--muted-foreground))' }}>No shifts this week</td></tr>
                     )}
                     {sorted.map(s => {
                         const colorInfo = SERVICE_COLORS[s.serviceCode] || { color: '#6B7280', label: s.serviceCode };
@@ -1057,8 +1130,10 @@ function ScheduleOverviewTable({ shifts, overlapIds, onEditShift, clientColorMap
                         const dateStr = toLocalDateStr(s.shiftDate);
                         const dayIdx = new Date(dateStr + 'T00:00:00').getDay();
                         const cc = hasMultipleClients && s.client?.clientName ? clientColorMap[s.client.clientName] : null;
+                        const isSelected = selectedShiftIds && selectedShiftIds.has(s.id);
                         return (
-                            <tr key={s.id} className={`sched-overview-table__row ${isOverlap ? 'sched-overview-table__row--overlap' : ''} ${s.status === 'cancelled' ? 'sched-overview-table__row--cancelled' : ''}`} onClick={() => onEditShift(s)} style={{ cursor: 'pointer', borderLeft: cc ? `3px solid ${cc.color}` : undefined }}>
+                            <tr key={s.id} className={`sched-overview-table__row ${isOverlap ? 'sched-overview-table__row--overlap' : ''} ${s.status === 'cancelled' ? 'sched-overview-table__row--cancelled' : ''} ${isSelected ? 'sched-overview-table__row--selected' : ''}`} onClick={() => bulkEditMode ? onToggleSelect(s.id) : onEditShift(s)} style={{ cursor: 'pointer', borderLeft: cc ? `3px solid ${cc.color}` : undefined }}>
+                                {bulkEditMode && <td onClick={e => e.stopPropagation()}><input type="checkbox" checked={isSelected} onChange={() => onToggleSelect(s.id)} /></td>}
                                 <td>{dayNames[dayIdx]}</td>
                                 <td>
                                     {cc && <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: cc.color, marginRight: 6, verticalAlign: 'middle' }} />}
@@ -1219,6 +1294,11 @@ export default function SchedulingPage() {
     const [modal, setModal] = useState(null);
     const createDraftRef = useRef(null);
     const [summaryViewBy, setSummaryViewBy] = useState('client');
+
+    // Bulk edit state
+    const [bulkEditMode, setBulkEditMode] = useState(false);
+    const [selectedShiftIds, setSelectedShiftIds] = useState(new Set());
+    const [bulkSaving, setBulkSaving] = useState(false);
 
     // Build client color maps for visual distinction
     const allClientColorMap = useMemo(() => buildClientColorMap(allShifts), [allShifts]);
@@ -1381,7 +1461,41 @@ export default function SchedulingPage() {
     };
 
     const handleEditShift = (shift) => {
+        if (bulkEditMode) return;
         setModal({ type: 'shift', shift });
+    };
+
+    const toggleShiftSelection = (id) => {
+        setSelectedShiftIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedShiftIds.size === allShifts.length) {
+            setSelectedShiftIds(new Set());
+        } else {
+            setSelectedShiftIds(new Set(allShifts.map(s => s.id)));
+        }
+    };
+
+    const handleBulkEdit = async (updates) => {
+        if (selectedShiftIds.size === 0) return;
+        try {
+            setBulkSaving(true);
+            const result = await api.bulkUpdateShifts([...selectedShiftIds], updates);
+            showToast(`Updated ${result.count} shift${result.count !== 1 ? 's' : ''}`);
+            setSelectedShiftIds(new Set());
+            setBulkEditMode(false);
+            refetchAll();
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setBulkSaving(false);
+        }
     };
 
     const allOverlapIds = useMemo(() => {
@@ -1416,6 +1530,14 @@ export default function SchedulingPage() {
                 <div className="content-header__actions">
                     {isAdmin && <ActivityButton entityType="Shift" />}
                     {allShifts.length > 0 && (
+                        <button
+                            className={`btn btn--outline btn--sm ${bulkEditMode ? 'btn--active' : ''}`}
+                            onClick={() => { setBulkEditMode(!bulkEditMode); setSelectedShiftIds(new Set()); }}
+                        >
+                            {Icons.edit} Bulk Edit
+                        </button>
+                    )}
+                    {allShifts.length > 0 && !bulkEditMode && (
                         <button className="btn btn--outline btn--sm" style={{ color: 'hsl(0 84% 60%)', borderColor: 'hsl(0 84% 80%)' }} onClick={() => setModal({ type: 'confirmDeleteAll' })}>
                             {Icons.trash} Delete All
                         </button>
@@ -1645,9 +1767,22 @@ export default function SchedulingPage() {
                             No shifts scheduled this week. Click + Create Shift to get started.
                         </div>
                     ) : (
-                        <ScheduleOverviewTable shifts={allShifts} overlapIds={allOverlapIds} onEditShift={handleEditShift} clientColorMap={allClientColorMap} />
+                        <ScheduleOverviewTable shifts={allShifts} overlapIds={allOverlapIds} onEditShift={handleEditShift} clientColorMap={allClientColorMap} bulkEditMode={bulkEditMode} selectedShiftIds={selectedShiftIds} onToggleSelect={toggleShiftSelection} onToggleSelectAll={toggleSelectAll} />
                     )}
                 </ScheduleCard>
+
+                {/* Bulk Edit Toolbar */}
+                {bulkEditMode && selectedShiftIds.size > 0 && (
+                    <div className="sched-bulk-toolbar">
+                        <span className="sched-bulk-toolbar__count">{selectedShiftIds.size} shift{selectedShiftIds.size !== 1 ? 's' : ''} selected</span>
+                        <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'bulkEdit' })}>
+                            {Icons.edit} Edit Selected
+                        </button>
+                        <button className="btn btn--outline btn--sm" onClick={() => setSelectedShiftIds(new Set())}>
+                            Clear Selection
+                        </button>
+                    </div>
+                )}
 
                 {/* Schedule Delivery */}
                 <ScheduleDelivery weekStart={weekStart} shifts={allShifts} />
@@ -1753,6 +1888,17 @@ export default function SchedulingPage() {
                         </button>
                     </div>
                 </Modal>
+            )}
+
+            {/* Bulk Edit Modal */}
+            {modal?.type === 'bulkEdit' && (
+                <BulkEditModal
+                    count={selectedShiftIds.size}
+                    employees={employees}
+                    onSave={handleBulkEdit}
+                    onClose={() => setModal(null)}
+                    saving={bulkSaving}
+                />
             )}
         </>
     );

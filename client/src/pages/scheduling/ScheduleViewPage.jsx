@@ -262,6 +262,42 @@ export default function ScheduleViewPage() {
                             </div>
                         )}
 
+                        {/* Timesheet hours section */}
+                        {data.timesheets && data.timesheets.length > 0 && (
+                            <div style={{ marginTop: 16, padding: '12px 0', borderTop: '1px solid hsl(var(--border))' }}>
+                                <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'hsl(var(--foreground))' }}>Timesheet Hours</h3>
+                                {data.timesheets.map((ts, i) => {
+                                    const statusColor = ts.status === 'submitted' ? '#22C55E' : '#F59E0B';
+                                    const statusLabel = ts.status === 'submitted' ? 'Submitted' : 'Draft';
+                                    return (
+                                        <div key={i} style={{ marginBottom: 10, padding: '8px 12px', borderRadius: 8, background: 'hsl(var(--muted))', fontSize: 13 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                                <span style={{ fontWeight: 500 }}>{ts.clientName}</span>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <span style={{ fontWeight: 600 }}>{ts.totalHours} hrs</span>
+                                                    <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 4, background: statusColor + '20', color: statusColor, fontWeight: 600 }}>{statusLabel}</span>
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                                {weekDays.map(({ date, dayName: dn }, dayIdx) => {
+                                                    const dayEntry = ts.dailyHours.find(d => d.dayOfWeek === dayIdx);
+                                                    const hrs = dayEntry?.hours || 0;
+                                                    return (
+                                                        <div key={date} style={{ textAlign: 'center', minWidth: 32 }}>
+                                                            <div style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>{dn.slice(0, 3)}</div>
+                                                            <div style={{ fontSize: 12, fontWeight: hrs > 0 ? 600 : 400, color: hrs > 0 ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}>
+                                                                {hrs > 0 ? `${hrs}h` : '—'}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
                         {/* Footer */}
                         <div style={{ marginTop: 16, textAlign: 'center', fontSize: 11, color: '#a1a1aa' }}>
                             Last refreshed: {new Date().toLocaleString()}

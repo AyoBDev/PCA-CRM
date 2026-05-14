@@ -137,7 +137,7 @@ async function getPcaForm(req, res, next) {
       include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
     });
 
-    const enabledServices = JSON.parse(link.client.enabledServices || '["PAS","Homemaker"]');
+    let enabledServices = JSON.parse(link.client.enabledServices || '["PAS","Homemaker"]');
 
     // Fetch authorizations for this client, filtered to the viewed week
     const weekEnd = new Date(weekStart);
@@ -179,6 +179,13 @@ async function getPcaForm(req, res, next) {
         }
         authLimits[service].units += auth.authorizedUnits || 0;
         authLimits[service].hours = Math.round((authLimits[service].units / 4) * 100) / 100;
+      }
+    }
+
+    // Auto-enable services that have active authorizations for this week
+    for (const svc of Object.keys(authLimits)) {
+      if (!enabledServices.includes(svc)) {
+        enabledServices.push(svc);
       }
     }
 

@@ -17,6 +17,7 @@ async function sendSchedules(req, res) {
     const where = {
         shiftDate: { gte: new Date(ws + 'T00:00:00.000Z'), lte: new Date(we + 'T23:59:59.999Z') },
         status: { not: 'cancelled' },
+        archivedAt: null,
     };
     if (employeeIds?.length) where.employeeId = { in: employeeIds };
 

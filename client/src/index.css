@@ -3833,9 +3833,29 @@ button.sdr-section-tag:hover:not(:disabled) {
 .sched-overview-table__row--cancelled {
     opacity: 0.5;
 }
+.sched-overview-table__row--selected td {
+    background: hsl(217 91% 95%);
+}
 .sched-overview-table__time {
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
+}
+
+/* Bulk Edit Toolbar */
+.sched-bulk-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: hsl(217 91% 95%);
+    border: 1px solid hsl(217 91% 85%);
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+.sched-bulk-toolbar__count {
+    font-size: 13px;
+    font-weight: 600;
+    color: hsl(217 91% 40%);
 }
 
 /* Service Badge */

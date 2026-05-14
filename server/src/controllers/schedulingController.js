@@ -897,4 +897,77 @@ async function authCheck(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listShifts, createShift, updateShift, deleteShift, deleteAllShifts, getClientSchedule, getEmployeeSchedule, authCheck, restoreShift, repeatShift };
+// PATCH /api/shifts/bulk — update multiple shifts at once
+async function bulkUpdateShifts(req, res, next) {
+    try {
+        const { shiftIds, updates } = req.body;
+        if (!Array.isArray(shiftIds) || shiftIds.length === 0) {
+            return res.status(400).json({ error: 'shiftIds array is required' });
+        }
+        if (!updates || typeof updates !== 'object') {
+            return res.status(400).json({ error: 'updates object is required' });
+        }
+
+        const { startTime, endTime, employeeId, serviceCode, status, notes, accountNumber, sandataClientId } = updates;
+
+        if (accountNumber && !VALID_ACCOUNT_NUMBERS.includes(accountNumber)) {
+            return res.status(400).json({ error: `Invalid account number. Must be one of: ${VALID_ACCOUNT_NUMBERS.join(', ')}` });
+        }
+
+        const shifts = await prisma.shift.findMany({
+            where: { id: { in: shiftIds.map(Number) }, archivedAt: null },
+            include: shiftInclude,
+        });
+
+        if (shifts.length === 0) {
+            return res.status(404).json({ error: 'No matching shifts found' });
+        }
+
+        const updated = [];
+        const errors = [];
+
+        for (const existing of shifts) {
+            const data = {};
+            if (startTime !== undefined) data.startTime = startTime;
+            if (endTime !== undefined) data.endTime = endTime;
+            if (employeeId !== undefined) data.employeeId = Number(employeeId);
+            if (serviceCode !== undefined) data.serviceCode = serviceCode;
+            if (status !== undefined) data.status = status;
+            if (notes !== undefined) data.notes = notes;
+            if (accountNumber !== undefined) data.accountNumber = accountNumber;
+            if (sandataClientId !== undefined) data.sandataClientId = sandataClientId;
+
+            // Recompute hours/units if times changed
+            const st = startTime !== undefined ? startTime : existing.startTime;
+            const et = endTime !== undefined ? endTime : existing.endTime;
+            if (startTime !== undefined || endTime !== undefined) {
+                const { hours, units } = computeShiftHours(st, et);
+                data.hours = hours;
+                data.units = units;
+            }
+
+            try {
+                const shift = await prisma.shift.update({
+                    where: { id: existing.id },
+                    data,
+                    include: shiftInclude,
+                });
+                updated.push(enrichShift(shift));
+
+                const changes = audit.diffFields(existing, shift, ['serviceCode', 'startTime', 'endTime', 'status', 'notes', 'employeeId', 'accountNumber', 'sandataClientId']);
+                audit.logAction({
+                    userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+                    action: 'UPDATE', entityType: 'Shift', entityId: shift.id,
+                    changes,
+                    metadata: { bulkEdit: true },
+                });
+            } catch (err) {
+                errors.push({ id: existing.id, error: err.message });
+            }
+        }
+
+        res.json({ updated, errors, count: updated.length });
+    } catch (err) { next(err); }
+}
+
+module.exports = { listShifts, createShift, updateShift, bulkUpdateShifts, deleteShift, deleteAllShifts, getClientSchedule, getEmployeeSchedule, authCheck, restoreShift, repeatShift };

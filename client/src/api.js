@@ -374,6 +374,8 @@ export const createShift = (data) =>
     request('/shifts', { method: 'POST', body: JSON.stringify(data) });
 export const updateShift = (id, data) =>
     request(`/shifts/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const bulkUpdateShifts = (shiftIds, updates) =>
+    request('/shifts/bulk', { method: 'PATCH', body: JSON.stringify({ shiftIds, updates }) });
 export const repeatShift = (id, data) =>
     request(`/shifts/${id}/repeat`, { method: 'POST', body: JSON.stringify(data) });
 export const deleteShift = (id, { group } = {}) =>

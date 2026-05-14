@@ -94,11 +94,48 @@ async function getScheduleView(req, res) {
         serviceLabel: (SERVICE_COLOR_MAP[s.serviceCode] || {}).label || s.serviceCode,
     }));
 
+    // Fetch submitted timesheet hours for this PCA + week
+    const wsDate = new Date(weekStart + 'T00:00:00.000Z');
+    const timesheets = await prisma.timesheet.findMany({
+        where: {
+            pcaName: link.employee.name,
+            weekStart: wsDate,
+            archivedAt: null,
+        },
+        select: {
+            clientId: true,
+            status: true,
+            totalPasHours: true,
+            totalHmHours: true,
+            totalRespiteHours: true,
+            totalHours: true,
+            client: { select: { clientName: true } },
+            entries: {
+                select: { dayOfWeek: true, adlHours: true, iadlHours: true, respiteHours: true },
+                orderBy: { dayOfWeek: 'asc' },
+            },
+        },
+    });
+
+    const timesheetSummary = timesheets.map(ts => ({
+        clientName: ts.client?.clientName || '',
+        status: ts.status,
+        totalHours: ts.totalHours,
+        totalPasHours: ts.totalPasHours,
+        totalHmHours: ts.totalHmHours,
+        totalRespiteHours: ts.totalRespiteHours,
+        dailyHours: ts.entries.map(e => ({
+            dayOfWeek: e.dayOfWeek,
+            hours: Math.round(((e.adlHours || 0) + (e.iadlHours || 0) + (e.respiteHours || 0)) * 100) / 100,
+        })),
+    }));
+
     res.json({
         employee: { id: link.employee.id, name: link.employee.name },
         weekStart,
         weekEnd,
         shifts: enrichedShifts,
+        timesheets: timesheetSummary,
     });
 }
 
