@@ -37,5 +37,8 @@ CLAUDE.md
 
 docs/
 
+# Worktrees
+worktrees/
+
 # Uploads
 server/uploads/
