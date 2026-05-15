@@ -16,16 +16,6 @@ function getSunday(dateStr) {
     return d.toISOString().split('T')[0];
 }
 
-function getCurrentSunday() {
-    return getSunday(new Date().toISOString().split('T')[0]);
-}
-
-function shiftWeek(sundayStr, offset) {
-    const d = new Date(sundayStr + 'T00:00:00');
-    d.setDate(d.getDate() + (offset * 7));
-    return d.toISOString().split('T')[0];
-}
-
 function formatWeekEnding(weekStartStr) {
     const d = new Date(weekStartStr + 'T00:00:00');
     d.setDate(d.getDate() + 6);
@@ -39,9 +29,11 @@ export default function TimesheetsListPage() {
     const [allTimesheets, setAllTimesheets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState('');
-    const [weekFilter, setWeekFilter] = useState('');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
     const [pcaFilter, setPcaFilter] = useState('');
     const [clientFilter, setClientFilter] = useState('');
+    const [serviceFilter, setServiceFilter] = useState('');
     const [activeTimesheetId, setActiveTimesheetId] = useState(null);
     const [showNewModal, setShowNewModal] = useState(false);
     const [newPcaName, setNewPcaName] = useState('');
@@ -60,14 +52,11 @@ export default function TimesheetsListPage() {
 
     const fetchTimesheets = useCallback(async () => {
         try {
-            const parts = [];
-            if (weekFilter) parts.push(`weekStart=${weekFilter}`);
-            const params = parts.join('&');
-            const data = await api.getTimesheets(params, { archived: showArchived });
+            const data = await api.getTimesheets('', { archived: showArchived });
             setAllTimesheets(data);
         } catch (err) { showToast(err.message, 'error'); }
         setLoading(false);
-    }, [weekFilter, showArchived, showToast]);
+    }, [showArchived, showToast]);
 
     useEffect(() => { fetchTimesheets(); }, [fetchTimesheets]);
 
@@ -76,11 +65,27 @@ export default function TimesheetsListPage() {
         if (statusFilter) filtered = filtered.filter(t => t.status === statusFilter);
         if (pcaFilter) filtered = filtered.filter(t => t.pcaName === pcaFilter);
         if (clientFilter) filtered = filtered.filter(t => t.clientId === Number(clientFilter));
+        if (dateFrom) {
+            const from = new Date(dateFrom + 'T00:00:00');
+            filtered = filtered.filter(t => new Date(t.weekStart) >= from);
+        }
+        if (dateTo) {
+            const to = new Date(dateTo + 'T23:59:59');
+            filtered = filtered.filter(t => new Date(t.weekStart) <= to);
+        }
+        if (serviceFilter) {
+            filtered = filtered.filter(t => {
+                if (serviceFilter === 'PAS') return t.totalPasHours > 0;
+                if (serviceFilter === 'Homemaker') return t.totalHmHours > 0;
+                if (serviceFilter === 'Respite') return (t.totalRespiteHours || 0) > 0;
+                return true;
+            });
+        }
         return filtered;
-    }, [allTimesheets, statusFilter, pcaFilter, clientFilter]);
+    }, [allTimesheets, statusFilter, pcaFilter, clientFilter, dateFrom, dateTo, serviceFilter]);
 
     const statusCounts = useMemo(() => {
-        const counts = { total: allTimesheets.length, draft: 0, submitted: 0, accepted: 0, rejected: 0 };
+        const counts = { total: allTimesheets.length, draft: 0, submitted: 0, accepted: 0 };
         for (const t of allTimesheets) {
             if (counts[t.status] !== undefined) counts[t.status]++;
         }
@@ -96,7 +101,45 @@ export default function TimesheetsListPage() {
         setStatusFilter('');
         setPcaFilter('');
         setClientFilter('');
-        setWeekFilter('');
+        setDateFrom('');
+        setDateTo('');
+        setServiceFilter('');
+    };
+
+    const handleSearch = () => {
+        fetchTimesheets();
+    };
+
+    const handleExportExcel = () => {
+        const headers = ['Caregiver', 'Client', 'Week Ending', 'Total Hours', 'PAS Hours', 'HM Hours', 'Respite Hours', 'Status', 'Date Submitted'];
+        const rows = timesheets.map(ts => [
+            ts.pcaName,
+            ts.client?.clientName || '',
+            formatWeekEnding(ts.weekStart.split('T')[0]),
+            ts.totalHours.toFixed(2),
+            ts.totalPasHours.toFixed(2),
+            ts.totalHmHours.toFixed(2),
+            (ts.totalRespiteHours || 0).toFixed(2),
+            ts.status,
+            ts.submittedAt ? new Date(ts.submittedAt).toLocaleDateString() : '',
+        ]);
+        const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${c}"`).join(','))].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `timesheets-export-${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('Exported to CSV');
+    };
+
+    const handlePrint = () => {
+        window.print();
+    };
+
+    const handleSendSharedLink = () => {
+        showToast('Select a timesheet to generate a shared link', 'info');
     };
 
     const handleCreate = async () => {
@@ -170,16 +213,10 @@ export default function TimesheetsListPage() {
                         <div className="ts-filter-bar">
                             <div className="ts-filter-bar__field">
                                 <label>Week</label>
-                                <div className="ts-filter-bar__week">
-                                    <button className="ts-filter-bar__week-btn" onClick={() => setWeekFilter(shiftWeek(weekFilter || getCurrentSunday(), -1))}>
-                                        {Icons.chevronLeft}
-                                    </button>
-                                    <span className="ts-filter-bar__week-label">
-                                        {weekFilter ? formatWeek(weekFilter) : 'All Weeks'}
-                                    </span>
-                                    <button className="ts-filter-bar__week-btn" onClick={() => setWeekFilter(shiftWeek(weekFilter || getCurrentSunday(), 1))}>
-                                        {Icons.chevronRight}
-                                    </button>
+                                <div className="ts-filter-bar__date-range">
+                                    <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} placeholder="From" />
+                                    <span className="ts-filter-bar__date-sep">–</span>
+                                    <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} placeholder="To" />
                                 </div>
                             </div>
                             <div className="ts-filter-bar__field">
@@ -199,6 +236,15 @@ export default function TimesheetsListPage() {
                                 </select>
                             </div>
                             <div className="ts-filter-bar__field">
+                                <label>Service Type</label>
+                                <select value={serviceFilter} onChange={(e) => setServiceFilter(e.target.value)}>
+                                    <option value="">All Services</option>
+                                    <option value="PAS">PAS</option>
+                                    <option value="Homemaker">Homemaker</option>
+                                    <option value="Respite">Respite</option>
+                                </select>
+                            </div>
+                            <div className="ts-filter-bar__field">
                                 <label>Status</label>
                                 <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                                     <option value="">All Status</option>
@@ -209,6 +255,7 @@ export default function TimesheetsListPage() {
                             </div>
                             <div className="ts-filter-bar__actions">
                                 <button className="btn btn--outline btn--sm" onClick={handleReset}>Reset</button>
+                                <button className="btn btn--primary btn--sm" onClick={handleSearch}>{Icons.search} Search</button>
                             </div>
                         </div>
 
@@ -263,56 +310,65 @@ export default function TimesheetsListPage() {
                 ) : timesheets.length === 0 ? (
                     <div className="empty-state">
                         <div className="empty-state__icon">{Icons.fileText}</div>
-                        <div className="empty-state__title">{weekFilter || statusFilter || pcaFilter || clientFilter ? 'No timesheets match your filters' : 'No timesheets yet'}</div>
-                        <div className="empty-state__desc">Click &quot;New Timesheet&quot; to create a weekly PCA Service Delivery Record{weekFilter ? ', or adjust your filters' : ''}.</div>
+                        <div className="empty-state__title">{dateFrom || dateTo || statusFilter || pcaFilter || clientFilter || serviceFilter ? 'No timesheets match your filters' : 'No timesheets yet'}</div>
+                        <div className="empty-state__desc">Click &quot;New Timesheet&quot; to create a weekly PCA Service Delivery Record, or adjust your filters.</div>
                     </div>
                 ) : (
-                    <div className="sheet-card">
-                        <table className="data-table">
-                            <thead><tr>
-                                <th>Caregiver</th>
-                                <th>Client</th>
-                                <th>Week Ending</th>
-                                <th>Total Hours</th>
-                                <th>PAS Hours</th>
-                                <th>HM Hours</th>
-                                <th>Respite Hours</th>
-                                <th>Status</th>
-                                <th>Date Submitted</th>
-                                <th style={{ width: showArchived ? 160 : 120 }}>Actions</th>
-                            </tr></thead>
-                            <tbody>
-                                {timesheets.map((ts) => (
-                                    <tr key={ts.id} className={`clickable-row${ts.status === 'accepted' ? ' ts-row--accepted' : ''}`} onClick={() => setActiveTimesheetId(ts.id)}>
-                                        <td style={{ fontWeight: 500 }}>{ts.pcaName}</td>
-                                        <td>{ts.client?.clientName}</td>
-                                        <td style={{ fontSize: 13 }}>{formatWeekEnding(ts.weekStart.split('T')[0])}</td>
-                                        <td><strong>{ts.totalHours.toFixed(2)}</strong></td>
-                                        <td>{ts.totalPasHours.toFixed(2)}</td>
-                                        <td>{ts.totalHmHours.toFixed(2)}</td>
-                                        <td>{(ts.totalRespiteHours || 0).toFixed(2)}</td>
-                                        <td><span className={`ts-badge ts-badge--${ts.status}`}>{ts.status}</span></td>
-                                        <td style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
-                                            {ts.submittedAt ? new Date(ts.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
-                                        </td>
-                                        <td onClick={(e) => e.stopPropagation()}>
-                                            {showArchived ? (
-                                                <div style={{ display: 'flex', gap: 6 }}>
-                                                    <button className="btn btn--restore btn--xs" onClick={() => handleRestore(ts.id)} title="Restore">{Icons.rotateCcw}</button>
-                                                    <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmPermanentDelete(ts)} title="Delete permanently">{Icons.trash}</button>
-                                                </div>
-                                            ) : (
-                                                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                                    <button className="btn btn--outline btn--xs" onClick={() => setActiveTimesheetId(ts.id)}>Open</button>
-                                                    <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmDelete(ts)} title="Archive">{Icons.trash}</button>
-                                                </div>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                    <>
+                        <div className="sheet-card">
+                            <table className="data-table">
+                                <thead><tr>
+                                    <th>Caregiver</th>
+                                    <th>Client</th>
+                                    <th>Week Ending</th>
+                                    <th>Total Hours</th>
+                                    <th>PAS Hours</th>
+                                    <th>HM Hours</th>
+                                    <th>Respite Hours</th>
+                                    <th>Status</th>
+                                    <th>Date Submitted</th>
+                                    <th style={{ width: showArchived ? 160 : 120 }}>Actions</th>
+                                </tr></thead>
+                                <tbody>
+                                    {timesheets.map((ts) => (
+                                        <tr key={ts.id} className={`clickable-row${ts.status === 'accepted' ? ' ts-row--accepted' : ''}`} onClick={() => setActiveTimesheetId(ts.id)}>
+                                            <td style={{ fontWeight: 500 }}>{ts.pcaName}</td>
+                                            <td>{ts.client?.clientName}</td>
+                                            <td style={{ fontSize: 13 }}>{formatWeekEnding(ts.weekStart.split('T')[0])}</td>
+                                            <td><strong>{ts.totalHours.toFixed(2)}</strong></td>
+                                            <td>{ts.totalPasHours.toFixed(2)}</td>
+                                            <td>{ts.totalHmHours.toFixed(2)}</td>
+                                            <td>{(ts.totalRespiteHours || 0).toFixed(2)}</td>
+                                            <td><span className={`ts-badge ts-badge--${ts.status}`}>{ts.status}</span></td>
+                                            <td style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
+                                                {ts.submittedAt ? new Date(ts.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                                            </td>
+                                            <td onClick={(e) => e.stopPropagation()}>
+                                                {showArchived ? (
+                                                    <div style={{ display: 'flex', gap: 6 }}>
+                                                        <button className="btn btn--restore btn--xs" onClick={() => handleRestore(ts.id)} title="Restore">{Icons.rotateCcw}</button>
+                                                        <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmPermanentDelete(ts)} title="Delete permanently">{Icons.trash}</button>
+                                                    </div>
+                                                ) : (
+                                                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                                        <button className="btn btn--outline btn--xs" onClick={() => setActiveTimesheetId(ts.id)}>Open</button>
+                                                        <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmDelete(ts)} title="Archive">{Icons.trash}</button>
+                                                    </div>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        {!showArchived && (
+                            <div className="ts-bottom-actions">
+                                <button className="btn btn--primary btn--sm" onClick={handleSendSharedLink}>{Icons.share} Send Shared Link</button>
+                                <button className="btn btn--success btn--sm" onClick={handleExportExcel}>{Icons.download} Export to Excel</button>
+                                <button className="btn btn--outline btn--sm" onClick={handlePrint}>{Icons.fileText} Print</button>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
             {showNewModal && (
