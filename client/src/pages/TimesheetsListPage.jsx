@@ -109,24 +109,6 @@ export default function TimesheetsListPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
-    const handleAccept = async (e, ts) => {
-        e.stopPropagation();
-        try {
-            await api.updateTimesheetStatus(ts.id, 'accepted');
-            showToast('Timesheet accepted');
-            fetchTimesheets();
-        } catch (err) { showToast(err.message, 'error'); }
-    };
-
-    const handleReject = async (e, ts) => {
-        e.stopPropagation();
-        try {
-            await api.updateTimesheetStatus(ts.id, 'rejected');
-            showToast('Timesheet sent back for corrections');
-            fetchTimesheets();
-        } catch (err) { showToast(err.message, 'error'); }
-    };
-
     if (activeTimesheetId) {
         return <TimesheetFormPage timesheetId={activeTimesheetId} clients={clients} onBack={() => { setActiveTimesheetId(null); fetchTimesheets(); }} showToast={showToast} />;
     }
@@ -158,32 +140,18 @@ export default function TimesheetsListPage() {
             <div className="page-content">
                 {!showArchived && (
                     <div className="ts-week-selector">
+                        <button className="ts-week-selector__btn" onClick={() => setWeekFilter(shiftWeek(weekFilter || getCurrentSunday(), -1))} title="Previous week">
+                            {Icons.chevronLeft}
+                        </button>
+                        <span className="ts-week-selector__label">
+                            {weekFilter ? `Week of ${formatWeek(weekFilter)}` : 'All Weeks'}
+                        </span>
+                        <button className="ts-week-selector__btn" onClick={() => setWeekFilter(shiftWeek(weekFilter || getCurrentSunday(), 1))} title="Next week">
+                            {Icons.chevronRight}
+                        </button>
                         {weekFilter && (
-                            <>
-                                <button className="ts-week-selector__btn" onClick={() => setWeekFilter(shiftWeek(weekFilter, -1))} title="Previous week">
-                                    {Icons.chevronLeft}
-                                </button>
-                                <span className="ts-week-selector__label">
-                                    Week of {formatWeek(weekFilter)}
-                                </span>
-                                <button className="ts-week-selector__btn" onClick={() => setWeekFilter(shiftWeek(weekFilter, 1))} title="Next week">
-                                    {Icons.chevronRight}
-                                </button>
-                                <button className="ts-week-selector__today" onClick={() => setWeekFilter(getCurrentSunday())}>
-                                    This Week
-                                </button>
-                            </>
-                        )}
-                        {!weekFilter && (
-                            <span className="ts-week-selector__label">All Weeks</span>
-                        )}
-                        {weekFilter ? (
                             <button className="ts-week-selector__today" onClick={() => setWeekFilter('')}>
                                 All Weeks
-                            </button>
-                        ) : (
-                            <button className="ts-week-selector__today" onClick={() => setWeekFilter(getCurrentSunday())}>
-                                This Week
                             </button>
                         )}
                     </div>
@@ -213,7 +181,7 @@ export default function TimesheetsListPage() {
                 ) : (
                     <div className="sheet-card">
                         <table className="data-table">
-                            <thead><tr><th>PCA Name</th><th>Client</th><th>Week</th><th>PAS Hrs</th><th>HM Hrs</th><th>Respite Hrs</th><th>Total</th><th>Status</th><th style={{ width: showArchived ? 160 : 140 }}>Actions</th></tr></thead>
+                            <thead><tr><th>PCA Name</th><th>Client</th><th>Week</th><th>PAS Hrs</th><th>HM Hrs</th><th>Respite Hrs</th><th>Total</th><th>Status</th><th style={{ width: showArchived ? 160 : 80 }}>Actions</th></tr></thead>
                             <tbody>
                                 {timesheets.map((ts) => {
                                     const al = ts.authLimits;
@@ -249,15 +217,7 @@ export default function TimesheetsListPage() {
                                                     <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmPermanentDelete(ts)} title="Delete permanently">{Icons.trash}</button>
                                                 </div>
                                             ) : (
-                                                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                                                    {ts.status === 'submitted' && isAdmin && (
-                                                        <>
-                                                            <button className="btn btn--success btn--xs" onClick={(e) => handleAccept(e, ts)} title="Accept timesheet">Accept</button>
-                                                            <button className="btn btn--warning btn--xs" onClick={(e) => handleReject(e, ts)} title="Send back for corrections">Reject</button>
-                                                        </>
-                                                    )}
-                                                    <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmDelete(ts)} title="Archive timesheet">{Icons.trash}</button>
-                                                </div>
+                                                <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmDelete(ts)} title="Archive timesheet">{Icons.trash}</button>
                                             )}
                                         </td>
                                     </tr>

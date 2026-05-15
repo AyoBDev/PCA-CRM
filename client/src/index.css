@@ -1725,6 +1725,42 @@ body {
   background: hsl(25 95% 45%);
 }
 
+.ts-review-actions {
+  margin-top: 24px;
+  padding: 24px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+}
+
+.ts-review-actions--accepted {
+  background: hsl(210 100% 97%);
+  border-color: hsl(210 100% 85%);
+}
+
+.ts-review-actions__title {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.ts-review-actions__desc {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  color: hsl(var(--muted-foreground));
+}
+
+.ts-review-actions__buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.ts-review-actions__buttons .btn {
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
 /* SDR Client info bar */
 .sdr-client-info {
   display: flex;
