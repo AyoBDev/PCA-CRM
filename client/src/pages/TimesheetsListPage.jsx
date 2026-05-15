@@ -256,6 +256,9 @@ export default function TimesheetsListPage() {
                             <div className="ts-filter-bar__actions">
                                 <button className="btn btn--outline btn--sm" onClick={handleReset}>Reset</button>
                                 <button className="btn btn--primary btn--sm" onClick={handleSearch}>{Icons.search} Search</button>
+                                <button className="btn btn--primary btn--sm" onClick={handleSendSharedLink}>{Icons.share} Send Shared Link</button>
+                                <button className="btn btn--success btn--sm" onClick={handleExportExcel}>{Icons.download} Export to Excel</button>
+                                <button className="btn btn--outline btn--sm" onClick={handlePrint}>{Icons.fileText} Print</button>
                             </div>
                         </div>
 
@@ -361,13 +364,6 @@ export default function TimesheetsListPage() {
                                 </tbody>
                             </table>
                         </div>
-                        {!showArchived && (
-                            <div className="ts-bottom-actions">
-                                <button className="btn btn--primary btn--sm" onClick={handleSendSharedLink}>{Icons.share} Send Shared Link</button>
-                                <button className="btn btn--success btn--sm" onClick={handleExportExcel}>{Icons.download} Export to Excel</button>
-                                <button className="btn btn--outline btn--sm" onClick={handlePrint}>{Icons.fileText} Print</button>
-                            </div>
-                        )}
                     </>
                 )}
             </div>
