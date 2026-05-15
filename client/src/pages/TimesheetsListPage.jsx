@@ -33,7 +33,7 @@ export default function TimesheetsListPage() {
     const [timesheets, setTimesheets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState('');
-    const [weekFilter, setWeekFilter] = useState(getCurrentSunday());
+    const [weekFilter, setWeekFilter] = useState('');
     const [activeTimesheetId, setActiveTimesheetId] = useState(null);
     const [showNewModal, setShowNewModal] = useState(false);
     const [newPcaName, setNewPcaName] = useState('');
@@ -158,18 +158,34 @@ export default function TimesheetsListPage() {
             <div className="page-content">
                 {!showArchived && (
                     <div className="ts-week-selector">
-                        <button className="ts-week-selector__btn" onClick={() => setWeekFilter(shiftWeek(weekFilter, -1))} title="Previous week">
-                            {Icons.chevronLeft}
-                        </button>
-                        <span className="ts-week-selector__label">
-                            Week of {formatWeek(weekFilter)}
-                        </span>
-                        <button className="ts-week-selector__btn" onClick={() => setWeekFilter(shiftWeek(weekFilter, 1))} title="Next week">
-                            {Icons.chevronRight}
-                        </button>
-                        <button className="ts-week-selector__today" onClick={() => setWeekFilter(getCurrentSunday())}>
-                            Today
-                        </button>
+                        {weekFilter && (
+                            <>
+                                <button className="ts-week-selector__btn" onClick={() => setWeekFilter(shiftWeek(weekFilter, -1))} title="Previous week">
+                                    {Icons.chevronLeft}
+                                </button>
+                                <span className="ts-week-selector__label">
+                                    Week of {formatWeek(weekFilter)}
+                                </span>
+                                <button className="ts-week-selector__btn" onClick={() => setWeekFilter(shiftWeek(weekFilter, 1))} title="Next week">
+                                    {Icons.chevronRight}
+                                </button>
+                                <button className="ts-week-selector__today" onClick={() => setWeekFilter(getCurrentSunday())}>
+                                    This Week
+                                </button>
+                            </>
+                        )}
+                        {!weekFilter && (
+                            <span className="ts-week-selector__label">All Weeks</span>
+                        )}
+                        {weekFilter ? (
+                            <button className="ts-week-selector__today" onClick={() => setWeekFilter('')}>
+                                All Weeks
+                            </button>
+                        ) : (
+                            <button className="ts-week-selector__today" onClick={() => setWeekFilter(getCurrentSunday())}>
+                                This Week
+                            </button>
+                        )}
                     </div>
                 )}
                 {showArchived && (
@@ -191,8 +207,8 @@ export default function TimesheetsListPage() {
                 ) : timesheets.length === 0 ? (
                     <div className="empty-state">
                         <div className="empty-state__icon">{Icons.fileText}</div>
-                        <div className="empty-state__title">No timesheets for this week</div>
-                        <div className="empty-state__desc">Click &quot;New Timesheet&quot; to create a weekly PCA Service Delivery Record, or navigate to a different week.</div>
+                        <div className="empty-state__title">{weekFilter ? 'No timesheets for this week' : 'No timesheets yet'}</div>
+                        <div className="empty-state__desc">Click &quot;New Timesheet&quot; to create a weekly PCA Service Delivery Record{weekFilter ? ', or navigate to a different week' : ''}.</div>
                     </div>
                 ) : (
                     <div className="sheet-card">
