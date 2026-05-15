@@ -1651,18 +1651,47 @@ body {
   font-weight: 400;
 }
 
-.ts-week-selector {
+.ts-filter-bar {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: flex-end;
+  gap: 12px;
   margin-bottom: 16px;
-  padding: 8px 12px;
-  background: hsl(var(--muted) / 0.3);
+  padding: 16px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
   border-radius: var(--radius);
-  width: fit-content;
+  flex-wrap: wrap;
 }
 
-.ts-week-selector__btn {
+.ts-filter-bar__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+
+.ts-filter-bar__field label {
+  font-size: 12px;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+}
+
+.ts-filter-bar__field select {
+  padding: 6px 10px;
+  font-size: 13px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.ts-filter-bar__week {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ts-filter-bar__week-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1676,38 +1705,99 @@ body {
   transition: background 0.15s;
 }
 
-.ts-week-selector__btn:hover {
+.ts-filter-bar__week-btn:hover {
   background: hsl(var(--muted));
 }
 
-.ts-week-selector__btn svg {
-  width: 16px;
-  height: 16px;
+.ts-filter-bar__week-btn svg {
+  width: 14px;
+  height: 14px;
 }
 
-.ts-week-selector__label {
-  font-size: 14px;
-  font-weight: 600;
-  min-width: 160px;
-  text-align: center;
-}
-
-.ts-week-selector__today {
-  margin-left: 8px;
-  padding: 4px 10px;
-  font-size: 12px;
+.ts-filter-bar__week-label {
+  font-size: 13px;
   font-weight: 500;
+  min-width: 130px;
+  text-align: center;
+  padding: 6px 8px;
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius);
   background: hsl(var(--background));
-  cursor: pointer;
-  color: hsl(var(--muted-foreground));
-  transition: background 0.15s;
 }
 
-.ts-week-selector__today:hover {
-  background: hsl(var(--muted));
-  color: hsl(var(--foreground));
+.ts-filter-bar__actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.ts-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ts-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+}
+
+.ts-summary-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ts-summary-card__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.ts-summary-card__icon--total {
+  background: hsl(210 100% 95%);
+  color: hsl(210 100% 45%);
+}
+
+.ts-summary-card__icon--draft {
+  background: hsl(45 93% 94%);
+  color: hsl(45 93% 40%);
+}
+
+.ts-summary-card__icon--submitted {
+  background: hsl(142 76% 92%);
+  color: hsl(142 76% 36%);
+}
+
+.ts-summary-card__icon--accepted {
+  background: hsl(210 100% 92%);
+  color: hsl(210 100% 40%);
+}
+
+.ts-summary-card__content {
+  display: flex;
+  flex-direction: column;
+}
+
+.ts-summary-card__label {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+
+.ts-summary-card__value {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .ts-row--accepted td {
