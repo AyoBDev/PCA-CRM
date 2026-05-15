@@ -16,13 +16,24 @@ function getSunday(dateStr) {
     return d.toISOString().split('T')[0];
 }
 
+function getCurrentSunday() {
+    return getSunday(new Date().toISOString().split('T')[0]);
+}
+
+function shiftWeek(sundayStr, offset) {
+    const d = new Date(sundayStr + 'T00:00:00');
+    d.setDate(d.getDate() + (offset * 7));
+    return d.toISOString().split('T')[0];
+}
+
 export default function TimesheetsListPage() {
     const { isAdmin } = useAuth();
-    const { showToast, showUndoToast } = useToast();
+    const { showToast } = useToast();
     const [clients, setClients] = useState([]);
     const [timesheets, setTimesheets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState('');
+    const [weekFilter, setWeekFilter] = useState(getCurrentSunday());
     const [activeTimesheetId, setActiveTimesheetId] = useState(null);
     const [showNewModal, setShowNewModal] = useState(false);
     const [newPcaName, setNewPcaName] = useState('');
@@ -41,12 +52,15 @@ export default function TimesheetsListPage() {
 
     const fetchTimesheets = useCallback(async () => {
         try {
-            const params = statusFilter ? `status=${statusFilter}` : '';
+            const parts = [];
+            if (statusFilter) parts.push(`status=${statusFilter}`);
+            if (weekFilter) parts.push(`weekStart=${weekFilter}`);
+            const params = parts.join('&');
             const data = await api.getTimesheets(params, { archived: showArchived });
             setTimesheets(data);
         } catch (err) { showToast(err.message, 'error'); }
         setLoading(false);
-    }, [statusFilter, showArchived, showToast]);
+    }, [statusFilter, weekFilter, showArchived, showToast]);
 
     useEffect(() => { fetchTimesheets(); }, [fetchTimesheets]);
 
@@ -95,6 +109,24 @@ export default function TimesheetsListPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    const handleAccept = async (e, ts) => {
+        e.stopPropagation();
+        try {
+            await api.updateTimesheetStatus(ts.id, 'accepted');
+            showToast('Timesheet accepted');
+            fetchTimesheets();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleReject = async (e, ts) => {
+        e.stopPropagation();
+        try {
+            await api.updateTimesheetStatus(ts.id, 'rejected');
+            showToast('Timesheet sent back for corrections');
+            fetchTimesheets();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     if (activeTimesheetId) {
         return <TimesheetFormPage timesheetId={activeTimesheetId} clients={clients} onBack={() => { setActiveTimesheetId(null); fetchTimesheets(); }} showToast={showToast} />;
     }
@@ -110,6 +142,7 @@ export default function TimesheetsListPage() {
                             <option value="">All Status</option>
                             <option value="draft">Draft</option>
                             <option value="submitted">Submitted</option>
+                            <option value="accepted">Accepted</option>
                         </select>
                     )}
                     {!showArchived && (
@@ -123,6 +156,22 @@ export default function TimesheetsListPage() {
                 </div>
             </div>
             <div className="page-content">
+                {!showArchived && (
+                    <div className="ts-week-selector">
+                        <button className="ts-week-selector__btn" onClick={() => setWeekFilter(shiftWeek(weekFilter, -1))} title="Previous week">
+                            {Icons.chevronLeft}
+                        </button>
+                        <span className="ts-week-selector__label">
+                            Week of {formatWeek(weekFilter)}
+                        </span>
+                        <button className="ts-week-selector__btn" onClick={() => setWeekFilter(shiftWeek(weekFilter, 1))} title="Next week">
+                            {Icons.chevronRight}
+                        </button>
+                        <button className="ts-week-selector__today" onClick={() => setWeekFilter(getCurrentSunday())}>
+                            Today
+                        </button>
+                    </div>
+                )}
                 {showArchived && (
                     <div className="archived-banner">
                         {Icons.archive}
@@ -142,13 +191,13 @@ export default function TimesheetsListPage() {
                 ) : timesheets.length === 0 ? (
                     <div className="empty-state">
                         <div className="empty-state__icon">{Icons.fileText}</div>
-                        <div className="empty-state__title">No timesheets yet</div>
-                        <div className="empty-state__desc">Click &quot;New Timesheet&quot; to create a weekly PCA Service Delivery Record.</div>
+                        <div className="empty-state__title">No timesheets for this week</div>
+                        <div className="empty-state__desc">Click &quot;New Timesheet&quot; to create a weekly PCA Service Delivery Record, or navigate to a different week.</div>
                     </div>
                 ) : (
                     <div className="sheet-card">
                         <table className="data-table">
-                            <thead><tr><th>PCA Name</th><th>Client</th><th>Week</th><th>PAS Hrs</th><th>HM Hrs</th><th>Respite Hrs</th><th>Total</th><th>Status</th><th style={{ width: showArchived ? 160 : 80 }}>Actions</th></tr></thead>
+                            <thead><tr><th>PCA Name</th><th>Client</th><th>Week</th><th>PAS Hrs</th><th>HM Hrs</th><th>Respite Hrs</th><th>Total</th><th>Status</th><th style={{ width: showArchived ? 160 : 140 }}>Actions</th></tr></thead>
                             <tbody>
                                 {timesheets.map((ts) => {
                                     const al = ts.authLimits;
@@ -159,7 +208,7 @@ export default function TimesheetsListPage() {
                                     const hmOver = hmAuth != null && ts.totalHmHours > hmAuth;
                                     const respOver = respAuth != null && (ts.totalRespiteHours || 0) > respAuth;
                                     return (
-                                    <tr key={ts.id} className="clickable-row" onClick={() => setActiveTimesheetId(ts.id)}>
+                                    <tr key={ts.id} className={`clickable-row${ts.status === 'accepted' ? ' ts-row--accepted' : ''}`} onClick={() => setActiveTimesheetId(ts.id)}>
                                         <td style={{ fontWeight: 500 }}>{ts.pcaName}</td>
                                         <td>{ts.client?.clientName}</td>
                                         <td style={{ fontSize: 13 }}>{formatWeek(ts.weekStart.split('T')[0])}</td>
@@ -184,7 +233,15 @@ export default function TimesheetsListPage() {
                                                     <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmPermanentDelete(ts)} title="Delete permanently">{Icons.trash}</button>
                                                 </div>
                                             ) : (
-                                                <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmDelete(ts)} title="Archive timesheet">{Icons.trash}</button>
+                                                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                                                    {ts.status === 'submitted' && isAdmin && (
+                                                        <>
+                                                            <button className="btn btn--success btn--xs" onClick={(e) => handleAccept(e, ts)} title="Accept timesheet">Accept</button>
+                                                            <button className="btn btn--warning btn--xs" onClick={(e) => handleReject(e, ts)} title="Send back for corrections">Reject</button>
+                                                        </>
+                                                    )}
+                                                    <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmDelete(ts)} title="Archive timesheet">{Icons.trash}</button>
+                                                </div>
                                             )}
                                         </td>
                                     </tr>

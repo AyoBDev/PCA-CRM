@@ -1630,6 +1630,11 @@ body {
   color: hsl(142 76% 28%);
 }
 
+.ts-badge--accepted {
+  background: hsl(210 100% 45% / 0.12);
+  color: hsl(210 100% 35%);
+}
+
 .ts-badge--critical {
   background: hsl(0 84% 95%);
   color: hsl(0 84% 40%);
@@ -1644,6 +1649,80 @@ body {
   font-size: 11px;
   color: hsl(var(--muted-foreground));
   font-weight: 400;
+}
+
+.ts-week-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  background: hsl(var(--muted) / 0.3);
+  border-radius: var(--radius);
+  width: fit-content;
+}
+
+.ts-week-selector__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--background));
+  cursor: pointer;
+  color: hsl(var(--foreground));
+  transition: background 0.15s;
+}
+
+.ts-week-selector__btn:hover {
+  background: hsl(var(--muted));
+}
+
+.ts-week-selector__btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ts-week-selector__label {
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 160px;
+  text-align: center;
+}
+
+.ts-week-selector__today {
+  margin-left: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--background));
+  cursor: pointer;
+  color: hsl(var(--muted-foreground));
+  transition: background 0.15s;
+}
+
+.ts-week-selector__today:hover {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
+.ts-row--accepted td {
+  background: hsl(210 100% 97%);
+}
+
+.btn--warning {
+  background: hsl(25 95% 53%);
+  color: white;
+  border: none;
+  font-weight: 500;
+}
+
+.btn--warning:hover {
+  background: hsl(25 95% 45%);
 }
 
 /* SDR Client info bar */

@@ -195,8 +195,8 @@ async function updateTimesheet(req, res, next) {
         const id = Number(req.params.id);
         const existing = await prisma.timesheet.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Timesheet not found' });
-        if (existing.status === 'submitted' && (!req.user || req.user.role !== 'admin')) {
-            return res.status(400).json({ error: 'Cannot edit a submitted timesheet' });
+        if ((existing.status === 'submitted' || existing.status === 'accepted') && (!req.user || req.user.role !== 'admin')) {
+            return res.status(400).json({ error: 'Cannot edit a submitted or accepted timesheet' });
         }
 
         const { entries, recipientName, recipientSignature, pcaSignature, pcaFullName, supervisorSignature, completionDate, clientPhone, clientIdNumber } = req.body;
@@ -278,7 +278,7 @@ async function submitTimesheet(req, res, next) {
         const id = Number(req.params.id);
         const existing = await prisma.timesheet.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Timesheet not found' });
-        if (existing.status === 'submitted') return res.status(400).json({ error: 'Already submitted' });
+        if (existing.status === 'submitted' || existing.status === 'accepted') return res.status(400).json({ error: 'Already submitted' });
 
         const ts = await prisma.timesheet.update({
             where: { id },
@@ -598,13 +598,30 @@ async function updateTimesheetStatus(req, res, next) {
     try {
         const id = Number(req.params.id);
         const { status } = req.body;
-        if (!['draft', 'submitted'].includes(status)) {
+        if (!['draft', 'submitted', 'accepted', 'rejected'].includes(status)) {
             return res.status(400).json({ error: 'Invalid status' });
         }
+        const existing = await prisma.timesheet.findUnique({ where: { id } });
+        if (!existing) return res.status(404).json({ error: 'Timesheet not found' });
+
+        const data = { status };
+        if (status === 'rejected') {
+            data.status = 'draft';
+        }
+        if (status === 'accepted') {
+            data.acceptedAt = new Date();
+        }
+
         const ts = await prisma.timesheet.update({
             where: { id },
-            data: { status, submittedAt: status === 'draft' ? null : new Date() },
-            include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
+            data,
+            include: { client: { select: { id: true, clientName: true } }, entries: { orderBy: { dayOfWeek: 'asc' } } },
+        });
+        audit.logAction({
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            action: 'UPDATE', entityType: 'Timesheet', entityId: ts.id,
+            entityName: `${ts.pcaName} - ${ts.client?.clientName || ''}`,
+            changes: [{ field: 'status', oldValue: existing.status, newValue: status === 'rejected' ? 'draft (rejected)' : status }],
         });
         res.json(ts);
     } catch (err) {
