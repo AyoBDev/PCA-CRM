@@ -82,8 +82,9 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
     const [enabledServices, setEnabledServices] = useState(['PAS', 'Homemaker']);
 
     const submitted = ts?.status === 'submitted';
-    // Admins can edit submitted timesheets; PCAs cannot.
-    const readOnly = submitted && !isAdmin;
+    const accepted = ts?.status === 'accepted';
+    // Accepted = locked for everyone. Submitted = admins can edit, PCAs cannot.
+    const readOnly = accepted || (submitted && !isAdmin);
 
     const pasEnabled = enabledServices.includes('PAS');
     const hmEnabled = enabledServices.includes('Homemaker');
@@ -164,6 +165,22 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
     const handleSubmit = async () => {
         await handleSave();
         try { const result = await api.submitTimesheet(ts.id); setTs(result); showToast('Timesheet submitted!'); } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleAcceptTimesheet = async () => {
+        try {
+            const data = await api.updateTimesheetStatus(ts.id, 'accepted');
+            setTs(data);
+            showToast('Timesheet accepted');
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleRejectTimesheet = async () => {
+        try {
+            const data = await api.updateTimesheetStatus(ts.id, 'rejected');
+            setTs(data);
+            showToast('Timesheet sent back for corrections');
+        } catch (err) { showToast(err.message, 'error'); }
     };
 
     const handleRevertToDraft = async () => {
@@ -288,6 +305,9 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                     {submitted && (
                         <span className="ts-badge ts-badge--submitted">Submitted {ts.submittedAt ? new Date(ts.submittedAt).toLocaleString() : ''}</span>
                     )}
+                    {accepted && (
+                        <span className="ts-badge ts-badge--accepted">Accepted {ts.acceptedAt ? new Date(ts.acceptedAt).toLocaleString() : ''}</span>
+                    )}
                     <button className="btn btn--outline btn--sm" onClick={async () => {
                         try {
                             const blob = await api.exportTimesheetPdf(ts.id);
@@ -299,7 +319,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                             URL.revokeObjectURL(url);
                         } catch (err) { showToast(err.message, 'error'); }
                     }}>{Icons.download || '↓'} Export PDF</button>
-                    {!submitted && (
+                    {!submitted && !accepted && (
                         <>
                             <button className="btn btn--outline btn--sm" onClick={handleShareLinks}>{Icons.share} Share</button>
                             <button className="btn btn--outline btn--sm" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Draft'}</button>
@@ -307,10 +327,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                         </>
                     )}
                     {submitted && isAdmin && (
-                        <>
-                            <button className="btn btn--outline btn--sm" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</button>
-                            <button className="btn btn--outline btn--sm" onClick={handleRevertToDraft}>Revert to Draft</button>
-                        </>
+                        <button className="btn btn--outline btn--sm" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</button>
                     )}
                 </div>
             </div>
@@ -382,6 +399,27 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                     </div>
                 </div>
             </div>
+
+            {submitted && isAdmin && (
+                <div className="ts-review-actions">
+                    <h3 className="ts-review-actions__title">Admin Review</h3>
+                    <p className="ts-review-actions__desc">Review this timesheet and take action:</p>
+                    <div className="ts-review-actions__buttons">
+                        <button className="btn btn--success" onClick={handleAcceptTimesheet}>Accept</button>
+                        <button className="btn btn--warning" onClick={handleRejectTimesheet}>Reject</button>
+                        <button className="btn btn--outline" onClick={handleRevertToDraft}>Send Back for Corrections</button>
+                    </div>
+                </div>
+            )}
+
+            {accepted && isAdmin && (
+                <div className="ts-review-actions ts-review-actions--accepted">
+                    <p className="ts-review-actions__desc">This timesheet has been accepted{ts.acceptedAt ? ` on ${new Date(ts.acceptedAt).toLocaleDateString()}` : ''}.</p>
+                    <div className="ts-review-actions__buttons">
+                        <button className="btn btn--outline" onClick={handleRevertToDraft}>Revert to Draft</button>
+                    </div>
+                </div>
+            )}
 
             {shareLinkModal && (
                 <Modal onClose={() => setShareLinkModal(null)}>
