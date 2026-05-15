@@ -34,6 +34,15 @@ function computeHours(timeIn, timeOut) {
     return diff > 0 ? Math.round((diff / 60) * 100) / 100 : 0;
 }
 
+function totalHoursWithBlocks(entry, section) {
+    let total = computeHours(entry[`${section}TimeIn`], entry[`${section}TimeOut`]);
+    try {
+        const blocks = JSON.parse(entry[`${section}TimeBlocks`] || '[]');
+        for (const b of blocks) total += computeHours(b.in, b.out);
+    } catch {}
+    return Math.round(total * 100) / 100;
+}
+
 function parseEnabledServices(client) {
     if (!client?.enabledServices) return ['PAS', 'Homemaker'];
     try {
@@ -131,9 +140,9 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
         setEntries((prev) => { const next = [...prev]; next[idx] = { ...next[idx], [field]: value }; return next; });
     };
 
-    const adlDailyHours = (e) => computeHours(e.adlTimeIn, e.adlTimeOut);
-    const iadlDailyHours = (e) => computeHours(e.iadlTimeIn, e.iadlTimeOut);
-    const respiteDailyHours = (e) => computeHours(e.respiteTimeIn, e.respiteTimeOut);
+    const adlDailyHours = (e) => totalHoursWithBlocks(e, 'adl');
+    const iadlDailyHours = (e) => totalHoursWithBlocks(e, 'iadl');
+    const respiteDailyHours = (e) => totalHoursWithBlocks(e, 'respite');
     const totalPas = entries.reduce((s, e) => s + adlDailyHours(e), 0);
     const totalHm = entries.reduce((s, e) => s + iadlDailyHours(e), 0);
     const totalRespite = entries.reduce((s, e) => s + respiteDailyHours(e), 0);
@@ -146,10 +155,13 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                 entries: entries.map((e) => ({
                     id: e.id, dateOfService: e.dateOfService,
                     adlActivities: e.adlActivities || '{}', adlTimeIn: e.adlTimeIn || null, adlTimeOut: e.adlTimeOut || null,
+                    adlTimeBlocks: e.adlTimeBlocks || '[]',
                     adlPcaInitials: e.adlPcaInitials || '', adlClientInitials: e.adlClientInitials || '',
                     iadlActivities: e.iadlActivities || '{}', iadlTimeIn: e.iadlTimeIn || null, iadlTimeOut: e.iadlTimeOut || null,
+                    iadlTimeBlocks: e.iadlTimeBlocks || '[]',
                     iadlPcaInitials: e.iadlPcaInitials || '', iadlClientInitials: e.iadlClientInitials || '',
                     respiteActivities: e.respiteActivities || '{}', respiteTimeIn: e.respiteTimeIn || null, respiteTimeOut: e.respiteTimeOut || null,
+                    respiteTimeBlocks: e.respiteTimeBlocks || '[]',
                     respitePcaInitials: e.respitePcaInitials || '', respiteClientInitials: e.respiteClientInitials || '',
                 })),
                 recipientName, pcaFullName, recipientSignature: recipientSig, pcaSignature: pcaSig, supervisorSignature: supervisorSig, completionDate,
@@ -225,13 +237,62 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                 ))}
             </div>
             <div className="sdr-activity-row sdr-time-row">
-                <div className="sdr-activity-label">Time In</div>
+                <div className="sdr-activity-label">Shift 1 — In</div>
                 {entries.map((e, i) => (<div key={i} className="sdr-activity-cell"><input type="time" className="sdr-time-input" value={e[`${section}TimeIn`] || ''} onChange={(ev) => updateEntry(i, `${section}TimeIn`, ev.target.value)} disabled={cellDisabled} /></div>))}
             </div>
             <div className="sdr-activity-row sdr-time-row">
-                <div className="sdr-activity-label">Time Out</div>
+                <div className="sdr-activity-label">Shift 1 — Out</div>
                 {entries.map((e, i) => (<div key={i} className="sdr-activity-cell"><input type="time" className="sdr-time-input" value={e[`${section}TimeOut`] || ''} onChange={(ev) => updateEntry(i, `${section}TimeOut`, ev.target.value)} disabled={cellDisabled} /></div>))}
             </div>
+            {(() => {
+                let maxBlocks = 0;
+                for (const e of entries) {
+                    try {
+                        const blocks = JSON.parse(e[`${section}TimeBlocks`] || '[]');
+                        if (blocks.length > maxBlocks) maxBlocks = blocks.length;
+                    } catch {}
+                }
+                const rows = [];
+                for (let b = 0; b < maxBlocks; b++) {
+                    rows.push(
+                        <div key={`block-in-${b}`} className="sdr-activity-row sdr-time-row sdr-shift--s2">
+                            <div className="sdr-activity-label">Shift {b + 2} — In</div>
+                            {entries.map((e, i) => {
+                                const blocks = (() => { try { return JSON.parse(e[`${section}TimeBlocks`] || '[]'); } catch { return []; } })();
+                                return (
+                                    <div key={i} className="sdr-activity-cell">
+                                        <input type="time" className="sdr-time-input" value={blocks[b]?.in || ''} disabled={cellDisabled}
+                                            onChange={(ev) => {
+                                                const updated = [...blocks];
+                                                if (!updated[b]) updated[b] = { in: '', out: '' };
+                                                updated[b] = { ...updated[b], in: ev.target.value };
+                                                updateEntry(i, `${section}TimeBlocks`, JSON.stringify(updated));
+                                            }} />
+                                    </div>
+                                );
+                            })}
+                        </div>,
+                        <div key={`block-out-${b}`} className="sdr-activity-row sdr-time-row sdr-shift--s2">
+                            <div className="sdr-activity-label">Shift {b + 2} — Out</div>
+                            {entries.map((e, i) => {
+                                const blocks = (() => { try { return JSON.parse(e[`${section}TimeBlocks`] || '[]'); } catch { return []; } })();
+                                return (
+                                    <div key={i} className="sdr-activity-cell">
+                                        <input type="time" className="sdr-time-input" value={blocks[b]?.out || ''} disabled={cellDisabled}
+                                            onChange={(ev) => {
+                                                const updated = [...blocks];
+                                                if (!updated[b]) updated[b] = { in: '', out: '' };
+                                                updated[b] = { ...updated[b], out: ev.target.value };
+                                                updateEntry(i, `${section}TimeBlocks`, JSON.stringify(updated));
+                                            }} />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    );
+                }
+                return rows;
+            })()}
             <div className="sdr-activity-row sdr-total-row">
                 <div className="sdr-activity-label"><strong>Daily Totals</strong></div>
                 {entries.map((e, i) => {
