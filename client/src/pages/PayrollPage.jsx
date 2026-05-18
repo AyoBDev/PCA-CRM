@@ -302,8 +302,9 @@ const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits
                             </td>
                             <td>
                                 <PayrollEditableNotes
-                                    visit={v}
-                                    onChange={(newNotes) => onVisitChange(v.id, { notes: newNotes })}
+                                    visitId={v.id}
+                                    notes={v.notes}
+                                    onVisitChange={onVisitChange}
                                 />
                             </td>
                         </tr>
@@ -482,23 +483,29 @@ const PayrollEditableUnits = memo(function PayrollEditableUnits({ visit, onChang
 // ────────────────────────────────────────
 // PayrollEditableNotes — inline text editor
 // ────────────────────────────────────────
-const PayrollEditableNotes = memo(function PayrollEditableNotes({ visit, onChange }) {
+const PayrollEditableNotes = memo(function PayrollEditableNotes({ visitId, notes, onVisitChange }) {
     const [editing, setEditing] = useState(false);
-    const [value, setValue]     = useState(visit.notes || '');
+    const [value, setValue]     = useState(notes || '');
     const [saving, setSaving]   = useState(false);
+    const committingRef = useRef(false);
+
+    useEffect(() => { if (!editing) setValue(notes || ''); }, [notes, editing]);
 
     const commit = async () => {
+        if (committingRef.current) return;
+        committingRef.current = true;
         const trimmed = value.trim();
-        if (trimmed === (visit.notes || '').trim()) { setEditing(false); return; }
+        if (trimmed === (notes || '').trim()) { setEditing(false); committingRef.current = false; return; }
         setSaving(true);
         try {
-            await api.updatePayrollVisitNotes(visit.id, trimmed);
-            onChange(trimmed);
+            await api.updatePayrollVisitNotes(visitId, trimmed);
+            onVisitChange(visitId, { notes: trimmed });
         } catch (_) {
-            setValue(visit.notes || '');
+            setValue(notes || '');
         } finally {
             setSaving(false);
             setEditing(false);
+            committingRef.current = false;
         }
     };
 
@@ -509,7 +516,7 @@ const PayrollEditableNotes = memo(function PayrollEditableNotes({ visit, onChang
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 onBlur={commit}
-                onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setValue(visit.notes || ''); setEditing(false); } }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } if (e.key === 'Escape') { setValue(notes || ''); setEditing(false); } }}
                 autoFocus
                 placeholder="Add note…"
                 style={{ width: 200, padding: '2px 6px', fontSize: 13 }}
@@ -520,13 +527,13 @@ const PayrollEditableNotes = memo(function PayrollEditableNotes({ visit, onChang
     return (
         <span
             title="Click to edit"
-            onClick={() => { setValue(visit.notes || ''); setEditing(true); }}
+            onClick={() => { setValue(notes || ''); setEditing(true); }}
             style={{ cursor: 'pointer', color: value ? 'inherit' : 'hsl(240 3.8% 46.1%)', fontStyle: value ? 'normal' : 'italic', borderBottom: '1px dashed hsl(var(--border))', paddingBottom: 1, opacity: saving ? 0.5 : 1, whiteSpace: 'nowrap' }}
         >
             {value || 'add note…'}
         </span>
     );
-});
+}, (prev, next) => prev.visitId === next.visitId && prev.notes === next.notes && prev.onVisitChange === next.onVisitChange);
 
 // ────────────────────────────────────────
 // PayrollRunDetail

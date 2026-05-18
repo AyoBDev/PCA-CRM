@@ -11,15 +11,23 @@ import { useAuth } from '../hooks/useAuth';
 import { ActivityButton } from '../components/common/ActivityDrawer';
 
 function getSunday(dateStr) {
-    const d = new Date(dateStr + 'T00:00:00');
-    d.setDate(d.getDate() - d.getDay());
-    return d.toISOString().split('T')[0];
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    dt.setDate(dt.getDate() - dt.getDay());
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
+function toDateOnly(isoOrDateStr) {
+    if (!isoOrDateStr) return '';
+    return isoOrDateStr.split('T')[0];
 }
 
 function formatWeekEnding(weekStartStr) {
-    const d = new Date(weekStartStr + 'T00:00:00');
-    d.setDate(d.getDate() + 6);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const ds = toDateOnly(weekStartStr);
+    const [y, m, d] = ds.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    dt.setDate(dt.getDate() + 6);
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 export default function TimesheetsListPage() {
@@ -66,12 +74,11 @@ export default function TimesheetsListPage() {
         if (pcaFilter) filtered = filtered.filter(t => t.pcaName === pcaFilter);
         if (clientFilter) filtered = filtered.filter(t => t.clientId === Number(clientFilter));
         if (dateFrom) {
-            const from = new Date(dateFrom + 'T00:00:00');
-            filtered = filtered.filter(t => new Date(t.weekStart) >= from);
+            filtered = filtered.filter(t => toDateOnly(t.weekStart) >= dateFrom);
         }
         if (dateTo) {
-            const to = new Date(dateTo + 'T23:59:59');
-            filtered = filtered.filter(t => new Date(t.weekStart) <= to);
+            const toSunday = getSunday(dateTo);
+            filtered = filtered.filter(t => toDateOnly(t.weekStart) <= toSunday);
         }
         if (serviceFilter) {
             filtered = filtered.filter(t => {
@@ -110,12 +117,33 @@ export default function TimesheetsListPage() {
         fetchTimesheets();
     };
 
+    const [selectedIds, setSelectedIds] = useState(new Set());
+
+    const toggleSelect = (id) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedIds.size === timesheets.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(timesheets.map(t => t.id)));
+        }
+    };
+
     const handleExportExcel = () => {
+        const toExport = selectedIds.size > 0 ? timesheets.filter(t => selectedIds.has(t.id)) : timesheets;
+        if (toExport.length === 0) { showToast('No timesheets to export', 'error'); return; }
         const headers = ['Caregiver', 'Client', 'Week Ending', 'Total Hours', 'PAS Hours', 'HM Hours', 'Respite Hours', 'Status', 'Date Submitted'];
-        const rows = timesheets.map(ts => [
+        const rows = toExport.map(ts => [
             ts.pcaName,
             ts.client?.clientName || '',
-            formatWeekEnding(ts.weekStart.split('T')[0]),
+            formatWeekEnding(ts.weekStart),
             ts.totalHours.toFixed(2),
             ts.totalPasHours.toFixed(2),
             ts.totalHmHours.toFixed(2),
@@ -131,15 +159,35 @@ export default function TimesheetsListPage() {
         a.download = `timesheets-export-${new Date().toISOString().split('T')[0]}.csv`;
         a.click();
         URL.revokeObjectURL(url);
-        showToast('Exported to CSV');
+        showToast(`Exported ${toExport.length} timesheet(s) to CSV`);
     };
 
     const handlePrint = () => {
         window.print();
     };
 
-    const handleSendSharedLink = () => {
-        showToast('Select a timesheet to generate a shared link', 'info');
+    const handleSendSharedLink = async () => {
+        if (selectedIds.size === 0) { showToast('Select at least one timesheet to send a shared link', 'error'); return; }
+        const selected = timesheets.filter(t => selectedIds.has(t.id));
+        const linksGenerated = [];
+        for (const ts of selected) {
+            if (!ts.clientId) continue;
+            try {
+                const link = await api.createPermanentLink({ clientId: ts.clientId, pcaName: ts.pcaName });
+                linksGenerated.push(link);
+            } catch (err) {
+                // Link may already exist — that's OK
+            }
+        }
+        if (linksGenerated.length > 0) {
+            const baseUrl = window.location.origin;
+            const urls = linksGenerated.map(l => `${baseUrl}/pca-form/${l.token}`);
+            await navigator.clipboard.writeText(urls.join('\n'));
+            showToast(`${linksGenerated.length} shared link(s) copied to clipboard`);
+        } else {
+            showToast('Links already exist for selected timesheets — check Permanent Links page', 'info');
+        }
+        setSelectedIds(new Set());
     };
 
     const handleCreate = async () => {
@@ -318,6 +366,11 @@ export default function TimesheetsListPage() {
                         <div className="sheet-card">
                             <table className="data-table">
                                 <thead><tr>
+                                    {!showArchived && (
+                                        <th style={{ width: 36 }}>
+                                            <input type="checkbox" checked={selectedIds.size === timesheets.length && timesheets.length > 0} onChange={toggleSelectAll} />
+                                        </th>
+                                    )}
                                     <th>Caregiver</th>
                                     <th>Client</th>
                                     <th>Week Ending</th>
@@ -332,9 +385,14 @@ export default function TimesheetsListPage() {
                                 <tbody>
                                     {timesheets.map((ts) => (
                                         <tr key={ts.id} className={`clickable-row${ts.status === 'accepted' ? ' ts-row--accepted' : ''}`} onClick={() => setActiveTimesheetId(ts.id)}>
+                                            {!showArchived && (
+                                                <td onClick={(e) => e.stopPropagation()}>
+                                                    <input type="checkbox" checked={selectedIds.has(ts.id)} onChange={() => toggleSelect(ts.id)} />
+                                                </td>
+                                            )}
                                             <td style={{ fontWeight: 500 }}>{ts.pcaName}</td>
                                             <td>{ts.client?.clientName}</td>
-                                            <td style={{ fontSize: 13 }}>{formatWeekEnding(ts.weekStart.split('T')[0])}</td>
+                                            <td style={{ fontSize: 13 }}>{formatWeekEnding(ts.weekStart)}</td>
                                             <td><strong>{ts.totalHours.toFixed(2)}</strong></td>
                                             <td>{ts.totalPasHours.toFixed(2)}</td>
                                             <td>{ts.totalHmHours.toFixed(2)}</td>
@@ -363,7 +421,10 @@ export default function TimesheetsListPage() {
                         </div>
                         {!showArchived && (
                             <div className="ts-bottom-actions">
-                                <button className="btn btn--primary btn--sm" onClick={handleSendSharedLink}>{Icons.share} Send Shared Link</button>
+                                {selectedIds.size > 0 && (
+                                    <span style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>{selectedIds.size} selected</span>
+                                )}
+                                <button className="btn btn--primary btn--sm" onClick={handleSendSharedLink}>{Icons.share} Send Shared Link{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}</button>
                                 <button className="btn btn--success btn--sm" onClick={handleExportExcel}>{Icons.download} Export to Excel</button>
                                 <button className="btn btn--outline btn--sm" onClick={handlePrint}>{Icons.fileText} Print</button>
                             </div>
