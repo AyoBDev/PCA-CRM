@@ -446,9 +446,10 @@ function AuthNoteIcon({ client, onClick }) {
         <span
             className={`auth-note-icon ${hasNote ? 'auth-note-icon--has-note' : 'auth-note-icon--empty'}`}
             onClick={(e) => { e.stopPropagation(); onClick(client); }}
-            title={hasNote ? client.notes : 'Add note'}
+            title={!hasNote ? 'Add note' : undefined}
         >
             {Icons.fileText}
+            {hasNote && <span className="auth-note-tooltip">{client.notes}</span>}
         </span>
     );
 }
