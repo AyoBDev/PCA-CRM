@@ -120,6 +120,7 @@ function AuthFormModal({ auth, clientId, onSave, onClose }) {
     const [serviceCode, setServiceCode] = useState(auth?.serviceCode || 'PCS');
     const [serviceName, setServiceName] = useState(auth?.serviceName || '');
     const [authorizedUnits, setAuthorizedUnits] = useState(auth?.authorizedUnits || '');
+    const [authorizationNumber, setAuthorizationNumber] = useState(auth?.authorizationNumber || '');
     const [accountNumber, setAccountNumber] = useState(auth?.accountNumber || DEFAULT_ACCOUNT_BY_CODE[auth?.serviceCode || 'PCS'] || '');
     const [startDate, setStartDate] = useState(
         auth?.authorizationStartDate ? new Date(auth.authorizationStartDate).toISOString().split('T')[0] : ''
@@ -128,6 +129,7 @@ function AuthFormModal({ auth, clientId, onSave, onClose }) {
         auth?.authorizationEndDate ? new Date(auth.authorizationEndDate).toISOString().split('T')[0] : ''
     );
     const [notes, setNotes] = useState(auth?.notes || '');
+    const [files, setFiles] = useState([]);
     const isEdit = !!auth;
 
     // Parse pasted date text into YYYY-MM-DD for date inputs
@@ -170,11 +172,13 @@ function AuthFormModal({ auth, clientId, onSave, onClose }) {
             serviceCategory,
             serviceCode,
             serviceName,
+            authorizationNumber,
             authorizedUnits: parseInt(authorizedUnits) || 0,
             authorizationStartDate: startDate || null,
             authorizationEndDate: endDate || null,
             notes,
             accountNumber,
+            files,
         });
     };
 
@@ -214,11 +218,17 @@ function AuthFormModal({ auth, clientId, onSave, onClose }) {
                         </select>
                     </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="form-group">
+                        <label>Authorization Number</label>
+                        <input type="text" value={authorizationNumber} onChange={(e) => setAuthorizationNumber(e.target.value)} placeholder="e.g. 45268348457" />
+                    </div>
                     <div className="form-group">
                         <label>Auth Units</label>
                         <input type="number" value={authorizedUnits} onChange={(e) => setAuthorizedUnits(e.target.value)} placeholder="0" />
                     </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-group">
                         <label>Auth Start</label>
                         <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} onPaste={handleDatePaste(setStartDate)} />
@@ -231,6 +241,20 @@ function AuthFormModal({ auth, clientId, onSave, onClose }) {
                 <div className="form-group">
                     <label>Notes</label>
                     <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes…" />
+                </div>
+                <div className="form-group">
+                    <label>Upload PA / Care Plan Documents</label>
+                    <input
+                        type="file"
+                        multiple
+                        onChange={(e) => setFiles(Array.from(e.target.files))}
+                        style={{ fontSize: 13 }}
+                    />
+                    {files.length > 0 && (
+                        <div style={{ marginTop: 6, fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
+                            {files.length} file{files.length !== 1 ? 's' : ''} selected
+                        </div>
+                    )}
                 </div>
                 <div className="form-actions">
                     <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
@@ -624,12 +648,22 @@ export default function AuthorizationsPage() {
 
     const handleSaveAuth = async (data) => {
         try {
+            const { files, ...authData } = data;
+            let savedAuth;
             if (modal.auth) {
-                await api.updateAuthorization(modal.auth.id, data);
+                savedAuth = await api.updateAuthorization(modal.auth.id, authData);
                 showToast('Authorization updated');
             } else {
-                await api.createAuthorization(modal.clientId, data);
+                savedAuth = await api.createAuthorization(modal.clientId, authData);
                 showToast('Authorization added');
+            }
+            if (files && files.length > 0) {
+                for (const file of files) {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    await api.uploadAuthDocument(savedAuth.id, formData);
+                }
+                showToast(`${files.length} document${files.length > 1 ? 's' : ''} uploaded`);
             }
             setModal(null);
             const refreshed = await api.getClients();

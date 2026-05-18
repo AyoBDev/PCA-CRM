@@ -457,21 +457,54 @@ export default function ClientDetailPage() {
         }
     };
 
+    const handleClientDatePaste = (field) => (e) => {
+        const text = (e.clipboardData || window.clipboardData).getData('text').trim();
+        if (!text) return;
+        let parsed = null;
+        let m = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+        if (m) parsed = `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+        if (!parsed) {
+            m = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+            if (m) parsed = `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+        }
+        if (!parsed) {
+            m = text.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
+            if (m) {
+                const d = new Date(`${m[1]} ${m[2]}, ${m[3]}`);
+                if (!isNaN(d)) parsed = d.toISOString().split('T')[0];
+            }
+        }
+        if (parsed && !isNaN(new Date(parsed + 'T00:00:00'))) {
+            e.preventDefault();
+            setEditClientForm(prev => ({ ...prev, [field]: parsed }));
+        }
+    };
+
     const handleSaveAuth = async (e) => {
         e.preventDefault();
         setSaving(true);
         try {
+            const { files, ...rest } = authForm;
             const data = {
-                ...authForm,
-                authorizedUnits: authForm.authorizedUnits ? Number(authForm.authorizedUnits) : null,
-                authorizedHours: authForm.authorizedHours ? Number(authForm.authorizedHours) : null,
+                ...rest,
+                authorizedUnits: rest.authorizedUnits ? Number(rest.authorizedUnits) : null,
+                authorizedHours: rest.authorizedHours ? Number(rest.authorizedHours) : null,
             };
+            let savedAuth;
             if (editingAuth) {
-                await api.updateAuthorization(editingAuth.id, data);
+                savedAuth = await api.updateAuthorization(editingAuth.id, data);
                 showToast('Authorization updated');
             } else {
-                await api.createAuthorization(client.id, data);
+                savedAuth = await api.createAuthorization(client.id, data);
                 showToast('Authorization created');
+            }
+            if (files && files.length > 0) {
+                for (const file of files) {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    await api.uploadAuthDocument(savedAuth.id, formData);
+                }
+                showToast(`${files.length} document${files.length > 1 ? 's' : ''} uploaded`);
             }
             setShowAuthModal(false);
             fetchClient();
@@ -1112,7 +1145,7 @@ export default function ClientDetailPage() {
                             </div>
                             <div className="form-group">
                                 <label>Date of Birth</label>
-                                <input type="date" value={editClientForm.dob} onChange={(e) => setEditClientForm({ ...editClientForm, dob: e.target.value })} />
+                                <input type="date" value={editClientForm.dob} onChange={(e) => setEditClientForm({ ...editClientForm, dob: e.target.value })} onPaste={handleClientDatePaste('dob')} />
                             </div>
                             <div className="form-group">
                                 <label>Gate Code</label>
@@ -1232,8 +1265,32 @@ export default function ClientDetailPage() {
                             </div>
                         </div>
                         <div className="form-group">
+                            <label>Account Number</label>
+                            <select value={authForm.accountNumber || ''} onChange={(e) => setAuthForm({ ...authForm, accountNumber: e.target.value })}>
+                                <option value="">— Select —</option>
+                                <option value="71040">71040</option>
+                                <option value="71120">71120</option>
+                                <option value="71119">71119</option>
+                                <option value="71635">71635</option>
+                            </select>
+                        </div>
+                        <div className="form-group">
                             <label>Notes</label>
                             <textarea value={authForm.notes} onChange={(e) => setAuthForm({ ...authForm, notes: e.target.value })} rows={2} placeholder="Optional notes" />
+                        </div>
+                        <div className="form-group">
+                            <label>Upload PA / Care Plan Documents</label>
+                            <input
+                                type="file"
+                                multiple
+                                onChange={(e) => setAuthForm({ ...authForm, files: Array.from(e.target.files) })}
+                                style={{ fontSize: 13 }}
+                            />
+                            {authForm.files && authForm.files.length > 0 && (
+                                <div style={{ marginTop: 6, fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
+                                    {authForm.files.length} file{authForm.files.length !== 1 ? 's' : ''} selected
+                                </div>
+                            )}
                         </div>
                         <div className="form-actions">
                             <button type="button" className="btn btn--outline" onClick={() => setShowAuthModal(false)}>Cancel</button>

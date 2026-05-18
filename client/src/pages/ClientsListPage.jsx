@@ -43,6 +43,29 @@ export default function ClientsListPage() {
     const [sortOrder, setSortOrder] = useState('az');
     const [previewClient, setPreviewClient] = useState(null);
 
+    const handleDatePaste = (field) => (e) => {
+        const text = (e.clipboardData || window.clipboardData).getData('text').trim();
+        if (!text) return;
+        let parsed = null;
+        let m = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+        if (m) parsed = `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+        if (!parsed) {
+            m = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+            if (m) parsed = `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+        }
+        if (!parsed) {
+            m = text.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
+            if (m) {
+                const d = new Date(`${m[1]} ${m[2]}, ${m[3]}`);
+                if (!isNaN(d)) parsed = d.toISOString().split('T')[0];
+            }
+        }
+        if (parsed && !isNaN(new Date(parsed + 'T00:00:00'))) {
+            e.preventDefault();
+            setForm(prev => ({ ...prev, [field]: parsed }));
+        }
+    };
+
     const fetchClients = useCallback(async () => {
         try {
             setLoading(true);
@@ -287,7 +310,7 @@ export default function ClientsListPage() {
                         </div>
                         <div className="form-group">
                             <label>Date of Birth</label>
-                            <input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} />
+                            <input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} onPaste={handleDatePaste('dob')} />
                         </div>
                         <div className="form-group">
                             <label>PA#</label>
