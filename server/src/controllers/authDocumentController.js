@@ -9,6 +9,8 @@ function ensureDir(dir) {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
+const DOC_UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads', 'documents');
+
 // POST /api/authorizations/:authId/documents (multipart — req.file from multer)
 async function uploadAuthDocument(req, res, next) {
     try {
@@ -39,6 +41,27 @@ async function uploadAuthDocument(req, res, next) {
                 notes: (req.body.notes || '').trim(),
             },
             include: { users: { select: { id: true, name: true } } },
+        });
+
+        // Also create a ClientDocument under "PCA Service Authorization" category
+        const clientId = auth.clientId;
+        const clientDocDir = path.join(DOC_UPLOAD_DIR, String(clientId));
+        ensureDir(clientDocDir);
+        const clientDocSafeName = `${Date.now()}-${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        const clientDocPath = path.join(clientDocDir, clientDocSafeName);
+        fs.writeFileSync(clientDocPath, req.file.buffer);
+
+        await prisma.clientDocument.create({
+            data: {
+                clientId,
+                category: 'auth_pca',
+                fileName: req.file.originalname,
+                filePath: `documents/${clientId}/${clientDocSafeName}`,
+                fileSize: req.file.size,
+                mimeType: req.file.mimetype || '',
+                uploadedBy: req.user.id,
+                notes: (req.body.notes || '').trim(),
+            },
         });
 
         audit.logAction({
