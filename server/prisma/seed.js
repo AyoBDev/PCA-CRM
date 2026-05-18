@@ -31,6 +31,17 @@ async function main() {
     if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) {
         console.warn('⚠️  Set ADMIN_EMAIL and ADMIN_PASSWORD env vars for production');
     }
+
+    // Seed insurance types
+    const insuranceTypes = ['MEDICAID', 'Molina', 'SilverSummit', 'CareSource', 'Aging and Disability', 'CognitiveCare', 'Private Pay', 'Other'];
+    for (const name of insuranceTypes) {
+        await prisma.insuranceType.upsert({
+            where: { name },
+            update: {},
+            create: { name },
+        });
+    }
+    console.log('✅ Insurance types seeded');
 }
 
 main()

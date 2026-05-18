@@ -44,6 +44,8 @@ const TABS = [
     { key: 'documents', label: 'Documents' },
     { key: 'care-plan', label: 'Care Plan (ADL)' },
     { key: 'schedule', label: 'Schedule' },
+    { key: 'supervisory-review', label: 'Supervisory Review' },
+    { key: 'billing', label: 'Billing/Invoices' },
     { key: 'activity', label: 'Activity Log' },
     { key: 'incidents', label: 'Incident Reports' },
 ];
@@ -858,6 +860,34 @@ export default function ClientDetailPage() {
                     )}
                     {activeTab === 'schedule' && (
                         <ScheduleTab navigate={navigate} clientId={clientId} />
+                    )}
+                    {activeTab === 'supervisory-review' && (
+                        <div className="cp-tab-panel">
+                            <div className="cp-card cp-card--elevated">
+                                <div className="cp-card__header">
+                                    <h3 className="cp-card__title">Supervisory Review</h3>
+                                </div>
+                                <div className="cp-card__body">
+                                    <div className="cp-empty-state-card">
+                                        <p>No supervisory reviews yet.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {activeTab === 'billing' && (
+                        <div className="cp-tab-panel">
+                            <div className="cp-card cp-card--elevated">
+                                <div className="cp-card__header">
+                                    <h3 className="cp-card__title">Billing / Invoices</h3>
+                                </div>
+                                <div className="cp-card__body">
+                                    <div className="cp-empty-state-card">
+                                        <p>No billing records yet.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     )}
                     {activeTab === 'activity' && (
                         <ActivityLogTab clientId={Number(clientId)} isAdmin={isAdmin} />
