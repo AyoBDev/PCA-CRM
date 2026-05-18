@@ -136,6 +136,8 @@ export const restoreAuthorization = (id) =>
     request(`/authorizations/${id}/restore`, { method: 'PUT' });
 export const deleteAuthorization = (id) =>
     request(`/authorizations/${id}`, { method: 'DELETE' });
+export const updateAuthAccountNumber = (id, accountNumber) =>
+    request(`/authorizations/${id}/account-number`, { method: 'PATCH', body: JSON.stringify({ accountNumber }) });
 
 // Care Team
 export const addCareTeamMember = (clientId, data) =>

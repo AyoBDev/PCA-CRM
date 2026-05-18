@@ -112,11 +112,15 @@ function ClientFormModal({ client, onSave, onClose, insuranceTypeNames }) {
 }
 
 // ── Authorization Form Modal ──
+const ACCOUNT_NUMBER_OPTIONS = ['71040', '71120', '71119', '71635'];
+const DEFAULT_ACCOUNT_BY_CODE = { PCS: '71040', SDPC: '71119', S5130: '71120', S5150: '71635' };
+
 function AuthFormModal({ auth, clientId, onSave, onClose }) {
     const [serviceCategory, setServiceCategory] = useState(auth?.serviceCategory || '');
     const [serviceCode, setServiceCode] = useState(auth?.serviceCode || 'PCS');
     const [serviceName, setServiceName] = useState(auth?.serviceName || '');
     const [authorizedUnits, setAuthorizedUnits] = useState(auth?.authorizedUnits || '');
+    const [accountNumber, setAccountNumber] = useState(auth?.accountNumber || DEFAULT_ACCOUNT_BY_CODE[auth?.serviceCode || 'PCS'] || '');
     const [startDate, setStartDate] = useState(
         auth?.authorizationStartDate ? new Date(auth.authorizationStartDate).toISOString().split('T')[0] : ''
     );
@@ -153,6 +157,13 @@ function AuthFormModal({ auth, clientId, onSave, onClose }) {
         }
     };
 
+    const handleServiceCodeChange = (newCode) => {
+        setServiceCode(newCode);
+        if (!accountNumber || Object.values(DEFAULT_ACCOUNT_BY_CODE).includes(accountNumber)) {
+            setAccountNumber(DEFAULT_ACCOUNT_BY_CODE[newCode] || '');
+        }
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
         onSave({
@@ -163,6 +174,7 @@ function AuthFormModal({ auth, clientId, onSave, onClose }) {
             authorizationStartDate: startDate || null,
             authorizationEndDate: endDate || null,
             notes,
+            accountNumber,
         });
     };
 
@@ -178,7 +190,7 @@ function AuthFormModal({ auth, clientId, onSave, onClose }) {
                     </div>
                     <div className="form-group">
                         <label>Service Code</label>
-                        <select value={serviceCode} onChange={(e) => setServiceCode(e.target.value)}>
+                        <select value={serviceCode} onChange={(e) => handleServiceCodeChange(e.target.value)}>
                             <option value="PCS">PCS</option>
                             <option value="SDPC">SDPC</option>
                             <option value="TIMESHEETS">TIMESHEETS</option>
@@ -189,9 +201,18 @@ function AuthFormModal({ auth, clientId, onSave, onClose }) {
                         </select>
                     </div>
                 </div>
-                <div className="form-group">
-                    <label>Service Name</label>
-                    <input type="text" value={serviceName} onChange={(e) => setServiceName(e.target.value)} placeholder="Personal Care Services" />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="form-group">
+                        <label>Service Name</label>
+                        <input type="text" value={serviceName} onChange={(e) => setServiceName(e.target.value)} placeholder="Personal Care Services" />
+                    </div>
+                    <div className="form-group">
+                        <label>Account Number</label>
+                        <select value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)}>
+                            <option value="">— Select —</option>
+                            {ACCOUNT_NUMBER_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                    </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                     <div className="form-group">

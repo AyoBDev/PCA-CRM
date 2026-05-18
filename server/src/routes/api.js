@@ -20,6 +20,7 @@ const {
     archiveAuthorization,
     restoreAuthorization,
     deleteAuthorization,
+    updateAccountNumber,
 } = require('../controllers/authorizationController');
 const {
     listInsuranceTypes,
@@ -184,6 +185,7 @@ router.put('/authorizations/:id', requireRole('admin', 'user', 'pca'), updateAut
 router.put('/authorizations/:id/archive', requireRole('admin', 'user', 'pca'), archiveAuthorization);
 router.put('/authorizations/:id/restore', requireRole('admin', 'user', 'pca'), restoreAuthorization);
 router.delete('/authorizations/:id', requireRole('admin', 'user', 'pca'), deleteAuthorization);
+router.patch('/authorizations/:id/account-number', requireRole('admin', 'user', 'pca'), updateAccountNumber);
 
 // Care Team
 router.post('/clients/:clientId/care-team', requireRole('admin', 'user', 'pca'), addCareTeamMember);

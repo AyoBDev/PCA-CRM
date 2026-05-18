@@ -1,14 +1,26 @@
 import Icons from '../../components/common/Icons';
+import * as api from '../../api';
+
+const ACCOUNT_OPTIONS = ['71040', '71120', '71119', '71635'];
+
+const DEFAULT_ACCOUNT_BY_CODE = {
+    PCS: '71040',
+    SDPC: '71119',
+    S5130: '71120',
+    S5150: '71635',
+};
 
 const AUTH_COLORS = {
-    PCS: { accent: '#22c55e', bg: 'hsl(142 76% 96%)', label: 'PCA Service Authorization' },
-    SDPC: { accent: '#8b5cf6', bg: 'hsl(270 76% 96%)', label: 'SDPC Service Authorization' },
-    S5130: { accent: '#f59e0b', bg: 'hsl(38 100% 96%)', label: 'Homemaker Service Authorization' },
-    S5150: { accent: '#06b6d4', bg: 'hsl(188 80% 96%)', label: 'Respite Service Authorization' },
-    S5125: { accent: '#3b82f6', bg: 'hsl(217 91% 96%)', label: 'Attendant Care Authorization' },
-    S5135: { accent: '#ec4899', bg: 'hsl(330 80% 96%)', label: 'Companion Service Authorization' },
+    PCS: { accent: '#22c55e', bg: 'hsl(142 76% 96%)', border: '#22c55e', label: 'PCA SERVICE AUTHORIZATION', icon: 'shieldCheck' },
+    SDPC: { accent: '#8b5cf6', bg: 'hsl(270 76% 96%)', border: '#8b5cf6', label: 'SDPC SERVICE AUTHORIZATION', icon: 'users' },
+    S5130: { accent: '#f59e0b', bg: 'hsl(38 100% 96%)', border: '#f59e0b', label: 'HOMEMAKER SERVICE AUTHORIZATION', icon: 'building' },
+    S5150: { accent: '#06b6d4', bg: 'hsl(188 80% 96%)', border: '#06b6d4', label: 'RESPITE SERVICE AUTHORIZATION', icon: 'heart' },
+    S5125: { accent: '#3b82f6', bg: 'hsl(217 91% 96%)', border: '#3b82f6', label: 'ATTENDANT CARE AUTHORIZATION', icon: 'user' },
+    S5135: { accent: '#ec4899', bg: 'hsl(330 80% 96%)', border: '#ec4899', label: 'COMPANION SERVICE AUTHORIZATION', icon: 'users' },
 };
-const DEFAULT_AUTH_COLOR = { accent: '#64748b', bg: 'hsl(215 20% 96%)', label: 'Service Authorization' };
+const DEFAULT_AUTH_COLOR = { accent: '#64748b', bg: 'hsl(215 20% 96%)', border: '#64748b', label: 'SERVICE AUTHORIZATION', icon: 'clipboard' };
+
+const LEFT_CODES = ['PCS', 'SDPC'];
 
 export default function ProgramsAuthTab({
     client,
@@ -30,7 +42,10 @@ export default function ProgramsAuthTab({
     authGroupsForInsurance,
     formatDate,
     unitsToHours,
+    fetchClient,
+    showToast,
 }) {
+
     const filterAuths = (auths) => {
         if (authFilterStatus === 'all') return auths;
         if (authFilterStatus === 'active') return auths.filter(a => !a.archivedAt && a.status !== 'Expired');
@@ -39,31 +54,171 @@ export default function ProgramsAuthTab({
         return auths;
     };
 
+    const allCodes = Object.keys(authGroupsForInsurance);
+    const leftCodes = LEFT_CODES.filter(c => allCodes.includes(c));
+    const rightCodes = allCodes.filter(c => !LEFT_CODES.includes(c));
+
+    // Summary stats
+    let totalActive = 0, totalUnits = 0, totalAttachments = 0;
+    Object.values(authGroupsForInsurance).forEach(({ current }) => {
+        totalActive += current.length;
+        current.forEach(a => {
+            totalUnits += a.authorizedUnits || 0;
+            totalAttachments += (a.documents || []).length;
+        });
+    });
+    const totalHours = (totalUnits / 4).toFixed(2);
+
+    async function handleAccountNumberChange(code, value) {
+        const { current, archived } = authGroupsForInsurance[code];
+        const allAuths = [...current, ...archived];
+        try {
+            await Promise.all(allAuths.map(a => api.updateAuthAccountNumber(a.id, value)));
+            if (fetchClient) fetchClient();
+        } catch (err) {
+            if (showToast) showToast('Failed to update account number', 'error');
+        }
+    }
+
+    function renderServiceCard(code) {
+        const { current, archived } = authGroupsForInsurance[code];
+        const colors = AUTH_COLORS[code] || DEFAULT_AUTH_COLOR;
+        const allAuths = [...current, ...archived];
+        const filteredAuths = filterAuths(allAuths);
+        const activeAuths = current.filter(a => a.status !== 'Expired');
+        const latestAuth = activeAuths[0] || current[0] || allAuths[0];
+        const attachCount = allAuths.reduce((sum, a) => sum + (a.documents || []).length, 0);
+        const currentAccountNumber = latestAuth?.accountNumber || DEFAULT_ACCOUNT_BY_CODE[code] || '';
+
+        return (
+            <div key={code} className="pa-service-card" style={{ '--card-accent': colors.accent, '--card-bg': colors.bg, '--card-border': colors.border }}>
+                <div className="pa-service-card__header">
+                    <div className="pa-service-card__icon-wrap" style={{ background: colors.bg, color: colors.accent }}>
+                        {Icons[colors.icon]}
+                    </div>
+                    <div className="pa-service-card__title-area">
+                        <h4 className="pa-service-card__title">{colors.label}</h4>
+                        {activeAuths.length > 0 && <span className="pa-badge pa-badge--active">Active</span>}
+                    </div>
+                    <div className="pa-service-card__account">
+                        <span className="pa-service-card__account-label">Account Number</span>
+                        <select
+                            className="pa-service-card__account-select"
+                            value={currentAccountNumber}
+                            onChange={(e) => handleAccountNumberChange(code, e.target.value)}
+                        >
+                            <option value="">—</option>
+                            {ACCOUNT_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                    </div>
+                </div>
+
+                <div className="pa-service-card__body">
+                    {latestAuth ? (
+                        <>
+                            <div className="pa-service-card__detail">
+                                {Icons.calendar} <span>{formatDate(latestAuth.authorizationStartDate)} – {formatDate(latestAuth.authorizationEndDate)}</span>
+                            </div>
+                            <div className="pa-service-card__detail">
+                                {Icons.clock} <span>{latestAuth.authorizedUnits || 0} units ({unitsToHours(latestAuth.authorizedUnits || 0)} hrs)</span>
+                            </div>
+                            <div className="pa-service-card__detail">
+                                {Icons.paperclip} <span>{attachCount} attachment{attachCount !== 1 ? 's' : ''}</span>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="pa-service-card__detail" style={{ color: 'hsl(var(--muted-foreground))' }}>No authorizations</div>
+                    )}
+                </div>
+
+                <div className="pa-service-card__footer">
+                    <button className="btn btn--outline btn--sm" onClick={() => navigate(`/clients/${clientId}/service/${code}`)}>{Icons.externalLink} Open</button>
+                    <button className="btn btn--outline btn--sm pa-btn--view-details" style={{ color: colors.accent, borderColor: colors.accent }} onClick={() => setExpandedServiceCode(expandedServiceCode === code ? null : code)}>View Details</button>
+                </div>
+
+                {expandedServiceCode === code && (
+                    <div className="pa-service-card__expanded">
+                        {filteredAuths.length === 0 ? (
+                            <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '8px 0' }}>No authorizations match the current filter.</div>
+                        ) : (
+                            filteredAuths.map(a => (
+                                <div key={a.id} className="pa-auth-detail">
+                                    <div className="pa-auth-detail__main">
+                                        <div className="pa-auth-detail__info">
+                                            <span className="pa-auth-detail__name" style={a.archivedAt ? { textDecoration: 'line-through', opacity: 0.6 } : {}}>
+                                                {a.serviceName || a.serviceCategory || code}
+                                                {a.authorizationNumber && <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontFamily: 'var(--font-mono, monospace)', marginLeft: 6 }}>#{a.authorizationNumber}</span>}
+                                            </span>
+                                            <div className="pa-auth-detail__meta">
+                                                {(a.authorizationStartDate || a.authorizationEndDate) && <span>{formatDate(a.authorizationStartDate)} – {formatDate(a.authorizationEndDate)}</span>}
+                                                {a.authorizedUnits > 0 && <span>{a.authorizedUnits} units ({unitsToHours(a.authorizedUnits)} hrs)</span>}
+                                            </div>
+                                        </div>
+                                        <div className="pa-auth-detail__actions">
+                                            {a.daysToExpire !== null && !a.archivedAt && (
+                                                <span className={`ts-badge ts-badge--${a.status === 'Expired' ? 'critical' : a.status === 'Renewal Reminder' ? 'draft' : 'submitted'}`}>
+                                                    {a.status} {a.daysToExpire >= 0 ? `(${a.daysToExpire}d)` : `(${Math.abs(a.daysToExpire)}d ago)`}
+                                                </span>
+                                            )}
+                                            {a.archivedAt && <span className="ts-badge ts-badge--draft">Archived</span>}
+                                            <div style={{ display: 'flex', gap: 4 }}>
+                                                {!a.archivedAt ? (
+                                                    <>
+                                                        <button className="btn btn--ghost btn--xs" onClick={() => openAuthModal(a, code)}>{Icons.edit}</button>
+                                                        <button className="btn btn--ghost btn--xs" onClick={() => handleArchiveAuth(a.id)}>{Icons.archive}</button>
+                                                    </>
+                                                ) : (
+                                                    <button className="btn btn--ghost btn--xs" onClick={() => handleRestoreAuth(a.id)}>{Icons.rotateCcw} Restore</button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="cp-auth-attachments">
+                                        <button
+                                            className="cp-auth-attachments__toggle"
+                                            onClick={() => setExpandedAuthAttachments(prev => ({ ...prev, [a.id]: !prev[a.id] }))}
+                                        >
+                                            {Icons.fileText} {(a.documents || []).length} attachment{(a.documents || []).length !== 1 ? 's' : ''}
+                                            <span style={{ marginLeft: 4 }}>{expandedAuthAttachments[a.id] ? Icons.chevronDown : Icons.chevronRight}</span>
+                                        </button>
+                                        {expandedAuthAttachments[a.id] && (
+                                            <div className="cp-auth-attachments__list">
+                                                {(a.documents || []).length === 0 ? (
+                                                    <div className="cp-auth-attachments__empty">No attachments</div>
+                                                ) : (
+                                                    (a.documents || []).map(doc => (
+                                                        <div key={doc.id} className="cp-auth-attachments__item">
+                                                            <span className="cp-auth-attachments__name" onClick={() => handleDownloadAuthDoc(doc)} title="Download">
+                                                                {Icons.download} {doc.fileName}
+                                                            </span>
+                                                            <button className="btn btn--danger-ghost btn--icon btn--xs" onClick={() => handleDeleteAuthDoc(doc)} title="Delete">
+                                                                {Icons.trash}
+                                                            </button>
+                                                        </div>
+                                                    ))
+                                                )}
+                                                <label className="cp-auth-attachments__upload">
+                                                    {Icons.upload} Upload
+                                                    <input type="file" style={{ display: 'none' }} onChange={(e) => { if (e.target.files[0]) handleUploadAuthDoc(a.id, e.target.files[0]); e.target.value = ''; }} />
+                                                </label>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
     return (
         <div className="cp-tab-panel">
             <div className="cp-card cp-card--elevated">
                 <div className="cp-card__header">
-                    <h3 className="cp-card__title">Insurance & Authorizations</h3>
-                    <button className="btn btn--primary btn--sm" onClick={() => openAuthModal(null, '')}>{Icons.plus} Add Authorization</button>
-                </div>
-                <div className="cp-card__body">
-                    <div className="cp-insurance-detail">
-                        <div className="cp-insurance-row">
-                            <span className="cp-insurance-label">Insurance Type</span>
-                            <span className="cp-insurance-value">{client.insuranceType || '—'}</span>
-                        </div>
-                        <div className="cp-insurance-row">
-                            <span className="cp-insurance-label">Medicaid ID</span>
-                            <span className="cp-insurance-value" style={{ fontFamily: 'var(--font-mono, monospace)' }}>{client.medicaidId || '—'}</span>
-                        </div>
-                        <div className="cp-insurance-row">
-                            <span className="cp-insurance-label">PA Number</span>
-                            <span className="cp-insurance-value">{client.paNumber || '—'}</span>
-                        </div>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '20px 0 12px' }}>
-                        <h4 style={{ fontSize: 13, fontWeight: 600, margin: 0, color: 'hsl(var(--foreground))' }}>Authorizations by Service</h4>
+                    <h3 className="cp-card__title">Authorizations by Service</h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div className="cl-filters__tabs" style={{ gap: 4 }}>
                             {[
                                 { value: 'all', label: 'All' },
@@ -75,130 +230,62 @@ export default function ProgramsAuthTab({
                                     key={opt.value}
                                     className={`cl-filters__tab ${authFilterStatus === opt.value ? 'cl-filters__tab--active' : ''}`}
                                     onClick={() => setAuthFilterStatus(opt.value)}
-                                    style={{ padding: '3px 10px', fontSize: 11 }}
+                                    style={{ padding: '4px 12px', fontSize: 12 }}
                                 >
                                     {opt.label}
                                 </button>
                             ))}
                         </div>
+                        <button className="btn btn--primary btn--sm" onClick={() => openAuthModal(null, '')}>{Icons.plus} Add Authorization</button>
                     </div>
-
+                </div>
+                <div className="cp-card__body">
                     {Object.keys(authGroupsForInsurance).length === 0 ? (
                         <div className="cp-empty-state-card">
                             <div className="cp-empty-state-card__icon">{Icons.clipboard}</div>
                             <p>No authorizations on file.</p>
                         </div>
                     ) : (
-                        <div className="cp-auth-sections">
-                            {Object.entries(authGroupsForInsurance).map(([code, { current, archived }]) => {
-                                const colors = AUTH_COLORS[code] || DEFAULT_AUTH_COLOR;
-                                const allAuths = [...current, ...archived];
-                                const filteredAuths = filterAuths(allAuths);
-                                const isExpanded = expandedServiceCode === code;
-                                return (
-                                    <div key={code} className="cp-auth-group" style={{ '--auth-accent': colors.accent, '--auth-bg': colors.bg }}>
-                                        <div className="cp-auth-group__bar" />
-                                        <div className="cp-auth-group__content">
-                                            <div
-                                                className="cp-auth-group__header-clickable"
-                                                onClick={() => setExpandedServiceCode(isExpanded ? null : code)}
-                                            >
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                    <h4 className="cp-auth-group__title" style={{ margin: 0, cursor: 'pointer' }}>{colors.label || `${code} Service Authorization`}</h4>
-                                                </div>
-                                                <div className="cp-auth-group__summary">
-                                                    <span className="ts-badge ts-badge--submitted">{current.length} active</span>
-                                                    {archived.length > 0 && <span className="ts-badge ts-badge--draft">{archived.length} archived</span>}
-                                                    <button className="btn btn--outline btn--xs" onClick={(e) => { e.stopPropagation(); navigate(`/clients/${clientId}/service/${code}`); }}>{Icons.externalLink || Icons.chevronRight} Open</button>
-                                                    <button className="btn btn--outline btn--xs" onClick={(e) => { e.stopPropagation(); openAuthModal(null, code); }}>{Icons.plus} Add</button>
-                                                    <span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12 }}>
-                                                        {isExpanded ? Icons.chevronDown : Icons.chevronRight}
-                                                    </span>
-                                                </div>
-                                            </div>
+                        <div className="pa-services-grid">
+                            <div className="pa-services-grid__left">
+                                {leftCodes.map(code => renderServiceCard(code))}
+                            </div>
+                            <div className="pa-services-grid__right">
+                                {rightCodes.map(code => renderServiceCard(code))}
+                            </div>
+                        </div>
+                    )}
 
-                                            {isExpanded && (
-                                                <div className="cp-auth-expanded">
-                                                    {filteredAuths.length === 0 ? (
-                                                        <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '12px 0' }}>No authorizations match the current filter.</div>
-                                                    ) : (
-                                                        filteredAuths.map(a => (
-                                                            <div key={a.id} className="cp-auth-detail-row">
-                                                                <div className="cp-auth-detail-row__main">
-                                                                    <span className="cp-auth-item__dot" style={{ background: a.archivedAt ? '#94a3b8' : colors.accent }} />
-                                                                    <div className="cp-auth-detail-row__info">
-                                                                        <div className="cp-auth-detail-row__name" style={a.archivedAt ? { textDecoration: 'line-through', opacity: 0.6 } : {}}>
-                                                                            {a.serviceName || a.serviceCategory || code}
-                                                                            {a.authorizationNumber && <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontFamily: 'var(--font-mono, monospace)', marginLeft: 6 }}>#{a.authorizationNumber}</span>}
-                                                                        </div>
-                                                                        <div className="cp-auth-detail-row__meta">
-                                                                            {(a.authorizationStartDate || a.authorizationEndDate) && (
-                                                                                <span>{formatDate(a.authorizationStartDate)} – {formatDate(a.authorizationEndDate)}</span>
-                                                                            )}
-                                                                            {a.authorizedUnits > 0 && <span>{a.authorizedUnits} units ({unitsToHours(a.authorizedUnits)} hrs)</span>}
-                                                                            {a.authorizedHours > 0 && <span>{a.authorizedHours} hours</span>}
-                                                                        </div>
-                                                                        {a.notes && <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 2 }}>{a.notes}</div>}
-                                                                    </div>
-                                                                    <div className="cp-auth-detail-row__actions">
-                                                                        {a.daysToExpire !== null && !a.archivedAt && (
-                                                                            <span className={`ts-badge ts-badge--${a.status === 'Expired' ? 'critical' : a.status === 'Renewal Reminder' ? 'draft' : 'submitted'}`}>
-                                                                                {a.status} {a.daysToExpire >= 0 ? `(${a.daysToExpire}d)` : `(${Math.abs(a.daysToExpire)}d ago)`}
-                                                                            </span>
-                                                                        )}
-                                                                        {a.archivedAt && <span className="ts-badge ts-badge--draft">Archived</span>}
-                                                                        <div style={{ display: 'flex', gap: 4 }}>
-                                                                            {!a.archivedAt ? (
-                                                                                <>
-                                                                                    <button className="btn btn--ghost btn--xs" onClick={() => openAuthModal(a, code)}>{Icons.edit}</button>
-                                                                                    <button className="btn btn--ghost btn--xs" onClick={() => handleArchiveAuth(a.id)}>{Icons.archive}</button>
-                                                                                </>
-                                                                            ) : (
-                                                                                <button className="btn btn--ghost btn--xs" onClick={() => handleRestoreAuth(a.id)}>{Icons.rotateCcw} Restore</button>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="cp-auth-attachments">
-                                                                    <button
-                                                                        className="cp-auth-attachments__toggle"
-                                                                        onClick={() => setExpandedAuthAttachments(prev => ({ ...prev, [a.id]: !prev[a.id] }))}
-                                                                    >
-                                                                        {Icons.fileText} {(a.documents || []).length} attachment{(a.documents || []).length !== 1 ? 's' : ''}
-                                                                        <span style={{ marginLeft: 4 }}>{expandedAuthAttachments[a.id] ? Icons.chevronDown : Icons.chevronRight}</span>
-                                                                    </button>
-                                                                    {expandedAuthAttachments[a.id] && (
-                                                                        <div className="cp-auth-attachments__list">
-                                                                            {(a.documents || []).length === 0 ? (
-                                                                                <div className="cp-auth-attachments__empty">No attachments</div>
-                                                                            ) : (
-                                                                                (a.documents || []).map(doc => (
-                                                                                    <div key={doc.id} className="cp-auth-attachments__item">
-                                                                                        <span className="cp-auth-attachments__name" onClick={() => handleDownloadAuthDoc(doc)} title="Download">
-                                                                                            {Icons.download} {doc.fileName}
-                                                                                        </span>
-                                                                                        <button className="btn btn--danger-ghost btn--icon btn--xs" onClick={() => handleDeleteAuthDoc(doc)} title="Delete">
-                                                                                            {Icons.trash}
-                                                                                        </button>
-                                                                                    </div>
-                                                                                ))
-                                                                            )}
-                                                                            <label className="cp-auth-attachments__upload">
-                                                                                {Icons.upload} Upload
-                                                                                <input type="file" style={{ display: 'none' }} onChange={(e) => { if (e.target.files[0]) handleUploadAuthDoc(a.id, e.target.files[0]); e.target.value = ''; }} />
-                                                                            </label>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        ))
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                    {Object.keys(authGroupsForInsurance).length > 0 && (
+                        <div className="pa-summary-bar">
+                            <div className="pa-summary-bar__item">
+                                <div className="pa-summary-bar__icon" style={{ color: '#22c55e' }}>{Icons.checkCircle}</div>
+                                <div className="pa-summary-bar__data">
+                                    <span className="pa-summary-bar__label">TOTAL ACTIVE</span>
+                                    <span className="pa-summary-bar__value">{totalActive}</span>
+                                </div>
+                            </div>
+                            <div className="pa-summary-bar__item">
+                                <div className="pa-summary-bar__icon" style={{ color: '#3b82f6' }}>{Icons.clock}</div>
+                                <div className="pa-summary-bar__data">
+                                    <span className="pa-summary-bar__label">TOTAL UNITS</span>
+                                    <span className="pa-summary-bar__value">{totalUnits}</span>
+                                </div>
+                            </div>
+                            <div className="pa-summary-bar__item">
+                                <div className="pa-summary-bar__icon" style={{ color: '#f59e0b' }}>{Icons.clock}</div>
+                                <div className="pa-summary-bar__data">
+                                    <span className="pa-summary-bar__label">TOTAL HOURS</span>
+                                    <span className="pa-summary-bar__value">{totalHours}</span>
+                                </div>
+                            </div>
+                            <div className="pa-summary-bar__item">
+                                <div className="pa-summary-bar__icon" style={{ color: '#22c55e' }}>{Icons.paperclip}</div>
+                                <div className="pa-summary-bar__data">
+                                    <span className="pa-summary-bar__label">TOTAL ATTACHMENTS</span>
+                                    <span className="pa-summary-bar__value">{totalAttachments}</span>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>

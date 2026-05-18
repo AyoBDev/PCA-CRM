@@ -829,6 +829,8 @@ export default function ClientDetailPage() {
                             authGroupsForInsurance={authGroupsForInsurance}
                             formatDate={formatDate}
                             unitsToHours={unitsToHours}
+                            fetchClient={fetchClient}
+                            showToast={showToast}
                         />
                     )}
                     {activeTab === 'documents' && (

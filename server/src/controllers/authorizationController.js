@@ -37,6 +37,7 @@ async function createAuthorization(req, res, next) {
                     : null,
                 authorizationEndDate: req.body.authorizationEndDate ? new Date(req.body.authorizationEndDate) : null,
                 notes: (req.body.notes || '').trim(),
+                accountNumber: (req.body.accountNumber || '').trim(),
             },
         });
 
@@ -69,10 +70,11 @@ async function updateAuthorization(req, res, next) {
                     : null,
                 authorizationEndDate: req.body.authorizationEndDate ? new Date(req.body.authorizationEndDate) : null,
                 notes: (req.body.notes || '').trim(),
+                accountNumber: (req.body.accountNumber || '').trim(),
             },
         });
 
-        const changes = audit.diffFields(oldAuth, auth, ['serviceCode', 'serviceName', 'authorizationNumber', 'authorizedUnits', 'authorizedHours', 'authorizationStartDate', 'authorizationEndDate', 'notes']);
+        const changes = audit.diffFields(oldAuth, auth, ['serviceCode', 'serviceName', 'authorizationNumber', 'authorizedUnits', 'authorizedHours', 'authorizationStartDate', 'authorizationEndDate', 'notes', 'accountNumber']);
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: auth.id, entityName: auth.serviceCode, changes });
         res.json(enrichAuthorization(auth));
     } catch (err) {
@@ -140,4 +142,20 @@ async function deleteAuthorization(req, res, next) {
     }
 }
 
-module.exports = { createAuthorization, updateAuthorization, archiveAuthorization, restoreAuthorization, deleteAuthorization };
+// PATCH /api/authorizations/:id/account-number
+async function updateAccountNumber(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const { accountNumber } = req.body;
+        const auth = await prisma.authorization.update({
+            where: { id },
+            data: { accountNumber: (accountNumber || '').trim() },
+        });
+        res.json(enrichAuthorization(auth));
+    } catch (err) {
+        if (err.code === 'P2025') return res.status(404).json({ error: 'Authorization not found' });
+        next(err);
+    }
+}
+
+module.exports = { createAuthorization, updateAuthorization, archiveAuthorization, restoreAuthorization, deleteAuthorization, updateAccountNumber };

@@ -6056,6 +6056,205 @@ button.sdr-section-tag:hover:not(:disabled) {
   height: 12px;
 }
 
+/* ═══ Programs & Auth Tab — Service Cards ═══ */
+.pa-services-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.pa-services-grid__left {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.pa-services-grid__right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+.pa-service-card {
+  border: 2px solid var(--card-border, hsl(var(--border)));
+  border-radius: 12px;
+  padding: 20px;
+  background: hsl(var(--card));
+}
+.pa-service-card__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.pa-service-card__icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.pa-service-card__icon-wrap svg {
+  width: 24px;
+  height: 24px;
+}
+.pa-service-card__title-area {
+  flex: 1;
+  min-width: 0;
+}
+.pa-service-card__title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: hsl(var(--foreground));
+  margin: 0 0 6px 0;
+  text-transform: uppercase;
+}
+.pa-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.pa-badge--active {
+  background: hsl(142 76% 92%);
+  color: #16a34a;
+}
+.pa-service-card__account {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.pa-service-card__account-label {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+.pa-service-card__account-select {
+  font-size: 13px;
+  padding: 4px 8px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  cursor: pointer;
+}
+.pa-service-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.pa-service-card__detail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: hsl(var(--foreground));
+}
+.pa-service-card__detail svg {
+  width: 14px;
+  height: 14px;
+  color: hsl(var(--muted-foreground));
+  flex-shrink: 0;
+}
+.pa-service-card__footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 12px;
+  border-top: 1px solid hsl(var(--border) / 0.5);
+}
+.pa-btn--view-details:hover {
+  opacity: 0.8;
+}
+.pa-service-card__expanded {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid hsl(var(--border) / 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pa-auth-detail {
+  padding: 8px;
+  border-radius: 6px;
+  background: hsl(var(--muted) / 0.3);
+}
+.pa-auth-detail__main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pa-auth-detail__info {
+  flex: 1;
+  min-width: 0;
+}
+.pa-auth-detail__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+.pa-auth-detail__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+.pa-auth-detail__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.pa-summary-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  margin-top: 24px;
+  padding: 16px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 10px;
+  background: hsl(var(--muted) / 0.3);
+}
+.pa-summary-bar__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.pa-summary-bar__icon {
+  display: flex;
+  align-items: center;
+}
+.pa-summary-bar__icon svg {
+  width: 20px;
+  height: 20px;
+}
+.pa-summary-bar__data {
+  display: flex;
+  flex-direction: column;
+}
+.pa-summary-bar__label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: hsl(var(--muted-foreground));
+  text-transform: uppercase;
+}
+.pa-summary-bar__value {
+  font-size: 18px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+}
+
 /* ═══ Authorizations Tab (Accordion) ═══ */
 .cp-auth-tab__service-tabs {
   display: flex;
