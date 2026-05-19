@@ -304,7 +304,6 @@ const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits
                                 <PayrollEditableNotes
                                     visitId={v.id}
                                     notes={v.notes}
-                                    onVisitChange={onVisitChange}
                                 />
                             </td>
                         </tr>
@@ -481,27 +480,27 @@ const PayrollEditableUnits = memo(function PayrollEditableUnits({ visit, onChang
 });
 
 // ────────────────────────────────────────
-// PayrollEditableNotes — inline text editor
+// PayrollEditableNotes — inline text editor (self-contained, no parent re-render)
 // ────────────────────────────────────────
-const PayrollEditableNotes = memo(function PayrollEditableNotes({ visitId, notes, onVisitChange }) {
+const PayrollEditableNotes = memo(function PayrollEditableNotes({ visitId, notes: initialNotes }) {
     const [editing, setEditing] = useState(false);
-    const [value, setValue]     = useState(notes || '');
+    const [value, setValue]     = useState(initialNotes || '');
     const [saving, setSaving]   = useState(false);
     const committingRef = useRef(false);
-
-    useEffect(() => { if (!editing) setValue(notes || ''); }, [notes, editing]);
+    const savedNotes = useRef(initialNotes || '');
 
     const commit = async () => {
         if (committingRef.current) return;
         committingRef.current = true;
         const trimmed = value.trim();
-        if (trimmed === (notes || '').trim()) { setEditing(false); committingRef.current = false; return; }
+        if (trimmed === savedNotes.current.trim()) { setEditing(false); committingRef.current = false; return; }
         setSaving(true);
         try {
             await api.updatePayrollVisitNotes(visitId, trimmed);
-            onVisitChange(visitId, { notes: trimmed });
+            savedNotes.current = trimmed;
+            setValue(trimmed);
         } catch (_) {
-            setValue(notes || '');
+            setValue(savedNotes.current);
         } finally {
             setSaving(false);
             setEditing(false);
@@ -516,7 +515,7 @@ const PayrollEditableNotes = memo(function PayrollEditableNotes({ visitId, notes
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 onBlur={commit}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } if (e.key === 'Escape') { setValue(notes || ''); setEditing(false); } }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } if (e.key === 'Escape') { setValue(savedNotes.current); setEditing(false); } }}
                 autoFocus
                 placeholder="Add note…"
                 style={{ width: 200, padding: '2px 6px', fontSize: 13 }}
@@ -527,13 +526,13 @@ const PayrollEditableNotes = memo(function PayrollEditableNotes({ visitId, notes
     return (
         <span
             title="Click to edit"
-            onClick={() => { setValue(notes || ''); setEditing(true); }}
+            onClick={() => setEditing(true)}
             style={{ cursor: 'pointer', color: value ? 'inherit' : 'hsl(240 3.8% 46.1%)', fontStyle: value ? 'normal' : 'italic', borderBottom: '1px dashed hsl(var(--border))', paddingBottom: 1, opacity: saving ? 0.5 : 1, whiteSpace: 'nowrap' }}
         >
             {value || 'add note…'}
         </span>
     );
-}, (prev, next) => prev.visitId === next.visitId && prev.notes === next.notes && prev.onVisitChange === next.onVisitChange);
+}, (prev, next) => prev.visitId === next.visitId && prev.notes === next.notes);
 
 // ────────────────────────────────────────
 // PayrollRunDetail
