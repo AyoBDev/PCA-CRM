@@ -525,9 +525,9 @@ const PayrollEditableNotes = memo(function PayrollEditableNotes({ visitId, notes
 
     return (
         <span
-            title="Click to edit"
+            title={value || 'Click to edit'}
             onClick={() => setEditing(true)}
-            style={{ cursor: 'pointer', color: value ? 'inherit' : 'hsl(240 3.8% 46.1%)', fontStyle: value ? 'normal' : 'italic', borderBottom: '1px dashed hsl(var(--border))', paddingBottom: 1, opacity: saving ? 0.5 : 1, whiteSpace: 'nowrap' }}
+            style={{ cursor: 'pointer', color: value ? 'inherit' : 'hsl(240 3.8% 46.1%)', fontStyle: value ? 'normal' : 'italic', borderBottom: '1px dashed hsl(var(--border))', paddingBottom: 1, opacity: saving ? 0.5 : 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block', maxWidth: 120, verticalAlign: 'middle' }}
         >
             {value || 'add note…'}
         </span>
