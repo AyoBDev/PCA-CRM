@@ -8,6 +8,8 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
     const [fullscreen, setFullscreen] = useState(false);
     const [sendingId, setSendingId] = useState(null);
     const [sentIds, setSentIds] = useState(new Set());
+    const [confirmEmp, setConfirmEmp] = useState(null);
+    const [responses, setResponses] = useState([]);
     const { showToast } = useToast();
 
     useEffect(() => {
@@ -17,7 +19,13 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
         return () => document.removeEventListener('keydown', onKey);
     }, [fullscreen]);
 
-    // Get unique employees from shifts (include email from shift.employee)
+    useEffect(() => {
+        if (!weekStart) return;
+        api.getScheduleResponses(weekStart)
+            .then(setResponses)
+            .catch(() => {});
+    }, [weekStart]);
+
     const employees = useMemo(() => {
         const map = new Map();
         const activeShifts = (shifts || []).filter(s => s.status !== 'cancelled');
@@ -37,11 +45,22 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
         return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
     }, [shifts]);
 
+    const responsesByEmp = useMemo(() => {
+        const map = new Map();
+        for (const r of responses) {
+            if (!map.has(r.employeeId) || new Date(r.respondedAt) > new Date(map.get(r.employeeId).respondedAt)) {
+                map.set(r.employeeId, r);
+            }
+        }
+        return map;
+    }, [responses]);
+
     const handleSendSchedule = async (emp) => {
         if (!emp.email && !emp.phone) {
             showToast('No email or phone on file for this employee', 'error');
             return;
         }
+        setConfirmEmp(null);
         setSendingId(emp.id);
         try {
             const result = await api.sendScheduleNotifications({
@@ -65,6 +84,22 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
         } finally {
             setSendingId(null);
         }
+    };
+
+    const getResponseBadge = (empId) => {
+        const r = responsesByEmp.get(empId);
+        if (!r) return null;
+        const colors = {
+            accepted: { bg: '#dcfce7', color: '#166534', label: 'Accepted' },
+            rejected: { bg: '#fee2e2', color: '#991b1b', label: 'Rejected' },
+            changes_requested: { bg: '#fef3c7', color: '#92400e', label: 'Changes Requested' },
+        };
+        const c = colors[r.response] || { bg: '#f3f4f6', color: '#374151', label: r.response };
+        return (
+            <span title={r.responseNotes || ''} style={{ display: 'inline-block', padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: c.bg, color: c.color }}>
+                {c.label}
+            </span>
+        );
     };
 
     return (
@@ -98,15 +133,16 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                 ) : (
                     <>
                         <p style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', margin: '0 0 10px' }}>
-                            Send the weekly schedule link to each PCA via email or SMS. They can refresh the link anytime to see updates.
+                            Review and finalize schedules, then send to each employee. Employees can accept, reject, or request changes.
                         </p>
                         <table className="data-table" style={{ fontSize: 13 }}>
                             <thead>
                                 <tr>
                                     <th>Employee</th>
                                     <th>Email</th>
-                                    <th>Shifts This Week</th>
-                                    <th style={{ width: 150 }}>Actions</th>
+                                    <th>Shifts</th>
+                                    <th>Response</th>
+                                    <th style={{ width: 160 }}>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -114,6 +150,7 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                                     const hasContact = !!(emp.email || emp.phone);
                                     const isSending = sendingId === emp.id;
                                     const isSent = sentIds.has(emp.id);
+                                    const empResponse = responsesByEmp.get(emp.id);
                                     return (
                                         <tr key={emp.id}>
                                             <td style={{ fontWeight: 500 }}>{emp.name}</td>
@@ -121,28 +158,32 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                                                 {emp.email ? (
                                                     <span style={{ fontSize: 12 }}>{emp.email}</span>
                                                 ) : (
-                                                    <span style={{ fontSize: 12, color: 'hsl(var(--destructive))', fontStyle: 'italic' }}>No email on file</span>
+                                                    <span style={{ fontSize: 12, color: 'hsl(var(--destructive))', fontStyle: 'italic' }}>No email</span>
                                                 )}
                                             </td>
                                             <td>
-                                                <span style={{
-                                                    display: 'inline-block', padding: '1px 8px', borderRadius: 10,
-                                                    fontSize: 12, fontWeight: 600,
-                                                    background: 'hsl(var(--accent))', color: 'hsl(var(--accent-foreground))',
-                                                }}>
+                                                <span style={{ display: 'inline-block', padding: '1px 8px', borderRadius: 10, fontSize: 12, fontWeight: 600, background: 'hsl(var(--accent))', color: 'hsl(var(--accent-foreground))' }}>
                                                     {emp.shiftCount}
                                                 </span>
+                                            </td>
+                                            <td>
+                                                {getResponseBadge(emp.id) || <span style={{ fontSize: 12, color: '#9ca3af' }}>—</span>}
+                                                {empResponse?.responseNotes && (
+                                                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={empResponse.responseNotes}>
+                                                        Note: {empResponse.responseNotes}
+                                                    </div>
+                                                )}
                                             </td>
                                             <td>
                                                 <button
                                                     className={`btn btn--sm ${isSent ? 'btn--outline' : 'btn--primary'}`}
                                                     style={{ fontSize: 11, padding: '3px 8px', gap: 4 }}
-                                                    onClick={() => handleSendSchedule(emp)}
+                                                    onClick={() => setConfirmEmp(emp)}
                                                     disabled={!hasContact || isSending}
-                                                    title={!hasContact ? 'Add email or phone to this employee first' : 'Send schedule link via email/SMS'}
+                                                    title={!hasContact ? 'Add email or phone to this employee first' : 'Send schedule notification'}
                                                 >
                                                     {isSending ? (
-                                                        <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Sending...</>
+                                                        <>Sending...</>
                                                     ) : isSent ? (
                                                         <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="hsl(142 71% 45%)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Sent!</>
                                                     ) : (
@@ -159,6 +200,24 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                 )}
             </div>}
             {fullscreen && <div className="sched-card__backdrop" onClick={() => setFullscreen(false)} />}
+
+            {confirmEmp && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+                    <div style={{ background: 'white', borderRadius: 12, padding: 24, maxWidth: 420, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+                        <h3 style={{ margin: '0 0 8px', fontSize: 16 }}>Confirm Send Schedule</h3>
+                        <p style={{ margin: '0 0 16px', fontSize: 13, color: '#6b7280' }}>
+                            This will send the schedule notification to <strong>{confirmEmp.name}</strong> via {confirmEmp.email ? 'email' : 'SMS'}.
+                            They will be able to view their schedule, accept, reject, or request changes.
+                        </p>
+                        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                            <button className="btn btn--outline btn--sm" onClick={() => setConfirmEmp(null)}>Cancel</button>
+                            <button className="btn btn--primary btn--sm" onClick={() => handleSendSchedule(confirmEmp)}>
+                                Confirm & Send
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

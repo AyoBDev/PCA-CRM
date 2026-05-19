@@ -455,6 +455,22 @@ export const confirmSchedule = (token) =>
         return res.json();
     });
 
+export const respondToSchedule = (token, response, notes) =>
+    fetch(`${BASE}/schedule/respond/${token}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ response, notes }),
+    }).then(async (res) => {
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.error || `HTTP ${res.status}`);
+        }
+        return res.json();
+    });
+
+export const getScheduleResponses = (weekStart) =>
+    request(`/schedule-notifications/responses?weekStart=${weekStart}`);
+
 // ── Audit Logs ──
 export const getAuditLogs = (params = {}) => {
     const qs = new URLSearchParams(params).toString();

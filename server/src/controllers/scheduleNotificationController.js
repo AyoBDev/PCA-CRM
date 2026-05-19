@@ -183,4 +183,53 @@ async function confirmSchedule(req, res) {
     res.json({ success: true });
 }
 
-module.exports = { sendSchedules, getNotificationStatus, getScheduleConfirm, confirmSchedule };
+async function respondToSchedule(req, res) {
+    const { response, notes } = req.body;
+    if (!response || !['accepted', 'rejected', 'changes_requested'].includes(response)) {
+        return res.status(400).json({ error: 'response must be: accepted, rejected, or changes_requested' });
+    }
+
+    const notification = await prisma.scheduleNotification.findUnique({
+        where: { confirmationToken: req.params.token },
+    });
+    if (!notification) return res.status(404).json({ error: 'Invalid or expired link' });
+
+    const data = {
+        response,
+        responseNotes: notes || '',
+        respondedAt: new Date(),
+    };
+    if (response === 'accepted') {
+        data.confirmedAt = new Date();
+        data.status = 'confirmed';
+    } else {
+        data.status = response;
+    }
+
+    await prisma.scheduleNotification.update({
+        where: { id: notification.id },
+        data,
+    });
+
+    res.json({ success: true, response });
+}
+
+async function getScheduleResponses(req, res) {
+    const { weekStart } = req.query;
+    if (!weekStart) return res.status(400).json({ error: 'weekStart required' });
+
+    const { weekStart: ws } = getWeekRange(weekStart);
+
+    const notifications = await prisma.scheduleNotification.findMany({
+        where: {
+            weekStart: new Date(ws),
+            response: { not: '' },
+        },
+        include: { employee: { select: { id: true, name: true } } },
+        orderBy: { respondedAt: 'desc' },
+    });
+
+    res.json(notifications);
+}
+
+module.exports = { sendSchedules, getNotificationStatus, getScheduleConfirm, confirmSchedule, respondToSchedule, getScheduleResponses };

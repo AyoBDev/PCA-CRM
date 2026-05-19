@@ -112,7 +112,7 @@ const {
     bulkPermanentlyDeleteEmployees,
 } = require('../controllers/employeeController');
 const { getDashboardStats } = require('../controllers/dashboardController');
-const { sendSchedules, getNotificationStatus, getScheduleConfirm, confirmSchedule } = require('../controllers/scheduleNotificationController');
+const { sendSchedules, getNotificationStatus, getScheduleConfirm, confirmSchedule, respondToSchedule, getScheduleResponses } = require('../controllers/scheduleNotificationController');
 const { createLink, listLinks, deleteLink, getScheduleView } = require('../controllers/employeeScheduleLinkController');
 const { getAuditLogs, getEntityAuditLogs } = require('../controllers/auditController');
 const { exportBackup } = require('../controllers/backupController');
@@ -143,6 +143,7 @@ router.get('/sign/:token', getSigningForm);
 router.put('/sign/:token', submitSigningForm);
 router.get('/schedule/confirm/:token', getScheduleConfirm);
 router.put('/schedule/confirm/:token', confirmSchedule);
+router.put('/schedule/respond/:token', respondToSchedule);
 router.get('/schedule/view/:token', getScheduleView);
 router.get('/pca-form/:token', getPcaForm);
 router.put('/pca-form/:token', updatePcaForm);
@@ -288,8 +289,9 @@ router.delete('/shifts/all',                requireRole('admin', 'user', 'pca'),
 router.delete('/shifts/:id',                requireRole('admin', 'user', 'pca'), deleteShift);
 
 // Schedule Notifications
-router.post('/schedule-notifications/send',   requireRole('admin', 'user', 'pca'), sendSchedules);
-router.get('/schedule-notifications/status',  requireRole('admin', 'user', 'pca'), getNotificationStatus);
+router.post('/schedule-notifications/send',       requireRole('admin', 'user', 'pca'), sendSchedules);
+router.get('/schedule-notifications/status',      requireRole('admin', 'user', 'pca'), getNotificationStatus);
+router.get('/schedule-notifications/responses',   requireRole('admin', 'user', 'pca'), getScheduleResponses);
 
 // Employee Schedule Links
 router.get('/employee-schedule-links',        requireRole('admin', 'user', 'pca'), listLinks);

@@ -566,11 +566,7 @@ async function updateShift(req, res, next) {
             include: shiftInclude,
         });
 
-        // Auto-notify if employee changed (caregiver swap)
-        if (existing.employeeId !== shift.employeeId) {
-            await autoNotify(existing.employeeId, shift.shiftDate, req);
-            await autoNotify(shift.employeeId, shift.shiftDate, req);
-        }
+        // No auto-notify on updates — scheduler sends manually via "Send Schedule"
 
         const changes = audit.diffFields(existing, shift, ['serviceCode', 'startTime', 'endTime', 'status', 'notes', 'employeeId', 'clientId', 'accountNumber', 'sandataClientId']);
         audit.logAction({
@@ -694,9 +690,6 @@ async function repeatShift(req, res, next) {
             });
         }
 
-        // Notify employee
-        await autoNotify(existing.employeeId, existing.shiftDate, req);
-
         res.status(201).json({ shifts: created, count: created.length, groupId });
     } catch (err) { next(err); }
 }
@@ -713,7 +706,6 @@ async function deleteShift(req, res, next) {
 
         if (deleteGroup && shiftToDelete.recurringGroupId) {
             const result = await prisma.shift.updateMany({ where: { recurringGroupId: shiftToDelete.recurringGroupId }, data: { archivedAt: now } });
-            await autoNotify(shiftToDelete.employeeId, shiftToDelete.shiftDate, req);
             audit.logAction({
                 userId: req.user.id, userName: req.user.name, userRole: req.user.role,
                 action: 'ARCHIVE', entityType: 'Shift', entityId: id,
@@ -723,7 +715,6 @@ async function deleteShift(req, res, next) {
         }
 
         await prisma.shift.update({ where: { id }, data: { archivedAt: now } });
-        await autoNotify(shiftToDelete.employeeId, shiftToDelete.shiftDate, req);
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             action: 'ARCHIVE', entityType: 'Shift', entityId: id,

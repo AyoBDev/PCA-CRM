@@ -79,6 +79,9 @@ model ScheduleNotification {
   confirmedAt       DateTime? @map("confirmed_at")
   sentAt            DateTime? @map("sent_at")
   failureReason     String    @default("") @map("failure_reason")
+  response          String    @default("") @map("response")
+  responseNotes     String    @default("") @map("response_notes")
+  respondedAt       DateTime? @map("responded_at")
   createdAt         DateTime  @default(now()) @map("created_at")
   employee          Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
