@@ -1239,10 +1239,8 @@ function WeeklyCalendarView({ shifts, weekStart, overlapIds, onEditShift, onAddS
                                             >
                                                 <span className="weekly-cal__shift-dot" style={{ background: colorInfo.color }} />
                                                 <span className="weekly-cal__shift-name">{s.displayEmployeeName || 'Unassigned'}</span>
-                                                <span className="weekly-cal__shift-meta">
-                                                    <span className="weekly-cal__shift-time">{hhmm12(s.startTime)} – {hhmm12(s.endTime)}</span>
-                                                    <span className="weekly-cal__shift-service" style={{ color: colorInfo.color }}>{colorInfo.label}</span>
-                                                </span>
+                                                <span className="weekly-cal__shift-time">{hhmm12(s.startTime)} – {hhmm12(s.endTime)}</span>
+                                                <span className="weekly-cal__shift-service" style={{ color: colorInfo.color }}>{colorInfo.label}</span>
                                             </button>
                                         );
                                     })}
