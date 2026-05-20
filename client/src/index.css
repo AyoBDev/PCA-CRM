@@ -3310,6 +3310,13 @@ button.sdr-section-tag:hover:not(:disabled) {
     background: #fff;
     color: hsl(217 91% 50%);
 }
+.sched-view-toggle--compact {
+    margin-top: 8px;
+}
+.sched-view-toggle--compact .sched-view-toggle__btn {
+    font-size: 11px;
+    padding: 3px 8px;
+}
 
 /* Dashboard row: Client + Employee cards side-by-side */
 .sched-dashboard-row {

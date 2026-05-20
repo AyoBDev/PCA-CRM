@@ -1208,7 +1208,7 @@ function BulkEditModal({ count, employees, clients, onSave, onDelete, onClose, s
     );
 }
 
-function WeeklyCalendarView({ shifts, weekStart, overlapIds, onEditShift, onAddShift, bulkEditMode, selectedShiftIds, onToggleSelect }) {
+function WeeklyCalendarView({ shifts, weekStart, overlapIds, onEditShift, onAddShift, bulkEditMode, selectedShiftIds, onToggleSelect, groupBy = 'employee' }) {
     const [search, setSearch] = useState('');
     const [filterService, setFilterService] = useState('');
 
@@ -1345,7 +1345,7 @@ function WeeklyCalendarView({ shifts, weekStart, overlapIds, onEditShift, onAddS
                                                 title={`${s.client?.clientName || '?'} — ${s.displayEmployeeName || '?'}\n${hhmm12(s.startTime)} – ${hhmm12(s.endTime)}\n${colorInfo.label}`}
                                             >
                                                 <span className="weekly-cal__shift-dot" style={{ background: colorInfo.color }} />
-                                                <span className="weekly-cal__shift-name">{s.displayEmployeeName || 'Unassigned'}</span>
+                                                <span className="weekly-cal__shift-name">{groupBy === 'client' ? (s.client?.clientName || 'Unknown') : (s.displayEmployeeName || 'Unassigned')}</span>
                                                 <span className="weekly-cal__shift-time">{hhmm12(s.startTime)} – {hhmm12(s.endTime)}</span>
                                                 <span className="weekly-cal__shift-service" style={{ color: colorInfo.color }}>{colorInfo.label}</span>
                                             </button>
@@ -1559,7 +1559,9 @@ export default function SchedulingPage() {
     const [modal, setModal] = useState(null);
     const createDraftRef = useRef(null);
     const weekDateRef = useRef(null);
-    const [summaryViewBy, setSummaryViewBy] = useState('calendar');
+    const [summaryViewBy, setSummaryViewBy] = useState('client');
+    const [clientScheduleView, setClientScheduleView] = useState('matrix');
+    const [employeeScheduleView, setEmployeeScheduleView] = useState('matrix');
 
     // Bulk edit state
     const [bulkEditMode, setBulkEditMode] = useState(false);
@@ -1935,13 +1937,21 @@ export default function SchedulingPage() {
                         pdfWeekStart={weekStart}
                         pdfRowBy="employee"
                         headerActions={
-                            <SearchableSelect
-                                className="sched-card__select"
-                                options={clients.map(c => ({ value: c.id, label: c.clientName }))}
-                                value={selectedClientId}
-                                onChange={setSelectedClientId}
-                                placeholder="Search clients…"
-                            />
+                            <>
+                                <SearchableSelect
+                                    className="sched-card__select"
+                                    options={clients.map(c => ({ value: c.id, label: c.clientName }))}
+                                    value={selectedClientId}
+                                    onChange={setSelectedClientId}
+                                    placeholder="Search clients…"
+                                />
+                                {selectedClientId && clientShifts.length > 0 && (
+                                    <div className="sched-view-toggle sched-view-toggle--compact">
+                                        <button className={`sched-view-toggle__btn ${clientScheduleView === 'matrix' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setClientScheduleView('matrix')}>List</button>
+                                        <button className={`sched-view-toggle__btn ${clientScheduleView === 'calendar' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setClientScheduleView('calendar')}>{Icons.table} Calendar</button>
+                                    </div>
+                                )}
+                            </>
                         }
                     >
                         {!selectedClientId ? (
@@ -1996,7 +2006,11 @@ export default function SchedulingPage() {
                                         </tbody>
                                     </table>
                                 )}
-                                <ScheduleMatrix shifts={clientShifts} weekStart={weekStart} rowBy="employee" onEditShift={handleEditShift} overlapIds={clientOverlapIds} clientColorMap={null} />
+                                {clientScheduleView === 'calendar' ? (
+                                    <WeeklyCalendarView shifts={clientShifts} weekStart={weekStart} overlapIds={clientOverlapIds} onEditShift={handleEditShift} onAddShift={handleAddShift} groupBy="employee" />
+                                ) : (
+                                    <ScheduleMatrix shifts={clientShifts} weekStart={weekStart} rowBy="employee" onEditShift={handleEditShift} overlapIds={clientOverlapIds} clientColorMap={null} />
+                                )}
                             </>
                         )}
                     </ScheduleCard>
@@ -2009,13 +2023,21 @@ export default function SchedulingPage() {
                         pdfWeekStart={weekStart}
                         pdfRowBy="client"
                         headerActions={
-                            <SearchableSelect
-                                className="sched-card__select"
-                                options={employees.map(e => ({ value: e.id, label: e.name }))}
-                                value={selectedEmployeeId}
-                                onChange={setSelectedEmployeeId}
-                                placeholder="Search employees…"
-                            />
+                            <>
+                                <SearchableSelect
+                                    className="sched-card__select"
+                                    options={employees.map(e => ({ value: e.id, label: e.name }))}
+                                    value={selectedEmployeeId}
+                                    onChange={setSelectedEmployeeId}
+                                    placeholder="Search employees…"
+                                />
+                                {selectedEmployeeId && employeeShifts.length > 0 && (
+                                    <div className="sched-view-toggle sched-view-toggle--compact">
+                                        <button className={`sched-view-toggle__btn ${employeeScheduleView === 'matrix' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setEmployeeScheduleView('matrix')}>List</button>
+                                        <button className={`sched-view-toggle__btn ${employeeScheduleView === 'calendar' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setEmployeeScheduleView('calendar')}>{Icons.table} Calendar</button>
+                                    </div>
+                                )}
+                            </>
                         }
                     >
                         {!selectedEmployeeId ? (
@@ -2086,7 +2108,11 @@ export default function SchedulingPage() {
                                         </div>
                                     );
                                 })()}
-                                <ScheduleMatrix shifts={employeeShifts} weekStart={weekStart} rowBy="client" onEditShift={handleEditShift} overlapIds={employeeOverlapIds} clientColorMap={employeeClientColorMap} />
+                                {employeeScheduleView === 'calendar' ? (
+                                    <WeeklyCalendarView shifts={employeeShifts} weekStart={weekStart} overlapIds={employeeOverlapIds} onEditShift={handleEditShift} onAddShift={handleAddShift} groupBy="client" />
+                                ) : (
+                                    <ScheduleMatrix shifts={employeeShifts} weekStart={weekStart} rowBy="client" onEditShift={handleEditShift} overlapIds={employeeOverlapIds} clientColorMap={employeeClientColorMap} />
+                                )}
                             </>
                         )}
                     </ScheduleCard>
@@ -2147,18 +2173,15 @@ export default function SchedulingPage() {
                     showPdf={allShifts.length > 0}
                     pdfShifts={allShifts}
                     pdfWeekStart={weekStart}
-                    pdfRowBy="client"
+                    pdfRowBy={summaryViewBy}
                     headerActions={
                         <div className="sched-view-toggle">
                             <span className="sched-view-toggle__label">View:</span>
-                            <button className={`sched-view-toggle__btn ${summaryViewBy === 'calendar' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setSummaryViewBy('calendar')}>
-                                {Icons.table} Calendar
-                            </button>
                             <button className={`sched-view-toggle__btn ${summaryViewBy === 'client' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setSummaryViewBy('client')}>
-                                List (Client)
+                                {Icons.table} Client
                             </button>
                             <button className={`sched-view-toggle__btn ${summaryViewBy === 'employee' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setSummaryViewBy('employee')}>
-                                List (Employee)
+                                {Icons.table} Employee
                             </button>
                         </div>
                     }
@@ -2169,10 +2192,8 @@ export default function SchedulingPage() {
                         <div style={{ textAlign: 'center', padding: 32, color: 'hsl(var(--muted-foreground))' }}>
                             No shifts scheduled this week. Click + Create Shift to get started.
                         </div>
-                    ) : summaryViewBy === 'calendar' ? (
-                        <WeeklyCalendarView shifts={allShifts} weekStart={weekStart} overlapIds={allOverlapIds} onEditShift={handleEditShift} onAddShift={handleAddShift} bulkEditMode={bulkEditMode} selectedShiftIds={selectedShiftIds} onToggleSelect={toggleShiftSelection} />
                     ) : (
-                        <ScheduleOverviewTable shifts={allShifts} overlapIds={allOverlapIds} onEditShift={handleEditShift} clientColorMap={allClientColorMap} bulkEditMode={bulkEditMode} selectedShiftIds={selectedShiftIds} onToggleSelect={toggleShiftSelection} onToggleSelectAll={toggleSelectAll} />
+                        <WeeklyCalendarView shifts={allShifts} weekStart={weekStart} overlapIds={allOverlapIds} onEditShift={handleEditShift} onAddShift={handleAddShift} bulkEditMode={bulkEditMode} selectedShiftIds={selectedShiftIds} onToggleSelect={toggleShiftSelection} groupBy={summaryViewBy} />
                     )}
                 </ScheduleCard>
 
