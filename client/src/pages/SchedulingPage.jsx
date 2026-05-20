@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
@@ -1101,6 +1101,158 @@ function BulkEditModal({ count, employees, onSave, onClose, saving }) {
     );
 }
 
+function WeeklyCalendarView({ shifts, weekStart, overlapIds, onEditShift, onAddShift }) {
+    const [search, setSearch] = useState('');
+    const [filterService, setFilterService] = useState('');
+
+    const dayAbbr = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    const ws = new Date(weekStart + 'T00:00:00');
+    const todayStr = toLocalDateStr(new Date());
+
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(ws);
+        d.setDate(ws.getDate() + i);
+        days.push({ abbr: dayAbbr[i], date: d.getDate(), dateStr: toLocalDateStr(d), isToday: toLocalDateStr(d) === todayStr });
+    }
+
+    const timeSlots = ['6 AM', '8 AM', '10 AM', '12 PM', '2 PM', '4 PM', '6 PM'];
+    const timeHours = [6, 8, 10, 12, 14, 16, 18];
+
+    const filtered = useMemo(() => {
+        let result = shifts.filter(s => s.status !== 'cancelled');
+        if (search.trim()) {
+            const q = search.toLowerCase();
+            result = result.filter(s =>
+                (s.client?.clientName || '').toLowerCase().includes(q) ||
+                (s.displayEmployeeName || '').toLowerCase().includes(q) ||
+                (s.serviceCode || '').toLowerCase().includes(q)
+            );
+        }
+        if (filterService) {
+            result = result.filter(s => s.serviceCode === filterService);
+        }
+        return result;
+    }, [shifts, search, filterService]);
+
+    const shiftsByDay = useMemo(() => {
+        const map = {};
+        for (const d of days) map[d.dateStr] = [];
+        for (const s of filtered) {
+            const dateStr = toLocalDateStr(s.shiftDate);
+            if (map[dateStr]) map[dateStr].push(s);
+        }
+        for (const key of Object.keys(map)) {
+            map[key].sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+        }
+        return map;
+    }, [filtered, days]);
+
+    const parseHour = (timeStr) => {
+        if (!timeStr) return 8;
+        const [h] = timeStr.split(':').map(Number);
+        return h;
+    };
+
+    const getSlotIndex = (hour) => {
+        for (let i = timeHours.length - 1; i >= 0; i--) {
+            if (hour >= timeHours[i]) return i;
+        }
+        return 0;
+    };
+
+    const shiftsByDayAndSlot = useMemo(() => {
+        const result = {};
+        for (const d of days) {
+            result[d.dateStr] = {};
+            for (let i = 0; i < timeHours.length; i++) result[d.dateStr][i] = [];
+            for (const s of (shiftsByDay[d.dateStr] || [])) {
+                const hour = parseHour(s.startTime);
+                const slot = getSlotIndex(hour);
+                result[d.dateStr][slot].push(s);
+            }
+        }
+        return result;
+    }, [shiftsByDay, days]);
+
+    return (
+        <div className="weekly-cal">
+            <div className="weekly-cal__toolbar">
+                <div className="weekly-cal__search">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input
+                        type="text"
+                        placeholder="Search by client, employee, service..."
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                    />
+                </div>
+                <select className="weekly-cal__filter-select" value={filterService} onChange={e => setFilterService(e.target.value)}>
+                    <option value="">All Services</option>
+                    {Object.entries(SERVICE_COLORS).map(([code, info]) => (
+                        <option key={code} value={code}>{info.label}</option>
+                    ))}
+                </select>
+                <div className="weekly-cal__legend">
+                    <span className="weekly-cal__legend-label">Legend:</span>
+                    {Object.entries(SERVICE_COLORS).map(([code, info]) => (
+                        <span key={code} className="weekly-cal__legend-item">
+                            <span className="weekly-cal__legend-dot" style={{ background: info.color }} />
+                            {info.label}
+                        </span>
+                    ))}
+                </div>
+            </div>
+
+            <div className="weekly-cal__grid">
+                {/* Day headers */}
+                <div className="weekly-cal__time-gutter weekly-cal__header-cell" />
+                {days.map(d => (
+                    <div key={d.dateStr} className={`weekly-cal__header-cell ${d.isToday ? 'weekly-cal__header-cell--today' : ''}`}>
+                        <span className="weekly-cal__header-day">{d.abbr} {d.date}</span>
+                        <span className="weekly-cal__header-count">
+                            {(shiftsByDay[d.dateStr] || []).length} shifts
+                        </span>
+                    </div>
+                ))}
+
+                {/* Time rows */}
+                {timeSlots.map((label, slotIdx) => (
+                    <React.Fragment key={slotIdx}>
+                        <div className="weekly-cal__time-gutter weekly-cal__time-label">
+                            {label}
+                        </div>
+                        {days.map(d => {
+                            const slotShifts = shiftsByDayAndSlot[d.dateStr]?.[slotIdx] || [];
+                            return (
+                                <div key={d.dateStr} className={`weekly-cal__cell ${d.isToday ? 'weekly-cal__cell--today' : ''}`}>
+                                    {slotShifts.map(s => {
+                                        const colorInfo = SERVICE_COLORS[s.serviceCode] || { color: '#6B7280', bg: '#F3F4F6', label: s.serviceCode || '?' };
+                                        const isOverlap = overlapIds && overlapIds.has(s.id);
+                                        return (
+                                            <button
+                                                key={s.id}
+                                                className={`weekly-cal__shift ${isOverlap ? 'weekly-cal__shift--overlap' : ''}`}
+                                                onClick={() => onEditShift(s)}
+                                                title={`${s.client?.clientName || '?'} — ${s.displayEmployeeName || '?'}\n${hhmm12(s.startTime)} – ${hhmm12(s.endTime)}\n${colorInfo.label}`}
+                                            >
+                                                <span className="weekly-cal__shift-dot" style={{ background: colorInfo.color }} />
+                                                <span className="weekly-cal__shift-name">{s.displayEmployeeName || 'Unassigned'}</span>
+                                                <span className="weekly-cal__shift-time">{hhmm12(s.startTime)} – {hhmm12(s.endTime)}</span>
+                                                <span className="weekly-cal__shift-service" style={{ color: colorInfo.color }}>{colorInfo.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })}
+                    </React.Fragment>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 function ScheduleOverviewTable({ shifts, overlapIds, onEditShift, clientColorMap, bulkEditMode, selectedShiftIds, onToggleSelect, onToggleSelectAll }) {
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const sorted = [...shifts].sort((a, b) => {
@@ -1298,7 +1450,7 @@ export default function SchedulingPage() {
     });
     const [modal, setModal] = useState(null);
     const createDraftRef = useRef(null);
-    const [summaryViewBy, setSummaryViewBy] = useState('client');
+    const [summaryViewBy, setSummaryViewBy] = useState('calendar');
 
     // Bulk edit state
     const [bulkEditMode, setBulkEditMode] = useState(false);
@@ -1755,12 +1907,15 @@ export default function SchedulingPage() {
                     pdfRowBy="client"
                     headerActions={
                         <div className="sched-view-toggle">
-                            <span className="sched-view-toggle__label">View By:</span>
+                            <span className="sched-view-toggle__label">View:</span>
+                            <button className={`sched-view-toggle__btn ${summaryViewBy === 'calendar' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setSummaryViewBy('calendar')}>
+                                {Icons.table} Calendar
+                            </button>
                             <button className={`sched-view-toggle__btn ${summaryViewBy === 'client' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setSummaryViewBy('client')}>
-                                Client
+                                List (Client)
                             </button>
                             <button className={`sched-view-toggle__btn ${summaryViewBy === 'employee' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setSummaryViewBy('employee')}>
-                                Employee
+                                List (Employee)
                             </button>
                         </div>
                     }
@@ -1771,6 +1926,8 @@ export default function SchedulingPage() {
                         <div style={{ textAlign: 'center', padding: 32, color: 'hsl(var(--muted-foreground))' }}>
                             No shifts scheduled this week. Click + Create Shift to get started.
                         </div>
+                    ) : summaryViewBy === 'calendar' ? (
+                        <WeeklyCalendarView shifts={allShifts} weekStart={weekStart} overlapIds={allOverlapIds} onEditShift={handleEditShift} onAddShift={handleAddShift} />
                     ) : (
                         <ScheduleOverviewTable shifts={allShifts} overlapIds={allOverlapIds} onEditShift={handleEditShift} clientColorMap={allClientColorMap} bulkEditMode={bulkEditMode} selectedShiftIds={selectedShiftIds} onToggleSelect={toggleShiftSelection} onToggleSelectAll={toggleSelectAll} />
                     )}
