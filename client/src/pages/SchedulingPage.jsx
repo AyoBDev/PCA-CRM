@@ -1208,7 +1208,7 @@ function BulkEditModal({ count, employees, clients, onSave, onDelete, onClose, s
     );
 }
 
-function WeeklyCalendarView({ shifts, weekStart, overlapIds, onEditShift, onAddShift, bulkEditMode, selectedShiftIds, onToggleSelect, groupBy = 'employee' }) {
+function WeeklyCalendarView({ shifts, weekStart, overlapIds, onEditShift, onAddShift, bulkEditMode, selectedShiftIds, onToggleSelect, groupBy = 'employee', compact = false }) {
     const [search, setSearch] = useState('');
     const [filterService, setFilterService] = useState('');
 
@@ -1283,42 +1283,44 @@ function WeeklyCalendarView({ shifts, weekStart, overlapIds, onEditShift, onAddS
     }, [shiftsByDay, days]);
 
     return (
-        <div className="weekly-cal">
-            <div className="weekly-cal__toolbar">
-                <div className="weekly-cal__search">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                    <input
-                        type="text"
-                        placeholder="Search by client, employee, service..."
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                    />
+        <div className={`weekly-cal ${compact ? 'weekly-cal--compact' : ''}`}>
+            {!compact && (
+                <div className="weekly-cal__toolbar">
+                    <div className="weekly-cal__search">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <input
+                            type="text"
+                            placeholder="Search by client, employee, service..."
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                        />
+                    </div>
+                    <select className="weekly-cal__filter-select" value={filterService} onChange={e => setFilterService(e.target.value)}>
+                        <option value="">All Services</option>
+                        {Object.entries(SERVICE_COLORS).map(([code, info]) => (
+                            <option key={code} value={code}>{info.label}</option>
+                        ))}
+                    </select>
+                    <div className="weekly-cal__legend">
+                        <span className="weekly-cal__legend-label">Legend:</span>
+                        {Object.entries(SERVICE_COLORS).map(([code, info]) => (
+                            <span key={code} className="weekly-cal__legend-item">
+                                <span className="weekly-cal__legend-dot" style={{ background: info.color }} />
+                                {info.label}
+                            </span>
+                        ))}
+                    </div>
                 </div>
-                <select className="weekly-cal__filter-select" value={filterService} onChange={e => setFilterService(e.target.value)}>
-                    <option value="">All Services</option>
-                    {Object.entries(SERVICE_COLORS).map(([code, info]) => (
-                        <option key={code} value={code}>{info.label}</option>
-                    ))}
-                </select>
-                <div className="weekly-cal__legend">
-                    <span className="weekly-cal__legend-label">Legend:</span>
-                    {Object.entries(SERVICE_COLORS).map(([code, info]) => (
-                        <span key={code} className="weekly-cal__legend-item">
-                            <span className="weekly-cal__legend-dot" style={{ background: info.color }} />
-                            {info.label}
-                        </span>
-                    ))}
-                </div>
-            </div>
+            )}
 
             <div className="weekly-cal__grid">
                 {/* Day headers */}
                 <div className="weekly-cal__time-gutter weekly-cal__header-cell" />
                 {days.map(d => (
                     <div key={d.dateStr} className={`weekly-cal__header-cell ${d.isToday ? 'weekly-cal__header-cell--today' : ''}`}>
-                        <span className="weekly-cal__header-day">{d.abbr} {d.date}</span>
+                        <span className="weekly-cal__header-day">{compact ? dayAbbr[days.indexOf(d)].slice(0, 3) : `${d.abbr} ${d.date}`}</span>
                         <span className="weekly-cal__header-count">
-                            {(shiftsByDay[d.dateStr] || []).length} shifts
+                            {(shiftsByDay[d.dateStr] || []).length}
                         </span>
                     </div>
                 ))}
@@ -1347,7 +1349,7 @@ function WeeklyCalendarView({ shifts, weekStart, overlapIds, onEditShift, onAddS
                                                 <span className="weekly-cal__shift-dot" style={{ background: colorInfo.color }} />
                                                 <span className="weekly-cal__shift-name">{groupBy === 'client' ? (s.client?.clientName || 'Unknown') : (s.displayEmployeeName || 'Unassigned')}</span>
                                                 <span className="weekly-cal__shift-time">{hhmm12(s.startTime)} – {hhmm12(s.endTime)}</span>
-                                                <span className="weekly-cal__shift-service" style={{ color: colorInfo.color }}>{colorInfo.label}</span>
+                                                {!compact && <span className="weekly-cal__shift-service" style={{ color: colorInfo.color }}>{colorInfo.label}</span>}
                                             </button>
                                         );
                                     })}
@@ -2003,7 +2005,7 @@ export default function SchedulingPage() {
                                     <button className={`sched-card__view-tab ${clientScheduleView === 'calendar' ? 'sched-card__view-tab--active' : ''}`} onClick={() => setClientScheduleView('calendar')}>Calendar</button>
                                 </div>
                                 {clientScheduleView === 'calendar' ? (
-                                    <WeeklyCalendarView shifts={clientShifts} weekStart={weekStart} overlapIds={clientOverlapIds} onEditShift={handleEditShift} onAddShift={handleAddShift} groupBy="employee" />
+                                    <WeeklyCalendarView shifts={clientShifts} weekStart={weekStart} overlapIds={clientOverlapIds} onEditShift={handleEditShift} onAddShift={handleAddShift} groupBy="employee" compact />
                                 ) : (
                                     <ScheduleMatrix shifts={clientShifts} weekStart={weekStart} rowBy="employee" onEditShift={handleEditShift} overlapIds={clientOverlapIds} clientColorMap={null} />
                                 )}
@@ -2101,7 +2103,7 @@ export default function SchedulingPage() {
                                     <button className={`sched-card__view-tab ${employeeScheduleView === 'calendar' ? 'sched-card__view-tab--active' : ''}`} onClick={() => setEmployeeScheduleView('calendar')}>Calendar</button>
                                 </div>
                                 {employeeScheduleView === 'calendar' ? (
-                                    <WeeklyCalendarView shifts={employeeShifts} weekStart={weekStart} overlapIds={employeeOverlapIds} onEditShift={handleEditShift} onAddShift={handleAddShift} groupBy="client" />
+                                    <WeeklyCalendarView shifts={employeeShifts} weekStart={weekStart} overlapIds={employeeOverlapIds} onEditShift={handleEditShift} onAddShift={handleAddShift} groupBy="client" compact />
                                 ) : (
                                     <ScheduleMatrix shifts={employeeShifts} weekStart={weekStart} rowBy="client" onEditShift={handleEditShift} overlapIds={employeeOverlapIds} clientColorMap={employeeClientColorMap} />
                                 )}

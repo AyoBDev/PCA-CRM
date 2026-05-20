@@ -4377,6 +4377,49 @@ button.sdr-section-tag:hover:not(:disabled) {
     box-shadow: 0 0 0 2px hsl(217 91% 50%);
 }
 
+/* Compact calendar (inside client/employee cards) */
+.weekly-cal--compact {
+    gap: 0;
+}
+.weekly-cal--compact .weekly-cal__grid {
+    min-width: 420px;
+    grid-template-columns: 36px repeat(7, 1fr);
+}
+.weekly-cal--compact .weekly-cal__header-cell {
+    padding: 6px 3px;
+}
+.weekly-cal--compact .weekly-cal__header-day {
+    font-size: 10px;
+}
+.weekly-cal--compact .weekly-cal__header-count {
+    font-size: 9px;
+}
+.weekly-cal--compact .weekly-cal__time-label {
+    font-size: 9px;
+    min-height: 60px;
+}
+.weekly-cal--compact .weekly-cal__cell {
+    min-height: 60px;
+    padding: 2px;
+}
+.weekly-cal--compact .weekly-cal__shift {
+    padding: 3px 4px;
+    font-size: 10px;
+    gap: 3px;
+}
+.weekly-cal--compact .weekly-cal__shift-dot {
+    width: 5px;
+    height: 5px;
+    margin-top: 3px;
+}
+.weekly-cal--compact .weekly-cal__shift-name {
+    font-size: 10px;
+}
+.weekly-cal--compact .weekly-cal__shift-time {
+    font-size: 9px;
+    padding-left: 8px;
+}
+
 /* Bulk Edit Toolbar */
 .sched-bulk-toolbar {
     display: flex;
