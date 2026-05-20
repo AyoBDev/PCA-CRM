@@ -480,7 +480,7 @@ const PayrollEditableUnits = memo(function PayrollEditableUnits({ visit, onChang
 });
 
 // ────────────────────────────────────────
-// PayrollEditableNotes — inline text editor (self-contained, no parent re-render)
+// PayrollEditableNotes — styled note block matching authorization page design
 // ────────────────────────────────────────
 const PayrollEditableNotes = memo(function PayrollEditableNotes({ visitId, notes: initialNotes }) {
     const [editing, setEditing] = useState(false);
@@ -510,27 +510,30 @@ const PayrollEditableNotes = memo(function PayrollEditableNotes({ visitId, notes
 
     if (editing) {
         return (
-            <input
-                type="text"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                onBlur={commit}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } if (e.key === 'Escape') { setValue(savedNotes.current); setEditing(false); } }}
-                autoFocus
-                placeholder="Add note…"
-                style={{ width: 200, padding: '2px 6px', fontSize: 13 }}
-            />
+            <div className="payroll-note payroll-note--editing">
+                <textarea
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    onBlur={commit}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.target.blur(); } if (e.key === 'Escape') { setValue(savedNotes.current); setEditing(false); } }}
+                    autoFocus
+                    placeholder="Add note…"
+                    rows={2}
+                    className="payroll-note__textarea"
+                />
+            </div>
         );
     }
 
     return (
-        <span
-            title={value || 'Click to edit'}
+        <div
+            className={`payroll-note ${value ? 'payroll-note--filled' : 'payroll-note--empty'}`}
             onClick={() => setEditing(true)}
-            style={{ cursor: 'pointer', color: value ? 'inherit' : 'hsl(240 3.8% 46.1%)', fontStyle: value ? 'normal' : 'italic', borderBottom: '1px dashed hsl(var(--border))', paddingBottom: 1, opacity: saving ? 0.5 : 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block', maxWidth: 120, verticalAlign: 'middle' }}
+            title={value || 'Click to add note'}
+            style={{ opacity: saving ? 0.5 : 1 }}
         >
-            {value || 'add note…'}
-        </span>
+            {value || 'Add note…'}
+        </div>
     );
 }, (prev, next) => prev.visitId === next.visitId && prev.notes === next.notes);
 
