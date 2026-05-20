@@ -528,11 +528,10 @@ const PayrollEditableNotes = memo(function PayrollEditableNotes({ visitId, notes
     const hasNote = !!value;
     return (
         <span
-            className={`payroll-note-icon ${hasNote ? 'payroll-note-icon--has-note' : 'payroll-note-icon--empty'}`}
+            className={`payroll-note-text ${hasNote ? 'payroll-note-text--has-note' : 'payroll-note-text--empty'}`}
             onClick={(e) => { e.stopPropagation(); setEditing(true); }}
-            title={!hasNote ? 'Add note' : undefined}
         >
-            {Icons.fileText}
+            {hasNote ? value : 'add note…'}
             {hasNote && <span className="payroll-note-tooltip">{value}</span>}
         </span>
     );

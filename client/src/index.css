@@ -2879,23 +2879,22 @@ button.sdr-section-tag:hover:not(:disabled) {
 .payroll-row--overlap       { font-weight: 700; }
 .payroll-row--merged-original { background: hsl(220 14% 96%); border-left: 3px solid hsl(240 3.8% 76%); }
 
-/* Payroll Note — icon + hover tooltip, same as authorization page */
-.payroll-note-icon {
+/* Payroll Note — truncated text with hover tooltip */
+.payroll-note-text {
   position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-block;
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
   cursor: pointer;
-  padding: 2px;
-  border-radius: 4px;
-  transition: color 0.15s, background 0.15s, opacity 0.15s;
+  font-size: 13px;
+  border-bottom: 1px dashed hsl(var(--border));
+  padding-bottom: 1px;
 }
-.payroll-note-icon svg { width: 14px; height: 14px; }
-.payroll-note-icon--has-note { color: hsl(32 95% 44%); }
-.payroll-note-icon--has-note:hover { background: hsl(38 100% 92%); color: hsl(32 95% 35%); }
-.payroll-note-icon--empty { color: hsl(var(--muted-foreground)); opacity: 0; }
-tr:hover .payroll-note-icon--empty { opacity: 0.5; }
-.payroll-note-icon--empty:hover { opacity: 1; background: hsl(var(--muted)); }
+.payroll-note-text--has-note { color: hsl(var(--foreground)); }
+.payroll-note-text--empty { color: hsl(var(--muted-foreground)); font-style: italic; }
 .payroll-note-tooltip {
   display: none;
   position: absolute;
@@ -2916,7 +2915,7 @@ tr:hover .payroll-note-icon--empty { opacity: 0.5; }
   z-index: 50;
   pointer-events: none;
 }
-.payroll-note-icon--has-note:hover .payroll-note-tooltip { display: block; }
+.payroll-note-text--has-note:hover .payroll-note-tooltip { display: block; }
 .payroll-note-edit__textarea {
   width: 200px;
   min-height: 48px;
