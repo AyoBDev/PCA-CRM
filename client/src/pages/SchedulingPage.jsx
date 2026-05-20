@@ -2092,6 +2092,54 @@ export default function SchedulingPage() {
                     </ScheduleCard>
                 </div>
 
+                {/* Bulk Edit Toolbar */}
+                {bulkEditMode && (
+                    <div className="sched-bulk-toolbar">
+                        <div className="sched-bulk-toolbar__top">
+                            <span className="sched-bulk-toolbar__count">{selectedShiftIds.size} shift{selectedShiftIds.size !== 1 ? 's' : ''} selected</span>
+                            <button className="btn btn--outline btn--sm" onClick={toggleSelectAll}>
+                                {selectedShiftIds.size === allShifts.length ? 'Deselect All' : 'Select Entire Week'}
+                            </button>
+                            {selectedShiftIds.size > 0 && (
+                                <button className="btn btn--outline btn--sm" onClick={() => setSelectedShiftIds(new Set())}>
+                                    Clear
+                                </button>
+                            )}
+                        </div>
+                        <div className="sched-bulk-toolbar__helpers">
+                            <span className="sched-bulk-toolbar__helper-label">Select by day:</span>
+                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, i) => {
+                                const ws2 = new Date(weekStart + 'T00:00:00');
+                                const d2 = new Date(ws2); d2.setDate(ws2.getDate() + i);
+                                const dateStr2 = toLocalDateStr(d2);
+                                const dayCount = allShifts.filter(s => toLocalDateStr(s.shiftDate) === dateStr2).length;
+                                const daySelected = dayCount > 0 && allShifts.filter(s => toLocalDateStr(s.shiftDate) === dateStr2).every(s => selectedShiftIds.has(s.id));
+                                return (
+                                    <button
+                                        key={i}
+                                        className={`btn btn--outline btn--xs ${daySelected ? 'btn--active' : ''}`}
+                                        onClick={() => selectShiftsByDay(i)}
+                                        disabled={dayCount === 0}
+                                        title={`${dayCount} shift${dayCount !== 1 ? 's' : ''}`}
+                                    >
+                                        {day} ({dayCount})
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        {selectedShiftIds.size > 0 && (
+                            <BulkEditInline
+                                count={selectedShiftIds.size}
+                                employees={employees}
+                                clients={clients}
+                                onSave={handleBulkEdit}
+                                onDelete={handleBulkDelete}
+                                saving={bulkSaving}
+                            />
+                        )}
+                    </div>
+                )}
+
                 {/* Weekly Schedule Overview (always global) */}
                 <ScheduleCard
                     title="Weekly Schedule Overview"
@@ -2127,54 +2175,6 @@ export default function SchedulingPage() {
                         <ScheduleOverviewTable shifts={allShifts} overlapIds={allOverlapIds} onEditShift={handleEditShift} clientColorMap={allClientColorMap} bulkEditMode={bulkEditMode} selectedShiftIds={selectedShiftIds} onToggleSelect={toggleShiftSelection} onToggleSelectAll={toggleSelectAll} />
                     )}
                 </ScheduleCard>
-
-                {/* Bulk Edit Toolbar */}
-                {bulkEditMode && (
-                    <div className="sched-bulk-toolbar">
-                        <div className="sched-bulk-toolbar__top">
-                            <span className="sched-bulk-toolbar__count">{selectedShiftIds.size} shift{selectedShiftIds.size !== 1 ? 's' : ''} selected</span>
-                            <button className="btn btn--outline btn--sm" onClick={toggleSelectAll}>
-                                {selectedShiftIds.size === allShifts.length ? 'Deselect All' : 'Select Entire Week'}
-                            </button>
-                            {selectedShiftIds.size > 0 && (
-                                <button className="btn btn--outline btn--sm" onClick={() => setSelectedShiftIds(new Set())}>
-                                    Clear
-                                </button>
-                            )}
-                        </div>
-                        <div className="sched-bulk-toolbar__helpers">
-                            <span className="sched-bulk-toolbar__helper-label">Select by day:</span>
-                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, i) => {
-                                const ws = new Date(weekStart + 'T00:00:00');
-                                const d = new Date(ws); d.setDate(ws.getDate() + i);
-                                const dateStr = toLocalDateStr(d);
-                                const dayCount = allShifts.filter(s => toLocalDateStr(s.shiftDate) === dateStr).length;
-                                const daySelected = dayCount > 0 && allShifts.filter(s => toLocalDateStr(s.shiftDate) === dateStr).every(s => selectedShiftIds.has(s.id));
-                                return (
-                                    <button
-                                        key={i}
-                                        className={`btn btn--outline btn--xs ${daySelected ? 'btn--active' : ''}`}
-                                        onClick={() => selectShiftsByDay(i)}
-                                        disabled={dayCount === 0}
-                                        title={`${dayCount} shift${dayCount !== 1 ? 's' : ''}`}
-                                    >
-                                        {day} ({dayCount})
-                                    </button>
-                                );
-                            })}
-                        </div>
-                        {selectedShiftIds.size > 0 && (
-                            <BulkEditInline
-                                count={selectedShiftIds.size}
-                                employees={employees}
-                                clients={clients}
-                                onSave={handleBulkEdit}
-                                onDelete={handleBulkDelete}
-                                saving={bulkSaving}
-                            />
-                        )}
-                    </div>
-                )}
 
                 {/* Schedule Delivery */}
                 <ScheduleDelivery weekStart={weekStart} shifts={allShifts} />
