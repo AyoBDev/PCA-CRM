@@ -3358,12 +3358,13 @@ button.sdr-section-tag:hover:not(:disabled) {
     display: flex;
     flex-direction: column;
     min-width: 0;
+    overflow: hidden;
 }
 .sched-dashboard-row .sched-card__body {
     flex: 1;
     overflow-x: auto;
 }
-@media (max-width: 1100px) {
+@media (max-width: 1400px) {
     .sched-dashboard-row {
         grid-template-columns: 1fr;
     }
