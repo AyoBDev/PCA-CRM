@@ -3362,7 +3362,8 @@ button.sdr-section-tag:hover:not(:disabled) {
 }
 .sched-dashboard-row .sched-card__body {
     flex: 1;
-    overflow-x: auto;
+    overflow: hidden;
+    min-width: 0;
 }
 @media (max-width: 1400px) {
     .sched-dashboard-row {
@@ -4385,7 +4386,8 @@ button.sdr-section-tag:hover:not(:disabled) {
 }
 .weekly-cal--compact .weekly-cal__grid {
     min-width: 0;
-    grid-template-columns: 32px repeat(7, 1fr);
+    width: 100%;
+    grid-template-columns: 32px repeat(7, minmax(0, 1fr));
 }
 .weekly-cal--compact .weekly-cal__header-cell {
     padding: 6px 3px;
@@ -4426,7 +4428,10 @@ button.sdr-section-tag:hover:not(:disabled) {
 }
 .weekly-cal--compact .weekly-cal__shift-time {
     font-size: 9px;
-    padding-left: 8px;
+    padding-left: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Bulk Edit Toolbar */
