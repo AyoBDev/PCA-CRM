@@ -1313,51 +1313,53 @@ function WeeklyCalendarView({ shifts, weekStart, overlapIds, onEditShift, onAddS
                 </div>
             )}
 
-            <div className="weekly-cal__grid">
-                {/* Day headers */}
-                <div className="weekly-cal__time-gutter weekly-cal__header-cell" />
-                {days.map(d => (
-                    <div key={d.dateStr} className={`weekly-cal__header-cell ${d.isToday ? 'weekly-cal__header-cell--today' : ''}`}>
-                        <span className="weekly-cal__header-day">{compact ? dayAbbr[days.indexOf(d)].slice(0, 3) : `${d.abbr} ${d.date}`}</span>
-                        <span className="weekly-cal__header-count">
-                            {(shiftsByDay[d.dateStr] || []).length}
-                        </span>
-                    </div>
-                ))}
-
-                {/* Time rows */}
-                {timeSlots.map((label, slotIdx) => (
-                    <React.Fragment key={slotIdx}>
-                        <div className="weekly-cal__time-gutter weekly-cal__time-label">
-                            {label}
+            <div className="weekly-cal__scroll-wrap">
+                <div className="weekly-cal__grid">
+                    {/* Day headers */}
+                    <div className="weekly-cal__time-gutter weekly-cal__header-cell" />
+                    {days.map(d => (
+                        <div key={d.dateStr} className={`weekly-cal__header-cell ${d.isToday ? 'weekly-cal__header-cell--today' : ''}`}>
+                            <span className="weekly-cal__header-day">{compact ? dayAbbr[days.indexOf(d)].slice(0, 3) : `${d.abbr} ${d.date}`}</span>
+                            <span className="weekly-cal__header-count">
+                                {(shiftsByDay[d.dateStr] || []).length}
+                            </span>
                         </div>
-                        {days.map(d => {
-                            const slotShifts = shiftsByDayAndSlot[d.dateStr]?.[slotIdx] || [];
-                            return (
-                                <div key={d.dateStr} className={`weekly-cal__cell ${d.isToday ? 'weekly-cal__cell--today' : ''}`}>
-                                    {slotShifts.map(s => {
-                                        const colorInfo = SERVICE_COLORS[s.serviceCode] || { color: '#6B7280', bg: '#F3F4F6', label: s.serviceCode || '?' };
-                                        const isOverlap = overlapIds && overlapIds.has(s.id);
-                                        return (
-                                            <button
-                                                key={s.id}
-                                                className={`weekly-cal__shift ${isOverlap ? 'weekly-cal__shift--overlap' : ''} ${bulkEditMode && selectedShiftIds?.has(s.id) ? 'weekly-cal__shift--selected' : ''}`}
-                                                style={{ background: colorInfo.bg, borderColor: bulkEditMode && selectedShiftIds?.has(s.id) ? 'hsl(217 91% 50%)' : colorInfo.color + '40' }}
-                                                onClick={() => bulkEditMode ? onToggleSelect?.(s.id) : onEditShift(s)}
-                                                title={`${s.client?.clientName || '?'} — ${s.displayEmployeeName || '?'}\n${hhmm12(s.startTime)} – ${hhmm12(s.endTime)}\n${colorInfo.label}`}
-                                            >
-                                                <span className="weekly-cal__shift-dot" style={{ background: colorInfo.color }} />
-                                                <span className="weekly-cal__shift-name">{groupBy === 'client' ? (s.client?.clientName || 'Unknown') : (s.displayEmployeeName || 'Unassigned')}</span>
-                                                <span className="weekly-cal__shift-time">{hhmm12(s.startTime)} – {hhmm12(s.endTime)}</span>
-                                                {!compact && <span className="weekly-cal__shift-service" style={{ color: colorInfo.color }}>{colorInfo.label}</span>}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            );
-                        })}
-                    </React.Fragment>
-                ))}
+                    ))}
+
+                    {/* Time rows */}
+                    {timeSlots.map((label, slotIdx) => (
+                        <React.Fragment key={slotIdx}>
+                            <div className="weekly-cal__time-gutter weekly-cal__time-label">
+                                {label}
+                            </div>
+                            {days.map(d => {
+                                const slotShifts = shiftsByDayAndSlot[d.dateStr]?.[slotIdx] || [];
+                                return (
+                                    <div key={d.dateStr} className={`weekly-cal__cell ${d.isToday ? 'weekly-cal__cell--today' : ''}`}>
+                                        {slotShifts.map(s => {
+                                            const colorInfo = SERVICE_COLORS[s.serviceCode] || { color: '#6B7280', bg: '#F3F4F6', label: s.serviceCode || '?' };
+                                            const isOverlap = overlapIds && overlapIds.has(s.id);
+                                            return (
+                                                <button
+                                                    key={s.id}
+                                                    className={`weekly-cal__shift ${isOverlap ? 'weekly-cal__shift--overlap' : ''} ${bulkEditMode && selectedShiftIds?.has(s.id) ? 'weekly-cal__shift--selected' : ''}`}
+                                                    style={{ background: colorInfo.bg, borderColor: bulkEditMode && selectedShiftIds?.has(s.id) ? 'hsl(217 91% 50%)' : colorInfo.color + '40' }}
+                                                    onClick={() => bulkEditMode ? onToggleSelect?.(s.id) : onEditShift(s)}
+                                                    title={`${s.client?.clientName || '?'} — ${s.displayEmployeeName || '?'}\n${hhmm12(s.startTime)} – ${hhmm12(s.endTime)}\n${colorInfo.label}`}
+                                                >
+                                                    <span className="weekly-cal__shift-dot" style={{ background: colorInfo.color }} />
+                                                    <span className="weekly-cal__shift-name">{groupBy === 'client' ? (s.client?.clientName || 'Unknown') : (s.displayEmployeeName || 'Unassigned')}</span>
+                                                    <span className="weekly-cal__shift-time">{hhmm12(s.startTime)} – {hhmm12(s.endTime)}</span>
+                                                    {!compact && <span className="weekly-cal__shift-service" style={{ color: colorInfo.color }}>{colorInfo.label}</span>}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })}
+                        </React.Fragment>
+                    ))}
+                </div>
             </div>
         </div>
     );

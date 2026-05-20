@@ -4240,15 +4240,25 @@ button.sdr-section-tag:hover:not(:disabled) {
     height: 8px;
     border-radius: 50%;
 }
+.weekly-cal__scroll-wrap {
+    max-height: 600px;
+    overflow-y: auto;
+    overflow-x: auto;
+    border: 1px solid hsl(var(--border));
+    border-radius: 8px;
+}
+.weekly-cal--compact .weekly-cal__scroll-wrap {
+    max-height: none;
+}
 .weekly-cal__grid {
     display: grid;
     grid-template-columns: 50px repeat(7, 1fr);
     min-width: 600px;
-    border: 1px solid hsl(var(--border));
-    border-radius: 8px;
-    overflow: hidden;
 }
 .weekly-cal__header-cell {
+    position: sticky;
+    top: 0;
+    z-index: 2;
     padding: 10px 6px;
     text-align: center;
     background: hsl(var(--muted));
