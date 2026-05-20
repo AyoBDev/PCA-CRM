@@ -55,6 +55,14 @@ function fmtShort(dateStr) {
     return `${m}/${d}`;
 }
 
+function formatPhone(raw) {
+    if (!raw) return '';
+    const digits = raw.replace(/\D/g, '');
+    if (digits.length === 10) return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+    if (digits.length === 11 && digits[0] === '1') return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+    return raw;
+}
+
 function dayName(dateStr) {
     const [y, m, d] = dateStr.split('-').map(Number);
     return DAY_NAMES[new Date(y, m - 1, d).getDay()];
@@ -158,7 +166,7 @@ export default function ScheduleViewPage() {
                 {/* Week navigation */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 16 }}>
                     <button className="btn btn--outline btn--sm" onClick={handlePrevWeek}>&larr; Prev</button>
-                    <span style={{ fontWeight: 600, fontSize: 14 }}>
+                    <span style={{ fontWeight: 700, fontSize: 18, color: 'hsl(var(--foreground))', padding: '4px 12px', background: 'hsl(var(--muted))', borderRadius: 8 }}>
                         Week of {fmtShort(weekStart)} &ndash; {fmtShort(addDays(weekStart, 6))}
                     </span>
                     <button className="btn btn--outline btn--sm" onClick={handleNextWeek}>Next &rarr;</button>
@@ -235,7 +243,7 @@ export default function ScheduleViewPage() {
                                                 <td className="schedule-view-table__details" data-label="Details">
                                                     {shift.client?.address && <div><a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(shift.client.address)}`} target="_blank" rel="noopener noreferrer" style={{ color: 'hsl(var(--primary))', textDecoration: 'underline' }}>{shift.client.address}</a></div>}
                                                     <div className="schedule-view-table__meta">
-                                                        {shift.client?.phone && <span>{shift.client.phone}</span>}
+                                                        {shift.client?.phone && <span><a href={`tel:${shift.client.phone.replace(/\D/g, '')}`} style={{ color: 'hsl(var(--primary))', textDecoration: 'none' }}>{formatPhone(shift.client.phone)}</a></span>}
                                                         {shift.client?.gateCode && <span>Gate: {shift.client.gateCode}</span>}
                                                     </div>
                                                     {(shift.notes || shift.client?.notes) && (
