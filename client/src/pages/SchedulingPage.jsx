@@ -1780,14 +1780,13 @@ export default function SchedulingPage() {
                 <h1 className="content-header__title">Scheduling</h1>
                 <div className="content-header__actions">
                     {isAdmin && <ActivityButton entityType="Shift" />}
-                    {allShifts.length > 0 && (
-                        <button
-                            className={`btn btn--outline btn--sm ${bulkEditMode ? 'btn--active' : ''}`}
-                            onClick={() => { setBulkEditMode(!bulkEditMode); setSelectedShiftIds(new Set()); }}
-                        >
-                            {Icons.edit} Bulk Edit
-                        </button>
-                    )}
+                    <button
+                        className={`btn btn--outline btn--sm ${bulkEditMode ? 'btn--active' : ''}`}
+                        onClick={() => { setBulkEditMode(!bulkEditMode); setSelectedShiftIds(new Set()); }}
+                        style={bulkEditMode ? { background: 'hsl(217 91% 50%)', color: 'white', borderColor: 'hsl(217 91% 50%)' } : undefined}
+                    >
+                        {Icons.edit} {bulkEditMode ? 'Exit Bulk Edit' : 'Bulk Edit'}
+                    </button>
                     {allShifts.length > 0 && !bulkEditMode && (
                         <button className="btn btn--outline btn--sm" style={{ color: 'hsl(0 84% 60%)', borderColor: 'hsl(0 84% 80%)' }} onClick={() => setModal({ type: 'confirmDeleteAll' })}>
                             {Icons.trash} Delete All
