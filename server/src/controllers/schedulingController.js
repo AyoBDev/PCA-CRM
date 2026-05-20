@@ -24,6 +24,7 @@ function deriveCodeFromName(name) {
     if (lower.includes('attendant')) return 'S5125';
     if (lower.includes('companion')) return 'S5135';
     if (lower.includes('respite')) return 'S5150';
+    if (lower === 'timesheets') return 'TIMESHEETS';
     return null;
 }
 
@@ -54,8 +55,11 @@ async function checkAuthorizationLimits(clientId, proposedShifts, excludeShiftId
         let authorized = 0;
         for (const a of activeAuths) {
             let code = a.serviceCode;
-            if (code === 'TIMESHEETS' || !code) {
+            if (!code) {
                 code = deriveCodeFromName(a.serviceName);
+            } else if (code === 'TIMESHEETS') {
+                const derived = deriveCodeFromName(a.serviceName);
+                if (derived && derived !== 'TIMESHEETS') code = derived;
             }
             if (code === serviceCode) {
                 authorized += a.authorizedUnits || 0;
@@ -122,6 +126,13 @@ async function getAuthorizedServiceCodes(clientId, shiftDates) {
     for (const a of auths) {
         if (a.serviceCode && a.serviceCode !== 'TIMESHEETS') {
             codes.add(a.serviceCode);
+        } else if (a.serviceCode === 'TIMESHEETS') {
+            const derived = deriveCodeFromName(a.serviceName);
+            if (derived && derived !== 'TIMESHEETS') {
+                codes.add(derived);
+            } else {
+                codes.add('TIMESHEETS');
+            }
         } else {
             const derived = deriveCodeFromName(a.serviceName);
             if (derived) codes.add(derived);
@@ -869,8 +880,11 @@ async function authCheck(req, res, next) {
         let authorized = 0;
         for (const a of activeAuths) {
             let code = a.serviceCode;
-            if (code === 'TIMESHEETS' || !code) {
+            if (!code) {
                 code = deriveCodeFromName(a.serviceName);
+            } else if (code === 'TIMESHEETS') {
+                const derived = deriveCodeFromName(a.serviceName);
+                if (derived && derived !== 'TIMESHEETS') code = derived;
             }
             if (code === serviceCode) {
                 authorized += a.authorizedUnits || 0;

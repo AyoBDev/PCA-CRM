@@ -34,12 +34,13 @@ function buildClientColorMap(shifts) {
 }
 
 const SERVICE_COLORS = {
-    PCS:   { color: '#3B82F6', bg: '#EFF6FF', label: 'PCA' },
-    S5125: { color: '#22C55E', bg: '#F0FDF4', label: 'Attendant Care' },
-    S5130: { color: '#8B5CF6', bg: '#F5F3FF', label: 'Homemaker' },
-    SDPC:  { color: '#F59E0B', bg: '#FFFBEB', label: 'SDPC' },
-    S5135: { color: '#EC4899', bg: '#FDF2F8', label: 'Companion' },
-    S5150: { color: '#06B6D4', bg: '#ECFEFF', label: 'Respite' },
+    PCS:        { color: '#3B82F6', bg: '#EFF6FF', label: 'PCA' },
+    S5125:      { color: '#22C55E', bg: '#F0FDF4', label: 'Attendant Care' },
+    S5130:      { color: '#8B5CF6', bg: '#F5F3FF', label: 'Homemaker' },
+    SDPC:       { color: '#F59E0B', bg: '#FFFBEB', label: 'SDPC' },
+    S5135:      { color: '#EC4899', bg: '#FDF2F8', label: 'Companion' },
+    S5150:      { color: '#06B6D4', bg: '#ECFEFF', label: 'Respite' },
+    TIMESHEETS: { color: '#14B8A6', bg: '#F0FDFA', label: 'Timesheets' },
 };
 
 // Reusable searchable dropdown for Client/Employee selection
@@ -98,7 +99,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
     // Resolves TIMESHEETS entries via serviceName matching, includes units
     function deriveCode(auth) {
         if (auth.serviceCode && auth.serviceCode !== 'TIMESHEETS') return auth.serviceCode;
-        if (!auth.serviceName) return null;
+        if (!auth.serviceName) return auth.serviceCode === 'TIMESHEETS' ? 'TIMESHEETS' : null;
         const lower = auth.serviceName.toLowerCase();
         if (lower.includes('self') && (lower.includes('directed') || lower.includes('direct'))) return 'SDPC';
         if (lower.includes('personal') && lower.includes('care')) return 'PCS';
@@ -107,7 +108,8 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
         if (lower.includes('attendant')) return 'S5125';
         if (lower.includes('companion')) return 'S5135';
         if (lower.includes('respite')) return 'S5150';
-        return null;
+        if (lower === 'timesheets') return 'TIMESHEETS';
+        return auth.serviceCode === 'TIMESHEETS' ? 'TIMESHEETS' : null;
     }
 
     const authorizedServiceMap = useMemo(() => {
