@@ -990,4 +990,24 @@ async function bulkUpdateShifts(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listShifts, createShift, updateShift, bulkUpdateShifts, deleteShift, deleteAllShifts, getClientSchedule, getEmployeeSchedule, authCheck, restoreShift, repeatShift };
+async function bulkDeleteShifts(req, res, next) {
+    try {
+        const { shiftIds } = req.body;
+        if (!Array.isArray(shiftIds) || shiftIds.length === 0) {
+            return res.status(400).json({ error: 'shiftIds array is required' });
+        }
+        const now = new Date();
+        const result = await prisma.shift.updateMany({
+            where: { id: { in: shiftIds.map(Number) }, archivedAt: null },
+            data: { archivedAt: now },
+        });
+        audit.logAction({
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            action: 'ARCHIVE', entityType: 'Shift', entityId: shiftIds[0],
+            metadata: { bulk: true, count: result.count, shiftIds },
+        });
+        res.json({ archived: result.count });
+    } catch (err) { next(err); }
+}
+
+module.exports = { listShifts, createShift, updateShift, bulkUpdateShifts, bulkDeleteShifts, deleteShift, deleteAllShifts, getClientSchedule, getEmployeeSchedule, authCheck, restoreShift, repeatShift };

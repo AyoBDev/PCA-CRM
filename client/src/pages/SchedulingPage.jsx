@@ -1030,12 +1030,15 @@ function HoursSummaryBar({ summaryViewBy, unitSummaries, shifts }) {
     );
 }
 
-function BulkEditModal({ count, employees, onSave, onClose, saving }) {
+function BulkEditModal({ count, employees, clients, onSave, onDelete, onClose, saving }) {
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
     const [employeeId, setEmployeeId] = useState('');
+    const [clientId, setClientId] = useState('');
     const [serviceCode, setServiceCode] = useState('');
     const [status, setStatus] = useState('');
+    const [notes, setNotes] = useState('');
+    const [confirmDelete, setConfirmDelete] = useState(false);
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -1043,13 +1046,15 @@ function BulkEditModal({ count, employees, onSave, onClose, saving }) {
         if (startTime) updates.startTime = startTime;
         if (endTime) updates.endTime = endTime;
         if (employeeId) updates.employeeId = Number(employeeId);
+        if (clientId) updates.clientId = Number(clientId);
         if (serviceCode) updates.serviceCode = serviceCode;
         if (status) updates.status = status;
+        if (notes) updates.notes = notes;
         if (Object.keys(updates).length === 0) return;
         onSave(updates);
     };
 
-    const hasChanges = startTime || endTime || employeeId || serviceCode || status;
+    const hasChanges = startTime || endTime || employeeId || clientId || serviceCode || status || notes;
 
     return (
         <Modal onClose={onClose}>
@@ -1075,6 +1080,13 @@ function BulkEditModal({ count, employees, onSave, onClose, saving }) {
                         </select>
                     </div>
                     <div className="form-group">
+                        <label className="form-label">Client</label>
+                        <select className="form-input" value={clientId} onChange={e => setClientId(e.target.value)}>
+                            <option value="">— No change —</option>
+                            {clients.map(c => <option key={c.id} value={c.id}>{c.clientName}</option>)}
+                        </select>
+                    </div>
+                    <div className="form-group">
                         <label className="form-label">Service Code</label>
                         <select className="form-input" value={serviceCode} onChange={e => setServiceCode(e.target.value)}>
                             <option value="">— No change —</option>
@@ -1089,8 +1101,21 @@ function BulkEditModal({ count, employees, onSave, onClose, saving }) {
                             <option value="cancelled">Cancelled</option>
                         </select>
                     </div>
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                        <label className="form-label">Notes</label>
+                        <input type="text" className="form-input" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Set notes on all selected shifts…" />
+                    </div>
                 </div>
-                <div className="form-actions" style={{ marginTop: 20 }}>
+                <div className="form-actions" style={{ marginTop: 20, display: 'flex', gap: 8 }}>
+                    {!confirmDelete ? (
+                        <button type="button" className="btn btn--outline btn--sm" style={{ color: '#ef4444', borderColor: '#fca5a5', marginRight: 'auto' }} onClick={() => setConfirmDelete(true)}>
+                            {Icons.trash} Delete All Selected
+                        </button>
+                    ) : (
+                        <button type="button" className="btn btn--sm" style={{ background: '#ef4444', color: 'white', border: 'none', marginRight: 'auto' }} onClick={onDelete}>
+                            Confirm Delete {count} Shift{count !== 1 ? 's' : ''}?
+                        </button>
+                    )}
                     <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
                     <button type="submit" className="btn btn--primary" disabled={!hasChanges || saving}>
                         {saving ? 'Saving…' : `Update ${count} Shift${count !== 1 ? 's' : ''}`}
@@ -1101,7 +1126,7 @@ function BulkEditModal({ count, employees, onSave, onClose, saving }) {
     );
 }
 
-function WeeklyCalendarView({ shifts, weekStart, overlapIds, onEditShift, onAddShift }) {
+function WeeklyCalendarView({ shifts, weekStart, overlapIds, onEditShift, onAddShift, bulkEditMode, selectedShiftIds, onToggleSelect }) {
     const [search, setSearch] = useState('');
     const [filterService, setFilterService] = useState('');
 
@@ -1232,9 +1257,9 @@ function WeeklyCalendarView({ shifts, weekStart, overlapIds, onEditShift, onAddS
                                         return (
                                             <button
                                                 key={s.id}
-                                                className={`weekly-cal__shift ${isOverlap ? 'weekly-cal__shift--overlap' : ''}`}
-                                                style={{ background: colorInfo.bg, borderColor: colorInfo.color + '40' }}
-                                                onClick={() => onEditShift(s)}
+                                                className={`weekly-cal__shift ${isOverlap ? 'weekly-cal__shift--overlap' : ''} ${bulkEditMode && selectedShiftIds?.has(s.id) ? 'weekly-cal__shift--selected' : ''}`}
+                                                style={{ background: colorInfo.bg, borderColor: bulkEditMode && selectedShiftIds?.has(s.id) ? 'hsl(217 91% 50%)' : colorInfo.color + '40' }}
+                                                onClick={() => bulkEditMode ? onToggleSelect?.(s.id) : onEditShift(s)}
                                                 title={`${s.client?.clientName || '?'} — ${s.displayEmployeeName || '?'}\n${hhmm12(s.startTime)} – ${hhmm12(s.endTime)}\n${colorInfo.label}`}
                                             >
                                                 <span className="weekly-cal__shift-dot" style={{ background: colorInfo.color }} />
@@ -1620,7 +1645,10 @@ export default function SchedulingPage() {
     };
 
     const handleEditShift = (shift) => {
-        if (bulkEditMode) return;
+        if (bulkEditMode) {
+            toggleShiftSelection(shift.id);
+            return;
+        }
         setModal({ type: 'shift', shift });
     };
 
@@ -1649,12 +1677,76 @@ export default function SchedulingPage() {
             showToast(`Updated ${result.count} shift${result.count !== 1 ? 's' : ''}`);
             setSelectedShiftIds(new Set());
             setBulkEditMode(false);
+            setModal(null);
             refetchAll();
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
             setBulkSaving(false);
         }
+    };
+
+    const handleBulkDelete = async () => {
+        if (selectedShiftIds.size === 0) return;
+        try {
+            setBulkSaving(true);
+            const result = await api.bulkDeleteShifts([...selectedShiftIds]);
+            showToast(`Archived ${result.archived} shift${result.archived !== 1 ? 's' : ''}`);
+            setSelectedShiftIds(new Set());
+            setBulkEditMode(false);
+            setModal(null);
+            refetchAll();
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setBulkSaving(false);
+        }
+    };
+
+    const selectShiftsByDay = (dayIdx) => {
+        const ws = new Date(weekStart + 'T00:00:00');
+        const d = new Date(ws);
+        d.setDate(ws.getDate() + dayIdx);
+        const dateStr = toLocalDateStr(d);
+        const dayShiftIds = allShifts.filter(s => toLocalDateStr(s.shiftDate) === dateStr).map(s => s.id);
+        setSelectedShiftIds(prev => {
+            const next = new Set(prev);
+            const allAlreadySelected = dayShiftIds.every(id => next.has(id));
+            if (allAlreadySelected) {
+                dayShiftIds.forEach(id => next.delete(id));
+            } else {
+                dayShiftIds.forEach(id => next.add(id));
+            }
+            return next;
+        });
+    };
+
+    const selectShiftsByEmployee = (empName) => {
+        const empShiftIds = allShifts.filter(s => (s.displayEmployeeName || '') === empName).map(s => s.id);
+        setSelectedShiftIds(prev => {
+            const next = new Set(prev);
+            const allAlreadySelected = empShiftIds.every(id => next.has(id));
+            if (allAlreadySelected) {
+                empShiftIds.forEach(id => next.delete(id));
+            } else {
+                empShiftIds.forEach(id => next.add(id));
+            }
+            return next;
+        });
+    };
+
+    const selectShiftsByClient = (clientName) => {
+        const ids = allShifts.filter(s => (s.client?.clientName || '') === clientName).map(s => s.id);
+        setSelectedShiftIds(prev => {
+            const next = new Set(prev);
+            const allAlreadySelected = ids.every(id => next.has(id));
+            if (allAlreadySelected) {
+                ids.forEach(id => next.delete(id));
+            } else {
+                ids.forEach(id => next.add(id));
+            }
+            return next;
+        });
     };
 
     const allOverlapIds = useMemo(() => {
@@ -1949,22 +2041,52 @@ export default function SchedulingPage() {
                             No shifts scheduled this week. Click + Create Shift to get started.
                         </div>
                     ) : summaryViewBy === 'calendar' ? (
-                        <WeeklyCalendarView shifts={allShifts} weekStart={weekStart} overlapIds={allOverlapIds} onEditShift={handleEditShift} onAddShift={handleAddShift} />
+                        <WeeklyCalendarView shifts={allShifts} weekStart={weekStart} overlapIds={allOverlapIds} onEditShift={handleEditShift} onAddShift={handleAddShift} bulkEditMode={bulkEditMode} selectedShiftIds={selectedShiftIds} onToggleSelect={toggleShiftSelection} />
                     ) : (
                         <ScheduleOverviewTable shifts={allShifts} overlapIds={allOverlapIds} onEditShift={handleEditShift} clientColorMap={allClientColorMap} bulkEditMode={bulkEditMode} selectedShiftIds={selectedShiftIds} onToggleSelect={toggleShiftSelection} onToggleSelectAll={toggleSelectAll} />
                     )}
                 </ScheduleCard>
 
                 {/* Bulk Edit Toolbar */}
-                {bulkEditMode && selectedShiftIds.size > 0 && (
+                {bulkEditMode && (
                     <div className="sched-bulk-toolbar">
-                        <span className="sched-bulk-toolbar__count">{selectedShiftIds.size} shift{selectedShiftIds.size !== 1 ? 's' : ''} selected</span>
-                        <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'bulkEdit' })}>
-                            {Icons.edit} Edit Selected
-                        </button>
-                        <button className="btn btn--outline btn--sm" onClick={() => setSelectedShiftIds(new Set())}>
-                            Clear Selection
-                        </button>
+                        <div className="sched-bulk-toolbar__top">
+                            <span className="sched-bulk-toolbar__count">{selectedShiftIds.size} shift{selectedShiftIds.size !== 1 ? 's' : ''} selected</span>
+                            {selectedShiftIds.size > 0 && (
+                                <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'bulkEdit' })}>
+                                    {Icons.edit} Edit Selected
+                                </button>
+                            )}
+                            <button className="btn btn--outline btn--sm" onClick={toggleSelectAll}>
+                                {selectedShiftIds.size === allShifts.length ? 'Deselect All' : 'Select Entire Week'}
+                            </button>
+                            {selectedShiftIds.size > 0 && (
+                                <button className="btn btn--outline btn--sm" onClick={() => setSelectedShiftIds(new Set())}>
+                                    Clear
+                                </button>
+                            )}
+                        </div>
+                        <div className="sched-bulk-toolbar__helpers">
+                            <span className="sched-bulk-toolbar__helper-label">Select by day:</span>
+                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, i) => {
+                                const ws = new Date(weekStart + 'T00:00:00');
+                                const d = new Date(ws); d.setDate(ws.getDate() + i);
+                                const dateStr = toLocalDateStr(d);
+                                const dayCount = allShifts.filter(s => toLocalDateStr(s.shiftDate) === dateStr).length;
+                                const daySelected = dayCount > 0 && allShifts.filter(s => toLocalDateStr(s.shiftDate) === dateStr).every(s => selectedShiftIds.has(s.id));
+                                return (
+                                    <button
+                                        key={i}
+                                        className={`btn btn--outline btn--xs ${daySelected ? 'btn--active' : ''}`}
+                                        onClick={() => selectShiftsByDay(i)}
+                                        disabled={dayCount === 0}
+                                        title={`${dayCount} shift${dayCount !== 1 ? 's' : ''}`}
+                                    >
+                                        {day} ({dayCount})
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
                 )}
 
@@ -2079,7 +2201,9 @@ export default function SchedulingPage() {
                 <BulkEditModal
                     count={selectedShiftIds.size}
                     employees={employees}
+                    clients={clients}
                     onSave={handleBulkEdit}
+                    onDelete={handleBulkDelete}
                     onClose={() => setModal(null)}
                     saving={bulkSaving}
                 />

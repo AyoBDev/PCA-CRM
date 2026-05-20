@@ -4265,16 +4265,41 @@ button.sdr-section-tag:hover:not(:disabled) {
     }
 }
 
+.weekly-cal__shift--selected {
+    box-shadow: 0 0 0 2px hsl(217 91% 50%);
+}
+
 /* Bulk Edit Toolbar */
 .sched-bulk-toolbar {
     display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 16px;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 16px;
     background: hsl(217 91% 95%);
     border: 1px solid hsl(217 91% 85%);
     border-radius: 8px;
     margin-bottom: 16px;
+}
+.sched-bulk-toolbar__top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.sched-bulk-toolbar__helpers {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.sched-bulk-toolbar__helper-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: hsl(var(--muted-foreground));
+}
+.btn--xs {
+    padding: 2px 8px;
+    font-size: 11px;
+    border-radius: 4px;
 }
 .sched-bulk-toolbar__count {
     font-size: 13px;
