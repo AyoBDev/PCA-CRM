@@ -480,7 +480,7 @@ const PayrollEditableUnits = memo(function PayrollEditableUnits({ visit, onChang
 });
 
 // ────────────────────────────────────────
-// PayrollEditableNotes — styled note block matching authorization page design
+// PayrollEditableNotes — icon with hover tooltip, matching authorization page note design
 // ────────────────────────────────────────
 const PayrollEditableNotes = memo(function PayrollEditableNotes({ visitId, notes: initialNotes }) {
     const [editing, setEditing] = useState(false);
@@ -510,7 +510,7 @@ const PayrollEditableNotes = memo(function PayrollEditableNotes({ visitId, notes
 
     if (editing) {
         return (
-            <div className="payroll-note payroll-note--editing">
+            <div className="payroll-note-edit">
                 <textarea
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
@@ -519,21 +519,22 @@ const PayrollEditableNotes = memo(function PayrollEditableNotes({ visitId, notes
                     autoFocus
                     placeholder="Add note…"
                     rows={2}
-                    className="payroll-note__textarea"
+                    className="payroll-note-edit__textarea"
                 />
             </div>
         );
     }
 
+    const hasNote = !!value;
     return (
-        <div
-            className={`payroll-note ${value ? 'payroll-note--filled' : 'payroll-note--empty'}`}
-            onClick={() => setEditing(true)}
-            title={value || 'Click to add note'}
-            style={{ opacity: saving ? 0.5 : 1 }}
+        <span
+            className={`payroll-note-icon ${hasNote ? 'payroll-note-icon--has-note' : 'payroll-note-icon--empty'}`}
+            onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+            title={!hasNote ? 'Add note' : undefined}
         >
-            {value || 'Add note…'}
-        </div>
+            {Icons.fileText}
+            {hasNote && <span className="payroll-note-tooltip">{value}</span>}
+        </span>
     );
 }, (prev, next) => prev.visitId === next.visitId && prev.notes === next.notes);
 

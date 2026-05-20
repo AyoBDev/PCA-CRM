@@ -2879,23 +2879,45 @@ button.sdr-section-tag:hover:not(:disabled) {
 .payroll-row--overlap       { font-weight: 700; }
 .payroll-row--merged-original { background: hsl(220 14% 96%); border-left: 3px solid hsl(240 3.8% 76%); }
 
-/* Payroll Note — matches authorization page note style */
-.payroll-note {
-  font-size: 12px;
-  padding: 6px 10px;
-  background: hsl(var(--muted) / 0.4);
-  border-radius: 6px;
+/* Payroll Note — icon + hover tooltip, same as authorization page */
+.payroll-note-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  max-width: 180px;
-  word-wrap: break-word;
-  white-space: pre-wrap;
-  transition: background 0.15s;
+  padding: 2px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s, opacity 0.15s;
 }
-.payroll-note:hover { background: hsl(var(--muted) / 0.7); }
-.payroll-note--filled { color: hsl(var(--foreground)); }
-.payroll-note--empty { color: hsl(var(--muted-foreground)); font-style: italic; }
-.payroll-note--editing { padding: 0; background: none; }
-.payroll-note__textarea {
+.payroll-note-icon svg { width: 14px; height: 14px; }
+.payroll-note-icon--has-note { color: hsl(32 95% 44%); }
+.payroll-note-icon--has-note:hover { background: hsl(38 100% 92%); color: hsl(32 95% 35%); }
+.payroll-note-icon--empty { color: hsl(var(--muted-foreground)); opacity: 0; }
+tr:hover .payroll-note-icon--empty { opacity: 0.5; }
+.payroll-note-icon--empty:hover { opacity: 1; background: hsl(var(--muted)); }
+.payroll-note-tooltip {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  background: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  max-width: 240px;
+  width: max-content;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 50;
+  pointer-events: none;
+}
+.payroll-note-icon--has-note:hover .payroll-note-tooltip { display: block; }
+.payroll-note-edit__textarea {
   width: 200px;
   min-height: 48px;
   padding: 6px 10px;
