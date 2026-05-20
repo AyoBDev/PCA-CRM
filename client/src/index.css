@@ -3310,12 +3310,40 @@ button.sdr-section-tag:hover:not(:disabled) {
     background: #fff;
     color: hsl(217 91% 50%);
 }
-.sched-view-toggle--compact {
-    margin-top: 8px;
+/* View tabs inside card body (List/Calendar toggle) */
+.sched-card__view-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 12px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 6px;
+    overflow: hidden;
+    width: fit-content;
 }
-.sched-view-toggle--compact .sched-view-toggle__btn {
-    font-size: 11px;
-    padding: 3px 8px;
+.sched-card__view-tab {
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    background: hsl(var(--background));
+    color: hsl(var(--muted-foreground));
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.sched-card__view-tab:not(:last-child) {
+    border-right: 1px solid hsl(var(--border));
+}
+.sched-card__view-tab:hover {
+    background: hsl(var(--muted));
+    color: hsl(var(--foreground));
+}
+.sched-card__view-tab--active {
+    background: hsl(var(--primary));
+    color: #fff;
+}
+.sched-card__view-tab--active:hover {
+    background: hsl(var(--primary));
+    color: #fff;
 }
 
 /* Dashboard row: Client + Employee cards side-by-side */
@@ -3928,6 +3956,13 @@ button.sdr-section-tag:hover:not(:disabled) {
     background: hsl(var(--muted));
     border-radius: 6px;
 }
+.sched-client-info__tag a {
+    color: hsl(var(--primary));
+    text-decoration: none;
+}
+.sched-client-info__tag a:hover {
+    text-decoration: underline;
+}
 .sched-client-info__tag svg { width: 12px; height: 12px; }
 .sched-client-info__tag--gate {
     background: hsl(38 92% 95%);
@@ -3944,12 +3979,23 @@ button.sdr-section-tag:hover:not(:disabled) {
 
 /* Employee Info (inline in card) */
 .sched-employee-info {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
     padding: 8px 12px;
     background: hsl(var(--muted));
     border-radius: 6px;
     margin-bottom: 12px;
     font-size: 13px;
     color: hsl(var(--foreground));
+}
+.sched-employee-info span {
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+    padding: 2px 8px;
+    background: hsl(var(--background));
+    border-radius: 4px;
 }
 
 /* Client Auth Summary — simple table in Client Schedule card */

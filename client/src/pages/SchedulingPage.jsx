@@ -1937,21 +1937,13 @@ export default function SchedulingPage() {
                         pdfWeekStart={weekStart}
                         pdfRowBy="employee"
                         headerActions={
-                            <>
-                                <SearchableSelect
-                                    className="sched-card__select"
-                                    options={clients.map(c => ({ value: c.id, label: c.clientName }))}
-                                    value={selectedClientId}
-                                    onChange={setSelectedClientId}
-                                    placeholder="Search clients…"
-                                />
-                                {selectedClientId && clientShifts.length > 0 && (
-                                    <div className="sched-view-toggle sched-view-toggle--compact">
-                                        <button className={`sched-view-toggle__btn ${clientScheduleView === 'matrix' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setClientScheduleView('matrix')}>List</button>
-                                        <button className={`sched-view-toggle__btn ${clientScheduleView === 'calendar' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setClientScheduleView('calendar')}>{Icons.table} Calendar</button>
-                                    </div>
-                                )}
-                            </>
+                            <SearchableSelect
+                                className="sched-card__select"
+                                options={clients.map(c => ({ value: c.id, label: c.clientName }))}
+                                value={selectedClientId}
+                                onChange={setSelectedClientId}
+                                placeholder="Search clients…"
+                            />
                         }
                     >
                         {!selectedClientId ? (
@@ -1966,8 +1958,8 @@ export default function SchedulingPage() {
                                 {clientInfo && (
                                     <div className="sched-client-info">
                                         <div className="sched-client-info__details">
-                                            {clientInfo.address && <span className="sched-client-info__tag">{Icons.layoutDashboard} <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clientInfo.address)}`} target="_blank" rel="noopener noreferrer" style={{ color: 'hsl(var(--primary))', textDecoration: 'underline' }}>{clientInfo.address}</a></span>}
-                                            {clientInfo.phone && <span className="sched-client-info__tag">{Icons.user} {clientInfo.phone}</span>}
+                                            {clientInfo.address && <span className="sched-client-info__tag"><a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clientInfo.address)}`} target="_blank" rel="noopener noreferrer">{clientInfo.address}</a></span>}
+                                            {clientInfo.phone && <span className="sched-client-info__tag">{clientInfo.phone}</span>}
                                             {clientInfo.gateCode && <span className="sched-client-info__tag sched-client-info__tag--gate">Gate: {clientInfo.gateCode}</span>}
                                         </div>
                                         {clientInfo.notes && <div className="sched-client-info__notes">{clientInfo.notes}</div>}
@@ -1978,9 +1970,9 @@ export default function SchedulingPage() {
                                         <thead>
                                             <tr>
                                                 <th>Service</th>
-                                                <th>Authorized</th>
-                                                <th>Scheduled</th>
-                                                <th>Remaining</th>
+                                                <th>Auth</th>
+                                                <th>Sched</th>
+                                                <th>Remain</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -1997,15 +1989,19 @@ export default function SchedulingPage() {
                                                                 {colorInfo.label}
                                                             </span>
                                                         </td>
-                                                        <td>{authHrs} hrs</td>
-                                                        <td>{schedHrs} hrs</td>
-                                                        <td style={{ color: remainHrs < 0 ? '#ef4444' : '#22c55e', fontWeight: 600 }}>{remainHrs} hrs</td>
+                                                        <td>{authHrs}h</td>
+                                                        <td>{schedHrs}h</td>
+                                                        <td style={{ color: remainHrs < 0 ? '#ef4444' : '#22c55e', fontWeight: 600 }}>{remainHrs}h</td>
                                                     </tr>
                                                 );
                                             })}
                                         </tbody>
                                     </table>
                                 )}
+                                <div className="sched-card__view-tabs">
+                                    <button className={`sched-card__view-tab ${clientScheduleView === 'matrix' ? 'sched-card__view-tab--active' : ''}`} onClick={() => setClientScheduleView('matrix')}>List</button>
+                                    <button className={`sched-card__view-tab ${clientScheduleView === 'calendar' ? 'sched-card__view-tab--active' : ''}`} onClick={() => setClientScheduleView('calendar')}>Calendar</button>
+                                </div>
                                 {clientScheduleView === 'calendar' ? (
                                     <WeeklyCalendarView shifts={clientShifts} weekStart={weekStart} overlapIds={clientOverlapIds} onEditShift={handleEditShift} onAddShift={handleAddShift} groupBy="employee" />
                                 ) : (
@@ -2023,21 +2019,13 @@ export default function SchedulingPage() {
                         pdfWeekStart={weekStart}
                         pdfRowBy="client"
                         headerActions={
-                            <>
-                                <SearchableSelect
-                                    className="sched-card__select"
-                                    options={employees.map(e => ({ value: e.id, label: e.name }))}
-                                    value={selectedEmployeeId}
-                                    onChange={setSelectedEmployeeId}
-                                    placeholder="Search employees…"
-                                />
-                                {selectedEmployeeId && employeeShifts.length > 0 && (
-                                    <div className="sched-view-toggle sched-view-toggle--compact">
-                                        <button className={`sched-view-toggle__btn ${employeeScheduleView === 'matrix' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setEmployeeScheduleView('matrix')}>List</button>
-                                        <button className={`sched-view-toggle__btn ${employeeScheduleView === 'calendar' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setEmployeeScheduleView('calendar')}>{Icons.table} Calendar</button>
-                                    </div>
-                                )}
-                            </>
+                            <SearchableSelect
+                                className="sched-card__select"
+                                options={employees.map(e => ({ value: e.id, label: e.name }))}
+                                value={selectedEmployeeId}
+                                onChange={setSelectedEmployeeId}
+                                placeholder="Search employees…"
+                            />
                         }
                     >
                         {!selectedEmployeeId ? (
@@ -2052,8 +2040,8 @@ export default function SchedulingPage() {
                                 {employeeInfo && (
                                     <div className="sched-employee-info">
                                         <strong>{employeeInfo.name}</strong>
-                                        {employeeInfo.phone && <span> — {employeeInfo.phone}</span>}
-                                        {employeeInfo.email && <span> — {employeeInfo.email}</span>}
+                                        {employeeInfo.phone && <span>{employeeInfo.phone}</span>}
+                                        {employeeInfo.email && <span>{employeeInfo.email}</span>}
                                     </div>
                                 )}
                                 {employeeShifts.length > 0 && (() => {
@@ -2108,6 +2096,10 @@ export default function SchedulingPage() {
                                         </div>
                                     );
                                 })()}
+                                <div className="sched-card__view-tabs">
+                                    <button className={`sched-card__view-tab ${employeeScheduleView === 'matrix' ? 'sched-card__view-tab--active' : ''}`} onClick={() => setEmployeeScheduleView('matrix')}>List</button>
+                                    <button className={`sched-card__view-tab ${employeeScheduleView === 'calendar' ? 'sched-card__view-tab--active' : ''}`} onClick={() => setEmployeeScheduleView('calendar')}>Calendar</button>
+                                </div>
                                 {employeeScheduleView === 'calendar' ? (
                                     <WeeklyCalendarView shifts={employeeShifts} weekStart={weekStart} overlapIds={employeeOverlapIds} onEditShift={handleEditShift} onAddShift={handleAddShift} groupBy="client" />
                                 ) : (
