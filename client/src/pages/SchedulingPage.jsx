@@ -1030,6 +1030,88 @@ function HoursSummaryBar({ summaryViewBy, unitSummaries, shifts }) {
     );
 }
 
+function BulkEditInline({ count, employees, clients, onSave, onDelete, saving }) {
+    const [startTime, setStartTime] = useState('');
+    const [endTime, setEndTime] = useState('');
+    const [employeeId, setEmployeeId] = useState('');
+    const [clientId, setClientId] = useState('');
+    const [serviceCode, setServiceCode] = useState('');
+    const [status, setStatus] = useState('');
+    const [confirmDelete, setConfirmDelete] = useState(false);
+
+    const handleApply = () => {
+        const updates = {};
+        if (startTime) updates.startTime = startTime;
+        if (endTime) updates.endTime = endTime;
+        if (employeeId) updates.employeeId = Number(employeeId);
+        if (clientId) updates.clientId = Number(clientId);
+        if (serviceCode) updates.serviceCode = serviceCode;
+        if (status) updates.status = status;
+        if (Object.keys(updates).length === 0) return;
+        onSave(updates);
+    };
+
+    const hasChanges = startTime || endTime || employeeId || clientId || serviceCode || status;
+
+    return (
+        <div className="sched-bulk-inline">
+            <div className="sched-bulk-inline__row">
+                <div className="sched-bulk-inline__field">
+                    <label>Start Time</label>
+                    <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} />
+                </div>
+                <div className="sched-bulk-inline__field">
+                    <label>End Time</label>
+                    <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} />
+                </div>
+                <div className="sched-bulk-inline__field">
+                    <label>Employee</label>
+                    <select value={employeeId} onChange={e => setEmployeeId(e.target.value)}>
+                        <option value="">— No change —</option>
+                        {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
+                    </select>
+                </div>
+                <div className="sched-bulk-inline__field">
+                    <label>Client</label>
+                    <select value={clientId} onChange={e => setClientId(e.target.value)}>
+                        <option value="">— No change —</option>
+                        {clients.map(c => <option key={c.id} value={c.id}>{c.clientName}</option>)}
+                    </select>
+                </div>
+                <div className="sched-bulk-inline__field">
+                    <label>Service</label>
+                    <select value={serviceCode} onChange={e => setServiceCode(e.target.value)}>
+                        <option value="">— No change —</option>
+                        {Object.entries(SERVICE_COLORS).map(([code, info]) => <option key={code} value={code}>{info.label}</option>)}
+                    </select>
+                </div>
+                <div className="sched-bulk-inline__field">
+                    <label>Status</label>
+                    <select value={status} onChange={e => setStatus(e.target.value)}>
+                        <option value="">— No change —</option>
+                        <option value="scheduled">Scheduled</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                </div>
+            </div>
+            <div className="sched-bulk-inline__actions">
+                <button className="btn btn--primary btn--sm" onClick={handleApply} disabled={!hasChanges || saving}>
+                    {saving ? 'Applying…' : `Apply to ${count} Shift${count !== 1 ? 's' : ''}`}
+                </button>
+                {!confirmDelete ? (
+                    <button className="btn btn--outline btn--sm" style={{ color: '#ef4444', borderColor: '#fca5a5' }} onClick={() => setConfirmDelete(true)}>
+                        {Icons.trash} Delete Selected
+                    </button>
+                ) : (
+                    <button className="btn btn--sm" style={{ background: '#ef4444', color: 'white', border: 'none' }} onClick={onDelete}>
+                        Confirm Delete {count}?
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+}
+
 function BulkEditModal({ count, employees, clients, onSave, onDelete, onClose, saving }) {
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
@@ -2051,11 +2133,6 @@ export default function SchedulingPage() {
                     <div className="sched-bulk-toolbar">
                         <div className="sched-bulk-toolbar__top">
                             <span className="sched-bulk-toolbar__count">{selectedShiftIds.size} shift{selectedShiftIds.size !== 1 ? 's' : ''} selected</span>
-                            {selectedShiftIds.size > 0 && (
-                                <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'bulkEdit' })}>
-                                    {Icons.edit} Edit Selected
-                                </button>
-                            )}
                             <button className="btn btn--outline btn--sm" onClick={toggleSelectAll}>
                                 {selectedShiftIds.size === allShifts.length ? 'Deselect All' : 'Select Entire Week'}
                             </button>
@@ -2086,6 +2163,16 @@ export default function SchedulingPage() {
                                 );
                             })}
                         </div>
+                        {selectedShiftIds.size > 0 && (
+                            <BulkEditInline
+                                count={selectedShiftIds.size}
+                                employees={employees}
+                                clients={clients}
+                                onSave={handleBulkEdit}
+                                onDelete={handleBulkDelete}
+                                saving={bulkSaving}
+                            />
+                        )}
                     </div>
                 )}
 
