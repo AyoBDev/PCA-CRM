@@ -3,12 +3,6 @@ const path = require('path');
 const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 
-const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads', 'documents');
-
-function ensureDir(dir) {
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-}
-
 // POST /api/clients/:clientId/documents (multipart — req.file from multer)
 async function uploadDocument(req, res, next) {
     try {
@@ -21,21 +15,15 @@ async function uploadDocument(req, res, next) {
         const category = req.body.category;
         if (!category) return res.status(400).json({ error: 'category is required' });
 
-        const clientDir = path.join(UPLOAD_DIR, String(clientId));
-        ensureDir(clientDir);
-
-        const safeName = `${Date.now()}-${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-        const filePath = path.join(clientDir, safeName);
-        fs.writeFileSync(filePath, req.file.buffer);
-
         const doc = await prisma.clientDocument.create({
             data: {
                 clientId,
                 category,
                 fileName: req.file.originalname,
-                filePath: `documents/${clientId}/${safeName}`,
+                filePath: `documents/${clientId}/${req.file.originalname}`,
                 fileSize: req.file.size,
                 mimeType: req.file.mimetype || '',
+                fileData: req.file.buffer,
                 uploadedBy: req.user.id,
                 notes: (req.body.notes || '').trim(),
             },
@@ -61,8 +49,16 @@ async function downloadDocument(req, res, next) {
         const doc = await prisma.clientDocument.findUnique({ where: { id } });
         if (!doc) return res.status(404).json({ error: 'Document not found' });
 
+        if (doc.fileData) {
+            res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(doc.fileName)}"`);
+            res.setHeader('Content-Type', doc.mimeType || 'application/octet-stream');
+            res.setHeader('Content-Length', doc.fileData.length);
+            return res.send(doc.fileData);
+        }
+
+        // Fallback to filesystem for old uploads
         const fullPath = path.join(__dirname, '..', '..', 'uploads', doc.filePath);
-        if (!fs.existsSync(fullPath)) return res.status(404).json({ error: 'File not found on disk' });
+        if (!fs.existsSync(fullPath)) return res.status(404).json({ error: 'File not found. It may have been lost during a deployment. Please re-upload.' });
 
         res.download(fullPath, doc.fileName);
     } catch (err) {
@@ -76,10 +72,6 @@ async function deleteDocument(req, res, next) {
         const id = Number(req.params.id);
         const doc = await prisma.clientDocument.findUnique({ where: { id }, include: { client: true } });
         if (!doc) return res.status(404).json({ error: 'Document not found' });
-
-        // Delete file from disk
-        const fullPath = path.join(__dirname, '..', '..', 'uploads', doc.filePath);
-        if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
 
         await prisma.clientDocument.delete({ where: { id } });
 

@@ -542,11 +542,15 @@ export default function ClientDetailPage() {
         try {
             const blob = await api.downloadAuthDocument(doc.id);
             const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = doc.fileName;
-            a.click();
-            URL.revokeObjectURL(url);
+            if (doc.mimeType === 'application/pdf' || doc.fileName?.toLowerCase().endsWith('.pdf')) {
+                window.open(url, '_blank');
+            } else {
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = doc.fileName;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
         } catch (err) { showToast(err.message, 'error'); }
     };
 

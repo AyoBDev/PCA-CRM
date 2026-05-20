@@ -176,6 +176,7 @@ model ClientDocument {
   filePath   String   @map("file_path")
   fileSize   Int      @map("file_size")
   mimeType   String   @default("") @map("mime_type")
+  fileData   Bytes?   @map("file_data")
   uploadedBy Int?     @map("uploaded_by")
   notes      String   @default("") @map("notes")
   createdAt  DateTime @default(now()) @map("created_at")
@@ -484,6 +485,7 @@ model authorization_documents {
   file_path        String
   file_size        Int
   mime_type        String        @default("")
+  file_data        Bytes?
   uploaded_by      Int?
   notes            String        @default("")
   created_at       DateTime      @default(now())

@@ -35,13 +35,16 @@ async function getClient(req, res, next) {
                     orderBy: { createdAt: 'asc' },
                     include: {
                         authorization_documents: {
-                            include: { users: { select: { id: true, name: true } } },
+                            select: { id: true, authorization_id: true, file_name: true, file_path: true, file_size: true, mime_type: true, uploaded_by: true, notes: true, created_at: true, users: { select: { id: true, name: true } } },
                             orderBy: { created_at: 'desc' }
                         }
                     }
                 },
                 careTeam: { include: { employee: true }, orderBy: { assignedAt: 'desc' } },
-                documents: { include: { uploader: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } },
+                documents: {
+                    select: { id: true, clientId: true, category: true, fileName: true, filePath: true, fileSize: true, mimeType: true, uploadedBy: true, notes: true, createdAt: true, updatedAt: true, uploader: { select: { id: true, name: true } } },
+                    orderBy: { createdAt: 'desc' }
+                },
                 hospitalVisits: { orderBy: { visitDate: 'desc' } },
                 incidents: { orderBy: { incidentDate: 'desc' } },
                 clientNotes: { orderBy: { date: 'desc' } },

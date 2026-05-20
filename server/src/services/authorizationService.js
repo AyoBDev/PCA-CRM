@@ -78,6 +78,7 @@ function enrichAuthorization(auth) {
 
   const documents = (auth.authorization_documents || []).map(doc => ({
     id: doc.id,
+    authorizationId: doc.authorization_id,
     fileName: doc.file_name,
     filePath: doc.file_path,
     fileSize: doc.file_size,

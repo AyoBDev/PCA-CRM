@@ -1,15 +1,5 @@
-const fs = require('fs');
-const path = require('path');
 const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
-
-const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads', 'auth-documents');
-
-function ensureDir(dir) {
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-}
-
-const DOC_UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads', 'documents');
 
 // POST /api/authorizations/:authId/documents (multipart — req.file from multer)
 async function uploadAuthDocument(req, res, next) {
@@ -23,42 +13,31 @@ async function uploadAuthDocument(req, res, next) {
 
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-        const authDir = path.join(UPLOAD_DIR, String(authId));
-        ensureDir(authDir);
-
-        const safeName = `${Date.now()}-${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-        const filePath = path.join(authDir, safeName);
-        fs.writeFileSync(filePath, req.file.buffer);
-
         const doc = await prisma.authorization_documents.create({
             data: {
                 authorization_id: authId,
                 file_name: req.file.originalname,
-                file_path: `auth-documents/${authId}/${safeName}`,
+                file_path: `auth-documents/${authId}/${req.file.originalname}`,
                 file_size: req.file.size,
                 mime_type: req.file.mimetype || '',
+                file_data: req.file.buffer,
                 uploaded_by: req.user.id,
                 notes: (req.body.notes || '').trim(),
             },
             include: { users: { select: { id: true, name: true } } },
         });
 
-        // Also create a ClientDocument under "PCA Service Authorization" category
+        // Also create a ClientDocument copy
         const clientId = auth.clientId;
-        const clientDocDir = path.join(DOC_UPLOAD_DIR, String(clientId));
-        ensureDir(clientDocDir);
-        const clientDocSafeName = `${Date.now()}-${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-        const clientDocPath = path.join(clientDocDir, clientDocSafeName);
-        fs.writeFileSync(clientDocPath, req.file.buffer);
-
         await prisma.clientDocument.create({
             data: {
                 clientId,
-                category: 'auth_pca',
+                category: `auth_${auth.serviceCode.toLowerCase()}`,
                 fileName: req.file.originalname,
-                filePath: `documents/${clientId}/${clientDocSafeName}`,
+                filePath: `documents/${clientId}/${req.file.originalname}`,
                 fileSize: req.file.size,
                 mimeType: req.file.mimetype || '',
+                fileData: req.file.buffer,
                 uploadedBy: req.user.id,
                 notes: (req.body.notes || '').trim(),
             },
@@ -83,8 +62,18 @@ async function downloadAuthDocument(req, res, next) {
         const doc = await prisma.authorization_documents.findUnique({ where: { id } });
         if (!doc) return res.status(404).json({ error: 'Document not found' });
 
+        if (doc.file_data) {
+            res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(doc.file_name)}"`);
+            res.setHeader('Content-Type', doc.mime_type || 'application/octet-stream');
+            res.setHeader('Content-Length', doc.file_data.length);
+            return res.send(doc.file_data);
+        }
+
+        // Fallback to filesystem for old uploads
+        const fs = require('fs');
+        const path = require('path');
         const fullPath = path.join(__dirname, '..', '..', 'uploads', doc.file_path);
-        if (!fs.existsSync(fullPath)) return res.status(404).json({ error: 'File not found on disk' });
+        if (!fs.existsSync(fullPath)) return res.status(404).json({ error: 'File not found. It may have been lost during a deployment. Please re-upload.' });
 
         res.download(fullPath, doc.file_name);
     } catch (err) {
@@ -105,10 +94,6 @@ async function deleteAuthDocument(req, res, next) {
             }
         });
         if (!doc) return res.status(404).json({ error: 'Document not found' });
-
-        // Delete file from disk
-        const fullPath = path.join(__dirname, '..', '..', 'uploads', doc.file_path);
-        if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
 
         await prisma.authorization_documents.delete({ where: { id } });
 
