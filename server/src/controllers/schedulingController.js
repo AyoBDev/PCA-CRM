@@ -99,11 +99,17 @@ async function checkAuthorizationLimits(clientId, proposedShifts, excludeShiftId
 
 // Get the set of real service codes authorized for a client (resolves TIMESHEETS via serviceName)
 // Optional shiftDates: array of YYYY-MM-DD strings — if provided, checks each date's week for active auths
+// Returns: { codes: Set, hasAuthorizations: boolean }
 async function getAuthorizedServiceCodes(clientId, shiftDates) {
     const allAuths = await prisma.authorization.findMany({
         where: { clientId: Number(clientId) },
         select: { serviceCode: true, serviceName: true, authorizationStartDate: true, authorizationEndDate: true },
     });
+
+    // Client has no authorizations at all (e.g. Private Pay, CognitiveCare)
+    if (allAuths.length === 0) {
+        return { codes: new Set(), hasAuthorizations: false };
+    }
 
     // If shift dates provided, filter auths to those active during any of the shift weeks
     let auths;
@@ -138,7 +144,7 @@ async function getAuthorizedServiceCodes(clientId, shiftDates) {
             if (derived) codes.add(derived);
         }
     }
-    return codes;
+    return { codes, hasAuthorizations: true };
 }
 
 const shiftInclude = {
@@ -295,23 +301,26 @@ async function createShift(req, res, next) {
             }
 
             // Validate all service codes are authorized for this client (check each shift's date)
-            const authorizedCodes = await getAuthorizedServiceCodes(clientId, bulkShifts.map(s => s.shiftDate));
-            const unauthorized = [...new Set(bulkShifts.map(s => s.serviceCode))].filter(c => !authorizedCodes.has(c));
-            if (unauthorized.length > 0) {
-                return res.status(400).json({ error: `Service${unauthorized.length > 1 ? 's' : ''} not authorized for this client: ${unauthorized.join(', ')}` });
-            }
+            // Skip validation for clients with no authorizations (e.g. Private Pay, CognitiveCare)
+            const { codes: authorizedCodes, hasAuthorizations } = await getAuthorizedServiceCodes(clientId, bulkShifts.map(s => s.shiftDate));
+            if (hasAuthorizations) {
+                const unauthorized = [...new Set(bulkShifts.map(s => s.serviceCode))].filter(c => !authorizedCodes.has(c));
+                if (unauthorized.length > 0) {
+                    return res.status(400).json({ error: `Service${unauthorized.length > 1 ? 's' : ''} not authorized for this client: ${unauthorized.join(', ')}` });
+                }
 
-            // Check authorization limits
-            const authLimitCheck = await checkAuthorizationLimits(clientId, bulkShifts);
-            if (!authLimitCheck.allowed) {
-                const authHrs = Math.round((authLimitCheck.authorized / 4) * 100) / 100;
-                const schedHrs = Math.round((authLimitCheck.currentlyScheduled / 4) * 100) / 100;
-                const proposedHrs = Math.round((authLimitCheck.proposed / 4) * 100) / 100;
-                return res.status(400).json({
-                    error: 'authorization_exceeded',
-                    message: `Exceeds authorized hours for ${authLimitCheck.serviceCode} (week of ${authLimitCheck.weekStart}). Authorized: ${authHrs} hrs, Already scheduled: ${schedHrs} hrs, Attempting to add: ${proposedHrs} hrs.`,
-                    details: authLimitCheck,
-                });
+                // Check authorization limits
+                const authLimitCheck = await checkAuthorizationLimits(clientId, bulkShifts);
+                if (!authLimitCheck.allowed) {
+                    const authHrs = Math.round((authLimitCheck.authorized / 4) * 100) / 100;
+                    const schedHrs = Math.round((authLimitCheck.currentlyScheduled / 4) * 100) / 100;
+                    const proposedHrs = Math.round((authLimitCheck.proposed / 4) * 100) / 100;
+                    return res.status(400).json({
+                        error: 'authorization_exceeded',
+                        message: `Exceeds authorized hours for ${authLimitCheck.serviceCode} (week of ${authLimitCheck.weekStart}). Authorized: ${authHrs} hrs, Already scheduled: ${schedHrs} hrs, Attempting to add: ${proposedHrs} hrs.`,
+                        details: authLimitCheck,
+                    });
+                }
             }
 
             // Check overlaps for all entries
@@ -416,23 +425,26 @@ async function createShift(req, res, next) {
         }
 
         // Validate service is authorized for this client (check shift dates)
-        const singleAuthorizedCodes = await getAuthorizedServiceCodes(clientId, dates);
-        if (!singleAuthorizedCodes.has(serviceCode)) {
-            return res.status(400).json({ error: `Service ${serviceCode} is not authorized for this client` });
-        }
+        // Skip validation for clients with no authorizations (e.g. Private Pay, CognitiveCare)
+        const { codes: singleAuthorizedCodes, hasAuthorizations: singleHasAuths } = await getAuthorizedServiceCodes(clientId, dates);
+        if (singleHasAuths) {
+            if (!singleAuthorizedCodes.has(serviceCode)) {
+                return res.status(400).json({ error: `Service ${serviceCode} is not authorized for this client` });
+            }
 
-        // Check authorization limits for all dates
-        const singleProposed = dates.map(d => ({ serviceCode, shiftDate: d, startTime, endTime }));
-        const singleAuthCheck = await checkAuthorizationLimits(clientId, singleProposed);
-        if (!singleAuthCheck.allowed) {
-            const authHrs = Math.round((singleAuthCheck.authorized / 4) * 100) / 100;
-            const schedHrs = Math.round((singleAuthCheck.currentlyScheduled / 4) * 100) / 100;
-            const proposedHrs = Math.round((singleAuthCheck.proposed / 4) * 100) / 100;
-            return res.status(400).json({
-                error: 'authorization_exceeded',
-                message: `Exceeds authorized hours for ${singleAuthCheck.serviceCode} (week of ${singleAuthCheck.weekStart}). Authorized: ${authHrs} hrs, Already scheduled: ${schedHrs} hrs, Attempting to add: ${proposedHrs} hrs.`,
-                details: singleAuthCheck,
-            });
+            // Check authorization limits for all dates
+            const singleProposed = dates.map(d => ({ serviceCode, shiftDate: d, startTime, endTime }));
+            const singleAuthCheck = await checkAuthorizationLimits(clientId, singleProposed);
+            if (!singleAuthCheck.allowed) {
+                const authHrs = Math.round((singleAuthCheck.authorized / 4) * 100) / 100;
+                const schedHrs = Math.round((singleAuthCheck.currentlyScheduled / 4) * 100) / 100;
+                const proposedHrs = Math.round((singleAuthCheck.proposed / 4) * 100) / 100;
+                return res.status(400).json({
+                    error: 'authorization_exceeded',
+                    message: `Exceeds authorized hours for ${singleAuthCheck.serviceCode} (week of ${singleAuthCheck.weekStart}). Authorized: ${authHrs} hrs, Already scheduled: ${schedHrs} hrs, Attempting to add: ${proposedHrs} hrs.`,
+                    details: singleAuthCheck,
+                });
+            }
         }
 
         // Check for overlaps before creating
@@ -619,22 +631,25 @@ async function repeatShift(req, res, next) {
         }
 
         // Check authorization (pass proposed dates for date-aware filtering)
-        const authorizedCodes = await getAuthorizedServiceCodes(existing.clientId, dates);
-        if (!authorizedCodes.has(existing.serviceCode)) {
-            return res.status(400).json({ error: `Service ${existing.serviceCode} is no longer authorized for this client` });
-        }
+        // Skip for clients with no authorizations (e.g. Private Pay, CognitiveCare)
+        const { codes: repeatAuthCodes, hasAuthorizations: repeatHasAuths } = await getAuthorizedServiceCodes(existing.clientId, dates);
+        if (repeatHasAuths) {
+            if (!repeatAuthCodes.has(existing.serviceCode)) {
+                return res.status(400).json({ error: `Service ${existing.serviceCode} is no longer authorized for this client` });
+            }
 
-        const proposed = dates.map(d => ({ serviceCode: existing.serviceCode, shiftDate: d, startTime: existing.startTime, endTime: existing.endTime }));
-        const authCheck = await checkAuthorizationLimits(existing.clientId, proposed);
-        if (!authCheck.allowed) {
-            const authHrs = Math.round((authCheck.authorized / 4) * 100) / 100;
-            const schedHrs = Math.round((authCheck.currentlyScheduled / 4) * 100) / 100;
-            const proposedHrs = Math.round((authCheck.proposed / 4) * 100) / 100;
-            return res.status(400).json({
-                error: 'authorization_exceeded',
-                message: `Exceeds authorized hours for ${authCheck.serviceCode} (week of ${authCheck.weekStart}). Authorized: ${authHrs} hrs, Already scheduled: ${schedHrs} hrs, Attempting to add: ${proposedHrs} hrs.`,
-                details: authCheck,
-            });
+            const proposed = dates.map(d => ({ serviceCode: existing.serviceCode, shiftDate: d, startTime: existing.startTime, endTime: existing.endTime }));
+            const authCheck = await checkAuthorizationLimits(existing.clientId, proposed);
+            if (!authCheck.allowed) {
+                const authHrs = Math.round((authCheck.authorized / 4) * 100) / 100;
+                const schedHrs = Math.round((authCheck.currentlyScheduled / 4) * 100) / 100;
+                const proposedHrs = Math.round((authCheck.proposed / 4) * 100) / 100;
+                return res.status(400).json({
+                    error: 'authorization_exceeded',
+                    message: `Exceeds authorized hours for ${authCheck.serviceCode} (week of ${authCheck.weekStart}). Authorized: ${authHrs} hrs, Already scheduled: ${schedHrs} hrs, Attempting to add: ${proposedHrs} hrs.`,
+                    details: authCheck,
+                });
+            }
         }
 
         // Check overlaps
