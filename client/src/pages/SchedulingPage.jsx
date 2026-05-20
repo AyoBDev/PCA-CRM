@@ -1233,13 +1233,16 @@ function WeeklyCalendarView({ shifts, weekStart, overlapIds, onEditShift, onAddS
                                             <button
                                                 key={s.id}
                                                 className={`weekly-cal__shift ${isOverlap ? 'weekly-cal__shift--overlap' : ''}`}
+                                                style={{ background: colorInfo.bg, borderColor: colorInfo.color + '40' }}
                                                 onClick={() => onEditShift(s)}
                                                 title={`${s.client?.clientName || '?'} — ${s.displayEmployeeName || '?'}\n${hhmm12(s.startTime)} – ${hhmm12(s.endTime)}\n${colorInfo.label}`}
                                             >
                                                 <span className="weekly-cal__shift-dot" style={{ background: colorInfo.color }} />
                                                 <span className="weekly-cal__shift-name">{s.displayEmployeeName || 'Unassigned'}</span>
-                                                <span className="weekly-cal__shift-time">{hhmm12(s.startTime)} – {hhmm12(s.endTime)}</span>
-                                                <span className="weekly-cal__shift-service" style={{ color: colorInfo.color }}>{colorInfo.label}</span>
+                                                <span className="weekly-cal__shift-meta">
+                                                    <span className="weekly-cal__shift-time">{hhmm12(s.startTime)} – {hhmm12(s.endTime)}</span>
+                                                    <span className="weekly-cal__shift-service" style={{ color: colorInfo.color }}>{colorInfo.label}</span>
+                                                </span>
                                             </button>
                                         );
                                     })}
