@@ -400,8 +400,11 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                             onChange={setClientId}
                             placeholder="Type to search clients…"
                         />
-                        {clientId && authorizedServices.length === 0 && (
+                        {clientId && authorizedServices.length === 0 && selectedClient?.authorizations?.length > 0 && (
                             <p style={{ color: '#ef4444', fontSize: 12, margin: '4px 0 0' }}>This client has no active authorizations. Cannot create shifts.</p>
+                        )}
+                        {clientId && authorizedServices.length === 0 && (!selectedClient?.authorizations?.length) && (
+                            <p style={{ color: '#6b7280', fontSize: 12, margin: '4px 0 0' }}>Timesheet client — no authorization limits apply.</p>
                         )}
                     </div>
                     <div className="form-group" ref={empRef} style={{ position: 'relative' }}>
@@ -761,7 +764,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                         </button>
                     )}
                     <button type="button" className="btn btn--outline" onClick={handleClose}>Cancel</button>
-                    <button type="submit" className="btn btn--primary" disabled={saving || (!isEdit && enabledCount === 0) || (clientId && authorizedServices.length === 0)}>
+                    <button type="submit" className="btn btn--primary" disabled={saving || (!isEdit && enabledCount === 0) || (clientId && authorizedServices.length === 0 && selectedClient?.authorizations?.length > 0)}>
                         {saving ? 'Saving…' : isEdit ? 'Update Shift' : `Create ${enabledCount} Shift${enabledCount !== 1 ? 's' : ''}`}
                     </button>
                 </div>
