@@ -4380,10 +4380,12 @@ button.sdr-section-tag:hover:not(:disabled) {
 /* Compact calendar (inside client/employee cards) */
 .weekly-cal--compact {
     gap: 0;
+    min-width: 0;
+    overflow: hidden;
 }
 .weekly-cal--compact .weekly-cal__grid {
-    min-width: 420px;
-    grid-template-columns: 36px repeat(7, 1fr);
+    min-width: 0;
+    grid-template-columns: 32px repeat(7, 1fr);
 }
 .weekly-cal--compact .weekly-cal__header-cell {
     padding: 6px 3px;
@@ -4401,11 +4403,14 @@ button.sdr-section-tag:hover:not(:disabled) {
 .weekly-cal--compact .weekly-cal__cell {
     min-height: 60px;
     padding: 2px;
+    overflow: hidden;
 }
 .weekly-cal--compact .weekly-cal__shift {
     padding: 3px 4px;
     font-size: 10px;
     gap: 3px;
+    overflow: hidden;
+    min-width: 0;
 }
 .weekly-cal--compact .weekly-cal__shift-dot {
     width: 5px;
@@ -4414,6 +4419,10 @@ button.sdr-section-tag:hover:not(:disabled) {
 }
 .weekly-cal--compact .weekly-cal__shift-name {
     font-size: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
 }
 .weekly-cal--compact .weekly-cal__shift-time {
     font-size: 9px;
