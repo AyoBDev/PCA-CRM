@@ -147,14 +147,11 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
         weekDates.push(toLocalDateStr(d));
     }
 
+    const defaultShift = () => ({ serviceCode: 'PCS', startTime: defaultStartTime || '09:00', endTime: '13:00', accountNumber: accountNumber || '', sandataClientId: '' });
     const [dayEntries, setDayEntries] = useState(() =>
         d?.dayEntries || DAY_NAMES.map((_, i) => ({
             enabled: defaultDate ? weekDates[i] === defaultDate : false,
-            serviceCode: 'PCS',
-            startTime: defaultStartTime || '09:00',
-            endTime: '13:00',
-            accountNumber: accountNumber || '',
-            sandataClientId: '',
+            shifts: [defaultShift()],
         }))
     );
 
@@ -167,16 +164,35 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
 
     const [authInfo, setAuthInfo] = useState(null);
 
-    const updateDayEntry = (idx, field, value) => {
-        setDayEntries(prev => prev.map((e, i) => i === idx ? { ...e, [field]: value } : e));
+    const updateDayEntry = (dayIdx, field, value) => {
+        setDayEntries(prev => prev.map((e, i) => i === dayIdx ? { ...e, [field]: value } : e));
+    };
+    const updateDayShift = (dayIdx, shiftIdx, field, value) => {
+        setDayEntries(prev => prev.map((day, i) => {
+            if (i !== dayIdx) return day;
+            const newShifts = day.shifts.map((s, si) => si === shiftIdx ? { ...s, [field]: value } : s);
+            return { ...day, shifts: newShifts };
+        }));
+    };
+    const addDayShift = (dayIdx) => {
+        setDayEntries(prev => prev.map((day, i) => {
+            if (i !== dayIdx) return day;
+            const last = day.shifts[day.shifts.length - 1];
+            return { ...day, shifts: [...day.shifts, { serviceCode: last.serviceCode, startTime: last.endTime, endTime: '', accountNumber: last.accountNumber, sandataClientId: last.sandataClientId }] };
+        }));
+    };
+    const removeDayShift = (dayIdx, shiftIdx) => {
+        setDayEntries(prev => prev.map((day, i) => {
+            if (i !== dayIdx || day.shifts.length <= 1) return day;
+            return { ...day, shifts: day.shifts.filter((_, si) => si !== shiftIdx) };
+        }));
     };
 
     const enabledCount = dayEntries.filter(d => d.enabled).length;
 
-    // Apply same time/service to all enabled days
     const applyToAll = (sourceIdx) => {
         const src = dayEntries[sourceIdx];
-        setDayEntries(prev => prev.map((e, i) => e.enabled && i !== sourceIdx ? { ...e, serviceCode: src.serviceCode, startTime: src.startTime, endTime: src.endTime, accountNumber: src.accountNumber, sandataClientId: src.sandataClientId } : e));
+        setDayEntries(prev => prev.map((e, i) => e.enabled && i !== sourceIdx ? { ...e, shifts: src.shifts.map(s => ({ ...s })) } : e));
     };
 
     useEffect(() => {
@@ -198,15 +214,17 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
         }
     }, [clientId, clients]);
 
-    // Reset service code when client changes if current selection isn't authorized
     useEffect(() => {
         if (authorizedServices.length > 0 && !authorizedServices.includes(serviceCode)) {
             setServiceCode(authorizedServices[0]);
         }
         if (authorizedServices.length > 0) {
-            setDayEntries(prev => prev.map(e => ({
-                ...e,
-                serviceCode: authorizedServices.includes(e.serviceCode) ? e.serviceCode : authorizedServices[0],
+            setDayEntries(prev => prev.map(day => ({
+                ...day,
+                shifts: day.shifts.map(s => ({
+                    ...s,
+                    serviceCode: authorizedServices.includes(s.serviceCode) ? s.serviceCode : authorizedServices[0],
+                })),
             })));
         }
     }, [authorizedServices]);
@@ -237,14 +255,13 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
     const { hours, units } = computeHrs(startTime, endTime);
     const editColorInfo = SERVICE_COLORS[serviceCode] || { color: '#6B7280', label: serviceCode };
 
-    // Create mode totals
-    const totalCreateUnits = dayEntries.reduce((sum, d) => {
-        if (!d.enabled) return sum;
-        return sum + computeHrs(d.startTime, d.endTime).units;
+    const totalCreateUnits = dayEntries.reduce((sum, day) => {
+        if (!day.enabled) return sum;
+        return sum + day.shifts.reduce((s2, sh) => s2 + computeHrs(sh.startTime, sh.endTime).units, 0);
     }, 0);
-    const totalCreateHours = dayEntries.reduce((sum, d) => {
-        if (!d.enabled) return sum;
-        return sum + computeHrs(d.startTime, d.endTime).hours;
+    const totalCreateHours = dayEntries.reduce((sum, day) => {
+        if (!day.enabled) return sum;
+        return sum + day.shifts.reduce((s2, sh) => s2 + computeHrs(sh.startTime, sh.endTime).hours, 0);
     }, 0);
 
     // Recurring count
@@ -307,11 +324,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
         setRepeatUntil('');
         setDayEntries(DAY_NAMES.map(() => ({
             enabled: false,
-            serviceCode: 'PCS',
-            startTime: '09:00',
-            endTime: '13:00',
-            accountNumber: '',
-            sandataClientId: '',
+            shifts: [defaultShift()],
         })));
         if (onClearDraft) onClearDraft();
     };
@@ -356,20 +369,21 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                     await onRepeat(shift.id, { repeatUntil: editRepeatUntil });
                 }
             } else {
-                // Multi-day bulk create
+                // Multi-day bulk create (supports multiple shifts per day)
                 const bulkShifts = [];
                 for (let i = 0; i < 7; i++) {
                     if (!dayEntries[i].enabled) continue;
-                    const entry = { serviceCode: dayEntries[i].serviceCode, shiftDate: weekDates[i], startTime: dayEntries[i].startTime, endTime: dayEntries[i].endTime, accountNumber: dayEntries[i].accountNumber || '', sandataClientId: dayEntries[i].sandataClientId || '' };
-                    bulkShifts.push(entry);
-                    // If recurring, add weekly copies
-                    if (recurring && repeatUntil) {
-                        const weekMs = 7 * 24 * 60 * 60 * 1000;
-                        let cursorMs = new Date(weekDates[i] + 'T12:00:00Z').getTime() + weekMs;
-                        const endMs = new Date(repeatUntil + 'T12:00:00Z').getTime();
-                        while (cursorMs <= endMs) {
-                            bulkShifts.push({ ...entry, shiftDate: new Date(cursorMs).toISOString().slice(0, 10) });
-                            cursorMs += weekMs;
+                    for (const sh of dayEntries[i].shifts) {
+                        const entry = { serviceCode: sh.serviceCode, shiftDate: weekDates[i], startTime: sh.startTime, endTime: sh.endTime, accountNumber: sh.accountNumber || '', sandataClientId: sh.sandataClientId || '' };
+                        bulkShifts.push(entry);
+                        if (recurring && repeatUntil) {
+                            const weekMs = 7 * 24 * 60 * 60 * 1000;
+                            let cursorMs = new Date(weekDates[i] + 'T12:00:00Z').getTime() + weekMs;
+                            const endMs = new Date(repeatUntil + 'T12:00:00Z').getTime();
+                            while (cursorMs <= endMs) {
+                                bulkShifts.push({ ...entry, shiftDate: new Date(cursorMs).toISOString().slice(0, 10) });
+                                cursorMs += weekMs;
+                            }
                         }
                     }
                 }
@@ -604,69 +618,82 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                         <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Days of the Week</label>
                         <div className="sched-day-grid">
                             {DAY_NAMES.map((day, i) => {
-                                const entry = dayEntries[i];
-                                const dayColorInfo = SERVICE_COLORS[entry.serviceCode] || { color: '#6B7280', label: entry.serviceCode };
-                                const { hours: dH, units: dU } = computeHrs(entry.startTime, entry.endTime);
+                                const dayEntry = dayEntries[i];
+                                const dayTotalHrs = dayEntry.shifts.reduce((s, sh) => s + computeHrs(sh.startTime, sh.endTime).hours, 0);
+                                const dayTotalUnits = dayEntry.shifts.reduce((s, sh) => s + computeHrs(sh.startTime, sh.endTime).units, 0);
+                                const firstColor = SERVICE_COLORS[dayEntry.shifts[0].serviceCode] || { color: '#6B7280' };
                                 return (
-                                    <div key={i} className={`sched-day-row ${entry.enabled ? 'sched-day-row--active' : ''}`}>
+                                    <div key={i} className={`sched-day-row ${dayEntry.enabled ? 'sched-day-row--active' : ''}`}>
                                         <div className="sched-day-row__header">
                                             <label className="sched-day-row__toggle">
-                                                <input type="checkbox" checked={entry.enabled} onChange={e => updateDayEntry(i, 'enabled', e.target.checked)} />
+                                                <input type="checkbox" checked={dayEntry.enabled} onChange={e => updateDayEntry(i, 'enabled', e.target.checked)} />
                                                 <span className="sched-day-row__day">{day}</span>
                                                 <span className="sched-day-row__date">{weekDates[i].slice(5)}</span>
                                             </label>
-                                            {entry.enabled && (
-                                                <span className="sched-day-row__badge" style={{ background: `color-mix(in srgb, ${dayColorInfo.color} 15%, white)`, color: dayColorInfo.color }}>
-                                                    {dH}h / {dU}u
-                                                </span>
+                                            {dayEntry.enabled && (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                    <span className="sched-day-row__badge" style={{ background: `color-mix(in srgb, ${firstColor.color} 15%, white)`, color: firstColor.color }}>
+                                                        {dayTotalHrs}h / {dayTotalUnits}u
+                                                    </span>
+                                                    <button type="button" className="sched-day-row__add-shift" title="Add another shift" onClick={() => addDayShift(i)}>+</button>
+                                                </div>
                                             )}
                                         </div>
-                                        {entry.enabled && (
-                                            <div className="sched-day-row__fields">
-                                                <div className="sched-day-row__field">
-                                                    <label className="sched-day-row__field-label">Service</label>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: dayColorInfo.color, flexShrink: 0 }} />
-                                                        <select value={entry.serviceCode} onChange={e => updateDayEntry(i, 'serviceCode', e.target.value)} className="sched-day-row__input">
-                                                            {clientId && authorizedServices.length > 0
-                                                                ? authorizedServices.map(code => {
-                                                                    const info = SERVICE_COLORS[code] || { label: code };
-                                                                    const cat = authorizedServiceMap[code]?.category;
-                                                                    return <option key={code} value={code}>{cat ? `${cat} — ` : ''}{info.label}</option>;
-                                                                })
-                                                                : Object.entries(SERVICE_COLORS).map(([code, info]) => (
-                                                                    <option key={code} value={code}>{info.label}</option>
-                                                                ))
-                                                            }
+                                        {dayEntry.enabled && dayEntry.shifts.map((sh, si) => {
+                                            const shColorInfo = SERVICE_COLORS[sh.serviceCode] || { color: '#6B7280', label: sh.serviceCode };
+                                            return (
+                                                <div key={si} className="sched-day-row__fields">
+                                                    {dayEntry.shifts.length > 1 && (
+                                                        <div className="sched-day-row__shift-label">
+                                                            <span>Shift {si + 1}</span>
+                                                            <button type="button" className="sched-day-row__remove-shift" title="Remove shift" onClick={() => removeDayShift(i, si)}>&times;</button>
+                                                        </div>
+                                                    )}
+                                                    <div className="sched-day-row__field">
+                                                        <label className="sched-day-row__field-label">Service</label>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                            <span style={{ width: 10, height: 10, borderRadius: '50%', background: shColorInfo.color, flexShrink: 0 }} />
+                                                            <select value={sh.serviceCode} onChange={e => updateDayShift(i, si, 'serviceCode', e.target.value)} className="sched-day-row__input">
+                                                                {clientId && authorizedServices.length > 0
+                                                                    ? authorizedServices.map(code => {
+                                                                        const info = SERVICE_COLORS[code] || { label: code };
+                                                                        const cat = authorizedServiceMap[code]?.category;
+                                                                        return <option key={code} value={code}>{cat ? `${cat} — ` : ''}{info.label}</option>;
+                                                                    })
+                                                                    : Object.entries(SERVICE_COLORS).map(([code, info]) => (
+                                                                        <option key={code} value={code}>{info.label}</option>
+                                                                    ))
+                                                                }
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                    <div className="sched-day-row__field">
+                                                        <label className="sched-day-row__field-label">Start</label>
+                                                        <input type="time" value={sh.startTime} onChange={e => updateDayShift(i, si, 'startTime', e.target.value)} className="sched-day-row__input" required />
+                                                    </div>
+                                                    <div className="sched-day-row__field">
+                                                        <label className="sched-day-row__field-label">End</label>
+                                                        <input type="time" value={sh.endTime} onChange={e => updateDayShift(i, si, 'endTime', e.target.value)} className="sched-day-row__input" required />
+                                                    </div>
+                                                    <div className="sched-day-row__field">
+                                                        <label className="sched-day-row__field-label">Account</label>
+                                                        <select value={sh.accountNumber} onChange={e => updateDayShift(i, si, 'accountNumber', e.target.value)} className="sched-day-row__input">
+                                                            <option value="">—</option>
+                                                            {VALID_ACCOUNT_NUMBERS.map(n => <option key={n} value={n}>{n}</option>)}
                                                         </select>
                                                     </div>
+                                                    <div className="sched-day-row__field">
+                                                        <label className="sched-day-row__field-label">Sandata Client ID</label>
+                                                        <input value={sh.sandataClientId} onChange={e => updateDayShift(i, si, 'sandataClientId', e.target.value)} className="sched-day-row__input" placeholder="—" />
+                                                    </div>
+                                                    {si === 0 && enabledCount > 1 && (
+                                                        <button type="button" className="sched-day-row__apply" title="Apply this day's shifts to all selected days" onClick={() => applyToAll(i)}>
+                                                            Apply to all
+                                                        </button>
+                                                    )}
                                                 </div>
-                                                <div className="sched-day-row__field">
-                                                    <label className="sched-day-row__field-label">Start</label>
-                                                    <input type="time" value={entry.startTime} onChange={e => updateDayEntry(i, 'startTime', e.target.value)} className="sched-day-row__input" required />
-                                                </div>
-                                                <div className="sched-day-row__field">
-                                                    <label className="sched-day-row__field-label">End</label>
-                                                    <input type="time" value={entry.endTime} onChange={e => updateDayEntry(i, 'endTime', e.target.value)} className="sched-day-row__input" required />
-                                                </div>
-                                                <div className="sched-day-row__field">
-                                                    <label className="sched-day-row__field-label">Account</label>
-                                                    <select value={entry.accountNumber} onChange={e => updateDayEntry(i, 'accountNumber', e.target.value)} className="sched-day-row__input">
-                                                        <option value="">—</option>
-                                                        {VALID_ACCOUNT_NUMBERS.map(n => <option key={n} value={n}>{n}</option>)}
-                                                    </select>
-                                                </div>
-                                                <div className="sched-day-row__field">
-                                                    <label className="sched-day-row__field-label">Sandata Client ID</label>
-                                                    <input value={entry.sandataClientId} onChange={e => updateDayEntry(i, 'sandataClientId', e.target.value)} className="sched-day-row__input" placeholder="—" />
-                                                </div>
-                                                {enabledCount > 1 && (
-                                                    <button type="button" className="sched-day-row__apply" title="Apply this service and times to all selected days" onClick={() => applyToAll(i)}>
-                                                        Apply to all
-                                                    </button>
-                                                )}
-                                            </div>
-                                        )}
+                                            );
+                                        })}
                                     </div>
                                 );
                             })}

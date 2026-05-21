@@ -4788,6 +4788,56 @@ button.sdr-section-tag:hover:not(:disabled) {
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
+.sched-day-row__add-shift {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--background));
+    color: hsl(var(--muted-foreground));
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+.sched-day-row__add-shift:hover {
+    background: hsl(217 91% 95%);
+    border-color: hsl(217 91% 60%);
+    color: hsl(217 91% 50%);
+}
+.sched-day-row__shift-label {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: -4px;
+}
+.sched-day-row__remove-shift {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: none;
+    background: hsl(0 84% 95%);
+    color: hsl(0 84% 50%);
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+.sched-day-row__remove-shift:hover {
+    background: hsl(0 84% 60%);
+    color: white;
+}
 .sched-day-row__fields {
     display: flex;
     align-items: flex-end;
