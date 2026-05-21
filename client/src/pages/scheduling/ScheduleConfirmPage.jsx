@@ -10,6 +10,7 @@ export default function ScheduleConfirmPage() {
     const [submitting, setSubmitting] = useState(false);
     const [responded, setResponded] = useState(null);
     const [notes, setNotes] = useState('');
+    const [selectedResponse, setSelectedResponse] = useState(null);
 
     useEffect(() => {
         api.getScheduleConfirm(token)
@@ -77,54 +78,52 @@ export default function ScheduleConfirmPage() {
                 </table>
 
                 {responded ? (
-                    <div style={{ marginTop: 24, padding: 16, borderRadius: 8, textAlign: 'center', background: responded === 'accepted' ? '#dcfce7' : responded === 'rejected' ? '#fee2e2' : '#fef3c7' }}>
-                        <p style={{ fontWeight: 600, margin: 0, color: responded === 'accepted' ? '#166534' : responded === 'rejected' ? '#991b1b' : '#92400e' }}>
+                    <div style={{ marginTop: 24, padding: 16, borderRadius: 8, textAlign: 'center', background: responded === 'accepted' ? '#dcfce7' : '#fef3c7' }}>
+                        <p style={{ fontWeight: 600, margin: 0, color: responded === 'accepted' ? '#166534' : '#92400e' }}>
                             {responded === 'accepted' && 'Schedule Accepted. Thank you!'}
-                            {responded === 'rejected' && 'Schedule Rejected. Your scheduler has been notified.'}
-                            {responded === 'changes_requested' && 'Change Request Sent. Your scheduler will review your notes.'}
+                            {responded === 'changes_requested' && 'Revision Request Sent. Your scheduler will review your notes.'}
                         </p>
                     </div>
                 ) : (
                     <div style={{ marginTop: 24 }}>
-                        <div style={{ marginBottom: 16 }}>
-                            <label style={{ display: 'block', fontWeight: 500, marginBottom: 6, fontSize: 13 }}>
-                                Notes / Requested Changes (optional for accept, required for changes)
+                        <p style={{ fontWeight: 600, fontSize: 14, marginBottom: 12 }}>Please select your schedule status:</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 8, border: `2px solid ${selectedResponse === 'accepted' ? '#22c55e' : '#e5e7eb'}`, background: selectedResponse === 'accepted' ? '#f0fdf4' : '#fff', cursor: 'pointer', transition: 'all 0.15s' }}>
+                                <input type="radio" name="scheduleResponse" value="accepted" checked={selectedResponse === 'accepted'} onChange={() => setSelectedResponse('accepted')} style={{ width: 18, height: 18, accentColor: '#22c55e' }} />
+                                <span style={{ fontWeight: 500, fontSize: 14 }}>Accept Schedule</span>
                             </label>
-                            <textarea
-                                value={notes}
-                                onChange={(e) => setNotes(e.target.value)}
-                                placeholder="Any concerns, conflicts, or requested changes..."
-                                rows={3}
-                                style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13, resize: 'vertical' }}
-                            />
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 8, border: `2px solid ${selectedResponse === 'changes_requested' ? '#f59e0b' : '#e5e7eb'}`, background: selectedResponse === 'changes_requested' ? '#fffbeb' : '#fff', cursor: 'pointer', transition: 'all 0.15s' }}>
+                                <input type="radio" name="scheduleResponse" value="changes_requested" checked={selectedResponse === 'changes_requested'} onChange={() => setSelectedResponse('changes_requested')} style={{ width: 18, height: 18, accentColor: '#f59e0b' }} />
+                                <span style={{ fontWeight: 500, fontSize: 14 }}>Request Revisions</span>
+                            </label>
                         </div>
-                        <div style={{ display: 'flex', gap: 10 }}>
+
+                        {selectedResponse === 'changes_requested' && (
+                            <div style={{ marginTop: 12 }}>
+                                <label style={{ display: 'block', fontWeight: 500, marginBottom: 6, fontSize: 13, color: '#374151' }}>
+                                    Please explain what changes you need: <span style={{ color: '#ef4444' }}>*</span>
+                                </label>
+                                <textarea
+                                    value={notes}
+                                    onChange={(e) => setNotes(e.target.value)}
+                                    placeholder="Describe the revisions needed (e.g., time conflicts, day changes, client preferences)..."
+                                    rows={4}
+                                    style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13, resize: 'vertical' }}
+                                    required
+                                />
+                            </div>
+                        )}
+
+                        {selectedResponse && (
                             <button
                                 className="btn btn--primary"
-                                style={{ flex: 1, padding: '12px 20px' }}
-                                onClick={() => handleRespond('accepted')}
-                                disabled={submitting}
+                                style={{ marginTop: 16, width: '100%', padding: '12px 20px', fontSize: 14 }}
+                                onClick={() => handleRespond(selectedResponse)}
+                                disabled={submitting || (selectedResponse === 'changes_requested' && !notes.trim())}
                             >
-                                Accept Schedule
+                                {submitting ? 'Submitting...' : selectedResponse === 'accepted' ? 'Confirm Acceptance' : 'Submit Revision Request'}
                             </button>
-                            <button
-                                className="btn"
-                                style={{ flex: 1, padding: '12px 20px', background: '#fbbf24', color: '#78350f', border: 'none', borderRadius: 6, fontWeight: 500, cursor: 'pointer' }}
-                                onClick={() => handleRespond('changes_requested')}
-                                disabled={submitting || !notes.trim()}
-                                title={!notes.trim() ? 'Please add notes describing the changes you need' : ''}
-                            >
-                                Request Changes
-                            </button>
-                            <button
-                                className="btn"
-                                style={{ flex: 1, padding: '12px 20px', background: '#ef4444', color: 'white', border: 'none', borderRadius: 6, fontWeight: 500, cursor: 'pointer' }}
-                                onClick={() => handleRespond('rejected')}
-                                disabled={submitting}
-                            >
-                                Reject Schedule
-                            </button>
-                        </div>
+                        )}
                     </div>
                 )}
             </div>
