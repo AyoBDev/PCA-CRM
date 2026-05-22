@@ -71,10 +71,11 @@ async function updateAuthorization(req, res, next) {
                 authorizationEndDate: req.body.authorizationEndDate ? new Date(req.body.authorizationEndDate) : null,
                 notes: (req.body.notes || '').trim(),
                 accountNumber: (req.body.accountNumber || '').trim(),
+                ...(req.body.manualStatus && { manualStatus: req.body.manualStatus }),
             },
         });
 
-        const changes = audit.diffFields(oldAuth, auth, ['serviceCode', 'serviceName', 'authorizationNumber', 'authorizedUnits', 'authorizedHours', 'authorizationStartDate', 'authorizationEndDate', 'notes', 'accountNumber']);
+        const changes = audit.diffFields(oldAuth, auth, ['serviceCode', 'serviceName', 'authorizationNumber', 'authorizedUnits', 'authorizedHours', 'authorizationStartDate', 'authorizationEndDate', 'notes', 'accountNumber', 'manualStatus']);
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: auth.id, entityName: auth.serviceCode, changes });
         res.json(enrichAuthorization(auth));
     } catch (err) {
@@ -158,4 +159,24 @@ async function updateAccountNumber(req, res, next) {
     }
 }
 
-module.exports = { createAuthorization, updateAuthorization, archiveAuthorization, restoreAuthorization, deleteAuthorization, updateAccountNumber };
+async function updateAuthManualStatus(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const { manualStatus } = req.body;
+        if (!['active', 'pending', 'inactive'].includes(manualStatus)) {
+            return res.status(400).json({ error: 'Invalid status. Must be active, pending, or inactive.' });
+        }
+        const oldAuth = await prisma.authorization.findUnique({ where: { id } });
+        if (!oldAuth) return res.status(404).json({ error: 'Authorization not found' });
+
+        const auth = await prisma.authorization.update({
+            where: { id },
+            data: { manualStatus },
+        });
+
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: id, entityName: auth.serviceCode, changes: [{ field: 'manualStatus', oldValue: oldAuth.manualStatus, newValue: manualStatus }] });
+        res.json(enrichAuthorization(auth));
+    } catch (err) { next(err); }
+}
+
+module.exports = { createAuthorization, updateAuthorization, archiveAuthorization, restoreAuthorization, deleteAuthorization, updateAccountNumber, updateAuthManualStatus };

@@ -100,6 +100,8 @@ function enrichAuthorization(auth) {
     authorizationEndDate: auth.authorizationEndDate,
     notes: auth.notes || '',
     archivedAt: auth.archivedAt || null,
+    accountNumber: auth.accountNumber || '',
+    manualStatus: auth.manualStatus || 'active',
     daysToExpire,
     status,
     statusColor,

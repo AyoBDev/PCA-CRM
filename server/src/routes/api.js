@@ -21,6 +21,7 @@ const {
     restoreAuthorization,
     deleteAuthorization,
     updateAccountNumber,
+    updateAuthManualStatus,
 } = require('../controllers/authorizationController');
 const {
     listInsuranceTypes,
@@ -190,6 +191,7 @@ router.put('/authorizations/:id/archive', requireRole('admin', 'user', 'pca'), a
 router.put('/authorizations/:id/restore', requireRole('admin', 'user', 'pca'), restoreAuthorization);
 router.delete('/authorizations/:id', requireRole('admin', 'user', 'pca'), deleteAuthorization);
 router.patch('/authorizations/:id/account-number', requireRole('admin', 'user', 'pca'), updateAccountNumber);
+router.patch('/authorizations/:id/status', requireRole('admin', 'user', 'pca'), updateAuthManualStatus);
 
 // Care Team
 router.post('/clients/:clientId/care-team', requireRole('admin', 'user', 'pca'), addCareTeamMember);

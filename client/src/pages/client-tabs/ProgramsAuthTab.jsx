@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import Icons from '../../components/common/Icons';
 import * as api from '../../api';
 
@@ -22,6 +23,14 @@ const DEFAULT_AUTH_COLOR = { accent: '#64748b', bg: 'hsl(215 20% 96%)', border: 
 
 const LEFT_CODES = ['PCS', 'SDPC'];
 
+const STATUS_SORT_ORDER = { active: 0, pending: 1, inactive: 2 };
+
+const STATUS_STYLES = {
+    active: { color: '#16a34a', bg: 'hsl(142 76% 95%)', border: '#86efac', label: 'Active' },
+    pending: { color: '#d97706', bg: 'hsl(38 92% 95%)', border: '#fcd34d', label: 'Pending' },
+    inactive: { color: '#dc2626', bg: 'hsl(0 84% 96%)', border: '#fca5a5', label: 'Inactive' },
+};
+
 export default function ProgramsAuthTab({
     client,
     clientId,
@@ -45,20 +54,37 @@ export default function ProgramsAuthTab({
     fetchClient,
     showToast,
 }) {
+    const [expandedAuthIds, setExpandedAuthIds] = useState({});
+
+    const toggleAuthExpanded = (authId) => {
+        setExpandedAuthIds(prev => ({ ...prev, [authId]: !prev[authId] }));
+    };
 
     const filterAuths = (auths) => {
         if (authFilterStatus === 'all') return auths;
-        if (authFilterStatus === 'active') return auths.filter(a => !a.archivedAt && a.status !== 'Expired');
+        if (authFilterStatus === 'active') return auths.filter(a => !a.archivedAt && (a.manualStatus || 'active') === 'active');
+        if (authFilterStatus === 'pending') return auths.filter(a => (a.manualStatus || 'active') === 'pending');
+        if (authFilterStatus === 'inactive') return auths.filter(a => (a.manualStatus || 'active') === 'inactive');
         if (authFilterStatus === 'expired') return auths.filter(a => a.status === 'Expired');
         if (authFilterStatus === 'archived') return auths.filter(a => a.archivedAt);
         return auths;
+    };
+
+    const sortAuths = (auths) => {
+        return [...auths].sort((a, b) => {
+            const statusA = STATUS_SORT_ORDER[a.manualStatus || 'active'] ?? 1;
+            const statusB = STATUS_SORT_ORDER[b.manualStatus || 'active'] ?? 1;
+            if (statusA !== statusB) return statusA - statusB;
+            const dateA = a.authorizationEndDate ? new Date(a.authorizationEndDate) : new Date(0);
+            const dateB = b.authorizationEndDate ? new Date(b.authorizationEndDate) : new Date(0);
+            return dateB - dateA;
+        });
     };
 
     const allCodes = Object.keys(authGroupsForInsurance);
     const leftCodes = LEFT_CODES.filter(c => allCodes.includes(c));
     const rightCodes = allCodes.filter(c => !LEFT_CODES.includes(c));
 
-    // Summary stats
     let totalActive = 0, totalUnits = 0, totalAttachments = 0;
     Object.values(authGroupsForInsurance).forEach(({ current }) => {
         totalActive += current.length;
@@ -80,15 +106,26 @@ export default function ProgramsAuthTab({
         }
     }
 
+    async function handleStatusChange(authId, newStatus) {
+        try {
+            await api.updateAuthManualStatus(authId, newStatus);
+            if (fetchClient) fetchClient();
+        } catch (err) {
+            if (showToast) showToast('Failed to update status', 'error');
+        }
+    }
+
     function renderServiceCard(code) {
         const { current, archived } = authGroupsForInsurance[code];
         const colors = AUTH_COLORS[code] || DEFAULT_AUTH_COLOR;
         const allAuths = [...current, ...archived];
-        const filteredAuths = filterAuths(allAuths);
-        const activeAuths = current.filter(a => a.status !== 'Expired');
+        const filteredAuths = sortAuths(filterAuths(allAuths));
+        const activeAuths = current.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt);
         const latestAuth = activeAuths[0] || current[0] || allAuths[0];
         const attachCount = allAuths.reduce((sum, a) => sum + (a.documents || []).length, 0);
         const currentAccountNumber = latestAuth?.accountNumber || DEFAULT_ACCOUNT_BY_CODE[code] || '';
+
+        const isExpanded = expandedServiceCode === code;
 
         return (
             <div key={code} className="pa-service-card" style={{ '--card-accent': colors.accent, '--card-bg': colors.bg, '--card-border': colors.border }}>
@@ -133,79 +170,114 @@ export default function ProgramsAuthTab({
 
                 <div className="pa-service-card__footer">
                     <button className="btn btn--outline btn--sm" onClick={() => navigate(`/clients/${clientId}/service/${code}`)}>{Icons.externalLink} Open</button>
-                    <button className="btn btn--outline btn--sm pa-btn--view-details" style={{ color: colors.accent, borderColor: colors.accent }} onClick={() => setExpandedServiceCode(expandedServiceCode === code ? null : code)}>View Details</button>
+                    <button
+                        className="btn btn--outline btn--sm pa-btn--view-details"
+                        style={{ color: colors.accent, borderColor: colors.accent }}
+                        onClick={() => setExpandedServiceCode(isExpanded ? null : code)}
+                    >
+                        {isExpanded ? Icons.chevronDown : Icons.chevronRight} {isExpanded ? 'Hide Details' : 'View Details'}
+                    </button>
                 </div>
 
-                {expandedServiceCode === code && (
+                {isExpanded && (
                     <div className="pa-service-card__expanded">
                         {filteredAuths.length === 0 ? (
                             <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '8px 0' }}>No authorizations match the current filter.</div>
                         ) : (
-                            filteredAuths.map(a => (
-                                <div key={a.id} className="pa-auth-detail">
-                                    <div className="pa-auth-detail__main">
-                                        <div className="pa-auth-detail__info">
-                                            <span className="pa-auth-detail__name" style={a.archivedAt ? { textDecoration: 'line-through', opacity: 0.6 } : {}}>
-                                                {a.serviceName || a.serviceCategory || code}
-                                                {a.authorizationNumber && <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontFamily: 'var(--font-mono, monospace)', marginLeft: 6 }}>#{a.authorizationNumber}</span>}
-                                            </span>
-                                            <div className="pa-auth-detail__meta">
-                                                {(a.authorizationStartDate || a.authorizationEndDate) && <span>{formatDate(a.authorizationStartDate)} – {formatDate(a.authorizationEndDate)}</span>}
-                                                {a.authorizedUnits > 0 && <span>{a.authorizedUnits} units ({unitsToHours(a.authorizedUnits)} hrs)</span>}
+                            <div className="pa-auth-list">
+                                {filteredAuths.map(a => {
+                                    const authStatus = a.manualStatus || 'active';
+                                    const statusStyle = STATUS_STYLES[authStatus] || STATUS_STYLES.active;
+                                    const isAuthExpanded = expandedAuthIds[a.id];
+
+                                    return (
+                                        <div key={a.id} className={`pa-auth-item pa-auth-item--${authStatus}`}>
+                                            <div className="pa-auth-item__header" onClick={() => toggleAuthExpanded(a.id)}>
+                                                <div className="pa-auth-item__left">
+                                                    <span className="pa-auth-item__chevron">
+                                                        {isAuthExpanded ? Icons.chevronDown : Icons.chevronRight}
+                                                    </span>
+                                                    <span className="pa-auth-item__name" style={a.archivedAt ? { textDecoration: 'line-through', opacity: 0.6 } : {}}>
+                                                        {a.serviceName || a.serviceCategory || code}
+                                                        {a.authorizationNumber && <span className="pa-auth-item__number">#{a.authorizationNumber}</span>}
+                                                    </span>
+                                                    <span className="pa-auth-item__dates">
+                                                        {formatDate(a.authorizationStartDate)} – {formatDate(a.authorizationEndDate)}
+                                                    </span>
+                                                    {a.authorizedUnits > 0 && (
+                                                        <span className="pa-auth-item__units">{a.authorizedUnits} units ({unitsToHours(a.authorizedUnits)} hrs)</span>
+                                                    )}
+                                                </div>
+                                                <div className="pa-auth-item__right" onClick={e => e.stopPropagation()}>
+                                                    <select
+                                                        className="pa-auth-item__status-select"
+                                                        value={authStatus}
+                                                        onChange={(e) => handleStatusChange(a.id, e.target.value)}
+                                                        style={{ color: statusStyle.color, background: statusStyle.bg, borderColor: statusStyle.border }}
+                                                    >
+                                                        <option value="active">Active</option>
+                                                        <option value="pending">Pending</option>
+                                                        <option value="inactive">Inactive</option>
+                                                    </select>
+                                                    {a.daysToExpire !== null && !a.archivedAt && (
+                                                        <span className={`ts-badge ts-badge--${a.status === 'Expired' ? 'critical' : a.status === 'Renewal Reminder' ? 'draft' : 'submitted'}`}>
+                                                            {a.status} {a.daysToExpire >= 0 ? `(${a.daysToExpire}d)` : `(${Math.abs(a.daysToExpire)}d ago)`}
+                                                        </span>
+                                                    )}
+                                                    {a.archivedAt && <span className="ts-badge ts-badge--draft">Archived</span>}
+                                                    <div className="pa-auth-item__actions">
+                                                        {!a.archivedAt ? (
+                                                            <>
+                                                                <button className="btn btn--ghost btn--xs" onClick={() => openAuthModal(a, code)}>{Icons.edit}</button>
+                                                                <button className="btn btn--ghost btn--xs" onClick={() => handleArchiveAuth(a.id)}>{Icons.archive}</button>
+                                                            </>
+                                                        ) : (
+                                                            <button className="btn btn--ghost btn--xs" onClick={() => handleRestoreAuth(a.id)}>{Icons.rotateCcw} Restore</button>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="pa-auth-detail__actions">
-                                            {a.daysToExpire !== null && !a.archivedAt && (
-                                                <span className={`ts-badge ts-badge--${a.status === 'Expired' ? 'critical' : a.status === 'Renewal Reminder' ? 'draft' : 'submitted'}`}>
-                                                    {a.status} {a.daysToExpire >= 0 ? `(${a.daysToExpire}d)` : `(${Math.abs(a.daysToExpire)}d ago)`}
-                                                </span>
+
+                                            {isAuthExpanded && (
+                                                <div className="pa-auth-item__body">
+                                                    {a.notes && <div className="pa-auth-item__notes">{a.notes}</div>}
+                                                    <div className="cp-auth-attachments">
+                                                        <button
+                                                            className="cp-auth-attachments__toggle"
+                                                            onClick={() => setExpandedAuthAttachments(prev => ({ ...prev, [a.id]: !prev[a.id] }))}
+                                                        >
+                                                            {Icons.fileText} {(a.documents || []).length} attachment{(a.documents || []).length !== 1 ? 's' : ''}
+                                                            <span style={{ marginLeft: 4 }}>{expandedAuthAttachments[a.id] ? Icons.chevronDown : Icons.chevronRight}</span>
+                                                        </button>
+                                                        {expandedAuthAttachments[a.id] && (
+                                                            <div className="cp-auth-attachments__list">
+                                                                {(a.documents || []).length === 0 ? (
+                                                                    <div className="cp-auth-attachments__empty">No attachments</div>
+                                                                ) : (
+                                                                    (a.documents || []).map(doc => (
+                                                                        <div key={doc.id} className="cp-auth-attachments__item">
+                                                                            <span className="cp-auth-attachments__name" onClick={() => handleDownloadAuthDoc(doc)} title="Download">
+                                                                                {Icons.download} {doc.fileName}
+                                                                            </span>
+                                                                            <button className="btn btn--danger-ghost btn--icon btn--xs" onClick={() => handleDeleteAuthDoc(doc)} title="Delete">
+                                                                                {Icons.trash}
+                                                                            </button>
+                                                                        </div>
+                                                                    ))
+                                                                )}
+                                                                <label className="cp-auth-attachments__upload">
+                                                                    {Icons.upload} Upload
+                                                                    <input type="file" style={{ display: 'none' }} onChange={(e) => { if (e.target.files[0]) handleUploadAuthDoc(a.id, e.target.files[0]); e.target.value = ''; }} />
+                                                                </label>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             )}
-                                            {a.archivedAt && <span className="ts-badge ts-badge--draft">Archived</span>}
-                                            <div style={{ display: 'flex', gap: 4 }}>
-                                                {!a.archivedAt ? (
-                                                    <>
-                                                        <button className="btn btn--ghost btn--xs" onClick={() => openAuthModal(a, code)}>{Icons.edit}</button>
-                                                        <button className="btn btn--ghost btn--xs" onClick={() => handleArchiveAuth(a.id)}>{Icons.archive}</button>
-                                                    </>
-                                                ) : (
-                                                    <button className="btn btn--ghost btn--xs" onClick={() => handleRestoreAuth(a.id)}>{Icons.rotateCcw} Restore</button>
-                                                )}
-                                            </div>
                                         </div>
-                                    </div>
-                                    <div className="cp-auth-attachments">
-                                        <button
-                                            className="cp-auth-attachments__toggle"
-                                            onClick={() => setExpandedAuthAttachments(prev => ({ ...prev, [a.id]: !prev[a.id] }))}
-                                        >
-                                            {Icons.fileText} {(a.documents || []).length} attachment{(a.documents || []).length !== 1 ? 's' : ''}
-                                            <span style={{ marginLeft: 4 }}>{expandedAuthAttachments[a.id] ? Icons.chevronDown : Icons.chevronRight}</span>
-                                        </button>
-                                        {expandedAuthAttachments[a.id] && (
-                                            <div className="cp-auth-attachments__list">
-                                                {(a.documents || []).length === 0 ? (
-                                                    <div className="cp-auth-attachments__empty">No attachments</div>
-                                                ) : (
-                                                    (a.documents || []).map(doc => (
-                                                        <div key={doc.id} className="cp-auth-attachments__item">
-                                                            <span className="cp-auth-attachments__name" onClick={() => handleDownloadAuthDoc(doc)} title="Download">
-                                                                {Icons.download} {doc.fileName}
-                                                            </span>
-                                                            <button className="btn btn--danger-ghost btn--icon btn--xs" onClick={() => handleDeleteAuthDoc(doc)} title="Delete">
-                                                                {Icons.trash}
-                                                            </button>
-                                                        </div>
-                                                    ))
-                                                )}
-                                                <label className="cp-auth-attachments__upload">
-                                                    {Icons.upload} Upload
-                                                    <input type="file" style={{ display: 'none' }} onChange={(e) => { if (e.target.files[0]) handleUploadAuthDoc(a.id, e.target.files[0]); e.target.value = ''; }} />
-                                                </label>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ))
+                                    );
+                                })}
+                            </div>
                         )}
                     </div>
                 )}
@@ -223,6 +295,8 @@ export default function ProgramsAuthTab({
                             {[
                                 { value: 'all', label: 'All' },
                                 { value: 'active', label: 'Active' },
+                                { value: 'pending', label: 'Pending' },
+                                { value: 'inactive', label: 'Inactive' },
                                 { value: 'expired', label: 'Expired' },
                                 { value: 'archived', label: 'Archived' },
                             ].map(opt => (

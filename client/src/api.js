@@ -138,6 +138,8 @@ export const deleteAuthorization = (id) =>
     request(`/authorizations/${id}`, { method: 'DELETE' });
 export const updateAuthAccountNumber = (id, accountNumber) =>
     request(`/authorizations/${id}/account-number`, { method: 'PATCH', body: JSON.stringify({ accountNumber }) });
+export const updateAuthManualStatus = (id, manualStatus) =>
+    request(`/authorizations/${id}/status`, { method: 'PATCH', body: JSON.stringify({ manualStatus }) });
 
 // Care Team
 export const addCareTeamMember = (clientId, data) =>
