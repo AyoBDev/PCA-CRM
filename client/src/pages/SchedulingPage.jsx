@@ -1660,6 +1660,7 @@ export default function SchedulingPage() {
     const [bulkEditMode, setBulkEditMode] = useState(false);
     const [selectedShiftIds, setSelectedShiftIds] = useState(new Set());
     const [bulkSaving, setBulkSaving] = useState(false);
+    const [bulkBatches, setBulkBatches] = useState([]);
 
     // Build client color maps for visual distinction
     const allClientColorMap = useMemo(() => buildClientColorMap(allShifts), [allShifts]);
@@ -1734,11 +1735,19 @@ export default function SchedulingPage() {
         fetchEmployeeSchedule();
     }, [fetchAllShifts, fetchClientSchedule, fetchEmployeeSchedule]);
 
+    const fetchBatches = useCallback(async () => {
+        try {
+            const data = await api.listBulkEditBatches();
+            setBulkBatches(data.filter(b => !b.undoneAt));
+        } catch {}
+    }, []);
+
     useEffect(() => { fetchClients(); }, [fetchClients]);
     useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
     useEffect(() => { fetchAllShifts(); }, [fetchAllShifts]);
     useEffect(() => { fetchClientSchedule(); }, [fetchClientSchedule]);
     useEffect(() => { fetchEmployeeSchedule(); }, [fetchEmployeeSchedule]);
+    useEffect(() => { if (bulkEditMode) fetchBatches(); }, [bulkEditMode, fetchBatches]);
 
 
     const handleSaveShift = async (data) => {
@@ -1838,9 +1847,11 @@ export default function SchedulingPage() {
             setBulkEditMode(false);
             setModal(null);
             refetchAll();
+            fetchBatches();
             showUndoToast(`Updated ${result.count} shift${result.count !== 1 ? 's' : ''}`, async () => {
                 await api.bulkUndoShifts(result.batchId);
                 refetchAll();
+                fetchBatches();
             });
         } catch (err) {
             showToast(err.message, 'error');
@@ -1858,9 +1869,11 @@ export default function SchedulingPage() {
             setBulkEditMode(false);
             setModal(null);
             refetchAll();
+            fetchBatches();
             showUndoToast(`Archived ${result.archived} shift${result.archived !== 1 ? 's' : ''}`, async () => {
                 await api.bulkUndoShifts(result.batchId);
                 refetchAll();
+                fetchBatches();
             });
         } catch (err) {
             showToast(err.message, 'error');
@@ -2204,6 +2217,32 @@ export default function SchedulingPage() {
                                 saving={bulkSaving}
                                 selectedShifts={allShifts.filter(s => selectedShiftIds.has(s.id))}
                             />
+                        )}
+                        {bulkBatches.length > 0 && (
+                            <div className="sched-undo-history">
+                                <div className="sched-undo-history__title">{Icons.clock} Recent Actions (undo available)</div>
+                                {bulkBatches.map(b => (
+                                    <div key={b.id} className="sched-undo-history__item">
+                                        <span className="sched-undo-history__desc">
+                                            {b.action === 'ARCHIVE' ? 'Deleted' : 'Edited'} {b.shiftCount} shift{b.shiftCount !== 1 ? 's' : ''}
+                                            <span className="sched-undo-history__meta"> — {b.userName}, {new Date(b.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
+                                        </span>
+                                        <button
+                                            className="btn btn--outline btn--xs"
+                                            onClick={async () => {
+                                                try {
+                                                    await api.bulkUndoShifts(b.id);
+                                                    showToast(`Undid ${b.action === 'ARCHIVE' ? 'delete' : 'edit'} of ${b.shiftCount} shift${b.shiftCount !== 1 ? 's' : ''}`);
+                                                    refetchAll();
+                                                    fetchBatches();
+                                                } catch (err) { showToast(err.message, 'error'); }
+                                            }}
+                                        >
+                                            {Icons.undo} Undo
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
                         )}
                     </div>
                 )}

@@ -1083,4 +1083,24 @@ async function bulkUndoBatch(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listShifts, createShift, updateShift, bulkUpdateShifts, bulkDeleteShifts, bulkUndoBatch, deleteShift, deleteAllShifts, getClientSchedule, getEmployeeSchedule, authCheck, restoreShift, repeatShift };
+async function listBulkEditBatches(req, res, next) {
+    try {
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const batches = await prisma.bulkEditBatch.findMany({
+            where: { createdAt: { gte: since } },
+            orderBy: { createdAt: 'desc' },
+            take: 20,
+        });
+        res.json(batches.map(b => ({
+            id: b.id,
+            userId: b.userId,
+            userName: b.userName,
+            action: b.action,
+            shiftCount: b.shiftCount,
+            undoneAt: b.undoneAt,
+            createdAt: b.createdAt,
+        })));
+    } catch (err) { next(err); }
+}
+
+module.exports = { listShifts, createShift, updateShift, bulkUpdateShifts, bulkDeleteShifts, bulkUndoBatch, listBulkEditBatches, deleteShift, deleteAllShifts, getClientSchedule, getEmployeeSchedule, authCheck, restoreShift, repeatShift };

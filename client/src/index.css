@@ -4613,6 +4613,46 @@ button.sdr-section-tag:hover:not(:disabled) {
     color: hsl(217 91% 40%);
 }
 
+/* Undo History */
+.sched-undo-history {
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: hsl(215 20% 97%);
+    border: 1px solid hsl(215 20% 88%);
+    border-radius: 8px;
+}
+.sched-undo-history__title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: hsl(215 15% 45%);
+    margin-bottom: 8px;
+}
+.sched-undo-history__title svg {
+    width: 14px;
+    height: 14px;
+}
+.sched-undo-history__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-top: 1px solid hsl(215 20% 90%);
+}
+.sched-undo-history__item:first-of-type {
+    border-top: none;
+}
+.sched-undo-history__desc {
+    font-size: 13px;
+    color: hsl(215 15% 30%);
+}
+.sched-undo-history__meta {
+    color: hsl(215 15% 55%);
+    font-size: 11px;
+}
+
 /* Service Badge */
 .sched-service-badge {
     display: inline-block;
