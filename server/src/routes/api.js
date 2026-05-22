@@ -98,6 +98,7 @@ const {
     deleteAllShifts,
     bulkUpdateShifts,
     bulkDeleteShifts,
+    bulkUndoBatch,
     authCheck,
     restoreShift,
     repeatShift,
@@ -284,6 +285,7 @@ router.get('/shifts/employee/:employeeId',  requireRole('admin', 'user', 'pca'),
 router.post('/shifts',                      requireRole('admin', 'user', 'pca'), createShift);
 router.patch('/shifts/bulk',                requireRole('admin', 'user', 'pca'), bulkUpdateShifts);
 router.delete('/shifts/bulk',               requireRole('admin', 'user', 'pca'), bulkDeleteShifts);
+router.post('/shifts/bulk-undo/:batchId',   requireRole('admin', 'user', 'pca'), bulkUndoBatch);
 router.post('/shifts/:id/repeat',            requireRole('admin', 'user', 'pca'), repeatShift);
 router.put('/shifts/:id/restore',           requireRole('admin', 'user', 'pca'), restoreShift);
 router.put('/shifts/:id',                   requireRole('admin', 'user', 'pca'), updateShift);

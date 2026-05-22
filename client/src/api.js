@@ -380,6 +380,8 @@ export const bulkUpdateShifts = (shiftIds, updates) =>
     request('/shifts/bulk', { method: 'PATCH', body: JSON.stringify({ shiftIds, updates }) });
 export const bulkDeleteShifts = (shiftIds) =>
     request('/shifts/bulk', { method: 'DELETE', body: JSON.stringify({ shiftIds }) });
+export const bulkUndoShifts = (batchId) =>
+    request(`/shifts/bulk-undo/${batchId}`, { method: 'POST' });
 export const repeatShift = (id, data) =>
     request(`/shifts/${id}/repeat`, { method: 'POST', body: JSON.stringify(data) });
 export const deleteShift = (id, { group } = {}) =>

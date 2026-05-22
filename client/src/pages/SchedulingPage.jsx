@@ -1078,7 +1078,7 @@ function InlineWeekPicker({ weekStart, setWeekStart }) {
     );
 }
 
-function BulkEditInline({ count, employees, clients, onSave, onDelete, saving }) {
+function BulkEditInline({ count, employees, clients, onSave, onDelete, saving, selectedShifts = [] }) {
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
     const [employeeId, setEmployeeId] = useState('');
@@ -1111,6 +1111,9 @@ function BulkEditInline({ count, employees, clients, onSave, onDelete, saving })
         serviceCode && `Service → ${serviceCode}`,
         status && `Status → ${status}`,
     ].filter(Boolean);
+
+    const affectedClients = [...new Set(selectedShifts.map(s => s.client?.clientName).filter(Boolean))];
+    const affectedEmployees = [...new Set(selectedShifts.map(s => s.displayEmployeeName || s.employee?.name).filter(Boolean))];
 
     return (
         <div className="sched-bulk-inline">
@@ -1157,6 +1160,19 @@ function BulkEditInline({ count, employees, clients, onSave, onDelete, saving })
                 <div className="sched-bulk-inline__confirm">
                     <strong>Confirm changes to {count} shift{count !== 1 ? 's' : ''}:</strong>
                     <ul>{changeSummary.map((s, i) => <li key={i}>{s}</li>)}</ul>
+                    {affectedClients.length > 1 && (
+                        <div className="sched-bulk-inline__scope-warning">
+                            {Icons.alertTriangle} <strong>Multiple clients affected:</strong> {affectedClients.join(', ')}
+                        </div>
+                    )}
+                    {affectedEmployees.length > 1 && (
+                        <div className="sched-bulk-inline__scope-warning">
+                            {Icons.alertTriangle} <strong>Multiple employees affected:</strong> {affectedEmployees.join(', ')}
+                        </div>
+                    )}
+                    <div className="sched-bulk-inline__scope-info">
+                        Affects: {affectedClients.length} client{affectedClients.length !== 1 ? 's' : ''}, {affectedEmployees.length} employee{affectedEmployees.length !== 1 ? 's' : ''}
+                    </div>
                 </div>
             )}
             <div className="sched-bulk-inline__actions">
@@ -1818,11 +1834,14 @@ export default function SchedulingPage() {
         try {
             setBulkSaving(true);
             const result = await api.bulkUpdateShifts([...selectedShiftIds], updates);
-            showToast(`Updated ${result.count} shift${result.count !== 1 ? 's' : ''}`);
             setSelectedShiftIds(new Set());
             setBulkEditMode(false);
             setModal(null);
             refetchAll();
+            showUndoToast(`Updated ${result.count} shift${result.count !== 1 ? 's' : ''}`, async () => {
+                await api.bulkUndoShifts(result.batchId);
+                refetchAll();
+            });
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
@@ -1835,11 +1854,14 @@ export default function SchedulingPage() {
         try {
             setBulkSaving(true);
             const result = await api.bulkDeleteShifts([...selectedShiftIds]);
-            showToast(`Archived ${result.archived} shift${result.archived !== 1 ? 's' : ''}`);
             setSelectedShiftIds(new Set());
             setBulkEditMode(false);
             setModal(null);
             refetchAll();
+            showUndoToast(`Archived ${result.archived} shift${result.archived !== 1 ? 's' : ''}`, async () => {
+                await api.bulkUndoShifts(result.batchId);
+                refetchAll();
+            });
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
@@ -2180,6 +2202,7 @@ export default function SchedulingPage() {
                                 onSave={handleBulkEdit}
                                 onDelete={handleBulkDelete}
                                 saving={bulkSaving}
+                                selectedShifts={allShifts.filter(s => selectedShiftIds.has(s.id))}
                             />
                         )}
                     </div>

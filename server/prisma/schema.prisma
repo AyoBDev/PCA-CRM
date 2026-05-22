@@ -494,3 +494,18 @@ model authorization_documents {
 
   @@index([authorization_id])
 }
+
+model BulkEditBatch {
+  id         Int       @id @default(autoincrement())
+  userId     Int       @map("user_id")
+  userName   String    @map("user_name")
+  action     String    @default("UPDATE")
+  shiftCount Int       @map("shift_count")
+  snapshot   String    @default("[]")
+  undoneAt   DateTime? @map("undone_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("bulk_edit_batches")
+}

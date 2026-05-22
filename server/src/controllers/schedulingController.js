@@ -943,6 +943,25 @@ async function bulkUpdateShifts(req, res, next) {
             return res.status(404).json({ error: 'No matching shifts found' });
         }
 
+        // Save pre-edit snapshot for undo
+        const snapshot = shifts.map(s => ({
+            shiftId: s.id,
+            oldValues: {
+                startTime: s.startTime, endTime: s.endTime,
+                employeeId: s.employeeId, serviceCode: s.serviceCode,
+                status: s.status, notes: s.notes,
+                accountNumber: s.accountNumber, sandataClientId: s.sandataClientId,
+                hours: s.hours, units: s.units,
+            }
+        }));
+        const batch = await prisma.bulkEditBatch.create({
+            data: {
+                userId: req.user.id, userName: req.user.name,
+                action: 'UPDATE', shiftCount: shifts.length,
+                snapshot: JSON.stringify(snapshot),
+            }
+        });
+
         const updated = [];
         const errors = [];
 
@@ -979,14 +998,14 @@ async function bulkUpdateShifts(req, res, next) {
                     userId: req.user.id, userName: req.user.name, userRole: req.user.role,
                     action: 'UPDATE', entityType: 'Shift', entityId: shift.id,
                     changes,
-                    metadata: { bulkEdit: true },
+                    metadata: { bulkEdit: true, batchId: batch.id },
                 });
             } catch (err) {
                 errors.push({ id: existing.id, error: err.message });
             }
         }
 
-        res.json({ updated, errors, count: updated.length });
+        res.json({ updated, errors, count: updated.length, batchId: batch.id });
     } catch (err) { next(err); }
 }
 
@@ -996,6 +1015,15 @@ async function bulkDeleteShifts(req, res, next) {
         if (!Array.isArray(shiftIds) || shiftIds.length === 0) {
             return res.status(400).json({ error: 'shiftIds array is required' });
         }
+
+        const batch = await prisma.bulkEditBatch.create({
+            data: {
+                userId: req.user.id, userName: req.user.name,
+                action: 'ARCHIVE', shiftCount: shiftIds.length,
+                snapshot: JSON.stringify(shiftIds.map(id => ({ shiftId: Number(id), oldValues: { archivedAt: null } }))),
+            }
+        });
+
         const now = new Date();
         const result = await prisma.shift.updateMany({
             where: { id: { in: shiftIds.map(Number) }, archivedAt: null },
@@ -1004,10 +1032,55 @@ async function bulkDeleteShifts(req, res, next) {
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             action: 'ARCHIVE', entityType: 'Shift', entityId: shiftIds[0],
-            metadata: { bulk: true, count: result.count, shiftIds },
+            metadata: { bulk: true, count: result.count, shiftIds, batchId: batch.id },
         });
-        res.json({ archived: result.count });
+        res.json({ archived: result.count, batchId: batch.id });
     } catch (err) { next(err); }
 }
 
-module.exports = { listShifts, createShift, updateShift, bulkUpdateShifts, bulkDeleteShifts, deleteShift, deleteAllShifts, getClientSchedule, getEmployeeSchedule, authCheck, restoreShift, repeatShift };
+async function bulkUndoBatch(req, res, next) {
+    try {
+        const batchId = Number(req.params.batchId);
+        const batch = await prisma.bulkEditBatch.findUnique({ where: { id: batchId } });
+        if (!batch) return res.status(404).json({ error: 'Batch not found' });
+        if (batch.undoneAt) return res.status(400).json({ error: 'Already undone' });
+
+        const snapshot = JSON.parse(batch.snapshot);
+        let restored = 0;
+
+        if (batch.action === 'UPDATE') {
+            for (const { shiftId, oldValues } of snapshot) {
+                const data = { ...oldValues };
+                if (data.startTime && data.endTime) {
+                    const { hours, units } = computeShiftHours(data.startTime, data.endTime);
+                    data.hours = hours;
+                    data.units = units;
+                }
+                await prisma.shift.update({ where: { id: shiftId }, data });
+                restored++;
+            }
+        } else if (batch.action === 'ARCHIVE') {
+            const ids = snapshot.map(s => s.shiftId);
+            const result = await prisma.shift.updateMany({
+                where: { id: { in: ids } },
+                data: { archivedAt: null },
+            });
+            restored = result.count;
+        }
+
+        await prisma.bulkEditBatch.update({
+            where: { id: batchId },
+            data: { undoneAt: new Date() },
+        });
+
+        audit.logAction({
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            action: 'UNDO_BULK', entityType: 'Shift', entityId: batchId,
+            metadata: { batchId, restoredCount: restored },
+        });
+
+        res.json({ undone: true, restored });
+    } catch (err) { next(err); }
+}
+
+module.exports = { listShifts, createShift, updateShift, bulkUpdateShifts, bulkDeleteShifts, bulkUndoBatch, deleteShift, deleteAllShifts, getClientSchedule, getEmployeeSchedule, authCheck, restoreShift, repeatShift };
