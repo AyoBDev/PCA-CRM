@@ -318,6 +318,7 @@ async function bulkImport(req, res, next) {
 
         // Return all clients enriched
         const allClients = await prisma.client.findMany({
+            where: { archivedAt: null },
             include: { authorizations: { orderBy: { createdAt: 'asc' } } },
             orderBy: { createdAt: 'desc' },
         });

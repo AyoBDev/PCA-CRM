@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Icons from '../../components/common/Icons';
 import * as api from '../../api';
 
@@ -31,6 +31,36 @@ const STATUS_STYLES = {
     inactive: { color: '#dc2626', bg: 'hsl(0 84% 96%)', border: '#fca5a5', label: 'Inactive' },
 };
 
+function ThreeDotMenu({ onEdit, onDelete }) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+
+    useEffect(() => {
+        if (!open) return;
+        const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        document.addEventListener('mousedown', close);
+        return () => document.removeEventListener('mousedown', close);
+    }, [open]);
+
+    return (
+        <div className="pa-three-dot" ref={ref}>
+            <button className="pa-three-dot__btn" onClick={(e) => { e.stopPropagation(); setOpen(!open); }}>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+            </button>
+            {open && (
+                <div className="pa-three-dot__menu">
+                    <button className="pa-three-dot__item" onClick={(e) => { e.stopPropagation(); setOpen(false); onEdit(); }}>
+                        {Icons.edit} Edit
+                    </button>
+                    <button className="pa-three-dot__item pa-three-dot__item--danger" onClick={(e) => { e.stopPropagation(); setOpen(false); onDelete(); }}>
+                        {Icons.archive} Archive
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function ProgramsAuthTab({
     client,
     clientId,
@@ -55,6 +85,7 @@ export default function ProgramsAuthTab({
     showToast,
 }) {
     const [expandedAuthIds, setExpandedAuthIds] = useState({});
+    const [confirmDeleteDoc, setConfirmDeleteDoc] = useState(null);
 
     const toggleAuthExpanded = (authId) => {
         setExpandedAuthIds(prev => ({ ...prev, [authId]: !prev[authId] }));
@@ -65,8 +96,6 @@ export default function ProgramsAuthTab({
         if (authFilterStatus === 'active') return auths.filter(a => !a.archivedAt && (a.manualStatus || 'active') === 'active');
         if (authFilterStatus === 'pending') return auths.filter(a => (a.manualStatus || 'active') === 'pending');
         if (authFilterStatus === 'inactive') return auths.filter(a => (a.manualStatus || 'active') === 'inactive');
-        if (authFilterStatus === 'expired') return auths.filter(a => a.status === 'Expired');
-        if (authFilterStatus === 'archived') return auths.filter(a => a.archivedAt);
         return auths;
     };
 
@@ -110,8 +139,9 @@ export default function ProgramsAuthTab({
         try {
             await api.updateAuthManualStatus(authId, newStatus);
             if (fetchClient) fetchClient();
+            if (showToast) showToast(`Status updated to ${newStatus}`);
         } catch (err) {
-            if (showToast) showToast('Failed to update status', 'error');
+            if (showToast) showToast(err.message || 'Failed to update status', 'error');
         }
     }
 
@@ -182,7 +212,7 @@ export default function ProgramsAuthTab({
                 {isExpanded && (
                     <div className="pa-service-card__expanded">
                         {filteredAuths.length === 0 ? (
-                            <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '8px 0' }}>No authorizations match the current filter.</div>
+                            <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', padding: '12px 0' }}>No authorizations match the current filter.</div>
                         ) : (
                             <div className="pa-auth-list">
                                 {filteredAuths.map(a => {
@@ -225,16 +255,14 @@ export default function ProgramsAuthTab({
                                                         </span>
                                                     )}
                                                     {a.archivedAt && <span className="ts-badge ts-badge--draft">Archived</span>}
-                                                    <div className="pa-auth-item__actions">
-                                                        {!a.archivedAt ? (
-                                                            <>
-                                                                <button className="btn btn--ghost btn--xs" onClick={() => openAuthModal(a, code)}>{Icons.edit}</button>
-                                                                <button className="btn btn--ghost btn--xs" onClick={() => handleArchiveAuth(a.id)}>{Icons.archive}</button>
-                                                            </>
-                                                        ) : (
-                                                            <button className="btn btn--ghost btn--xs" onClick={() => handleRestoreAuth(a.id)}>{Icons.rotateCcw} Restore</button>
-                                                        )}
-                                                    </div>
+                                                    {!a.archivedAt ? (
+                                                        <ThreeDotMenu
+                                                            onEdit={() => openAuthModal(a, code)}
+                                                            onDelete={() => handleArchiveAuth(a.id)}
+                                                        />
+                                                    ) : (
+                                                        <button className="btn btn--ghost btn--xs" onClick={() => handleRestoreAuth(a.id)}>{Icons.rotateCcw} Restore</button>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -259,9 +287,17 @@ export default function ProgramsAuthTab({
                                                                             <span className="cp-auth-attachments__name" onClick={() => handleDownloadAuthDoc(doc)} title="Download">
                                                                                 {Icons.download} {doc.fileName}
                                                                             </span>
-                                                                            <button className="btn btn--danger-ghost btn--icon btn--xs" onClick={() => handleDeleteAuthDoc(doc)} title="Delete">
-                                                                                {Icons.trash}
-                                                                            </button>
+                                                                            {confirmDeleteDoc === doc.id ? (
+                                                                                <span className="cp-auth-attachments__confirm-delete">
+                                                                                    <span>Delete?</span>
+                                                                                    <button className="btn btn--danger btn--xs" onClick={() => { handleDeleteAuthDoc(doc); setConfirmDeleteDoc(null); }}>Yes</button>
+                                                                                    <button className="btn btn--outline btn--xs" onClick={() => setConfirmDeleteDoc(null)}>No</button>
+                                                                                </span>
+                                                                            ) : (
+                                                                                <button className="btn btn--danger-ghost btn--icon btn--xs" onClick={() => setConfirmDeleteDoc(doc.id)} title="Delete">
+                                                                                    {Icons.trash}
+                                                                                </button>
+                                                                            )}
                                                                         </div>
                                                                     ))
                                                                 )}
@@ -289,22 +325,19 @@ export default function ProgramsAuthTab({
         <div className="cp-tab-panel">
             <div className="cp-card cp-card--elevated">
                 <div className="cp-card__header">
-                    <h3 className="cp-card__title">Authorizations by Service</h3>
+                    <h3 className="cp-card__title" style={{ fontSize: 18, fontWeight: 700 }}>Authorizations by Service</h3>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div className="cl-filters__tabs" style={{ gap: 4 }}>
+                        <div className="pa-filter-tabs">
                             {[
                                 { value: 'all', label: 'All' },
                                 { value: 'active', label: 'Active' },
                                 { value: 'pending', label: 'Pending' },
                                 { value: 'inactive', label: 'Inactive' },
-                                { value: 'expired', label: 'Expired' },
-                                { value: 'archived', label: 'Archived' },
                             ].map(opt => (
                                 <button
                                     key={opt.value}
-                                    className={`cl-filters__tab ${authFilterStatus === opt.value ? 'cl-filters__tab--active' : ''}`}
+                                    className={`pa-filter-tabs__tab ${authFilterStatus === opt.value ? 'pa-filter-tabs__tab--active' : ''}`}
                                     onClick={() => setAuthFilterStatus(opt.value)}
-                                    style={{ padding: '4px 12px', fontSize: 12 }}
                                 >
                                     {opt.label}
                                 </button>

@@ -6931,6 +6931,114 @@ button.sdr-section-tag:hover:not(:disabled) {
   padding: 8px 0;
   white-space: pre-wrap;
 }
+
+/* Filter tabs - Sandata-style blue tabs */
+.pa-filter-tabs {
+  display: flex;
+  gap: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid hsl(217 91% 60%);
+}
+.pa-filter-tabs__tab {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: hsl(217 91% 50%);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  border-right: 1px solid hsl(217 91% 60% / 0.3);
+}
+.pa-filter-tabs__tab:last-child {
+  border-right: none;
+}
+.pa-filter-tabs__tab:hover {
+  background: hsl(217 91% 96%);
+}
+.pa-filter-tabs__tab--active {
+  background: hsl(217 91% 50%);
+  color: #fff;
+}
+.pa-filter-tabs__tab--active:hover {
+  background: hsl(217 91% 45%);
+}
+
+/* Three-dot menu */
+.pa-three-dot {
+  position: relative;
+}
+.pa-three-dot__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.pa-three-dot__btn:hover {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+.pa-three-dot__menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 50;
+  min-width: 120px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  box-shadow: 0 4px 12px hsl(0 0% 0% / 0.1);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+.pa-three-dot__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: none;
+  background: transparent;
+  color: hsl(var(--foreground));
+  cursor: pointer;
+  border-radius: 5px;
+  text-align: left;
+  width: 100%;
+}
+.pa-three-dot__item:hover {
+  background: hsl(var(--muted));
+}
+.pa-three-dot__item svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.pa-three-dot__item--danger {
+  color: hsl(0 84% 50%);
+}
+.pa-three-dot__item--danger:hover {
+  background: hsl(0 84% 96%);
+}
+
+/* Delete confirmation inline */
+.cp-auth-attachments__confirm-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: hsl(0 84% 50%);
+  font-weight: 500;
+}
+
 .pa-summary-bar {
   display: flex;
   align-items: center;
