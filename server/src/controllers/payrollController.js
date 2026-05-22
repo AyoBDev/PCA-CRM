@@ -219,13 +219,13 @@ async function uploadPayrollRun(req, res, next) {
         });
 
         // ── Snapshot authorization data at upload time ────────
-        // Store individual auth records with date ranges so payroll can be reviewed
-        // with the correct units for any given week.
+        // Only include active (manualStatus === 'active') non-archived authorizations.
         const authSnapshot = {};
         for (const client of clientsWithAuths) {
             const norm = normalizeName(client.clientName);
             if (!authSnapshot[norm]) authSnapshot[norm] = { _records: [] };
-            for (const auth of client.authorizations) {
+            const activeAuths = client.authorizations.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt);
+            for (const auth of activeAuths) {
                 const code = auth.serviceCode || auth.service || '';
                 if (!code) continue;
                 authSnapshot[norm]._records.push({
@@ -234,7 +234,6 @@ async function uploadPayrollRun(req, res, next) {
                     startDate: auth.authorizationStartDate ? new Date(auth.authorizationStartDate).toISOString().split('T')[0] : null,
                     endDate: auth.authorizationEndDate ? new Date(auth.authorizationEndDate).toISOString().split('T')[0] : null,
                 });
-                // Also keep the summed format for backward compatibility with old UI reads
                 if (!authSnapshot[norm][code]) authSnapshot[norm][code] = 0;
                 authSnapshot[norm][code] += (auth.authorizedUnits || 0);
             }
@@ -455,11 +454,13 @@ async function getPayrollRun(req, res, next) {
             authMap = parsed;
         } else {
             // Fallback for runs created before the snapshot feature — use live data
+            // Only include active (manualStatus === 'active') non-archived authorizations
             const allClients = await prisma.client.findMany({ include: { authorizations: true } });
             for (const client of allClients) {
                 const norm = normalizeName(client.clientName);
                 if (!authMap[norm]) authMap[norm] = { _records: [] };
-                for (const auth of client.authorizations) {
+                const activeAuths = client.authorizations.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt);
+                for (const auth of activeAuths) {
                     const code = auth.serviceCode || auth.service || '';
                     if (!code) continue;
                     authMap[norm]._records.push({

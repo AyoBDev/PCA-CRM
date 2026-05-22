@@ -164,29 +164,49 @@ function enrichClient(client) {
 function filterAuthsByWeek(auths, weekStart, weekEnd) {
   const ws = weekStart instanceof Date ? weekStart : new Date(weekStart);
   const we = weekEnd instanceof Date ? weekEnd : new Date(weekEnd);
-  // Normalize to UTC midnight for consistent comparison
   const wsMs = Date.UTC(ws.getUTCFullYear(), ws.getUTCMonth(), ws.getUTCDate());
   const weMs = Date.UTC(we.getUTCFullYear(), we.getUTCMonth(), we.getUTCDate());
 
-  return auths.filter(auth => {
-    // If no start date, treat as active from the beginning of time
+  const dateFiltered = auths.filter(auth => {
+    if ((auth.manualStatus || 'active') !== 'active') return false;
+    if (auth.archivedAt) return false;
+
     let startOk = true;
     if (auth.authorizationStartDate) {
       const sd = new Date(auth.authorizationStartDate);
       const sdMs = Date.UTC(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate());
-      // Auth must start on or before the week ends
       startOk = sdMs <= weMs;
     }
-    // If no end date, treat as active indefinitely
     let endOk = true;
     if (auth.authorizationEndDate) {
       const ed = new Date(auth.authorizationEndDate);
       const edMs = Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate());
-      // Auth must end on or after the week starts
       endOk = edMs >= wsMs;
     }
     return startOk && endOk;
   });
+
+  // When multiple active auths exist for the same service code, use the oldest
+  const byCode = new Map();
+  for (const auth of dateFiltered) {
+    const code = auth.serviceCode || '';
+    if (!byCode.has(code)) byCode.set(code, []);
+    byCode.get(code).push(auth);
+  }
+  const result = [];
+  for (const [, group] of byCode) {
+    if (group.length <= 1) {
+      result.push(...group);
+    } else {
+      group.sort((a, b) => {
+        const da = a.authorizationStartDate ? new Date(a.authorizationStartDate).getTime() : 0;
+        const db = b.authorizationStartDate ? new Date(b.authorizationStartDate).getTime() : 0;
+        return da - db;
+      });
+      result.push(group[0]);
+    }
+  }
+  return result;
 }
 
 module.exports = {
