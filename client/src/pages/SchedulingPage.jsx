@@ -1650,6 +1650,16 @@ export default function SchedulingPage() {
         d.setDate(d.getDate() - d.getDay());
         return toLocalDateStr(d);
     });
+    const [clientWeekStart, setClientWeekStart] = useState(() => {
+        const d = new Date();
+        d.setDate(d.getDate() - d.getDay());
+        return toLocalDateStr(d);
+    });
+    const [employeeWeekStart, setEmployeeWeekStart] = useState(() => {
+        const d = new Date();
+        d.setDate(d.getDate() - d.getDay());
+        return toLocalDateStr(d);
+    });
     const [modal, setModal] = useState(null);
     const createDraftRef = useRef(null);
     const [summaryViewBy, setSummaryViewBy] = useState('client');
@@ -1703,14 +1713,14 @@ export default function SchedulingPage() {
         }
         try {
             setLoadingClient(true);
-            const data = await api.getClientSchedule(selectedClientId, weekStart);
+            const data = await api.getClientSchedule(selectedClientId, clientWeekStart);
             setClientShifts(data.shifts || []);
             setClientOverlaps(data.overlaps || []);
             setClientInfo(data.client || null);
             setClientUnitSummary(data.unitSummary || {});
         } catch (err) { showToast(err.message, 'error'); }
         finally { setLoadingClient(false); }
-    }, [selectedClientId, weekStart, showToast]);
+    }, [selectedClientId, clientWeekStart, showToast]);
 
     const fetchEmployeeSchedule = useCallback(async () => {
         if (!selectedEmployeeId) {
@@ -1721,13 +1731,13 @@ export default function SchedulingPage() {
         }
         try {
             setLoadingEmployee(true);
-            const data = await api.getEmployeeSchedule(selectedEmployeeId, weekStart);
+            const data = await api.getEmployeeSchedule(selectedEmployeeId, employeeWeekStart);
             setEmployeeShifts(data.shifts || []);
             setEmployeeOverlaps(data.overlaps || []);
             setEmployeeInfo(data.employee || null);
         } catch (err) { showToast(err.message, 'error'); }
         finally { setLoadingEmployee(false); }
-    }, [selectedEmployeeId, weekStart, showToast]);
+    }, [selectedEmployeeId, employeeWeekStart, showToast]);
 
     const refetchAll = useCallback(() => {
         fetchAllShifts();
@@ -1994,7 +2004,7 @@ export default function SchedulingPage() {
                         icon={Icons.users}
                         showPdf={!!selectedClientId && clientShifts.length > 0}
                         pdfShifts={clientShifts}
-                        pdfWeekStart={weekStart}
+                        pdfWeekStart={clientWeekStart}
                         pdfRowBy="employee"
                         headerActions={
                             <SearchableSelect
@@ -2015,7 +2025,7 @@ export default function SchedulingPage() {
                             <div className="sched-prompt">Loading…</div>
                         ) : (
                             <>
-                                <InlineWeekPicker weekStart={weekStart} setWeekStart={setWeekStart} />
+                                <InlineWeekPicker weekStart={clientWeekStart} setWeekStart={setClientWeekStart} />
                                 {clientInfo && (
                                     <div className="sched-client-info">
                                         <div className="sched-client-info__details">
@@ -2064,9 +2074,9 @@ export default function SchedulingPage() {
                                     <button className={`sched-card__view-tab ${clientScheduleView === 'calendar' ? 'sched-card__view-tab--active' : ''}`} onClick={() => setClientScheduleView('calendar')}>Calendar</button>
                                 </div>
                                 {clientScheduleView === 'calendar' ? (
-                                    <WeeklyCalendarView shifts={clientShifts} weekStart={weekStart} overlapIds={clientOverlapIds} onEditShift={handleEditShift} onAddShift={handleAddShift} groupBy="employee" compact />
+                                    <WeeklyCalendarView shifts={clientShifts} weekStart={clientWeekStart} overlapIds={clientOverlapIds} onEditShift={handleEditShift} onAddShift={handleAddShift} groupBy="employee" compact />
                                 ) : (
-                                    <ScheduleMatrix shifts={clientShifts} weekStart={weekStart} rowBy="employee" onEditShift={handleEditShift} overlapIds={clientOverlapIds} clientColorMap={null} />
+                                    <ScheduleMatrix shifts={clientShifts} weekStart={clientWeekStart} rowBy="employee" onEditShift={handleEditShift} overlapIds={clientOverlapIds} clientColorMap={null} />
                                 )}
                             </>
                         )}
@@ -2077,7 +2087,7 @@ export default function SchedulingPage() {
                         icon={Icons.user}
                         showPdf={!!selectedEmployeeId && employeeShifts.length > 0}
                         pdfShifts={employeeShifts}
-                        pdfWeekStart={weekStart}
+                        pdfWeekStart={employeeWeekStart}
                         pdfRowBy="client"
                         headerActions={
                             <SearchableSelect
@@ -2098,7 +2108,7 @@ export default function SchedulingPage() {
                             <div className="sched-prompt">Loading…</div>
                         ) : (
                             <>
-                                <InlineWeekPicker weekStart={weekStart} setWeekStart={setWeekStart} />
+                                <InlineWeekPicker weekStart={employeeWeekStart} setWeekStart={setEmployeeWeekStart} />
                                 {employeeInfo && (
                                     <div className="sched-employee-info">
                                         <strong>{employeeInfo.name}</strong>
@@ -2111,7 +2121,7 @@ export default function SchedulingPage() {
                                     const weeklyHrs = Math.round(activeShifts.reduce((sum, s) => sum + (s.hours || 0), 0) * 100) / 100;
 
                                     // Daily totals
-                                    const ws = new Date(weekStart + 'T00:00:00');
+                                    const ws = new Date(employeeWeekStart + 'T00:00:00');
                                     const dayAbbr = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
                                     const dailyTotals = [];
                                     for (let i = 0; i < 7; i++) {
@@ -2163,9 +2173,9 @@ export default function SchedulingPage() {
                                     <button className={`sched-card__view-tab ${employeeScheduleView === 'calendar' ? 'sched-card__view-tab--active' : ''}`} onClick={() => setEmployeeScheduleView('calendar')}>Calendar</button>
                                 </div>
                                 {employeeScheduleView === 'calendar' ? (
-                                    <WeeklyCalendarView shifts={employeeShifts} weekStart={weekStart} overlapIds={employeeOverlapIds} onEditShift={handleEditShift} onAddShift={handleAddShift} groupBy="client" compact />
+                                    <WeeklyCalendarView shifts={employeeShifts} weekStart={employeeWeekStart} overlapIds={employeeOverlapIds} onEditShift={handleEditShift} onAddShift={handleAddShift} groupBy="client" compact />
                                 ) : (
-                                    <ScheduleMatrix shifts={employeeShifts} weekStart={weekStart} rowBy="client" onEditShift={handleEditShift} overlapIds={employeeOverlapIds} clientColorMap={employeeClientColorMap} />
+                                    <ScheduleMatrix shifts={employeeShifts} weekStart={employeeWeekStart} rowBy="client" onEditShift={handleEditShift} overlapIds={employeeOverlapIds} clientColorMap={employeeClientColorMap} />
                                 )}
                             </>
                         )}
