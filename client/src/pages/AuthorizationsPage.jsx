@@ -151,6 +151,15 @@ function ClientFormModal({ client, onSave, onClose, insuranceTypeNames }) {
 // ── Authorization Form Modal ──
 const ACCOUNT_NUMBER_OPTIONS = ['71040', '71120', '71119', '71635'];
 const DEFAULT_ACCOUNT_BY_CODE = { PCS: '71040', SDPC: '71119', S5130: '71120', S5150: '71635' };
+const SERVICE_CODE_COLORS = {
+    PCS: '#22c55e',
+    SDPC: '#8b5cf6',
+    S5125: '#3b82f6',
+    S5130: '#f59e0b',
+    S5135: '#ec4899',
+    S5150: '#06b6d4',
+    TIMESHEETS: '#64748b',
+};
 
 function AuthFormModal({ auth, clientId, onSave, onClose }) {
     const [serviceCategory, setServiceCategory] = useState(auth?.serviceCategory || '');
@@ -1057,7 +1066,7 @@ export default function AuthorizationsPage() {
                                                                 {activeAuths.map((auth) => (
                                                                     <tr key={`a-${auth.id}`} className="row-auth">
                                                                         <td></td>
-                                                                        <td style={{ fontSize: 12, fontWeight: 600, color: 'hsl(217 91% 50%)' }}>{auth.serviceCode}</td>
+                                                                        <td style={{ fontSize: 12, fontWeight: 700, color: SERVICE_CODE_COLORS[auth.serviceCode] || '#64748b' }}>{auth.serviceCode}</td>
                                                                         <td style={{ fontSize: 13, fontWeight: 500 }}>
                                                                             {auth.authorizationNumber || '—'}
                                                                         </td>
