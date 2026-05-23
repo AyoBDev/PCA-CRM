@@ -282,61 +282,39 @@ export default function ClientsListPage() {
             {showCreateModal && (
                 <Modal onClose={() => setShowCreateModal(false)}>
                     <h2 className="modal__title">Add Client</h2>
-                    <p className="modal__desc">Create a new client record.</p>
+                    <p className="modal__desc">Enter the client's basic information. Authorization details can be added later in the Authorization section.</p>
                     <form onSubmit={handleCreate}>
                         <div className="form-group">
-                            <label>Client Name</label>
+                            <label>Client Name <span style={{ color: '#dc2626' }}>*</span></label>
                             <input type="text" value={form.clientName} onChange={(e) => setForm({ ...form, clientName: e.target.value })} placeholder="Full name" required />
                         </div>
-                        <div className="form-group">
-                            <label>Medicaid ID</label>
-                            <input type="text" value={form.medicaidId} onChange={(e) => setForm({ ...form, medicaidId: e.target.value })} placeholder="Optional" />
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div className="form-group">
+                                <label>Medicaid ID</label>
+                                <input type="text" value={form.medicaidId} onChange={(e) => setForm({ ...form, medicaidId: e.target.value })} placeholder="e.g. 00002399084" />
+                            </div>
+                            <div className="form-group">
+                                <label>Insurance Type</label>
+                                <select value={form.insuranceType} onChange={(e) => setForm({ ...form, insuranceType: e.target.value })}>
+                                    {insuranceTypes.length > 0 ? insuranceTypes.map(t => (
+                                        <option key={t.id} value={t.name}>{t.name}</option>
+                                    )) : <option value="MEDICAID">MEDICAID</option>}
+                                </select>
+                            </div>
                         </div>
-                        <div className="form-group">
-                            <label>Insurance Type</label>
-                            <select value={form.insuranceType} onChange={(e) => setForm({ ...form, insuranceType: e.target.value })}>
-                                {insuranceTypes.length > 0 ? insuranceTypes.map(t => (
-                                    <option key={t.id} value={t.name}>{t.name}</option>
-                                )) : <option value="MEDICAID">MEDICAID</option>}
-                            </select>
-                        </div>
-                        <div className="form-group">
-                            <label>Phone</label>
-                            <input type="text" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Optional" />
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div className="form-group">
+                                <label>Phone</label>
+                                <input type="text" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Optional" />
+                            </div>
+                            <div className="form-group">
+                                <label>Date of Birth</label>
+                                <input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} onPaste={handleDatePaste('dob')} />
+                            </div>
                         </div>
                         <div className="form-group">
                             <label>Address</label>
                             <input type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Optional" />
-                        </div>
-                        <div className="form-group">
-                            <label>Date of Birth</label>
-                            <input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} onPaste={handleDatePaste('dob')} />
-                        </div>
-                        <div className="form-group">
-                            <label>PA#</label>
-                            <input type="text" value={form.paNumber} onChange={(e) => setForm({ ...form, paNumber: e.target.value })} placeholder="Optional" />
-                        </div>
-                        <div className="form-group">
-                            <label>Doctor Name</label>
-                            <input type="text" value={form.doctorName} onChange={(e) => setForm({ ...form, doctorName: e.target.value })} placeholder="Optional" />
-                        </div>
-                        <div className="form-group">
-                            <label>Doctor Phone</label>
-                            <input type="text" value={form.doctorPhone} onChange={(e) => setForm({ ...form, doctorPhone: e.target.value })} placeholder="Optional" />
-                        </div>
-                        <div className="form-group">
-                            <label>Backup Doctor Name</label>
-                            <input type="text" value={form.backupDoctorName} onChange={(e) => setForm({ ...form, backupDoctorName: e.target.value })} placeholder="Optional" />
-                        </div>
-                        <div className="form-group">
-                            <label>Backup Doctor Phone</label>
-                            <input type="text" value={form.backupDoctorPhone} onChange={(e) => setForm({ ...form, backupDoctorPhone: e.target.value })} placeholder="Optional" />
-                        </div>
-                        <div className="form-group">
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <input type="checkbox" checked={form.critical} onChange={(e) => setForm({ ...form, critical: e.target.checked })} />
-                                Critical List
-                            </label>
                         </div>
                         <div className="form-actions">
                             <button type="button" className="btn btn--outline" onClick={() => setShowCreateModal(false)}>Cancel</button>

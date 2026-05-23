@@ -283,27 +283,22 @@ function AuthFormModal({ auth, clientId, onSave, onClose }) {
                 </div>
                 <div className="form-group">
                     <label>Status</label>
-                    <select value={manualStatus} onChange={(e) => setManualStatus(e.target.value)} style={{ marginBottom: 8 }}>
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                        <option value="expired">Expired</option>
-                    </select>
                     <div className="auth-status-cards">
-                        <label className={`auth-status-card ${manualStatus === 'active' ? 'auth-status-card--selected' : ''}`}>
+                        <label className={`auth-status-card ${manualStatus === 'active' ? 'auth-status-card--active' : ''}`}>
                             <input type="radio" name="authStatus" value="active" checked={manualStatus === 'active'} onChange={() => setManualStatus('active')} />
-                            <span className="auth-status-card__dot" style={{ background: '#16a34a' }} />
+                            <div className="auth-status-card__radio"><span className="auth-status-card__dot" /></div>
                             <span className="auth-status-card__label">Active</span>
                             <span className="auth-status-card__desc">Authorization is currently valid and in use.</span>
                         </label>
-                        <label className={`auth-status-card ${manualStatus === 'inactive' ? 'auth-status-card--selected' : ''}`}>
+                        <label className={`auth-status-card ${manualStatus === 'inactive' ? 'auth-status-card--inactive' : ''}`}>
                             <input type="radio" name="authStatus" value="inactive" checked={manualStatus === 'inactive'} onChange={() => setManualStatus('inactive')} />
-                            <span className="auth-status-card__dot" style={{ background: '#6b7280' }} />
+                            <div className="auth-status-card__radio"><span className="auth-status-card__dot" /></div>
                             <span className="auth-status-card__label">Inactive</span>
                             <span className="auth-status-card__desc">Authorization is no longer in use.</span>
                         </label>
-                        <label className={`auth-status-card ${manualStatus === 'expired' ? 'auth-status-card--selected' : ''}`}>
+                        <label className={`auth-status-card ${manualStatus === 'expired' ? 'auth-status-card--expired' : ''}`}>
                             <input type="radio" name="authStatus" value="expired" checked={manualStatus === 'expired'} onChange={() => setManualStatus('expired')} />
-                            <span className="auth-status-card__dot" style={{ background: '#dc2626' }} />
+                            <div className="auth-status-card__radio"><span className="auth-status-card__dot" /></div>
                             <span className="auth-status-card__label" style={{ color: '#dc2626' }}>Expired</span>
                             <span className="auth-status-card__desc">Authorization has expired based on the end date.</span>
                         </label>
@@ -1051,6 +1046,7 @@ export default function AuthorizationsPage() {
                                                                 </tr>
                                                                 <tr className="row-auth row-auth--header">
                                                                     <td colSpan={1}></td>
+                                                                    <td style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase' }}>Service Code</td>
                                                                     <td style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase' }}>Authorization #</td>
                                                                     <td style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase' }}>Service Dates</td>
                                                                     <td style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase' }}>Units</td>
@@ -1061,6 +1057,7 @@ export default function AuthorizationsPage() {
                                                                 {activeAuths.map((auth) => (
                                                                     <tr key={`a-${auth.id}`} className="row-auth">
                                                                         <td></td>
+                                                                        <td style={{ fontSize: 12, fontWeight: 600, color: 'hsl(217 91% 50%)' }}>{auth.serviceCode}</td>
                                                                         <td style={{ fontSize: 13, fontWeight: 500 }}>
                                                                             {auth.authorizationNumber || '—'}
                                                                         </td>

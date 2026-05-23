@@ -7054,24 +7054,64 @@ button.sdr-section-tag:hover:not(:disabled) {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 12px;
+  padding: 12px 14px;
   border: 2px solid hsl(var(--border));
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background 0.15s;
+}
+.auth-status-card:hover {
+  background: hsl(var(--muted) / 0.3);
 }
 .auth-status-card input[type="radio"] {
   display: none;
 }
-.auth-status-card--selected {
-  border-color: hsl(217 91% 50%);
-  background: hsl(217 91% 98%);
+.auth-status-card--active {
+  border-color: #16a34a;
+  background: hsl(142 76% 97%);
+}
+.auth-status-card--inactive {
+  border-color: #6b7280;
+  background: hsl(220 9% 97%);
+}
+.auth-status-card--expired {
+  border-color: #dc2626;
+  background: hsl(0 84% 97%);
+}
+.auth-status-card__radio {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid hsl(var(--border));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+.auth-status-card--active .auth-status-card__radio {
+  border-color: #16a34a;
+}
+.auth-status-card--inactive .auth-status-card__radio {
+  border-color: #6b7280;
+}
+.auth-status-card--expired .auth-status-card__radio {
+  border-color: #dc2626;
 }
 .auth-status-card__dot {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  display: inline-block;
+  display: block;
+  background: transparent;
+}
+.auth-status-card--active .auth-status-card__dot {
+  background: #16a34a;
+}
+.auth-status-card--inactive .auth-status-card__dot {
+  background: #6b7280;
+}
+.auth-status-card--expired .auth-status-card__dot {
+  background: #dc2626;
 }
 .auth-status-card__label {
   font-size: 13px;
