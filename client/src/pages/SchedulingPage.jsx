@@ -129,7 +129,11 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
         return map;
     }, [selectedClient]);
 
-    const authorizedServices = useMemo(() => Object.keys(authorizedServiceMap), [authorizedServiceMap]);
+    const authorizedServices = useMemo(() => {
+        const keys = Object.keys(authorizedServiceMap);
+        if (!keys.includes('TIMESHEETS')) keys.push('TIMESHEETS');
+        return keys;
+    }, [authorizedServiceMap]);
 
     // Edit mode: single day fields
     const [serviceCode, setServiceCode] = useState(shift?.serviceCode || 'PCS');

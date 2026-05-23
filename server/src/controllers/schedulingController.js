@@ -304,7 +304,7 @@ async function createShift(req, res, next) {
             // Skip validation for clients with no authorizations (e.g. Private Pay, CognitiveCare)
             const { codes: authorizedCodes, hasAuthorizations } = await getAuthorizedServiceCodes(clientId, bulkShifts.map(s => s.shiftDate));
             if (hasAuthorizations) {
-                const unauthorized = [...new Set(bulkShifts.map(s => s.serviceCode))].filter(c => !authorizedCodes.has(c));
+                const unauthorized = [...new Set(bulkShifts.map(s => s.serviceCode))].filter(c => c !== 'TIMESHEETS' && !authorizedCodes.has(c));
                 if (unauthorized.length > 0) {
                     return res.status(400).json({ error: `Service${unauthorized.length > 1 ? 's' : ''} not authorized for this client: ${unauthorized.join(', ')}` });
                 }
@@ -428,7 +428,7 @@ async function createShift(req, res, next) {
         // Skip validation for clients with no authorizations (e.g. Private Pay, CognitiveCare)
         const { codes: singleAuthorizedCodes, hasAuthorizations: singleHasAuths } = await getAuthorizedServiceCodes(clientId, dates);
         if (singleHasAuths) {
-            if (!singleAuthorizedCodes.has(serviceCode)) {
+            if (serviceCode !== 'TIMESHEETS' && !singleAuthorizedCodes.has(serviceCode)) {
                 return res.status(400).json({ error: `Service ${serviceCode} is not authorized for this client` });
             }
 
