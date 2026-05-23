@@ -582,9 +582,11 @@ export default function ClientDetailPage() {
         acc[d.category].push(d);
         return acc;
     }, {});
-    const totalDocs = (client.authorizations || [])
+    const activeAuthDocs = (client.authorizations || [])
         .filter(a => !a.archivedAt && (a.manualStatus || 'active') === 'active')
         .reduce((sum, a) => sum + (a.documents || []).length, 0);
+    const clientDocs = (client.documents || []).filter(d => !d.category || !d.category.startsWith('auth_')).length;
+    const totalDocs = activeAuthDocs + clientDocs;
 
     const authGroups = {};
     (client.authorizations || []).forEach(a => {
