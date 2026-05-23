@@ -7053,12 +7053,13 @@ button.sdr-section-tag:hover:not(:disabled) {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 12px 14px;
+  gap: 6px;
+  padding: 14px 16px;
   border: 2px solid hsl(var(--border));
   border-radius: 10px;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
+  min-width: 0;
 }
 .auth-status-card:hover {
   background: hsl(var(--muted) / 0.3);
@@ -7114,13 +7115,15 @@ button.sdr-section-tag:hover:not(:disabled) {
   background: #dc2626;
 }
 .auth-status-card__label {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
+  margin-top: 2px;
 }
 .auth-status-card__desc {
-  font-size: 11px;
+  font-size: 12px;
   color: hsl(var(--muted-foreground));
-  line-height: 1.3;
+  line-height: 1.4;
+  margin-top: 2px;
 }
 
 /* Auth attachment link in table row */

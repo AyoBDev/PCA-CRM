@@ -35,7 +35,7 @@ export default function ClientsListPage() {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [form, setForm] = useState({
         clientName: '', medicaidId: '', insuranceType: 'MEDICAID', address: '', phone: '',
-        dob: '', paNumber: '', doctorName: '', doctorPhone: '', backupDoctorName: '', backupDoctorPhone: '', critical: false,
+        dob: '', gender: '', paNumber: '', doctorName: '', doctorPhone: '', backupDoctorName: '', backupDoctorPhone: '', critical: false,
     });
     const [insuranceTypes, setInsuranceTypes] = useState([]);
     const [saving, setSaving] = useState(false);
@@ -103,13 +103,10 @@ export default function ClientsListPage() {
                 insuranceType: form.insuranceType,
                 address: form.address,
                 phone: form.phone,
+                gender: form.gender,
                 dob: form.dob || null,
-                paNumber: form.paNumber,
                 doctorName: form.doctorName,
                 doctorPhone: form.doctorPhone,
-                backupDoctorName: form.backupDoctorName,
-                backupDoctorPhone: form.backupDoctorPhone,
-                critical: form.critical,
             });
             showToast(`"${client.clientName}" created`);
             setShowCreateModal(false);
@@ -312,9 +309,30 @@ export default function ClientsListPage() {
                                 <input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} onPaste={handleDatePaste('dob')} />
                             </div>
                         </div>
-                        <div className="form-group">
-                            <label>Address</label>
-                            <input type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Optional" />
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div className="form-group">
+                                <label>Gender</label>
+                                <select value={form.gender || ''} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
+                                    <option value="">— Select —</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label>Address</label>
+                                <input type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Optional" />
+                            </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div className="form-group">
+                                <label>Doctor Name</label>
+                                <input type="text" value={form.doctorName} onChange={(e) => setForm({ ...form, doctorName: e.target.value })} placeholder="Optional" />
+                            </div>
+                            <div className="form-group">
+                                <label>Doctor Phone</label>
+                                <input type="text" value={form.doctorPhone} onChange={(e) => setForm({ ...form, doctorPhone: e.target.value })} placeholder="Optional" />
+                            </div>
                         </div>
                         <div className="form-actions">
                             <button type="button" className="btn btn--outline" onClick={() => setShowCreateModal(false)}>Cancel</button>
