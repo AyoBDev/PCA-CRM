@@ -582,7 +582,8 @@ export default function ClientDetailPage() {
         acc[d.category].push(d);
         return acc;
     }, {});
-    const totalDocs = (client.documents || []).length;
+    const AUTH_DOC_CATEGORIES = ['auth_pca', 'auth_waiver', 'auth_iso'];
+    const totalDocs = (client.documents || []).filter(d => !AUTH_DOC_CATEGORIES.includes(d.category)).length;
 
     const authGroups = {};
     (client.authorizations || []).forEach(a => {
