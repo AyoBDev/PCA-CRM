@@ -7053,8 +7053,9 @@ button.sdr-section-tag:hover:not(:disabled) {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 14px 16px;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 16px 18px;
   border: 2px solid hsl(var(--border));
   border-radius: 10px;
   cursor: pointer;
@@ -7080,14 +7081,14 @@ button.sdr-section-tag:hover:not(:disabled) {
   background: hsl(0 84% 97%);
 }
 .auth-status-card__radio {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   border: 2px solid hsl(var(--border));
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 .auth-status-card--active .auth-status-card__radio {
   border-color: #16a34a;
@@ -7115,15 +7116,17 @@ button.sdr-section-tag:hover:not(:disabled) {
   background: #dc2626;
 }
 .auth-status-card__label {
+  display: block;
   font-size: 14px;
   font-weight: 600;
-  margin-top: 2px;
+  line-height: 1;
 }
 .auth-status-card__desc {
+  display: block;
   font-size: 12px;
   color: hsl(var(--muted-foreground));
   line-height: 1.4;
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
 /* Auth attachment link in table row */
