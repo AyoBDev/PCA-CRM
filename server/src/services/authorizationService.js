@@ -143,6 +143,7 @@ function enrichClient(client) {
 
   return {
     ...client,
+    clientStatus: client.client_status || 'active',
     serviceSummary,
     overallStatus,
     statusColor,

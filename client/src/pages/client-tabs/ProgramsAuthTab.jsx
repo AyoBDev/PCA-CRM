@@ -83,6 +83,7 @@ export default function ProgramsAuthTab({
     unitsToHours,
     fetchClient,
     showToast,
+    totalDocs,
 }) {
     const [expandedAuthIds, setExpandedAuthIds] = useState({});
     const [confirmDeleteDoc, setConfirmDeleteDoc] = useState(null);
@@ -114,12 +115,11 @@ export default function ProgramsAuthTab({
     const leftCodes = LEFT_CODES.filter(c => allCodes.includes(c));
     const rightCodes = allCodes.filter(c => !LEFT_CODES.includes(c));
 
-    let totalActive = 0, totalUnits = 0, totalAttachments = 0;
+    let totalActive = 0, totalUnits = 0;
     Object.values(authGroupsForInsurance).forEach(({ current }) => {
         totalActive += current.length;
         current.forEach(a => {
             totalUnits += a.authorizedUnits || 0;
-            totalAttachments += (a.documents || []).length;
         });
     });
     const totalHours = (totalUnits / 4).toFixed(2);
@@ -152,7 +152,7 @@ export default function ProgramsAuthTab({
         const filteredAuths = sortAuths(filterAuths(allAuths));
         const activeAuths = current.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt);
         const latestAuth = activeAuths[0] || current[0] || allAuths[0];
-        const attachCount = allAuths.reduce((sum, a) => sum + (a.documents || []).length, 0);
+        const attachCount = activeAuths.reduce((sum, a) => sum + (a.documents || []).length, 0);
         const currentAccountNumber = latestAuth?.accountNumber || DEFAULT_ACCOUNT_BY_CODE[code] || '';
 
         const isExpanded = expandedServiceCode === code;
@@ -389,8 +389,8 @@ export default function ProgramsAuthTab({
                             <div className="pa-summary-bar__item">
                                 <div className="pa-summary-bar__icon" style={{ color: '#22c55e' }}>{Icons.paperclip}</div>
                                 <div className="pa-summary-bar__data">
-                                    <span className="pa-summary-bar__label">TOTAL ATTACHMENTS</span>
-                                    <span className="pa-summary-bar__value">{totalAttachments}</span>
+                                    <span className="pa-summary-bar__label">DOCUMENTS</span>
+                                    <span className="pa-summary-bar__value">{totalDocs || 0}</span>
                                 </div>
                             </div>
                         </div>

@@ -78,7 +78,7 @@ export default function ProfileInsuranceTab({
                                     <span>End Date</span>
                                 </div>
                                 {Object.entries(authGroups).flatMap(([code, auths]) =>
-                                    auths.filter(a => !a.archivedAt).map(a => {
+                                    auths.filter(a => !a.archivedAt && (a.manualStatus || 'active') === 'active' && a.status !== 'Expired').map(a => {
                                         const colors = AUTH_COLORS[code] || DEFAULT_AUTH_COLOR;
                                         return (
                                             <div key={a.id} className="cp-auth-overview-row">

@@ -160,7 +160,7 @@ async function updateClient(req, res, next) {
 async function patchClient(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const { address, secondaryAddress, phone, secondaryPhone, email, gender, gateCode, notes, pcaNotes, caregiverRequirements, mainServices, enabledServices, dob, paNumber, doctorName, doctorPhone, backupDoctorName, backupDoctorPhone, emergencyContactName, emergencyContactPhone, emergencyContactRelation, secondaryEmergencyName, secondaryEmergencyPhone, secondaryEmergencyRelation, critical } = req.body;
+        const { address, secondaryAddress, phone, secondaryPhone, email, gender, gateCode, notes, pcaNotes, caregiverRequirements, mainServices, enabledServices, dob, paNumber, doctorName, doctorPhone, backupDoctorName, backupDoctorPhone, emergencyContactName, emergencyContactPhone, emergencyContactRelation, secondaryEmergencyName, secondaryEmergencyPhone, secondaryEmergencyRelation, critical, clientStatus } = req.body;
         const data = {};
         if (address !== undefined) data.address = address;
         if (secondaryAddress !== undefined) data.secondaryAddress = secondaryAddress;
@@ -187,6 +187,7 @@ async function patchClient(req, res, next) {
         if (secondaryEmergencyPhone !== undefined) data.secondaryEmergencyPhone = secondaryEmergencyPhone;
         if (secondaryEmergencyRelation !== undefined) data.secondaryEmergencyRelation = secondaryEmergencyRelation;
         if (critical !== undefined) data.critical = critical;
+        if (clientStatus !== undefined) data.client_status = clientStatus;
 
         if (Object.keys(data).length === 0) {
             return res.status(400).json({ error: 'No valid fields provided' });

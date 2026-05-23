@@ -674,9 +674,8 @@ export default function ClientDetailPage() {
                                     }}
                                 >
                                     <option value="active">Active</option>
+                                    <option value="pending">Pending</option>
                                     <option value="inactive">Inactive</option>
-                                    <option value="discharged">Discharged</option>
-                                    <option value="transferred">Transferred</option>
                                 </select>
                             </div>
                             <div className="cp-bio__chips">
@@ -872,6 +871,7 @@ export default function ClientDetailPage() {
                             unitsToHours={unitsToHours}
                             fetchClient={fetchClient}
                             showToast={showToast}
+                            totalDocs={totalDocs}
                         />
                     )}
                     {activeTab === 'documents' && (
