@@ -10,6 +10,43 @@ import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import { ActivityButton, EntityActivityButton } from '../components/common/ActivityDrawer';
 
+// ── Auth Row 3-dot Menu ──
+function AuthRowMenu({ onEdit, onMarkInactive, onMarkExpired, onDelete }) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+    useEffect(() => {
+        if (!open) return;
+        const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        document.addEventListener('mousedown', close);
+        return () => document.removeEventListener('mousedown', close);
+    }, [open]);
+    return (
+        <div className="pa-three-dot" ref={ref} onClick={(e) => e.stopPropagation()}>
+            <button className="pa-three-dot__btn" onClick={() => setOpen(!open)}>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+            </button>
+            {open && (
+                <div className="pa-three-dot__menu">
+                    <button className="pa-three-dot__item" onClick={() => { setOpen(false); onEdit(); }}>
+                        {Icons.edit} Edit
+                    </button>
+                    <button className="pa-three-dot__item" onClick={() => { setOpen(false); onMarkInactive(); }}>
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>
+                        Mark as Inactive
+                    </button>
+                    <button className="pa-three-dot__item" style={{ color: '#d97706' }} onClick={() => { setOpen(false); onMarkExpired(); }}>
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                        <span style={{ color: '#d97706' }}>Mark as Expired</span>
+                    </button>
+                    <button className="pa-three-dot__item pa-three-dot__item--danger" onClick={() => { setOpen(false); onDelete(); }}>
+                        {Icons.trash} Delete
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ── Client Form Modal ──
 function ClientFormModal({ client, onSave, onClose, insuranceTypeNames }) {
     const [name, setName] = useState(client?.clientName || '');
@@ -129,6 +166,7 @@ function AuthFormModal({ auth, clientId, onSave, onClose }) {
         auth?.authorizationEndDate ? new Date(auth.authorizationEndDate).toISOString().split('T')[0] : ''
     );
     const [notes, setNotes] = useState(auth?.notes || '');
+    const [manualStatus, setManualStatus] = useState(auth?.manualStatus || 'active');
     const [files, setFiles] = useState([]);
     const isEdit = !!auth;
 
@@ -178,6 +216,7 @@ function AuthFormModal({ auth, clientId, onSave, onClose }) {
             authorizationEndDate: endDate || null,
             notes,
             accountNumber,
+            manualStatus,
             files,
         });
     };
@@ -241,6 +280,34 @@ function AuthFormModal({ auth, clientId, onSave, onClose }) {
                 <div className="form-group">
                     <label>Notes</label>
                     <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes…" />
+                </div>
+                <div className="form-group">
+                    <label>Status</label>
+                    <select value={manualStatus} onChange={(e) => setManualStatus(e.target.value)} style={{ marginBottom: 8 }}>
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                        <option value="expired">Expired</option>
+                    </select>
+                    <div className="auth-status-cards">
+                        <label className={`auth-status-card ${manualStatus === 'active' ? 'auth-status-card--selected' : ''}`}>
+                            <input type="radio" name="authStatus" value="active" checked={manualStatus === 'active'} onChange={() => setManualStatus('active')} />
+                            <span className="auth-status-card__dot" style={{ background: '#16a34a' }} />
+                            <span className="auth-status-card__label">Active</span>
+                            <span className="auth-status-card__desc">Authorization is currently valid and in use.</span>
+                        </label>
+                        <label className={`auth-status-card ${manualStatus === 'inactive' ? 'auth-status-card--selected' : ''}`}>
+                            <input type="radio" name="authStatus" value="inactive" checked={manualStatus === 'inactive'} onChange={() => setManualStatus('inactive')} />
+                            <span className="auth-status-card__dot" style={{ background: '#6b7280' }} />
+                            <span className="auth-status-card__label">Inactive</span>
+                            <span className="auth-status-card__desc">Authorization is no longer in use.</span>
+                        </label>
+                        <label className={`auth-status-card ${manualStatus === 'expired' ? 'auth-status-card--selected' : ''}`}>
+                            <input type="radio" name="authStatus" value="expired" checked={manualStatus === 'expired'} onChange={() => setManualStatus('expired')} />
+                            <span className="auth-status-card__dot" style={{ background: '#dc2626' }} />
+                            <span className="auth-status-card__label" style={{ color: '#dc2626' }}>Expired</span>
+                            <span className="auth-status-card__desc">Authorization has expired based on the end date.</span>
+                        </label>
+                    </div>
                 </div>
                 <div className="form-group">
                     <label>Upload PA / Care Plan Documents</label>
@@ -689,6 +756,19 @@ export default function AuthorizationsPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    const handleMarkStatus = async (auth, newStatus) => {
+        try {
+            await api.updateAuthManualStatus(auth.id, newStatus);
+            showToast(`Authorization marked as ${newStatus}`);
+            const refreshed = await api.getClients();
+            setClients(refreshed);
+            if (drawerClient) {
+                const updated = refreshed.find(c => c.id === drawerClient.id);
+                if (updated) setDrawerClient(updated);
+            }
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     const handleRestore = async (client) => {
         try {
             await api.restoreClient(client.id);
@@ -952,46 +1032,67 @@ export default function AuthorizationsPage() {
                                                             </div>
                                                         </td>
                                                     </tr>
-                                                    {isOpen && client.authorizations.map((auth) => (
-                                                        <tr key={`a-${auth.id}`} className="row-auth">
-                                                            <td style={{ paddingLeft: 36 }}>
-                                                                <span style={{ color: 'hsl(var(--muted-foreground))', marginRight: 6 }}>└</span>
-                                                                <span style={{ fontWeight: 600 }}>{auth.serviceCode}</span>
-                                                                {auth.serviceName ? <span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12, marginLeft: 6 }}>{auth.serviceName}</span> : null}
-                                                            </td>
-                                                            <td style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>{auth.authorizedUnits || 0} units</td>
-                                                            <td style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
-                                                                {fmtDate(auth.authorizationStartDate)} – {fmtDate(auth.authorizationEndDate)}
-                                                            </td>
-                                                            <td>
-                                                                <span className={`status-cell status-cell--${auth.statusColor}`}>
-                                                                    {statusLabel(auth.status)}
-                                                                </span>
-                                                            </td>
-                                                            <td>
-                                                                <span className={`days-cell ${daysClass(auth.daysToExpire)}`}>
-                                                                    {auth.daysToExpire ?? '—'}
-                                                                </span>
-                                                            </td>
-                                                            <td>
-                                                                <div className="row-actions">
-                                                                    <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'auth', auth, clientId: client.id })} title="Edit authorization">
-                                                                        {Icons.edit}
-                                                                    </button>
-                                                                    <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDeleteAuth', auth })} title="Delete authorization">
-                                                                        {Icons.trash}
-                                                                    </button>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                    {isOpen && client.authorizations.length === 0 && (
-                                                        <tr className="row-auth">
-                                                            <td colSpan={6} style={{ paddingLeft: 36, color: 'hsl(var(--muted-foreground))', fontStyle: 'italic', fontSize: 13 }}>
-                                                                No services yet
-                                                            </td>
-                                                        </tr>
-                                                    )}
+                                                    {isOpen && (() => {
+                                                        const activeAuths = client.authorizations.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt);
+                                                        if (activeAuths.length === 0) return (
+                                                            <tr className="row-auth">
+                                                                <td colSpan={7} style={{ paddingLeft: 36, color: 'hsl(var(--muted-foreground))', fontStyle: 'italic', fontSize: 13 }}>
+                                                                    No active authorizations
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                        return (
+                                                            <>
+                                                                <tr className="row-auth row-auth--title">
+                                                                    <td></td>
+                                                                    <td colSpan={6} style={{ fontSize: 12, fontWeight: 700, padding: '8px 0 4px' }}>
+                                                                        Active Authorizations ({activeAuths.length})
+                                                                    </td>
+                                                                </tr>
+                                                                <tr className="row-auth row-auth--header">
+                                                                    <td colSpan={1}></td>
+                                                                    <td style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase' }}>Authorization #</td>
+                                                                    <td style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase' }}>Service Dates</td>
+                                                                    <td style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase' }}>Units</td>
+                                                                    <td style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase' }}>Attachment</td>
+                                                                    <td style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase' }}>Added On</td>
+                                                                    <td></td>
+                                                                </tr>
+                                                                {activeAuths.map((auth) => (
+                                                                    <tr key={`a-${auth.id}`} className="row-auth">
+                                                                        <td></td>
+                                                                        <td style={{ fontSize: 13, fontWeight: 500 }}>
+                                                                            {auth.authorizationNumber || '—'}
+                                                                        </td>
+                                                                        <td style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
+                                                                            {fmtDate(auth.authorizationStartDate)} - {fmtDate(auth.authorizationEndDate)}
+                                                                        </td>
+                                                                        <td style={{ fontSize: 13, fontWeight: 500 }}>{auth.authorizedUnits || 0}</td>
+                                                                        <td>
+                                                                            {(auth.documents || []).length > 0 ? (
+                                                                                <span className="auth-attachment-link" title={(auth.documents || []).map(d => d.fileName).join(', ')}>
+                                                                                    {Icons.paperclip} {(auth.documents || [])[0]?.fileName || 'file'}
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12 }}>—</span>
+                                                                            )}
+                                                                        </td>
+                                                                        <td style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
+                                                                            {fmtDate(auth.createdAt)}
+                                                                        </td>
+                                                                        <td>
+                                                                            <AuthRowMenu
+                                                                                onEdit={() => setModal({ type: 'auth', auth, clientId: client.id })}
+                                                                                onMarkInactive={() => handleMarkStatus(auth, 'inactive')}
+                                                                                onMarkExpired={() => handleMarkStatus(auth, 'expired')}
+                                                                                onDelete={() => setModal({ type: 'confirmDeleteAuth', auth })}
+                                                                            />
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </>
+                                                        );
+                                                    })()}
                                                 </Fragment>
                                             );
                                         })}

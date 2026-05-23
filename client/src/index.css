@@ -7043,6 +7043,73 @@ button.sdr-section-tag:hover:not(:disabled) {
   background: hsl(0 84% 96%);
 }
 
+/* Auth status radio cards in edit modal */
+.auth-status-cards {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+.auth-status-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 2px solid hsl(var(--border));
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.auth-status-card input[type="radio"] {
+  display: none;
+}
+.auth-status-card--selected {
+  border-color: hsl(217 91% 50%);
+  background: hsl(217 91% 98%);
+}
+.auth-status-card__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.auth-status-card__label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.auth-status-card__desc {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  line-height: 1.3;
+}
+
+/* Auth attachment link in table row */
+.auth-attachment-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: hsl(217 91% 50%);
+  cursor: pointer;
+  text-decoration: none;
+}
+.auth-attachment-link:hover {
+  text-decoration: underline;
+}
+.auth-attachment-link svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* Auth row styles */
+.row-auth--title td {
+  background: transparent;
+}
+.row-auth--header td {
+  background: hsl(var(--muted) / 0.3);
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+}
+
 /* Delete confirmation inline */
 .cp-auth-attachments__confirm-delete {
   display: inline-flex;
