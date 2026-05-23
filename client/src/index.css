@@ -5798,7 +5798,7 @@ button.sdr-section-tag:hover:not(:disabled) {
 
 .cp-auth-overview-list {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr 1.2fr 1fr 1fr;
 }
 .cp-auth-overview-list__header {
   display: contents;
@@ -6770,6 +6770,12 @@ button.sdr-section-tag:hover:not(:disabled) {
 .pa-badge--active {
   background: hsl(142 76% 92%);
   color: #16a34a;
+}
+.pa-badge--auth-num {
+  background: hsl(217 91% 94%);
+  color: hsl(217 91% 40%);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
 }
 .pa-service-card__account {
   display: flex;

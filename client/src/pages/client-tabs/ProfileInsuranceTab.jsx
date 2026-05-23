@@ -74,16 +74,18 @@ export default function ProfileInsuranceTab({
                                 <div className="cp-auth-overview-list__header">
                                     <span>Service Name</span>
                                     <span>Code</span>
+                                    <span>Auth #</span>
                                     <span>Start Date</span>
                                     <span>End Date</span>
                                 </div>
                                 {Object.entries(authGroups).flatMap(([code, auths]) =>
-                                    auths.filter(a => !a.archivedAt && (a.manualStatus || 'active') === 'active' && a.status !== 'Expired').map(a => {
+                                    auths.filter(a => !a.archivedAt && (a.manualStatus || 'active') === 'active').map(a => {
                                         const colors = AUTH_COLORS[code] || DEFAULT_AUTH_COLOR;
                                         return (
                                             <div key={a.id} className="cp-auth-overview-row">
                                                 <span className="cp-auth-overview-row__cell">{a.serviceName || a.serviceCategory || code}</span>
                                                 <span className="cp-auth-overview-row__cell cp-auth-overview-row__code" style={{ color: colors.accent }}>{a.serviceCode || code}</span>
+                                                <span className="cp-auth-overview-row__cell" style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 12 }}>{a.authorizationNumber || '—'}</span>
                                                 <span className="cp-auth-overview-row__cell">{formatDate(a.authorizationStartDate) || '—'}</span>
                                                 <span className="cp-auth-overview-row__cell">{formatDate(a.authorizationEndDate) || '—'}</span>
                                             </div>

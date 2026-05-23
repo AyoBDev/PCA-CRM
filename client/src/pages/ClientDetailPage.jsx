@@ -130,7 +130,7 @@ export default function ClientDetailPage() {
     const [expandedAuthHistory, setExpandedAuthHistory] = useState({});
     const [expandedServiceCode, setExpandedServiceCode] = useState(null);
     const [summaryExpandedService, setSummaryExpandedService] = useState(null);
-    const [authFilterStatus, setAuthFilterStatus] = useState('all');
+    const [authFilterStatus, setAuthFilterStatus] = useState('active');
     const [expandedAuthAttachments, setExpandedAuthAttachments] = useState({});
 
     const fetchClient = useCallback(async () => {

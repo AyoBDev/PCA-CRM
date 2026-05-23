@@ -152,7 +152,7 @@ export default function ProgramsAuthTab({
         const filteredAuths = sortAuths(filterAuths(allAuths));
         const activeAuths = current.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt);
         const latestAuth = activeAuths[0] || current[0] || allAuths[0];
-        const attachCount = activeAuths.reduce((sum, a) => sum + (a.documents || []).length, 0);
+        const attachCount = latestAuth ? (latestAuth.documents || []).length : 0;
         const currentAccountNumber = latestAuth?.accountNumber || DEFAULT_ACCOUNT_BY_CODE[code] || '';
 
         const isExpanded = expandedServiceCode === code;
@@ -165,6 +165,7 @@ export default function ProgramsAuthTab({
                     </div>
                     <div className="pa-service-card__title-area">
                         <h4 className="pa-service-card__title">{colors.label}</h4>
+                        {latestAuth?.authorizationNumber && <span className="pa-badge pa-badge--auth-num">#{latestAuth.authorizationNumber}</span>}
                         {activeAuths.length > 0 && <span className="pa-badge pa-badge--active">Active</span>}
                     </div>
                     <div className="pa-service-card__account">
