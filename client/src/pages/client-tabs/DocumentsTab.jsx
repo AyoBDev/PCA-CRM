@@ -38,7 +38,9 @@ export default function DocumentsTab({
         acc[d.category].push(d);
         return acc;
     }, {});
-    const totalDocs = (client.documents || []).length;
+    const totalDocs = (client.authorizations || [])
+        .filter(a => !a.archivedAt && (a.manualStatus || 'active') === 'active')
+        .reduce((sum, a) => sum + (a.documents || []).length, 0);
 
     return (
         <div className="cp-tab-panel">
