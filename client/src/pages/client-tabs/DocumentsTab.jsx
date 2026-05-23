@@ -2,9 +2,6 @@ import Icons from '../../components/common/Icons';
 
 const DOC_CATEGORIES = [
     { value: 'admission_packet', label: 'Client Admission Packets', color: '#3b82f6' },
-    { value: 'auth_pca', label: 'PCA Service Authorization', color: '#22c55e' },
-    { value: 'auth_waiver', label: 'Waiver Service Authorization', color: '#f59e0b' },
-    { value: 'auth_iso', label: 'ISO Service Authorization', color: '#06b6d4' },
     { value: 'iso_admission', label: 'ISO Admission Packets', color: '#0891b2' },
     { value: 'transfer', label: 'Transfer Documents', color: '#8b5cf6' },
     { value: 'hipaa', label: 'HIPAA', color: '#dc2626' },
@@ -33,12 +30,13 @@ export default function DocumentsTab({
     handleDownloadDoc,
     setConfirmDelete,
 }) {
-    const docsByCategory = (client.documents || []).reduce((acc, d) => {
+    const nonAuthDocs = (client.documents || []).filter(d => !d.category || !d.category.startsWith('auth_'));
+    const docsByCategory = nonAuthDocs.reduce((acc, d) => {
         if (!acc[d.category]) acc[d.category] = [];
         acc[d.category].push(d);
         return acc;
     }, {});
-    const totalDocs = (client.documents || []).filter(d => !d.category || !d.category.startsWith('auth_')).length;
+    const totalDocs = nonAuthDocs.length;
 
     return (
         <div className="cp-tab-panel">

@@ -27,21 +27,6 @@ async function uploadAuthDocument(req, res, next) {
             include: { users: { select: { id: true, name: true } } },
         });
 
-        // Also create a ClientDocument copy
-        const clientId = auth.clientId;
-        await prisma.clientDocument.create({
-            data: {
-                clientId,
-                category: `auth_${auth.serviceCode.toLowerCase()}`,
-                fileName: req.file.originalname,
-                filePath: `documents/${clientId}/${req.file.originalname}`,
-                fileSize: req.file.size,
-                mimeType: req.file.mimetype || '',
-                fileData: req.file.buffer,
-                uploadedBy: req.user.id,
-                notes: (req.body.notes || '').trim(),
-            },
-        });
 
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
