@@ -582,7 +582,7 @@ export default function ClientDetailPage() {
         acc[d.category].push(d);
         return acc;
     }, {});
-    const totalDocs = (client.documents || []).filter(d => !d.category || !d.category.startsWith('auth_')).length;
+    const totalDocs = (client.documents || []).length;
 
     const authGroups = {};
     (client.authorizations || []).forEach(a => {
