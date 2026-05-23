@@ -5798,15 +5798,22 @@ button.sdr-section-tag:hover:not(:disabled) {
 
 .cp-auth-overview-list {
   display: grid;
-  grid-template-columns: 2fr 1fr 1.2fr 1fr 1fr;
+  grid-template-columns: 2fr 0.8fr 1.4fr 1fr 1fr;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  overflow: hidden;
 }
 .cp-auth-overview-list__header {
   display: contents;
 }
 .cp-auth-overview-list__header span {
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: hsl(var(--muted-foreground));
-  padding: 8px 16px;
+  padding: 10px 12px;
+  background: hsl(var(--muted) / 0.4);
   border-bottom: 1px solid hsl(var(--border));
 }
 .cp-auth-overview-row {
@@ -5816,8 +5823,8 @@ button.sdr-section-tag:hover:not(:disabled) {
   font-size: 13px;
   font-weight: 500;
   color: hsl(var(--foreground));
-  padding: 10px 16px;
-  border-bottom: 1px solid hsl(var(--border) / 0.5);
+  padding: 10px 12px;
+  border-bottom: 1px solid hsl(var(--border) / 0.4);
   display: flex;
   align-items: center;
 }
@@ -5826,6 +5833,7 @@ button.sdr-section-tag:hover:not(:disabled) {
 }
 .cp-auth-overview-row__code {
   font-weight: 700;
+  font-size: 12px;
 }
 
 .cp-auth-group {
