@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
@@ -33,6 +34,7 @@ function formatWeekEnding(weekStartStr) {
 export default function TimesheetsListPage() {
     const { isAdmin } = useAuth();
     const { showToast } = useToast();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [clients, setClients] = useState([]);
     const [allTimesheets, setAllTimesheets] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -42,7 +44,8 @@ export default function TimesheetsListPage() {
     const [pcaFilter, setPcaFilter] = useState('');
     const [clientFilter, setClientFilter] = useState('');
     const [serviceFilter, setServiceFilter] = useState('');
-    const [activeTimesheetId, setActiveTimesheetId] = useState(null);
+    const openParam = searchParams.get('open');
+    const [activeTimesheetId, setActiveTimesheetId] = useState(openParam ? Number(openParam) : null);
     const [showNewModal, setShowNewModal] = useState(false);
     const [newPcaName, setNewPcaName] = useState('');
     const [newClientId, setNewClientId] = useState('');
@@ -236,7 +239,7 @@ export default function TimesheetsListPage() {
     };
 
     if (activeTimesheetId) {
-        return <TimesheetFormPage timesheetId={activeTimesheetId} clients={clients} onBack={() => { setActiveTimesheetId(null); fetchTimesheets(); }} showToast={showToast} />;
+        return <TimesheetFormPage timesheetId={activeTimesheetId} clients={clients} onBack={() => { setActiveTimesheetId(null); setSearchParams({}); fetchTimesheets(); }} showToast={showToast} />;
     }
 
     return (

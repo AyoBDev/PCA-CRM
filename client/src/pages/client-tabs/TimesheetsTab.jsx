@@ -92,7 +92,7 @@ export default function TimesheetsTab({ client, navigate }) {
                                                 cursor: 'pointer',
                                                 transition: 'background 0.15s',
                                             }}
-                                            onClick={() => navigate('/timesheets')}
+                                            onClick={() => navigate(`/timesheets?open=${ts.id}`)}
                                             onMouseEnter={e => e.currentTarget.style.background = 'hsl(var(--muted) / 0.4)'}
                                             onMouseLeave={e => e.currentTarget.style.background = ''}
                                         >
