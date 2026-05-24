@@ -386,34 +386,34 @@ async function exportTimesheetPdf(req, res, next) {
         });
         if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
 
-        const doc = new PDFDocument({ size: 'LETTER', layout: 'landscape', margins: { top: 24, bottom: 24, left: 24, right: 24 } });
+        const doc = new PDFDocument({ size: 'LETTER', layout: 'landscape', margins: { top: 16, bottom: 16, left: 18, right: 18 } });
 
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="timesheet-${ts.id}.pdf"`);
         doc.pipe(res);
 
-        const mL = 24, mR = 24;
+        const mL = 18, mR = 18;
         const pageW = doc.page.width - mL - mR;
-        const pageBottom = doc.page.height - 24;
+        const pageBottom = doc.page.height - 16;
         const dayNames = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
-        const labelW = 135;
+        const labelW = 120;
         const dayW = (pageW - labelW) / 7;
         let gridY;
 
         // ── Draw a single grid row with full borders ──
         const drawRow = (label, values, opts = {}) => {
-            const { bold, bg, height, sectionHeader, fontSize } = { bold: false, bg: null, height: 13, sectionHeader: false, fontSize: 6, ...opts };
+            const { bold, bg, height, sectionHeader, fontSize } = { bold: false, bg: null, height: 11, sectionHeader: false, fontSize: 5.5, ...opts };
 
             // Page overflow — add new page and re-draw day header
             if (gridY + height > pageBottom) {
                 doc.addPage();
-                gridY = 24;
+                gridY = 16;
                 drawRow('', dayNames.map((d, i) => {
                     const e = ts.entries[i];
                     const dateStr = e?.dateOfService ? new Date(e.dateOfService + 'T00:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }) : '';
-                    return `${d}\n${dateStr}`;
-                }), { bold: true, bg: '#d9d9d9', height: 22 });
+                    return `${d} ${dateStr}`;
+                }), { bold: true, bg: '#d9d9d9', height: 14 });
             }
 
             // Background fill
@@ -486,9 +486,9 @@ async function exportTimesheetPdf(req, res, next) {
         };
 
         // ── Title ──
-        doc.fontSize(13).font('Helvetica-Bold').text('NV BEST PCA', { align: 'center' });
-        doc.fontSize(9).font('Helvetica').text('PCA Service Delivery Record', { align: 'center' });
-        doc.moveDown(0.3);
+        doc.fontSize(11).font('Helvetica-Bold').text('NV BEST PCA', { align: 'center' });
+        doc.fontSize(7).font('Helvetica').text('PCA Service Delivery Record', { align: 'center' });
+        doc.moveDown(0.2);
 
         // ── Info line ──
         const weekStart = new Date(ts.weekStart);
@@ -496,13 +496,13 @@ async function exportTimesheetPdf(req, res, next) {
         weekEnd.setDate(weekEnd.getDate() + 6);
         const fmtD = (d) => d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit', timeZone: 'UTC' });
 
-        doc.fontSize(8).font('Helvetica');
+        doc.fontSize(7).font('Helvetica');
         const infoY = doc.y;
         doc.text(`Client: ${ts.client?.clientName || ''}`, mL, infoY);
         doc.text(`Medicaid ID: ${ts.client?.medicaidId || ''}`, 200, infoY);
         doc.text(`PCA: ${ts.pcaName || ''}`, 400, infoY);
         doc.text(`Week: ${fmtD(weekStart)} – ${fmtD(weekEnd)}`, 570, infoY);
-        doc.moveDown(0.6);
+        doc.moveDown(0.3);
         gridY = doc.y;
 
         // ── Day headers ──
@@ -510,10 +510,10 @@ async function exportTimesheetPdf(req, res, next) {
             const e = ts.entries[i];
             const dateStr = e?.dateOfService ? new Date(e.dateOfService + 'T00:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }) : '';
             return `${d} ${dateStr}`;
-        }), { bold: true, bg: '#d9d9d9', height: 17 });
+        }), { bold: true, bg: '#d9d9d9', height: 14 });
 
         // ── ADL / PAS Section ──
-        drawRow("Activities of Daily Living — ADL's (PAS)", [], { bold: true, bg: '#dbeafe', height: 15, sectionHeader: true });
+        drawRow("Activities of Daily Living — ADL's (PAS)", [], { bold: true, bg: '#dbeafe', height: 12, sectionHeader: true });
         for (const act of ADL_ACTIVITIES) {
             const vals = ts.entries.map(e => {
                 const activities = JSON.parse(e.adlActivities || '{}');
@@ -524,7 +524,7 @@ async function exportTimesheetPdf(req, res, next) {
         drawTimeRows('adl', ts.entries);
 
         // ── IADL / Homemaker Section ──
-        drawRow("IADL's — Instrumental Activities of Daily Living (Homemaker)", [], { bold: true, bg: '#dbeafe', height: 15, sectionHeader: true });
+        drawRow("IADL's — Instrumental Activities of Daily Living (Homemaker)", [], { bold: true, bg: '#dbeafe', height: 12, sectionHeader: true });
         for (const act of IADL_ACTIVITIES) {
             const vals = ts.entries.map(e => {
                 const activities = JSON.parse(e.iadlActivities || '{}');
@@ -540,7 +540,7 @@ async function exportTimesheetPdf(req, res, next) {
             try { const a = JSON.parse(e.respiteActivities || '{}'); return Object.values(a).some(Boolean); } catch { return false; }
         });
         if (hasRespite) {
-            drawRow("Respite — Instrumental Activities of Daily Living", [], { bold: true, bg: '#dbeafe', height: 15, sectionHeader: true });
+            drawRow("Respite — Instrumental Activities of Daily Living", [], { bold: true, bg: '#dbeafe', height: 12, sectionHeader: true });
             for (const act of RESPITE_ACTIVITIES) {
                 const vals = ts.entries.map(e => {
                     const activities = JSON.parse(e.respiteActivities || '{}');
@@ -552,23 +552,23 @@ async function exportTimesheetPdf(req, res, next) {
         }
 
         // ── Totals bar ──
-        gridY += 4;
-        if (gridY + 18 > pageBottom) { doc.addPage(); gridY = 24; }
-        doc.save().rect(mL, gridY, pageW, 18).fill('#f0f0f0').rect(mL, gridY, pageW, 18).lineWidth(0.5).stroke('#888').restore();
-        doc.fontSize(8).font('Helvetica-Bold').fillColor('#000');
+        gridY += 2;
+        if (gridY + 14 > pageBottom) { doc.addPage(); gridY = 16; }
+        doc.save().rect(mL, gridY, pageW, 14).fill('#f0f0f0').rect(mL, gridY, pageW, 14).lineWidth(0.5).stroke('#888').restore();
+        doc.fontSize(6.5).font('Helvetica-Bold').fillColor('#000');
         const totalRespiteHours = ts.totalRespiteHours || 0;
         doc.text(
-            `Total PAS: ${ts.totalPasHours.toFixed(2)}      Total HM: ${ts.totalHmHours.toFixed(2)}      Total Respite: ${totalRespiteHours.toFixed(2)}      TOTAL HOURS: ${ts.totalHours.toFixed(2)}`,
-            mL + 4, gridY + 4, { width: pageW - 8 }
+            `Total PAS: ${ts.totalPasHours.toFixed(2)}    Total HM: ${ts.totalHmHours.toFixed(2)}    Total Respite: ${totalRespiteHours.toFixed(2)}    TOTAL HOURS: ${ts.totalHours.toFixed(2)}`,
+            mL + 4, gridY + 3, { width: pageW - 8 }
         );
-        gridY += 24;
+        gridY += 18;
 
         // ── Signatures ──
-        if (gridY + 80 > pageBottom) { doc.addPage(); gridY = 24; }
+        if (gridY + 60 > pageBottom) { doc.addPage(); gridY = 16; }
 
-        doc.fontSize(8).font('Helvetica').fillColor('#000');
-        const sigH = 36;
-        const sigW = 180;
+        doc.fontSize(7).font('Helvetica').fillColor('#000');
+        const sigH = 28;
+        const sigW = 160;
         const sigGap = (pageW - sigW * 3) / 4;
 
         const sigCol1 = mL + sigGap;
@@ -579,7 +579,7 @@ async function exportTimesheetPdf(req, res, next) {
         doc.font('Helvetica-Bold').text('PCA Name:', sigCol1, gridY, { continued: true }).font('Helvetica').text(` ${ts.pcaFullName || ''}`);
         doc.font('Helvetica-Bold').text('Recipient:', sigCol2, gridY, { continued: true }).font('Helvetica').text(` ${ts.recipientName || ''}`);
         doc.font('Helvetica-Bold').text('Supervisor:', sigCol3, gridY, { continued: true }).font('Helvetica').text(` ${ts.supervisorName || 'Sona Hakobyan'}`);
-        gridY += 14;
+        gridY += 10;
 
         // Signature images
         if (ts.pcaSignature) {
