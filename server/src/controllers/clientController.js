@@ -199,9 +199,22 @@ async function patchClient(req, res, next) {
             data,
             include: { authorizations: true },
         });
+
+        if (clientStatus === 'inactive') {
+            await prisma.authorization.updateMany({
+                where: { clientId: id, archivedAt: null },
+                data: { manualStatus: 'inactive' },
+            });
+        }
+
         const changes = audit.diffFields(oldClient, updated, Object.keys(data));
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Client', entityId: id, entityName: updated.clientName, changes });
-        res.json(updated);
+
+        const final = await prisma.client.findUnique({
+            where: { id },
+            include: { authorizations: true },
+        });
+        res.json(enrichClient(final));
     } catch (err) {
         if (err.code === 'P2025') return res.status(404).json({ error: 'Client not found' });
         next(err);

@@ -6,8 +6,9 @@ import SignaturePad from '../components/common/SignaturePad';
 import { formatWeek } from '../utils/dates';
 
 const DAY_SHORT = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-const ADL_ACTIVITIES = ['Bathing', 'Dressing', 'Grooming', 'Continence', 'Toileting', 'Ambulation/Mobility', 'Cane, Walker W/Chair', 'Transfer', 'Exer./Passive Range of Motion'];
+const ADL_ACTIVITIES = ['Bathing', 'Dressing', 'Grooming', 'Continence', 'Toileting', 'Ambulation/Mobility', 'Transfer'];
 const IADL_ACTIVITIES = ['Light Housekeeping', 'Medication Reminders', 'Laundry', 'Shopping', 'Meal Preparation B.L.D.', 'Eating/Feeding'];
+const RESPITE_ACTIVITIES = ['Light Housekeeping', 'Medication Reminders', 'Laundry', 'Shopping', 'Meal Preparation B.L.D.', 'Eating/Feeding', 'Companion'];
 
 function roundTo15(timeStr) {
     if (!timeStr) return '';
@@ -563,7 +564,7 @@ export default function PcaFormPage() {
 
                         <SectionBlock
                             header={iadlHeader}
-                            activities={IADL_ACTIVITIES}
+                            activities={iadlTab === 'respite' ? RESPITE_ACTIVITIES : IADL_ACTIVITIES}
                             section={iadlSection}
                             entries={entries}
                             updateEntry={updateEntry}

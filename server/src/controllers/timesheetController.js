@@ -5,12 +5,15 @@ const { filterAuthsByWeek } = require('../services/authorizationService');
 // ── Activity definitions (match the paper form) ──────
 const ADL_ACTIVITIES = [
     'Bathing', 'Dressing', 'Grooming', 'Continence', 'Toileting',
-    'Ambulation/Mobility', 'Cane, Walker W/Chair', 'Transfer',
-    'Exer./Passive Range of Motion',
+    'Ambulation/Mobility', 'Transfer',
 ];
 const IADL_ACTIVITIES = [
     'Light Housekeeping', 'Medication Reminders', 'Laundry',
     'Shopping', 'Meal Preparation B.L.D.', 'Eating/Feeding',
+];
+const RESPITE_ACTIVITIES = [
+    'Light Housekeeping', 'Medication Reminders', 'Laundry',
+    'Shopping', 'Meal Preparation B.L.D.', 'Eating/Feeding', 'Companion',
 ];
 
 // ── 15-minute rounding ──────────────────────────
@@ -129,7 +132,7 @@ async function getTimesheet(req, res, next) {
 
 // GET /api/timesheets/activities  — return activity lists
 async function getActivities(req, res) {
-    res.json({ adl: ADL_ACTIVITIES, iadl: IADL_ACTIVITIES, respite: IADL_ACTIVITIES });
+    res.json({ adl: ADL_ACTIVITIES, iadl: IADL_ACTIVITIES, respite: RESPITE_ACTIVITIES });
 }
 
 // POST /api/timesheets
@@ -400,7 +403,7 @@ async function exportTimesheetPdf(req, res, next) {
 
         // ── Draw a single grid row with full borders ──
         const drawRow = (label, values, opts = {}) => {
-            const { bold, bg, height, sectionHeader, fontSize } = { bold: false, bg: null, height: 15, sectionHeader: false, fontSize: 6.5, ...opts };
+            const { bold, bg, height, sectionHeader, fontSize } = { bold: false, bg: null, height: 13, sectionHeader: false, fontSize: 6, ...opts };
 
             // Page overflow — add new page and re-draw day header
             if (gridY + height > pageBottom) {
@@ -538,7 +541,7 @@ async function exportTimesheetPdf(req, res, next) {
         });
         if (hasRespite) {
             drawRow("Respite — Instrumental Activities of Daily Living", [], { bold: true, bg: '#dbeafe', height: 15, sectionHeader: true });
-            for (const act of IADL_ACTIVITIES) {
+            for (const act of RESPITE_ACTIVITIES) {
                 const vals = ts.entries.map(e => {
                     const activities = JSON.parse(e.respiteActivities || '{}');
                     return activities[act] ? '\u2713' : '';

@@ -6571,6 +6571,21 @@ button.sdr-section-tag:hover:not(:disabled) {
   border-color: hsl(var(--primary));
   box-shadow: 0 0 0 2px hsl(var(--primary) / 0.1);
 }
+.cp-bio__status-select--active {
+  color: #16a34a;
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+.cp-bio__status-select--pending {
+  color: #d97706;
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+.cp-bio__status-select--inactive {
+  color: #dc2626;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
 
 /* ═══ Service-Centric Auth View ═══ */
 .cp-auth-group__header-clickable {
@@ -6842,7 +6857,7 @@ button.sdr-section-tag:hover:not(:disabled) {
 }
 .pa-auth-list {
   max-height: 400px;
-  overflow-y: auto;
+  overflow-y: visible;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -6852,7 +6867,7 @@ button.sdr-section-tag:hover:not(:disabled) {
   border: 1px solid hsl(var(--border));
   border-radius: 8px;
   background: hsl(var(--card));
-  overflow: hidden;
+  overflow: visible;
   transition: border-color 0.15s;
 }
 .pa-auth-item--active {

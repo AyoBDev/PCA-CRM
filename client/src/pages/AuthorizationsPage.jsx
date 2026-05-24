@@ -10,6 +10,56 @@ import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import { ActivityButton, EntityActivityButton } from '../components/common/ActivityDrawer';
 
+// ── Client Row 3-dot Menu (status + actions) ──
+function ClientRowMenu({ client, onSetActive, onSetPending, onSetInactive, onEdit, onDelete }) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+    useEffect(() => {
+        if (!open) return;
+        const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        document.addEventListener('mousedown', close);
+        return () => document.removeEventListener('mousedown', close);
+    }, [open]);
+    const status = client.clientStatus || 'active';
+    return (
+        <div className="pa-three-dot" ref={ref} onClick={(e) => e.stopPropagation()}>
+            <button className="pa-three-dot__btn" onClick={() => setOpen(!open)}>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+            </button>
+            {open && (
+                <div className="pa-three-dot__menu">
+                    <button className="pa-three-dot__item" onClick={() => { setOpen(false); onEdit(); }}>
+                        {Icons.edit} Edit Client
+                    </button>
+                    <div style={{ borderTop: '1px solid hsl(var(--border))', margin: '4px 0' }} />
+                    {status !== 'active' && (
+                        <button className="pa-three-dot__item" style={{ color: '#16a34a' }} onClick={() => { setOpen(false); onSetActive(); }}>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#16a34a" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+                            Mark as Active
+                        </button>
+                    )}
+                    {status !== 'pending' && (
+                        <button className="pa-three-dot__item" style={{ color: '#d97706' }} onClick={() => { setOpen(false); onSetPending(); }}>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#d97706" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                            Mark as Pending
+                        </button>
+                    )}
+                    {status !== 'inactive' && (
+                        <button className="pa-three-dot__item" style={{ color: '#dc2626' }} onClick={() => { setOpen(false); onSetInactive(); }}>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#dc2626" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>
+                            Mark as Inactive
+                        </button>
+                    )}
+                    <div style={{ borderTop: '1px solid hsl(var(--border))', margin: '4px 0' }} />
+                    <button className="pa-three-dot__item pa-three-dot__item--danger" onClick={() => { setOpen(false); onDelete(); }}>
+                        {Icons.trash} Delete
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ── Auth Row 3-dot Menu ──
 function AuthRowMenu({ onEdit, onMarkInactive, onMarkExpired, onDelete }) {
     const [open, setOpen] = useState(false);
@@ -773,6 +823,19 @@ export default function AuthorizationsPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    const handleClientStatus = async (client, newStatus) => {
+        try {
+            await api.patchClient(client.id, { clientStatus: newStatus });
+            showToast(`Client marked as ${newStatus}`);
+            const refreshed = await api.getClients();
+            setClients(refreshed);
+            if (drawerClient) {
+                const updated = refreshed.find(c => c.id === drawerClient.id);
+                if (updated) setDrawerClient(updated);
+            }
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     const handleRestore = async (client) => {
         try {
             await api.restoreClient(client.id);
@@ -1024,14 +1087,14 @@ export default function AuthorizationsPage() {
                                                                         <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmPermanentDelete(client)} title="Delete permanently">{Icons.trash}</button>
                                                                     </div>
                                                                 ) : (
-                                                                    <>
-                                                                        <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'client', client })} title="Edit client">
-                                                                            {Icons.edit}
-                                                                        </button>
-                                                                        <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDeleteClient', client })} title="Delete client">
-                                                                            {Icons.trash}
-                                                                        </button>
-                                                                    </>
+                                                                    <ClientRowMenu
+                                                                        client={client}
+                                                                        onEdit={() => setModal({ type: 'client', client })}
+                                                                        onSetActive={() => handleClientStatus(client, 'active')}
+                                                                        onSetPending={() => handleClientStatus(client, 'pending')}
+                                                                        onSetInactive={() => handleClientStatus(client, 'inactive')}
+                                                                        onDelete={() => setModal({ type: 'confirmDeleteClient', client })}
+                                                                    />
                                                                 )}
                                                             </div>
                                                         </td>

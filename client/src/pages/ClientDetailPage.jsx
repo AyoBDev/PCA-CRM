@@ -14,6 +14,7 @@ import CarePlanTab from './client-tabs/CarePlanTab';
 import ScheduleTab from './client-tabs/ScheduleTab';
 import ActivityLogTab from './client-tabs/ActivityLogTab';
 import IncidentReportsTab from './client-tabs/IncidentReportsTab';
+import TimesheetsTab from './client-tabs/TimesheetsTab';
 
 const DOC_CATEGORIES = [
     { value: 'admission_packet', label: 'Client Admission Packets', color: '#3b82f6' },
@@ -42,6 +43,7 @@ const TABS = [
     { key: 'profile', label: 'Profile & Insurance' },
     { key: 'programs', label: 'Programs & Authorizations' },
     { key: 'documents', label: 'Documents' },
+    { key: 'timesheets', label: 'Timesheets' },
     { key: 'care-plan', label: 'Care Plan (ADL)' },
     { key: 'schedule', label: 'Schedule' },
     { key: 'supervisory-review', label: 'Supervisory Review' },
@@ -666,7 +668,7 @@ export default function ClientDetailPage() {
                                 <h2 className="cp-bio__name">{client.clientName}</h2>
                                 {client.critical && <span className="ts-badge ts-badge--critical">Critical</span>}
                                 <select
-                                    className="cp-bio__status-select"
+                                    className={`cp-bio__status-select cp-bio__status-select--${client.clientStatus || 'active'}`}
                                     value={client.clientStatus || 'active'}
                                     onChange={async (e) => {
                                         const val = e.target.value;
@@ -888,6 +890,9 @@ export default function ClientDetailPage() {
                             handleDownloadDoc={handleDownloadDoc}
                             setConfirmDelete={setConfirmDelete}
                         />
+                    )}
+                    {activeTab === 'timesheets' && (
+                        <TimesheetsTab client={client} navigate={navigate} />
                     )}
                     {activeTab === 'care-plan' && (
                         <CarePlanTab
