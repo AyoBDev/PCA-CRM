@@ -152,6 +152,24 @@ router.get('/schedule/view/:token', getScheduleView);
 router.get('/pca-form/:token', getPcaForm);
 router.put('/pca-form/:token', updatePcaForm);
 
+// Backup (admin JWT or dedicated API key — must be above authenticate middleware)
+function backupAuth(req, res, next) {
+    const key = req.headers['x-backup-key'];
+    if (key && process.env.BACKUP_API_KEY && key === process.env.BACKUP_API_KEY) {
+        return next();
+    }
+    const header = req.headers.authorization;
+    if (header && header.startsWith('Bearer ')) {
+        const jwt = require('jsonwebtoken');
+        try {
+            const payload = jwt.verify(header.slice(7), process.env.JWT_SECRET || 'nvbestpca-secret');
+            if (payload.role === 'admin') return next();
+        } catch {}
+    }
+    return res.status(401).json({ error: 'Invalid backup credentials' });
+}
+router.get('/backup/export', backupAuth, exportBackup);
+
 // ── All routes below require authentication ──
 router.use(authenticate);
 
@@ -314,8 +332,5 @@ router.delete('/activities/:id', requireRole('admin'), deleteActivity);
 // Audit Logs (admin only)
 router.get('/audit-logs',                     requireRole('admin'), getAuditLogs);
 router.get('/audit-logs/:entityType/:entityId', requireRole('admin'), getEntityAuditLogs);
-
-// Backup (admin only)
-router.get('/backup/export', requireRole('admin'), exportBackup);
 
 module.exports = router;
