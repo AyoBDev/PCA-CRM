@@ -733,9 +733,9 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: #fff;
-  background: hsl(var(--primary));
-  border-bottom: 1px solid hsl(var(--primary));
+  color: hsl(210 40% 80%);
+  background: var(--sidebar-bg);
+  border-bottom: 1px solid var(--sidebar-border);
   white-space: nowrap;
   position: sticky;
   top: 0;
