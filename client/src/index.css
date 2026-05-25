@@ -2189,7 +2189,7 @@ body {
   gap: 12px;
   margin-bottom: 16px;
   padding: 16px;
-  background: hsl(var(--card));
+  background: hsl(var(--muted) / 0.35);
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius);
   flex-wrap: wrap;
@@ -3364,8 +3364,8 @@ button.sdr-section-tag:hover:not(:disabled) {
 }
 
 /* ─── Payroll ──────────────────────────────────────────── */
-.payroll-tabs               { display: flex; gap: 0; border-bottom: 2px solid hsl(var(--border)); margin-bottom: 16px; }
-.payroll-tab                { padding: 8px 18px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; background: none; color: hsl(240 3.8% 46.1%); border-bottom: 2px solid transparent; margin-bottom: -2px; display: flex; align-items: center; gap: 6px; transition: color 0.15s; }
+.payroll-tabs               { display: flex; gap: 0; border-bottom: 2px solid hsl(var(--border)); margin-bottom: 16px; background: hsl(var(--muted) / 0.35); border-radius: var(--radius) var(--radius) 0 0; padding: 0 8px; }
+.payroll-tab                { padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; background: none; color: hsl(240 3.8% 46.1%); border-bottom: 2px solid transparent; margin-bottom: -2px; display: flex; align-items: center; gap: 6px; transition: color 0.15s; }
 .payroll-tab:hover          { color: hsl(var(--foreground)); }
 .payroll-tab--active        { color: hsl(var(--foreground)); border-bottom-color: hsl(var(--foreground)); }
 .payroll-tab__badge         { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; font-size: 11px; font-weight: 700; background: hsl(270 60% 88%); color: hsl(270 50% 35%); }
@@ -6890,6 +6890,9 @@ button.sdr-section-tag:hover:not(:disabled) {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  background: hsl(var(--muted) / 0.35);
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 0 8px;
 }
 .cp-tabs::-webkit-scrollbar {
   display: none;
@@ -6900,7 +6903,7 @@ button.sdr-section-tag:hover:not(:disabled) {
   gap: 6px;
   padding: 10px 16px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   color: hsl(var(--muted-foreground));
   background: none;
   border: none;
