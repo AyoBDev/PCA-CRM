@@ -18,7 +18,7 @@ const PATH_TO_PAGE = {
     '/users': 'users',
 };
 
-export default function Sidebar() {
+export default function Sidebar({ onMobileClose }) {
     const { user, isAdmin, isStaff, logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
@@ -34,13 +34,15 @@ export default function Sidebar() {
         setCollapsed((prev) => {
             const next = !prev;
             localStorage.setItem('sidebarCollapsed', String(next));
-            // Dispatch storage event so Layout can sync
             window.dispatchEvent(new Event('sidebarToggle'));
             return next;
         });
     };
 
-    const nav = (path) => navigate(path);
+    const nav = (path) => {
+        navigate(path);
+        if (onMobileClose) onMobileClose();
+    };
 
     const handleLogout = () => {
         logout();
@@ -48,7 +50,7 @@ export default function Sidebar() {
     };
 
     return (
-        <aside className={`sidebar${collapsed ? ' sidebar--collapsed' : ''}`}>
+        <aside className={`sidebar${collapsed ? ' sidebar--collapsed' : ''}`} role="navigation" aria-label="Main navigation">
             <button
                 className="sidebar__collapse-btn"
                 onClick={handleToggle}

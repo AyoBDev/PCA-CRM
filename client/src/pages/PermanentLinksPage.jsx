@@ -90,9 +90,10 @@ export default function PermanentLinksPage() {
                     </div>
                 ) : (
                     <div className="sheet-card">
+                      <div className="table-scroll">
                         <table className="data-table">
                             <thead>
-                                <tr><th>PCA Name</th><th>Client</th><th>Link</th><th>Status</th><th>Created</th><th style={{ width: 160 }}>Actions</th></tr>
+                                <tr><th scope="col">PCA Name</th><th scope="col">Client</th><th scope="col">Link</th><th scope="col">Status</th><th scope="col">Created</th><th scope="col" style={{ width: 160 }}>Actions</th></tr>
                             </thead>
                             <tbody>
                                 {links.map((link) => (
@@ -118,6 +119,7 @@ export default function PermanentLinksPage() {
                                 ))}
                             </tbody>
                         </table>
+                      </div>
                     </div>
                 )}
             </div>

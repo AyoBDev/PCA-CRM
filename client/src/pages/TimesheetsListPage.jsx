@@ -10,6 +10,7 @@ import { formatWeek } from '../utils/dates';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import { ActivityButton } from '../components/common/ActivityDrawer';
+import LoadingState from '../components/common/LoadingState';
 
 function getSunday(dateStr) {
     const [y, m, d] = dateStr.split('-').map(Number);
@@ -363,7 +364,7 @@ export default function TimesheetsListPage() {
                     </div>
                 )}
                 {loading ? (
-                    <div style={{ padding: 40, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>Loading…</div>
+                    <LoadingState rows={5} />
                 ) : timesheets.length === 0 ? (
                     <div className="empty-state">
                         <div className="empty-state__icon">{Icons.fileText}</div>
@@ -373,23 +374,24 @@ export default function TimesheetsListPage() {
                 ) : (
                     <>
                         <div className="sheet-card">
+                          <div className="table-scroll">
                             <table className="data-table">
                                 <thead><tr>
                                     {!showArchived && (
-                                        <th style={{ width: 36 }}>
+                                        <th scope="col" style={{ width: 36 }}>
                                             <input type="checkbox" checked={selectedIds.size === timesheets.length && timesheets.length > 0} onChange={toggleSelectAll} />
                                         </th>
                                     )}
-                                    <th>Caregiver</th>
-                                    <th>Client</th>
-                                    <th>Week Ending</th>
-                                    <th>Total Hours</th>
-                                    <th>PAS Hours</th>
-                                    <th>HM Hours</th>
-                                    <th>Respite Hours</th>
-                                    <th>Status</th>
-                                    <th>Date Submitted</th>
-                                    <th style={{ width: showArchived ? 160 : 120 }}>Actions</th>
+                                    <th scope="col">Caregiver</th>
+                                    <th scope="col">Client</th>
+                                    <th scope="col">Week Ending</th>
+                                    <th scope="col">Total Hours</th>
+                                    <th scope="col">PAS Hours</th>
+                                    <th scope="col">HM Hours</th>
+                                    <th scope="col">Respite Hours</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Date Submitted</th>
+                                    <th scope="col" style={{ width: showArchived ? 160 : 120 }}>Actions</th>
                                 </tr></thead>
                                 <tbody>
                                     {timesheets.map((ts) => (
@@ -427,6 +429,7 @@ export default function TimesheetsListPage() {
                                     ))}
                                 </tbody>
                             </table>
+                          </div>
                         </div>
                         {!showArchived && (
                             <div className="ts-bottom-actions">

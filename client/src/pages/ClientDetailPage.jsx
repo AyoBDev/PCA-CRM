@@ -4,6 +4,7 @@ import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import Breadcrumbs from '../components/common/Breadcrumbs';
 import { EntityActivityButton } from '../components/common/ActivityDrawer';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
@@ -641,10 +642,8 @@ export default function ClientDetailPage() {
                         {Icons.chevronLeft}
                     </button>
                     <div>
+                        <Breadcrumbs items={[{ label: 'Clients', path: '/clients' }, { label: client.clientName }]} />
                         <h1 className="content-header__title" style={{ margin: 0 }}>Care Plans</h1>
-                        <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', marginTop: 2 }}>
-                            Client Profile & Care Management
-                        </div>
                     </div>
                 </div>
                 <div className="content-header__actions">

@@ -4,6 +4,7 @@ import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import Breadcrumbs from '../components/common/Breadcrumbs';
 import { fmtDate } from '../utils/dates';
 import { hhmm12 } from '../utils/time';
 import { visitRowClass } from '../utils/status';
@@ -60,7 +61,7 @@ function PayrollUploadModal({ onUpload, onClose }) {
                     <input id="periodEnd" type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
                 </div>
                 <div className="form-group">
-                    <label htmlFor="payrollFile">XLSX File <span style={{ color: 'hsl(var(--destructive))' }}>*</span></label>
+                    <label htmlFor="payrollFile">XLSX File <span className="text-destructive">*</span></label>
                     <input id="payrollFile" type="file" accept=".xlsx,.xls" required onChange={(e) => setFile(e.target.files[0] || null)} />
                 </div>
                 {error && <p style={{ color: 'hsl(var(--destructive))', fontSize: 13, marginBottom: 8 }}>{error}</p>}
@@ -202,21 +203,22 @@ const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits
                     </span>
                 )}
             </div>
-            <table className="payroll-visits-table">
+            <div className="table-scroll">
+            <table className="data-table data-table--compact">
                 <thead>
                     <tr>
-                        <th>Client</th>
-                        <th>Employee</th>
-                        <th>Service</th>
-                        <th>Date</th>
-                        <th>In</th>
-                        <th>Out</th>
-                        <th>Status</th>
-                        <th>Units (Raw)</th>
-                        <th>Final Units</th>
-                        <th>Overlap</th>
-                        <th>Void / Review Reason</th>
-                        <th>Notes / Exceptions</th>
+                        <th scope="col">Client</th>
+                        <th scope="col">Employee</th>
+                        <th scope="col">Service</th>
+                        <th scope="col">Date</th>
+                        <th scope="col">In</th>
+                        <th scope="col">Out</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Units (Raw)</th>
+                        <th scope="col">Final Units</th>
+                        <th scope="col">Overlap</th>
+                        <th scope="col">Void / Review Reason</th>
+                        <th scope="col">Notes / Exceptions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -287,7 +289,7 @@ const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits
                             <td>{v.visitStatus}</td>
                             <td style={v.unitsRaw > 28 && !v.voidFlag && !v.needsReview ? { background: 'hsl(0 84% 92%)', fontWeight: 700 } : undefined}>{v.unitsRaw}</td>
                             <td>
-                                {readOnly ? (v.voidFlag ? <span style={{ color: 'hsl(var(--destructive))' }}>VOID</span> : v.finalPayableUnits) : (
+                                {readOnly ? (v.voidFlag ? <span className="text-destructive">VOID</span> : v.finalPayableUnits) : (
                                 <PayrollEditableUnits
                                     visit={v}
                                     onChange={(newUnits) => onVisitChange(v.id, { finalPayableUnits: newUnits })}
@@ -352,6 +354,7 @@ const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits
                     )}
                 </tbody>
             </table>
+            </div>
         </div>
     );
 });
@@ -452,7 +455,7 @@ const PayrollEditableUnits = memo(function PayrollEditableUnits({ visit, onChang
         }
     };
 
-    if (visit.voidFlag) return <span style={{ color: 'hsl(var(--destructive))' }}>VOID</span>;
+    if (visit.voidFlag) return <span className="text-destructive">VOID</span>;
 
     if (editing) {
         return (
@@ -885,11 +888,9 @@ function PayrollPage() {
     if (selectedRun) {
         return (
             <div>
+                <Breadcrumbs items={[{ label: 'Payroll', path: '/payroll' }, { label: selectedRun.name }]} />
                 <div className="page-hero">
                     <div className="page-hero__left">
-                        <button className="btn btn--outline btn--sm" onClick={() => { setSelectedRun(null); onNavigate('payroll'); }}>
-                            {Icons.chevronLeft} Back
-                        </button>
                         {editingRunName ? (
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
@@ -986,18 +987,18 @@ function PayrollPage() {
                 ) : runs.length === 0 ? (
                     <p style={{ color: 'hsl(240 3.8% 46.1%)', fontStyle: 'italic' }}>No payroll runs yet. Upload an XLSX to get started.</p>
                 ) : (
-                    <div className="table-wrapper">
+                    <div className="table-scroll">
                         <table className="data-table">
                             <thead>
                                 <tr>
-                                    <th>Run Name</th>
-                                    <th>File</th>
-                                    <th>Period</th>
-                                    <th>Visits</th>
-                                    <th>Payable Units</th>
-                                    <th>Status</th>
-                                    <th>Created</th>
-                                    <th></th>
+                                    <th scope="col">Run Name</th>
+                                    <th scope="col">File</th>
+                                    <th scope="col">Period</th>
+                                    <th scope="col">Visits</th>
+                                    <th scope="col">Payable Units</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Created</th>
+                                    <th scope="col"></th>
                                 </tr>
                             </thead>
                             <tbody>

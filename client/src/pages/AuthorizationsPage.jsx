@@ -524,8 +524,8 @@ function BulkImportModal({ onImport, onClose }) {
                         {Icons.checkCircle} {preview.length} client(s) ready to import ({preview.reduce((s, c) => s + (c.authorizations?.length || 0), 0)} authorization(s))
                     </p>
                     <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)', fontSize: 12 }}>
-                        <table className="data-table" style={{ fontSize: 12 }}>
-                            <thead><tr><th>Client Name</th><th>Medicaid ID</th><th>Insurance</th><th>Authorizations</th></tr></thead>
+                        <table className="data-table data-table--compact">
+                            <thead><tr><th scope="col">Client Name</th><th scope="col">Medicaid ID</th><th scope="col">Insurance</th><th scope="col">Authorizations</th></tr></thead>
                             <tbody>
                                 {preview.slice(0, 20).map((c, i) => (
                                     <tr key={i}><td>{c.clientName}</td><td>{c.medicaidId}</td><td>{c.insuranceType}</td><td>{c.authorizations?.length || 0}</td></tr>
@@ -1007,25 +1007,25 @@ export default function AuthorizationsPage() {
                         <div className="card">
                             <div className="card__header">
                                 <span className="card__title">OK</span>
-                                <span className="card__icon" style={{ color: 'hsl(var(--success))' }}>{Icons.checkCircle}</span>
+                                <span className="card__icon text-success">{Icons.checkCircle}</span>
                             </div>
-                            <div className="card__value" style={{ color: 'hsl(var(--success))' }}>{okCount}</div>
+                            <div className="card__value text-success">{okCount}</div>
                             <div className="card__description">Authorizations current</div>
                         </div>
                         <div className="card">
                             <div className="card__header">
                                 <span className="card__title">Renewal Reminder</span>
-                                <span className="card__icon" style={{ color: 'hsl(var(--warning))' }}>{Icons.alertTriangle}</span>
+                                <span className="card__icon text-warning">{Icons.alertTriangle}</span>
                             </div>
-                            <div className="card__value" style={{ color: 'hsl(var(--warning))' }}>{renewalCount}</div>
+                            <div className="card__value text-warning">{renewalCount}</div>
                             <div className="card__description">Due for renewal soon</div>
                         </div>
                         <div className="card">
                             <div className="card__header">
                                 <span className="card__title">Expired</span>
-                                <span className="card__icon" style={{ color: 'hsl(var(--destructive))' }}>{Icons.alertTriangle}</span>
+                                <span className="card__icon text-destructive">{Icons.alertTriangle}</span>
                             </div>
-                            <div className="card__value" style={{ color: 'hsl(var(--destructive))' }}>{expiredCount}</div>
+                            <div className="card__value text-destructive">{expiredCount}</div>
                             <div className="card__description">Requires immediate action</div>
                         </div>
                     </div>
@@ -1065,49 +1065,49 @@ export default function AuthorizationsPage() {
                         </div>
                     ) : (
                         <>
-                            <div className="sheet-table-wrap">
-                                <table className="sheet-table">
+                            <div className="table-scroll">
+                                <table className="data-table data-table--sheet">
                                     <thead>
                                         <tr>
-                                            <th style={{ width: 36 }}>
+                                            <th scope="col" style={{ width: 36 }}>
                                                 <input type="checkbox" checked={selectedIds.size === filteredClients.length && filteredClients.length > 0} onChange={toggleSelectAll} />
                                             </th>
-                                            <th>
+                                            <th scope="col">
                                                 <span className="th-content">
                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                                                     Client Name
                                                     <span className="th-sort"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg></span>
                                                 </span>
                                             </th>
-                                            <th>
+                                            <th scope="col">
                                                 <span className="th-content">
                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="18" rx="2"/><path d="M8 7h8M8 12h8M8 17h4"/></svg>
                                                     Medicaid ID
                                                     <span className="th-sort"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg></span>
                                                 </span>
                                             </th>
-                                            <th>
+                                            <th scope="col">
                                                 <span className="th-content">
                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                                                     Insurance Type
                                                     <span className="th-sort"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg></span>
                                                 </span>
                                             </th>
-                                            <th>
+                                            <th scope="col">
                                                 <span className="th-content">
                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                                                     Status
                                                     <span className="th-sort"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg></span>
                                                 </span>
                                             </th>
-                                            <th>
+                                            <th scope="col">
                                                 <span className="th-content">
                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
                                                     Days to Expire
                                                     <span className="th-sort"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg></span>
                                                 </span>
                                             </th>
-                                            <th>
+                                            <th scope="col">
                                                 <span className="th-content">
                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
                                                     Actions
@@ -1377,11 +1377,11 @@ export default function AuthorizationsPage() {
                         {(drawerClient.authorizations || []).length === 0 ? (
                             <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', fontStyle: 'italic' }}>No authorizations yet.</p>
                         ) : (
-                            <table className="drawer-auth-table">
+                            <table className="data-table data-table--compact">
                                 <thead>
                                     <tr>
-                                        <th>Service</th><th>Code</th><th>Units</th>
-                                        <th>Start</th><th>End</th><th>Status</th><th></th>
+                                        <th scope="col">Service</th><th scope="col">Code</th><th scope="col">Units</th>
+                                        <th scope="col">Start</th><th scope="col">End</th><th scope="col">Status</th><th scope="col"></th>
                                     </tr>
                                 </thead>
                                 <tbody>

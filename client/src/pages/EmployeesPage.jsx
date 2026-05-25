@@ -231,15 +231,16 @@ export default function EmployeesPage() {
                     </div>
                 ) : (
                     <div className="sheet-card">
+                      <div className="table-scroll">
                         <table className="data-table">
                             <thead>
                                 <tr>
-                                    <th>Name</th>
-                                    <th>Phone</th>
-                                    <th>Email</th>
-                                    <th>Linked Client</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
+                                    <th scope="col">Name</th>
+                                    <th scope="col">Phone</th>
+                                    <th scope="col">Email</th>
+                                    <th scope="col">Linked Client</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -282,6 +283,7 @@ export default function EmployeesPage() {
                                 ))}
                             </tbody>
                         </table>
+                      </div>
                     </div>
                 )}
             </div>
