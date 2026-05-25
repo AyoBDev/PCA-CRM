@@ -733,9 +733,9 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: hsl(220 20% 35%);
-  background: hsl(220 25% 95%);
-  border-bottom: 1px solid hsl(220 20% 88%);
+  color: #fff;
+  background: hsl(var(--primary));
+  border-bottom: 1px solid hsl(var(--primary));
   white-space: nowrap;
   position: sticky;
   top: 0;
@@ -1686,7 +1686,7 @@ body {
 
 .sheet-table th .th-sort {
   display: inline-flex;
-  opacity: 0.4;
+  opacity: 0.6;
 }
 
 .sheet-table th .th-sort svg {
