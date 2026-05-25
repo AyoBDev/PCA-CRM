@@ -224,8 +224,9 @@ export default function ClientsListPage() {
                                     const services = getServiceCodes(c);
                                     const effectiveStatus = getEffectiveStatus(c);
                                     const clientStatusStyle = CLIENT_STATUS_STYLES[effectiveStatus] || CLIENT_STATUS_STYLES.active;
+                                    const rowColor = effectiveStatus === 'active' ? 'BLUE' : effectiveStatus === 'discharged' ? 'RED' : effectiveStatus === 'inactive' ? 'ORANGE' : 'BLUE';
                                     return (
-                                        <tr key={c.id} className={c.critical ? 'cl-row--critical' : ''} style={{ cursor: 'pointer' }} onClick={() => setPreviewClient(c)}>
+                                        <tr key={c.id} className={`row-client row-client--${rowColor}`} style={{ cursor: 'pointer' }} onClick={() => setPreviewClient(c)}>
                                             <td>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                                     <div className="client-avatar" style={{ background: getAvatarColor(c.clientName) }}>{getInitials(c.clientName)}</div>
