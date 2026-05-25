@@ -689,6 +689,8 @@ export default function AuthorizationsPage() {
     const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(null);
     const [confirmBulkPermanentDelete, setConfirmBulkPermanentDelete] = useState(false);
     const [noteDrawerClient, setNoteDrawerClient] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [rowsPerPage, setRowsPerPage] = useState(10);
 
     const fetchClients = useCallback(async () => {
         try {
@@ -709,6 +711,8 @@ export default function AuthorizationsPage() {
     useEffect(() => { fetchInsuranceTypes(); }, [fetchInsuranceTypes]);
 
     useEffect(() => { fetchClients(); }, [fetchClients]);
+
+    useEffect(() => { setCurrentPage(1); }, [statusFilter, searchQuery]);
 
     const handleSaveClient = async (data) => {
         try {
@@ -884,28 +888,76 @@ export default function AuthorizationsPage() {
         const matchesSearch = !searchLower || c.clientName.toLowerCase().includes(searchLower) || (c.medicaidId || '').toLowerCase().includes(searchLower);
         return matchesStatus && matchesSearch;
     });
-    const displayedClients = filteredClients;
-
     const insuranceTypeNames = insuranceTypes.length > 0
         ? insuranceTypes.map((t) => t.name)
         : ['MEDICAID'];
 
+    // Pagination
+    const totalPages = Math.ceil(filteredClients.length / rowsPerPage);
+    const paginatedClients = filteredClients.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+
+    const getInitials = (name) => {
+        if (!name) return '?';
+        const parts = name.trim().split(/\s+/);
+        if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+        return name.slice(0, 2).toUpperCase();
+    };
+
+    const AVATAR_COLORS = ['#3b82f6', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#6366f1', '#14b8a6', '#f97316'];
+    const getAvatarColor = (name) => {
+        let hash = 0;
+        for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+    };
+
+    const renderPageNumbers = () => {
+        const pages = [];
+        const maxVisible = 5;
+        let start = Math.max(1, currentPage - 2);
+        let end = Math.min(totalPages, start + maxVisible - 1);
+        if (end - start < maxVisible - 1) start = Math.max(1, end - maxVisible + 1);
+
+        if (start > 1) {
+            pages.push(<button key={1} className="pagination-bar__page" onClick={() => setCurrentPage(1)}>1</button>);
+            if (start > 2) pages.push(<span key="ds" className="pagination-bar__page pagination-bar__page--dots">...</span>);
+        }
+        for (let i = start; i <= end; i++) {
+            pages.push(
+                <button key={i} className={`pagination-bar__page ${i === currentPage ? 'pagination-bar__page--active' : ''}`} onClick={() => setCurrentPage(i)}>{i}</button>
+            );
+        }
+        if (end < totalPages) {
+            if (end < totalPages - 1) pages.push(<span key="de" className="pagination-bar__page pagination-bar__page--dots">...</span>);
+            pages.push(<button key={totalPages} className="pagination-bar__page" onClick={() => setCurrentPage(totalPages)}>{totalPages}</button>);
+        }
+        return pages;
+    };
+
     return (
         <>
-            <div className="content-header">
-                <h1 className="content-header__title">Authorizations</h1>
-                <div className="content-header__actions">
-                    {isAdmin && <ActivityButton entityType="Client" />}
+            {/* Page Hero Header */}
+            <div className="page-hero">
+                <div className="page-hero__left">
+                    <div className="page-hero__icon">
+                        {Icons.clipboard}
+                    </div>
+                    <div>
+                        <div className="page-hero__title">Master Sheet</div>
+                        <div className="page-hero__subtitle">Manage and track all client information</div>
+                    </div>
+                </div>
+                <div className="page-hero__right">
                     <input
                         type="text"
-                        className="search-input"
-                        placeholder="Search clients…"
+                        className="page-hero__search"
+                        placeholder="Search client name, Medicaid ID, or status..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
+                    {isAdmin && <ActivityButton entityType="Client" />}
                     {!showArchived && (
-                        <button className="archive-toggle" onClick={() => { setShowArchived(true); setSelectedIds(new Set()); }}>
-                            {Icons.archive} View Archived
+                        <button className="btn btn--outline" onClick={() => { setShowArchived(true); setSelectedIds(new Set()); }}>
+                            {Icons.archive} Archived
                         </button>
                     )}
                     {!showArchived && selectedIds.size > 0 && (
@@ -914,12 +966,12 @@ export default function AuthorizationsPage() {
                         </button>
                     )}
                     {!showArchived && isAdmin && (
-                        <button className="btn btn--outline btn--sm" onClick={() => setModal({ type: 'bulkImport' })}>
+                        <button className="btn btn--outline" onClick={() => setModal({ type: 'bulkImport' })}>
                             {Icons.download} Import
                         </button>
                     )}
                     {!showArchived && (
-                        <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'client' })}>
+                        <button className="btn btn--primary" onClick={() => setModal({ type: 'client' })}>
                             {Icons.plus} Add Client
                         </button>
                     )}
@@ -927,42 +979,6 @@ export default function AuthorizationsPage() {
             </div>
 
             <div className="page-content">
-                {/* Stats Cards */}
-                <div className="stats-grid">
-                    <div className="card">
-                        <div className="card__header">
-                            <span className="card__title">Total Clients</span>
-                            <span className="card__trend card__trend--up">{Icons.trendingUp}</span>
-                        </div>
-                        <div className="card__value">{clients.length}</div>
-                        <div className="card__description">Active client records</div>
-                    </div>
-                    <div className="card">
-                        <div className="card__header">
-                            <span className="card__title">Authorizations</span>
-                            <span className="card__trend card__trend--up">{Icons.trendingUp}</span>
-                        </div>
-                        <div className="card__value">{totalAuths}</div>
-                        <div className="card__description">Total service authorizations</div>
-                    </div>
-                    <div className="card">
-                        <div className="card__header">
-                            <span className="card__title">Expired</span>
-                            {expiredCount > 0 && <span className="card__trend card__trend--down">{Icons.trendingDown} Needs attention</span>}
-                        </div>
-                        <div className="card__value" style={{ color: expiredCount > 0 ? 'hsl(0 84.2% 60.2%)' : undefined }}>{expiredCount}</div>
-                        <div className="card__description">Clients with expired auths</div>
-                    </div>
-                    <div className="card">
-                        <div className="card__header">
-                            <span className="card__title">Active / OK</span>
-                            <span className="card__trend card__trend--up">{Icons.trendingUp}</span>
-                        </div>
-                        <div className="card__value" style={{ color: okCount > 0 ? 'hsl(142 71% 45%)' : undefined }}>{okCount}</div>
-                        <div className="card__description">{renewalCount > 0 ? `${renewalCount} renewal(s) due` : 'All auths current'}</div>
-                    </div>
-                </div>
-
                 {showArchived && (
                     <div className="archived-banner">
                         {Icons.archive}
@@ -980,30 +996,24 @@ export default function AuthorizationsPage() {
 
                 {/* Master Sheet Table */}
                 <div className="sheet-card">
-                    <div className="sheet-card__header">
-                        <div className="sheet-card__title">
-                            {Icons.table} Master Sheet
-                        </div>
-                        <div className="sheet-card__actions" />
-                    </div>
-
-                    {/* Status Filter Tabs */}
-                    <div className="filter-bar">
-                        {['All', 'OK', 'Renewal Reminder', 'Expired'].map((f) => {
-                            const count = f === 'All' ? clients.length
-                                : f === 'OK' ? okCount
-                                    : f === 'Renewal Reminder' ? renewalCount
-                                        : expiredCount;
-                            return (
-                                <button
-                                    key={f}
-                                    className={`filter-btn ${statusFilter === f ? 'filter-btn--active' : ''} ${f === 'Expired' ? 'filter-btn--danger' : f === 'Renewal Reminder' ? 'filter-btn--warning' : ''}`}
-                                    onClick={() => setStatusFilter(f)}
-                                >
-                                    {f} <span className="filter-btn__count">{count}</span>
-                                </button>
-                            );
-                        })}
+                    {/* Filter Pills */}
+                    <div className="filter-pills">
+                        {[
+                            { key: 'All', color: '', count: clients.length },
+                            { key: 'OK', color: 'green', count: okCount },
+                            { key: 'Renewal Reminder', color: 'orange', count: renewalCount },
+                            { key: 'Expired', color: 'red', count: expiredCount },
+                        ].map(({ key, color, count }) => (
+                            <button
+                                key={key}
+                                className={`filter-pill ${color ? `filter-pill--${color}` : ''} ${statusFilter === key ? 'filter-pill--active' : ''}`}
+                                onClick={() => setStatusFilter(key)}
+                            >
+                                <span className="filter-pill__dot" />
+                                {key}
+                                <span className="filter-pill__count">{count}</span>
+                            </button>
+                        ))}
                     </div>
 
                     {loading ? (
@@ -1025,16 +1035,51 @@ export default function AuthorizationsPage() {
                                             <th style={{ width: 36 }}>
                                                 <input type="checkbox" checked={selectedIds.size === filteredClients.length && filteredClients.length > 0} onChange={toggleSelectAll} />
                                             </th>
-                                            <th>Client Name</th>
-                                            <th>Medicaid ID</th>
-                                            <th>Insurance Type</th>
-                                            <th>Status</th>
-                                            <th>Days to Expire</th>
-                                            <th>Actions</th>
+                                            <th>
+                                                <span className="th-content">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                                    Client Name
+                                                    <span className="th-sort"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg></span>
+                                                </span>
+                                            </th>
+                                            <th>
+                                                <span className="th-content">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="18" rx="2"/><path d="M8 7h8M8 12h8M8 17h4"/></svg>
+                                                    Medicaid ID
+                                                    <span className="th-sort"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg></span>
+                                                </span>
+                                            </th>
+                                            <th>
+                                                <span className="th-content">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                                    Insurance Type
+                                                    <span className="th-sort"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg></span>
+                                                </span>
+                                            </th>
+                                            <th>
+                                                <span className="th-content">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                                    Status
+                                                    <span className="th-sort"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg></span>
+                                                </span>
+                                            </th>
+                                            <th>
+                                                <span className="th-content">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                                                    Days to Expire
+                                                    <span className="th-sort"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg></span>
+                                                </span>
+                                            </th>
+                                            <th>
+                                                <span className="th-content">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                                                    Actions
+                                                </span>
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {displayedClients.map((client) => {
+                                        {paginatedClients.map((client) => {
                                             const minDays = client.authorizations.length > 0
                                                 ? Math.min(...client.authorizations.map(a => a.daysToExpire).filter(d => d != null))
                                                 : null;
@@ -1050,22 +1095,27 @@ export default function AuthorizationsPage() {
                                                             <input type="checkbox" checked={selectedIds.has(client.id)} onChange={() => toggleSelect(client.id)} />
                                                         </td>
                                                         <td>
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                                <button
-                                                                    className={`row-client__toggle ${isOpen ? 'row-client__toggle--open' : ''}`}
-                                                                    onClick={(e) => { e.stopPropagation(); setExpandedIds(prev => { const next = new Set(prev); next.has(client.id) ? next.delete(client.id) : next.add(client.id); return next; }); }}
-                                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', color: 'hsl(var(--muted-foreground))' }}
-                                                                    title={isOpen ? 'Collapse' : 'Expand services'}
-                                                                >
-                                                                    {Icons.chevronRight}
-                                                                </button>
-                                                                <span className={`row-client__client-name ${client.notes?.trim() ? 'row-client__client-name--has-note' : ''}`}>
-                                                                    {client.clientName}
-                                                                </span>
-                                                                <AuthNoteIcon client={client} onClick={setNoteDrawerClient} />
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                                <div className="client-avatar" style={{ background: getAvatarColor(client.clientName) }}>
+                                                                    {getInitials(client.clientName)}
+                                                                </div>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                    <button
+                                                                        className={`row-client__toggle ${isOpen ? 'row-client__toggle--open' : ''}`}
+                                                                        onClick={(e) => { e.stopPropagation(); setExpandedIds(prev => { const next = new Set(prev); next.has(client.id) ? next.delete(client.id) : next.add(client.id); return next; }); }}
+                                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', color: 'hsl(var(--muted-foreground))' }}
+                                                                        title={isOpen ? 'Collapse' : 'Expand services'}
+                                                                    >
+                                                                        {Icons.chevronRight}
+                                                                    </button>
+                                                                    <span className={`row-client__client-name ${client.notes?.trim() ? 'row-client__client-name--has-note' : ''}`}>
+                                                                        {client.clientName}
+                                                                    </span>
+                                                                    <AuthNoteIcon client={client} onClick={setNoteDrawerClient} />
+                                                                </div>
                                                             </div>
                                                         </td>
-                                                        <td style={{ color: 'hsl(240 3.8% 46.1%)', fontSize: 12 }}>{client.medicaidId || '—'}</td>
+                                                        <td style={{ color: 'hsl(240 3.8% 46.1%)', fontSize: 13 }}>{client.medicaidId || '—'}</td>
                                                         <td><span className="insurance-badge">{client.insuranceType}</span></td>
                                                         <td>
                                                             <span className={`status-cell status-cell--${client.statusColor}`}>
@@ -1087,14 +1137,23 @@ export default function AuthorizationsPage() {
                                                                         <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmPermanentDelete(client)} title="Delete permanently">{Icons.trash}</button>
                                                                     </div>
                                                                 ) : (
-                                                                    <ClientRowMenu
-                                                                        client={client}
-                                                                        onEdit={() => setModal({ type: 'client', client })}
-                                                                        onSetActive={() => handleClientStatus(client, 'active')}
-                                                                        onSetPending={() => handleClientStatus(client, 'pending')}
-                                                                        onSetInactive={() => handleClientStatus(client, 'inactive')}
-                                                                        onDelete={() => setModal({ type: 'confirmDeleteClient', client })}
-                                                                    />
+                                                                    <>
+                                                                        <button
+                                                                            className="btn btn--ghost btn--icon"
+                                                                            onClick={() => setModal({ type: 'client', client })}
+                                                                            title="Edit client"
+                                                                        >
+                                                                            {Icons.edit}
+                                                                        </button>
+                                                                        <ClientRowMenu
+                                                                            client={client}
+                                                                            onEdit={() => setModal({ type: 'client', client })}
+                                                                            onSetActive={() => handleClientStatus(client, 'active')}
+                                                                            onSetPending={() => handleClientStatus(client, 'pending')}
+                                                                            onSetInactive={() => handleClientStatus(client, 'inactive')}
+                                                                            onDelete={() => setModal({ type: 'confirmDeleteClient', client })}
+                                                                        />
+                                                                    </>
                                                                 )}
                                                             </div>
                                                         </td>
@@ -1168,11 +1227,32 @@ export default function AuthorizationsPage() {
                                     </tbody>
                                 </table>
                             </div>
-                            <div className="table-info-bar">
-                                <span>
-                                    Showing {filteredClients.length} client(s)
-                                    {statusFilter !== 'All' && ` (filtered: ${statusFilter})`}
-                                </span>
+
+                            {/* Pagination Bar */}
+                            <div className="pagination-bar">
+                                <div className="pagination-bar__info">
+                                    Showing {(currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, filteredClients.length)} of {filteredClients.length} clients
+                                </div>
+                                <div className="pagination-bar__controls">
+                                    <div className="pagination-bar__pages">
+                                        <button className="pagination-bar__nav" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+                                        </button>
+                                        {renderPageNumbers()}
+                                        <button className="pagination-bar__nav" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                                        </button>
+                                    </div>
+                                    <div className="pagination-bar__rpp">
+                                        Rows per page
+                                        <select value={rowsPerPage} onChange={(e) => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}>
+                                            <option value={10}>10</option>
+                                            <option value={25}>25</option>
+                                            <option value={50}>50</option>
+                                            <option value={100}>100</option>
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
                         </>
                     )}
