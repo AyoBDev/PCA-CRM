@@ -135,78 +135,87 @@ export default function ClientsListPage() {
         return sortOrder === 'az' ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
     });
 
+    const getInitials = (name) => {
+        if (!name) return '?';
+        const parts = name.trim().split(/\s+/);
+        if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+        return name.slice(0, 2).toUpperCase();
+    };
+    const AVATAR_COLORS = ['#3b82f6', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#6366f1', '#14b8a6', '#f97316'];
+    const getAvatarColor = (name) => {
+        let hash = 0;
+        for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+    };
+
     return (
         <>
-            <div className="content-header">
-                <h1 className="content-header__title">Clients</h1>
-                <div className="content-header__actions">
-                    <button className="btn btn--primary btn--sm" onClick={() => setShowCreateModal(true)}>
+            <div className="page-hero">
+                <div className="page-hero__left">
+                    <div className="page-hero__icon">{Icons.users}</div>
+                    <div>
+                        <div className="page-hero__title">Clients</div>
+                        <div className="page-hero__subtitle">Manage client profiles and service records</div>
+                    </div>
+                </div>
+                <div className="page-hero__right">
+                    <input
+                        type="text"
+                        className="page-hero__search"
+                        placeholder="Search by name or Medicaid ID..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                    />
+                    <button className="btn btn--primary" onClick={() => setShowCreateModal(true)}>
                         {Icons.plus} Add Client
                     </button>
                 </div>
             </div>
             <div className="page-content">
-                <div className="cl-filters">
-                    <div className="cl-filters__search">
-                        <span className="cl-filters__search-icon">{Icons.search}</span>
-                        <input
-                            type="text"
-                            className="cl-filters__search-input"
-                            placeholder="Search by name or Medicaid ID..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                        />
-                        {search && (
-                            <button className="cl-filters__search-clear" onClick={() => setSearch('')}>&times;</button>
-                        )}
-                    </div>
-                    <div className="cl-filters__tabs">
+                <div className="sheet-card">
+                    <div className="filter-pills">
                         {[
-                            { value: 'active', label: 'Active' },
-                            { value: 'inactive', label: 'Inactive' },
-                            { value: 'discharged', label: 'Discharged' },
-                            { value: 'transferred', label: 'Transferred' },
-                            { value: 'all', label: 'All' },
-                        ].map(opt => (
+                            { key: 'active', color: 'green', label: 'Active', count: clients.filter(c => getEffectiveStatus(c) === 'active').length },
+                            { key: 'inactive', color: 'orange', label: 'Inactive', count: clients.filter(c => getEffectiveStatus(c) === 'inactive').length },
+                            { key: 'discharged', color: 'red', label: 'Discharged', count: clients.filter(c => getEffectiveStatus(c) === 'discharged').length },
+                            { key: 'transferred', color: '', label: 'Transferred', count: clients.filter(c => getEffectiveStatus(c) === 'transferred').length },
+                            { key: 'all', color: '', label: 'All', count: clients.length },
+                        ].map(({ key, color, label, count }) => (
                             <button
-                                key={opt.value}
-                                className={`cl-filters__tab ${statusFilter === opt.value ? 'cl-filters__tab--active' : ''}`}
-                                onClick={() => setStatusFilter(opt.value)}
+                                key={key}
+                                className={`filter-pill ${color ? `filter-pill--${color}` : ''} ${statusFilter === key ? 'filter-pill--active' : ''}`}
+                                onClick={() => setStatusFilter(key)}
                             >
-                                {opt.label}
-                                {opt.value !== 'all' && (
-                                    <span className="cl-filters__tab-count">
-                                        {clients.filter(c => getEffectiveStatus(c) === opt.value).length}
-                                    </span>
-                                )}
+                                <span className="filter-pill__dot" />
+                                {label}
+                                <span className="filter-pill__count">{count}</span>
                             </button>
                         ))}
                     </div>
-                </div>
-                {loading ? (
-                    <div className="empty-state">
-                        <div className="empty-state__desc">Loading clients...</div>
-                    </div>
-                ) : filtered.length === 0 ? (
-                    <div className="empty-state">
-                        <div className="empty-state__icon">{Icons.users}</div>
-                        <div className="empty-state__title">{search ? 'No matching clients' : 'No clients yet'}</div>
-                        <div className="empty-state__desc">{search ? 'Try a different search term.' : 'Click "Add Client" to create one.'}</div>
-                    </div>
-                ) : (
-                    <div className="sheet-card">
-                        <table className="data-table">
+                    {loading ? (
+                        <div style={{ padding: 16 }}>
+                            {[1, 2, 3, 4].map(i => <div key={i} className="skeleton skeleton-row" style={{ marginBottom: 4 }} />)}
+                        </div>
+                    ) : filtered.length === 0 ? (
+                        <div className="empty-state">
+                            <div className="empty-state__icon">{Icons.users}</div>
+                            <div className="empty-state__title">{search ? 'No matching clients' : 'No clients yet'}</div>
+                            <div className="empty-state__desc">{search ? 'Try a different search term.' : 'Click "Add Client" to create one.'}</div>
+                        </div>
+                    ) : (
+                        <div className="sheet-table-wrap">
+                            <table className="sheet-table">
                             <thead>
                                 <tr>
                                     <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setSortOrder(sortOrder === 'az' ? 'za' : 'az')}>
-                                        Client {sortOrder === 'az' ? '↑' : '↓'}
+                                        <span className="th-content">Client {sortOrder === 'az' ? '↑' : '↓'}</span>
                                     </th>
-                                    <th>Client ID</th>
-                                    <th>Gender</th>
-                                    <th>DOB</th>
-                                    <th>Services</th>
-                                    <th>Last Visit</th>
-                                    <th>Status</th>
+                                    <th><span className="th-content">Client ID</span></th>
+                                    <th><span className="th-content">Gender</span></th>
+                                    <th><span className="th-content">DOB</span></th>
+                                    <th><span className="th-content">Services</span></th>
+                                    <th><span className="th-content">Last Visit</span></th>
+                                    <th><span className="th-content">Status</span></th>
                                     <th style={{ width: 40 }}></th>
                                 </tr>
                             </thead>
@@ -219,7 +228,7 @@ export default function ClientsListPage() {
                                         <tr key={c.id} className={c.critical ? 'cl-row--critical' : ''} style={{ cursor: 'pointer' }} onClick={() => setPreviewClient(c)}>
                                             <td>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                    <div className="cl-avatar cl-avatar--sm">{(c.clientName || 'U').charAt(0).toUpperCase()}</div>
+                                                    <div className="client-avatar" style={{ background: getAvatarColor(c.clientName) }}>{getInitials(c.clientName)}</div>
                                                     <div style={{ fontWeight: 500, lineHeight: 1.3 }}>{c.clientName}</div>
                                                 </div>
                                             </td>
@@ -272,8 +281,9 @@ export default function ClientsListPage() {
                                 })}
                             </tbody>
                         </table>
-                    </div>
-                )}
+                        </div>
+                    )}
+                </div>
             </div>
 
             {showCreateModal && (

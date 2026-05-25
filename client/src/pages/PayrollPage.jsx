@@ -885,10 +885,10 @@ function PayrollPage() {
     if (selectedRun) {
         return (
             <div>
-                <div className="content-header">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div className="page-hero">
+                    <div className="page-hero__left">
                         <button className="btn btn--outline btn--sm" onClick={() => { setSelectedRun(null); onNavigate('payroll'); }}>
-                            ← Back
+                            {Icons.chevronLeft} Back
                         </button>
                         {editingRunName ? (
                             <form onSubmit={async (e) => {
@@ -913,23 +913,25 @@ function PayrollPage() {
                                 <button type="button" className="btn btn--outline btn--xs" onClick={() => setEditingRunName(false)}>Cancel</button>
                             </form>
                         ) : (
-                            <h1 className="content-header__title" style={{ cursor: isAdmin ? 'pointer' : 'default' }} onClick={() => {
-                                if (!isAdmin) return;
-                                setRunNameValue(selectedRun.name);
-                                setEditingRunName(true);
-                            }} title={isAdmin ? 'Click to rename' : undefined}>
-                                {selectedRun.name}
-                                {isAdmin && <span style={{ marginLeft: 6, opacity: 0.4, display: 'inline-flex', width: 14, height: 14 }}>{Icons.edit}</span>}
-                            </h1>
+                            <div>
+                                <div className="page-hero__title" style={{ cursor: isAdmin ? 'pointer' : 'default' }} onClick={() => {
+                                    if (!isAdmin) return;
+                                    setRunNameValue(selectedRun.name);
+                                    setEditingRunName(true);
+                                }} title={isAdmin ? 'Click to rename' : undefined}>
+                                    {selectedRun.name}
+                                    {isAdmin && <span style={{ marginLeft: 6, opacity: 0.4, display: 'inline-flex', width: 14, height: 14 }}>{Icons.edit}</span>}
+                                </div>
+                                <div className="page-hero__subtitle">
+                                    {selectedRun.totalVisits} visits · {selectedRun.totalPayable} payable units
+                                </div>
+                            </div>
                         )}
-                        <span style={{ fontSize: 12, color: 'hsl(240 3.8% 46.1%)' }}>
-                            {selectedRun.totalVisits} visits · {selectedRun.totalPayable} payable units
-                        </span>
                     </div>
-                    <div className="content-header__actions">
+                    <div className="page-hero__right">
                         {isAdmin && <ActivityButton entityType="PayrollRun" />}
-                        <button className="btn btn--primary btn--sm" onClick={handleExport} disabled={exporting}>
-                            {Icons.download} {exporting ? 'Exporting…' : 'Export XLSX'}
+                        <button className="btn btn--primary" onClick={handleExport} disabled={exporting}>
+                            {Icons.download} {exporting ? 'Exporting...' : 'Export XLSX'}
                         </button>
                     </div>
                 </div>
@@ -942,17 +944,23 @@ function PayrollPage() {
 
     return (
         <div>
-            <div className="content-header">
-                <h1 className="content-header__title">Payroll Runs</h1>
-                <div className="content-header__actions">
+            <div className="page-hero">
+                <div className="page-hero__left">
+                    <div className="page-hero__icon">{Icons.fileText}</div>
+                    <div>
+                        <div className="page-hero__title">Payroll Runs</div>
+                        <div className="page-hero__subtitle">Upload and process EVV payroll data</div>
+                    </div>
+                </div>
+                <div className="page-hero__right">
                     {isAdmin && <ActivityButton entityType="PayrollRun" />}
                     {!showArchived && isAdmin && (
-                        <button className="archive-toggle" onClick={() => setShowArchived(true)}>
-                            {Icons.archive} View Archived
+                        <button className="btn btn--outline" onClick={() => setShowArchived(true)}>
+                            {Icons.archive} Archived
                         </button>
                     )}
                     {!showArchived && isAdmin && (
-                        <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'upload' })}>
+                        <button className="btn btn--primary" onClick={() => setModal({ type: 'upload' })}>
                             {Icons.upload} New Run
                         </button>
                     )}

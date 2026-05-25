@@ -27,10 +27,16 @@ export default function DashboardPage() {
 
     return (
         <>
-            <div className="content-header">
-                <h1 className="content-header__title">Dashboard</h1>
-                <div className="content-header__actions">
-                    {isAdmin && <button className="btn btn--outline btn--sm" disabled={backingUp} onClick={async () => { setBackingUp(true); try { await api.downloadBackup(); } catch (e) { alert(e.message); } setBackingUp(false); }}>{Icons.download} {backingUp ? 'Exporting…' : 'Backup'}</button>}
+            <div className="page-hero">
+                <div className="page-hero__left">
+                    <div className="page-hero__icon">{Icons.layoutDashboard}</div>
+                    <div>
+                        <div className="page-hero__title">Dashboard</div>
+                        <div className="page-hero__subtitle">Overview of agency operations</div>
+                    </div>
+                </div>
+                <div className="page-hero__right">
+                    {isAdmin && <button className="btn btn--outline" disabled={backingUp} onClick={async () => { setBackingUp(true); try { await api.downloadBackup(); } catch (e) { alert(e.message); } setBackingUp(false); }}>{Icons.download} {backingUp ? 'Exporting...' : 'Backup'}</button>}
                     {isAdmin && <ActivityButton />}
                 </div>
             </div>

@@ -102,9 +102,15 @@ export default function UsersPage() {
 
     return (
         <>
-            <div className="content-header">
-                <h1 className="content-header__title">User Management</h1>
-                <div className="content-header__actions">
+            <div className="page-hero">
+                <div className="page-hero__left">
+                    <div className="page-hero__icon">{Icons.users}</div>
+                    <div>
+                        <div className="page-hero__title">Users</div>
+                        <div className="page-hero__subtitle">Manage staff accounts and access</div>
+                    </div>
+                </div>
+                <div className="page-hero__right">
                     {isAdmin && <ActivityButton entityType="User" />}
                     {!showArchived && (
                         <button className="archive-toggle" onClick={() => setShowArchived(true)}>
@@ -112,7 +118,7 @@ export default function UsersPage() {
                         </button>
                     )}
                     {!showArchived && (
-                        <button className="btn btn--primary btn--sm" onClick={() => setShowModal(true)}>{Icons.plus} Add User</button>
+                        <button className="btn btn--primary" onClick={() => setShowModal(true)}>{Icons.plus} Add User</button>
                     )}
                 </div>
             </div>

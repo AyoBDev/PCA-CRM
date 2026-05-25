@@ -125,9 +125,15 @@ export default function InsuranceTypesPage() {
 
     return (
         <>
-            <div className="content-header">
-                <h1 className="content-header__title">Insurance Types</h1>
-                <div className="content-header__actions">
+            <div className="page-hero">
+                <div className="page-hero__left">
+                    <div className="page-hero__icon">{Icons.shieldCheck}</div>
+                    <div>
+                        <div className="page-hero__title">Insurance Types</div>
+                        <div className="page-hero__subtitle">Manage insurance payer types</div>
+                    </div>
+                </div>
+                <div className="page-hero__right">
                     {isAdmin && <ActivityButton entityType="InsuranceType" />}
                     {!showArchived && (
                         <button className="archive-toggle" onClick={() => setShowArchived(true)}>
@@ -135,7 +141,7 @@ export default function InsuranceTypesPage() {
                         </button>
                     )}
                     {!showArchived && (
-                        <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'form' })}>
+                        <button className="btn btn--primary" onClick={() => setModal({ type: 'form' })}>
                             {Icons.plus} Add Type
                         </button>
                     )}

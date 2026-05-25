@@ -163,17 +163,23 @@ export default function EmployeesPage() {
 
     return (
         <>
-            <div className="content-header">
-                <h1 className="content-header__title">Employees</h1>
-                <div className="content-header__actions">
-                    {isAdmin && <ActivityButton entityType="Employee" />}
+            <div className="page-hero">
+                <div className="page-hero__left">
+                    <div className="page-hero__icon">{Icons.users}</div>
+                    <div>
+                        <div className="page-hero__title">Employees</div>
+                        <div className="page-hero__subtitle">Manage caregiver profiles and status</div>
+                    </div>
+                </div>
+                <div className="page-hero__right">
                     <input
                         type="text"
-                        className="search-input"
-                        placeholder="Search employees…"
+                        className="page-hero__search"
+                        placeholder="Search employees..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                     />
+                    {isAdmin && <ActivityButton entityType="Employee" />}
                     {!showArchived && (
                         <select
                             className="filter-select"
@@ -186,12 +192,12 @@ export default function EmployeesPage() {
                         </select>
                     )}
                     {!showArchived && (
-                        <button className="archive-toggle" onClick={() => setShowArchived(true)}>
-                            {Icons.archive} View Archived
+                        <button className="btn btn--outline" onClick={() => setShowArchived(true)}>
+                            {Icons.archive} Archived
                         </button>
                     )}
                     {!showArchived && (
-                        <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'form' })}>
+                        <button className="btn btn--primary" onClick={() => setModal({ type: 'form' })}>
                             {Icons.plus} Add Employee
                         </button>
                     )}

@@ -244,17 +244,23 @@ export default function TimesheetsListPage() {
 
     return (
         <>
-            <div className="content-header">
-                <h1 className="content-header__title">Timesheets</h1>
-                <div className="content-header__actions">
+            <div className="page-hero">
+                <div className="page-hero__left">
+                    <div className="page-hero__icon">{Icons.clipboard}</div>
+                    <div>
+                        <div className="page-hero__title">Timesheets</div>
+                        <div className="page-hero__subtitle">Track and manage weekly service records</div>
+                    </div>
+                </div>
+                <div className="page-hero__right">
                     {isAdmin && <ActivityButton entityType="Timesheet" />}
                     {!showArchived && (
-                        <button className="archive-toggle" onClick={() => setShowArchived(true)}>
-                            {Icons.archive} View Archived
+                        <button className="btn btn--outline" onClick={() => setShowArchived(true)}>
+                            {Icons.archive} Archived
                         </button>
                     )}
                     {!showArchived && (
-                        <button className="btn btn--primary btn--sm" onClick={() => setShowNewModal(true)}>{Icons.plus} New Timesheet</button>
+                        <button className="btn btn--primary" onClick={() => setShowNewModal(true)}>{Icons.plus} New Timesheet</button>
                     )}
                 </div>
             </div>

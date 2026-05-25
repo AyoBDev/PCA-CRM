@@ -1963,26 +1963,29 @@ export default function SchedulingPage() {
     return (
         <>
             {/* Header */}
-            <div className="content-header">
-                <h1 className="content-header__title">Scheduling</h1>
-                <div className="content-header__actions">
+            <div className="page-hero">
+                <div className="page-hero__left">
+                    <div className="page-hero__icon">{Icons.calendar}</div>
+                    <div>
+                        <div className="page-hero__title">Scheduling</div>
+                        <div className="page-hero__subtitle">Plan and manage caregiver shifts</div>
+                    </div>
+                </div>
+                <div className="page-hero__right">
                     {isAdmin && <ActivityButton entityType="Shift" />}
                     <button
-                        className={`btn btn--outline btn--sm ${bulkEditMode ? 'btn--active' : ''}`}
+                        className={`btn btn--outline ${bulkEditMode ? 'btn--active' : ''}`}
                         onClick={() => { setBulkEditMode(!bulkEditMode); setSelectedShiftIds(new Set()); }}
                         style={bulkEditMode ? { background: 'hsl(217 91% 50%)', color: 'white', borderColor: 'hsl(217 91% 50%)' } : undefined}
                     >
                         {Icons.edit} {bulkEditMode ? 'Exit Bulk Edit' : 'Bulk Edit'}
                     </button>
                     {allShifts.length > 0 && !bulkEditMode && (
-                        <button className="btn btn--outline btn--sm" style={{ color: 'hsl(0 84% 60%)', borderColor: 'hsl(0 84% 80%)' }} onClick={() => setModal({ type: 'confirmDeleteAll' })}>
+                        <button className="btn btn--outline" style={{ color: 'hsl(0 84% 60%)', borderColor: 'hsl(0 84% 80%)' }} onClick={() => setModal({ type: 'confirmDeleteAll' })}>
                             {Icons.trash} Delete All
                         </button>
                     )}
-                    <button className="btn btn--outline btn--sm" title="Send Schedule (Coming Soon)" disabled>
-                        {Icons.share} Send Schedule
-                    </button>
-                    <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'shift', shift: null })}>
+                    <button className="btn btn--primary" onClick={() => setModal({ type: 'shift', shift: null })}>
                         {Icons.plus} Create Shift
                     </button>
                 </div>

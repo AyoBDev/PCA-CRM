@@ -68,10 +68,16 @@ export default function PermanentLinksPage() {
 
     return (
         <>
-            <div className="content-header">
-                <h1 className="content-header__title">Permanent Links</h1>
-                <div className="content-header__actions">
-                    <button className="btn btn--primary btn--sm" onClick={() => setShowModal(true)}>{Icons.plus} Create Link</button>
+            <div className="page-hero">
+                <div className="page-hero__left">
+                    <div className="page-hero__icon">{Icons.link}</div>
+                    <div>
+                        <div className="page-hero__title">Permanent Links</div>
+                        <div className="page-hero__subtitle">Manage PCA form links for caregivers</div>
+                    </div>
+                </div>
+                <div className="page-hero__right">
+                    <button className="btn btn--primary" onClick={() => setShowModal(true)}>{Icons.plus} Create Link</button>
                 </div>
             </div>
             <div className="page-content">
