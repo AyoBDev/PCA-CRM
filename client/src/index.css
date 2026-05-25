@@ -728,12 +728,12 @@ body {
 
 .sheet-table th {
   text-align: left;
-  padding: 10px 16px;
+  padding: 12px 16px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.4px;
-  color: hsl(var(--muted-foreground));
+  letter-spacing: 0.5px;
+  color: hsl(220 15% 30%);
   background: hsl(220 20% 97%);
   border-bottom: 1px solid hsl(var(--border));
   white-space: nowrap;
@@ -753,11 +753,11 @@ body {
 }
 
 .row-client td {
-  padding: 14px 16px;
+  padding: 16px 16px;
   font-weight: 500;
   border-bottom: 1px solid hsl(var(--border));
   background: hsl(var(--background));
-  font-size: 13px;
+  font-size: 13.5px;
   color: hsl(var(--foreground));
 }
 
@@ -958,8 +958,8 @@ body {
 /* ─── Days Badge ─── */
 .days-cell {
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  font-size: 13px;
+  font-weight: 700;
+  font-size: 14px;
 }
 
 .days-cell--positive {
@@ -1464,7 +1464,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 24px;
+  padding: 24px 32px;
   border-bottom: 1px solid hsl(var(--border));
   background: hsl(var(--background));
   position: sticky;
@@ -1475,13 +1475,13 @@ body {
 .page-hero__left {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
 }
 
 .page-hero__icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
   background: hsl(var(--primary) / 0.1);
   display: flex;
   align-items: center;
@@ -1490,12 +1490,12 @@ body {
 }
 
 .page-hero__icon svg {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
 }
 
 .page-hero__title {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
   color: hsl(var(--foreground));
   letter-spacing: -0.02em;
@@ -1518,14 +1518,14 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 14px;
+  padding: 10px 16px;
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius);
-  background: hsl(var(--background));
+  background: hsl(var(--muted) / 0.5);
   color: hsl(var(--foreground));
-  font-size: 13px;
+  font-size: 14px;
   font-family: inherit;
-  width: 280px;
+  width: 320px;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -1557,8 +1557,8 @@ body {
 /* ─── Filter Pills (enhanced) ─── */
 .filter-pills {
   display: flex;
-  gap: 8px;
-  padding: 12px 24px;
+  gap: 10px;
+  padding: 16px 24px;
   background: hsl(var(--background));
 }
 
@@ -1583,46 +1583,62 @@ body {
 }
 
 .filter-pill--active {
-  background: hsl(var(--primary) / 0.08);
-  color: hsl(var(--primary));
-  border-color: hsl(var(--primary) / 0.3);
+  background: hsl(var(--primary));
+  color: #fff;
+  border-color: hsl(var(--primary));
 }
 
 .filter-pill--active.filter-pill--green {
-  background: hsl(var(--success-bg));
+  background: hsl(160 60% 94%);
   color: hsl(160 84% 30%);
-  border-color: hsl(var(--success) / 0.3);
+  border-color: hsl(160 60% 85%);
 }
 
 .filter-pill--active.filter-pill--orange {
-  background: hsl(var(--warning-bg));
-  color: hsl(38 80% 35%);
-  border-color: hsl(var(--warning) / 0.3);
+  background: hsl(38 100% 94%);
+  color: hsl(30 90% 35%);
+  border-color: hsl(38 80% 80%);
 }
 
 .filter-pill--active.filter-pill--red {
-  background: hsl(var(--danger-bg));
-  color: hsl(0 84% 45%);
-  border-color: hsl(var(--danger) / 0.3);
+  background: hsl(0 86% 95%);
+  color: hsl(0 72% 45%);
+  border-color: hsl(0 70% 85%);
 }
 
 .filter-pill__dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: currentColor;
+  background: hsl(var(--muted-foreground));
+}
+
+.filter-pill--active .filter-pill__dot {
+  background: hsl(0 0% 100% / 0.7);
 }
 
 .filter-pill--green .filter-pill__dot {
-  background: hsl(var(--success));
+  background: hsl(160 84% 39%);
 }
 
 .filter-pill--orange .filter-pill__dot {
-  background: hsl(var(--warning));
+  background: hsl(30 90% 45%);
 }
 
 .filter-pill--red .filter-pill__dot {
-  background: hsl(var(--danger));
+  background: hsl(0 72% 50%);
+}
+
+.filter-pill--active.filter-pill--green .filter-pill__dot {
+  background: hsl(160 84% 30%);
+}
+
+.filter-pill--active.filter-pill--orange .filter-pill__dot {
+  background: hsl(30 90% 35%);
+}
+
+.filter-pill--active.filter-pill--red .filter-pill__dot {
+  background: hsl(0 72% 45%);
 }
 
 .filter-pill__count {
@@ -1641,9 +1657,23 @@ body {
 }
 
 .filter-pill--active .filter-pill__count {
-  background: currentColor;
-  color: #fff;
-  opacity: 0.85;
+  background: hsl(0 0% 100% / 0.25);
+  color: inherit;
+}
+
+.filter-pill--active.filter-pill--green .filter-pill__count {
+  background: hsl(160 84% 30% / 0.2);
+  color: hsl(160 84% 25%);
+}
+
+.filter-pill--active.filter-pill--orange .filter-pill__count {
+  background: hsl(30 90% 35% / 0.2);
+  color: hsl(30 90% 30%);
+}
+
+.filter-pill--active.filter-pill--red .filter-pill__count {
+  background: hsl(0 72% 45% / 0.2);
+  color: hsl(0 72% 40%);
 }
 
 /* ─── Table Header with Sort Icons ─── */

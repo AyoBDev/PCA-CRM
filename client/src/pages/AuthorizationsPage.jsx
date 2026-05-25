@@ -994,6 +994,43 @@ export default function AuthorizationsPage() {
                     </div>
                 )}
 
+                {!showArchived && (
+                    <div className="stats-grid">
+                        <div className="card">
+                            <div className="card__header">
+                                <span className="card__title">Total Clients</span>
+                                <span className="card__icon">{Icons.users}</span>
+                            </div>
+                            <div className="card__value">{clients.length}</div>
+                            <div className="card__description">{totalAuths} active authorizations</div>
+                        </div>
+                        <div className="card">
+                            <div className="card__header">
+                                <span className="card__title">OK</span>
+                                <span className="card__icon" style={{ color: 'hsl(var(--success))' }}>{Icons.checkCircle}</span>
+                            </div>
+                            <div className="card__value" style={{ color: 'hsl(var(--success))' }}>{okCount}</div>
+                            <div className="card__description">Authorizations current</div>
+                        </div>
+                        <div className="card">
+                            <div className="card__header">
+                                <span className="card__title">Renewal Reminder</span>
+                                <span className="card__icon" style={{ color: 'hsl(var(--warning))' }}>{Icons.alertTriangle}</span>
+                            </div>
+                            <div className="card__value" style={{ color: 'hsl(var(--warning))' }}>{renewalCount}</div>
+                            <div className="card__description">Due for renewal soon</div>
+                        </div>
+                        <div className="card">
+                            <div className="card__header">
+                                <span className="card__title">Expired</span>
+                                <span className="card__icon" style={{ color: 'hsl(var(--destructive))' }}>{Icons.alertTriangle}</span>
+                            </div>
+                            <div className="card__value" style={{ color: 'hsl(var(--destructive))' }}>{expiredCount}</div>
+                            <div className="card__description">Requires immediate action</div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Master Sheet Table */}
                 <div className="sheet-card">
                     {/* Filter Pills */}
