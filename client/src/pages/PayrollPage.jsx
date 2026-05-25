@@ -203,21 +203,22 @@ const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits
                     </span>
                 )}
             </div>
-            <table className="payroll-visits-table">
+            <div className="table-scroll">
+            <table className="data-table data-table--compact">
                 <thead>
                     <tr>
-                        <th>Client</th>
-                        <th>Employee</th>
-                        <th>Service</th>
-                        <th>Date</th>
-                        <th>In</th>
-                        <th>Out</th>
-                        <th>Status</th>
-                        <th>Units (Raw)</th>
-                        <th>Final Units</th>
-                        <th>Overlap</th>
-                        <th>Void / Review Reason</th>
-                        <th>Notes / Exceptions</th>
+                        <th scope="col">Client</th>
+                        <th scope="col">Employee</th>
+                        <th scope="col">Service</th>
+                        <th scope="col">Date</th>
+                        <th scope="col">In</th>
+                        <th scope="col">Out</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Units (Raw)</th>
+                        <th scope="col">Final Units</th>
+                        <th scope="col">Overlap</th>
+                        <th scope="col">Void / Review Reason</th>
+                        <th scope="col">Notes / Exceptions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -353,6 +354,7 @@ const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits
                     )}
                 </tbody>
             </table>
+            </div>
         </div>
     );
 });
@@ -985,18 +987,18 @@ function PayrollPage() {
                 ) : runs.length === 0 ? (
                     <p style={{ color: 'hsl(240 3.8% 46.1%)', fontStyle: 'italic' }}>No payroll runs yet. Upload an XLSX to get started.</p>
                 ) : (
-                    <div className="table-wrapper">
+                    <div className="table-scroll">
                         <table className="data-table">
                             <thead>
                                 <tr>
-                                    <th>Run Name</th>
-                                    <th>File</th>
-                                    <th>Period</th>
-                                    <th>Visits</th>
-                                    <th>Payable Units</th>
-                                    <th>Status</th>
-                                    <th>Created</th>
-                                    <th></th>
+                                    <th scope="col">Run Name</th>
+                                    <th scope="col">File</th>
+                                    <th scope="col">Period</th>
+                                    <th scope="col">Visits</th>
+                                    <th scope="col">Payable Units</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Created</th>
+                                    <th scope="col"></th>
                                 </tr>
                             </thead>
                             <tbody>

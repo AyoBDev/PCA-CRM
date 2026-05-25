@@ -837,49 +837,86 @@ body {
   align-items: center;
 }
 
-/* ─── Data Table ─── */
-.sheet-table-wrap {
+/* ─── Table Scroll Wrapper ─── */
+.table-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
+.table-scroll::-webkit-scrollbar { height: 6px; }
+.table-scroll::-webkit-scrollbar-track { background: transparent; }
+.table-scroll::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 3px; }
 
-.sheet-table-wrap::-webkit-scrollbar {
-  height: 6px;
-}
-
-.sheet-table-wrap::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.sheet-table-wrap::-webkit-scrollbar-thumb {
-  background: hsl(var(--border));
-  border-radius: 3px;
-}
-
-.sheet-table {
+/* ─── Data Table (unified) ─── */
+.data-table {
   width: 100%;
   border-collapse: collapse;
+  font-size: 14px;
+}
+.data-table th {
+  text-align: left;
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--primary) / 0.04);
+  border-bottom: 2px solid hsl(var(--border));
+  white-space: nowrap;
+}
+.data-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid hsl(var(--border));
+  color: hsl(var(--foreground));
+}
+.data-table tbody tr:hover {
+  background: hsl(var(--primary) / 0.04);
+}
+.data-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
-.sheet-table th {
-  text-align: left;
-  padding: 12px 16px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+/* Sheet variant — dark navy headers for master-list pages */
+.data-table--sheet th {
   color: hsl(210 40% 80%);
   background: var(--sidebar-bg);
   border-bottom: 1px solid var(--sidebar-border);
-  white-space: nowrap;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 12px 16px;
   position: sticky;
   top: 0;
   z-index: 2;
 }
-
-.sheet-table td {
+.data-table--sheet td {
   white-space: nowrap;
 }
+
+/* Compact variant — drawers and inline detail tables */
+.data-table--compact { font-size: 12px; }
+.data-table--compact th {
+  padding: 6px 8px;
+  background: none;
+  border-bottom: 2px solid hsl(var(--border));
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 600;
+}
+.data-table--compact td { padding: 6px 8px; }
+.data-table--compact tbody tr:hover { background: hsl(var(--muted) / 0.5); }
+
+/* Sort icon helpers */
+.data-table th .th-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.data-table th .th-sort {
+  display: inline-flex;
+  opacity: 0.6;
+}
+.data-table th .th-sort svg { width: 14px; height: 14px; }
 
 /* ─── Client (Parent) Row ─── */
 .row-client {
@@ -1833,23 +1870,6 @@ body {
   color: hsl(0 72% 40%);
 }
 
-/* ─── Table Header with Sort Icons ─── */
-.sheet-table th .th-content {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-}
-
-.sheet-table th .th-sort {
-  display: inline-flex;
-  opacity: 0.6;
-}
-
-.sheet-table th .th-sort svg {
-  width: 14px;
-  height: 14px;
-}
 
 /* ─── Pagination (enhanced) ─── */
 .pagination-bar {
@@ -2995,40 +3015,6 @@ button.sdr-section-tag:hover:not(:disabled) {
   color: hsl(var(--foreground));
 }
 
-/* ─── Data Table (Timesheets list) ─── */
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-
-.data-table th {
-  text-align: left;
-  padding: 10px 16px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: hsl(var(--muted-foreground));
-  background: hsl(var(--primary) / 0.04);
-  border-bottom: 2px solid hsl(var(--border));
-  white-space: nowrap;
-}
-
-.data-table td {
-  padding: 12px 16px;
-  border-bottom: 1px solid hsl(var(--border));
-  color: hsl(var(--foreground));
-}
-
-.data-table tbody tr:hover {
-  background: hsl(var(--primary) / 0.04);
-}
-
-.data-table tbody tr:last-child td {
-  border-bottom: none;
-}
-
 /* ─── Login Page ─── */
 .login-page {
   display: flex;
@@ -3455,9 +3441,6 @@ button.sdr-section-tag:hover:not(:disabled) {
 .payroll-employee-totals__name  { font-weight: 600; }
 .payroll-employee-totals__units { color: hsl(240 3.8% 46.1%); font-family: monospace; }
 .payroll-employee-totals__void  { font-size: 11px; color: hsl(0 60% 45%); background: hsl(0 84% 96%); padding: 1px 5px; border-radius: 3px; }
-.payroll-visits-table       { width: 100%; border-collapse: collapse; font-size: 13px; }
-.payroll-visits-table th,
-.payroll-visits-table td    { padding: 6px 10px; border-bottom: 1px solid hsl(var(--border)); }
 
 .payroll-legend             { display: flex; gap: 8px; margin-bottom: 12px; font-size: 12px; flex-wrap: wrap; align-items: center; }
 .payroll-legend__item       { padding: 3px 8px; border-radius: 4px; cursor: pointer; border: 2px solid transparent; font-family: inherit; font-size: inherit; background-color: inherit; transition: opacity 0.15s, border-color 0.15s; }
@@ -5651,22 +5634,6 @@ button.sdr-section-tag:hover:not(:disabled) {
 .drawer-field__input:focus { outline: none; border-color: hsl(var(--primary)); box-shadow: 0 0 0 2px hsl(var(--primary) / 0.15); }
 .drawer-field__textarea { resize: vertical; min-height: 60px; }
 
-/* Authorizations table in drawer */
-.drawer-auth-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.drawer-auth-table th {
-    text-align: left;
-    padding: 6px 8px;
-    font-weight: 600;
-    color: hsl(var(--muted-foreground));
-    border-bottom: 2px solid hsl(var(--border));
-    white-space: nowrap;
-}
-.drawer-auth-table td {
-    padding: 6px 8px;
-    border-bottom: 1px solid hsl(var(--border));
-    color: hsl(var(--foreground));
-}
-.drawer-auth-table tr:hover { background: hsl(var(--muted) / 0.5); }
 
 @media (max-width: 700px) {
     .drawer-panel { width: 100%; }

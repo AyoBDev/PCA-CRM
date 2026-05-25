@@ -203,8 +203,8 @@ export default function ClientsListPage() {
                             <div className="empty-state__desc">{search ? 'Try a different search term.' : 'Click "Add Client" to create one.'}</div>
                         </div>
                     ) : (
-                        <div className="sheet-table-wrap">
-                            <table className="sheet-table">
+                        <div className="table-scroll">
+                            <table className="data-table data-table--sheet">
                             <thead>
                                 <tr>
                                     <th scope="col" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setSortOrder(sortOrder === 'az' ? 'za' : 'az')}>

@@ -374,6 +374,7 @@ export default function TimesheetsListPage() {
                 ) : (
                     <>
                         <div className="sheet-card">
+                          <div className="table-scroll">
                             <table className="data-table">
                                 <thead><tr>
                                     {!showArchived && (
@@ -428,6 +429,7 @@ export default function TimesheetsListPage() {
                                     ))}
                                 </tbody>
                             </table>
+                          </div>
                         </div>
                         {!showArchived && (
                             <div className="ts-bottom-actions">

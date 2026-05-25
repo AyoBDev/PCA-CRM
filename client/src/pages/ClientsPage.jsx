@@ -358,7 +358,7 @@ function BulkImportModal({ onImport, onClose }) {
                         {Icons.checkCircle} {preview.length} client(s) ready to import ({preview.reduce((s, c) => s + (c.authorizations?.length || 0), 0)} authorization(s))
                     </p>
                     <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)', fontSize: 12 }}>
-                        <table className="data-table" style={{ fontSize: 12 }}>
+                        <table className="data-table data-table--compact">
                             <thead><tr><th scope="col">Client Name</th><th scope="col">Medicaid ID</th><th scope="col">Insurance</th><th scope="col">Authorizations</th></tr></thead>
                             <tbody>
                                 {preview.slice(0, 20).map((c, i) => (
@@ -748,8 +748,8 @@ export default function ClientsPage() {
                         </div>
                     ) : (
                         <>
-                            <div className="sheet-table-wrap">
-                                <table className="sheet-table">
+                            <div className="table-scroll">
+                                <table className="data-table data-table--sheet">
                                     <thead>
                                         <tr>
                                             <th scope="col" style={{ width: 36 }}>
@@ -964,7 +964,7 @@ export default function ClientsPage() {
                         {(drawerClient.authorizations || []).length === 0 ? (
                             <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', fontStyle: 'italic' }}>No authorizations yet.</p>
                         ) : (
-                            <table className="drawer-auth-table">
+                            <table className="data-table data-table--compact">
                                 <thead>
                                     <tr>
                                         <th scope="col">Service</th><th scope="col">Code</th><th scope="col">Units</th>

@@ -231,6 +231,7 @@ export default function EmployeesPage() {
                     </div>
                 ) : (
                     <div className="sheet-card">
+                      <div className="table-scroll">
                         <table className="data-table">
                             <thead>
                                 <tr>
@@ -282,6 +283,7 @@ export default function EmployeesPage() {
                                 ))}
                             </tbody>
                         </table>
+                      </div>
                     </div>
                 )}
             </div>

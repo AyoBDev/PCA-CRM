@@ -135,14 +135,15 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                         <p style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', margin: '0 0 10px' }}>
                             Review and finalize schedules, then send to each employee. Employees can accept, reject, or request changes.
                         </p>
-                        <table className="data-table" style={{ fontSize: 13 }}>
+                        <div className="table-scroll">
+                        <table className="data-table">
                             <thead>
                                 <tr>
-                                    <th>Employee</th>
-                                    <th>Email</th>
-                                    <th>Shifts</th>
-                                    <th>Response</th>
-                                    <th style={{ width: 160 }}>Actions</th>
+                                    <th scope="col">Employee</th>
+                                    <th scope="col">Email</th>
+                                    <th scope="col">Shifts</th>
+                                    <th scope="col">Response</th>
+                                    <th scope="col" style={{ width: 160 }}>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -196,6 +197,7 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                                 })}
                             </tbody>
                         </table>
+                        </div>
                     </>
                 )}
             </div>}

@@ -145,8 +145,9 @@ export default function UsersPage() {
                     </div>
                 ) : (
                     <div className="sheet-card">
+                      <div className="table-scroll">
                         <table className="data-table">
-                            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+                            <thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Created</th><th scope="col">Actions</th></tr></thead>
                             <tbody>
                                 {users.filter((u) => u.role !== 'admin').map((u) => (
                                     <tr key={u.id}>
@@ -189,6 +190,7 @@ export default function UsersPage() {
                                 ))}
                             </tbody>
                         </table>
+                      </div>
                     </div>
                 )}
             </div>

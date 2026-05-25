@@ -46,15 +46,16 @@ export default function ScheduleConfirmPage() {
                 <h2 style={{ marginBottom: 4 }}>Schedule for {data.employee.name}</h2>
                 <p style={{ color: '#6b7280', margin: '0 0 16px' }}>Week of {data.weekStart} to {data.weekEnd}</p>
 
-                <table className="data-table" style={{ marginTop: 8, fontSize: 13 }}>
+                <div className="table-scroll" style={{ marginTop: 8 }}>
+                <table className="data-table">
                     <thead>
                         <tr>
-                            <th>Day</th>
-                            <th>Time</th>
-                            <th>Client</th>
-                            <th>Address</th>
-                            <th>Phone</th>
-                            <th>Service</th>
+                            <th scope="col">Day</th>
+                            <th scope="col">Time</th>
+                            <th scope="col">Client</th>
+                            <th scope="col">Address</th>
+                            <th scope="col">Phone</th>
+                            <th scope="col">Service</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -76,6 +77,7 @@ export default function ScheduleConfirmPage() {
                         )}
                     </tbody>
                 </table>
+                </div>
 
                 {responded ? (
                     <div style={{ marginTop: 24, padding: 16, borderRadius: 8, textAlign: 'center', background: responded === 'accepted' ? '#dcfce7' : '#fef3c7' }}>
