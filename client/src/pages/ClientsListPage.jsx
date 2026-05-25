@@ -207,16 +207,16 @@ export default function ClientsListPage() {
                             <table className="sheet-table">
                             <thead>
                                 <tr>
-                                    <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setSortOrder(sortOrder === 'az' ? 'za' : 'az')}>
+                                    <th scope="col" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setSortOrder(sortOrder === 'az' ? 'za' : 'az')}>
                                         <span className="th-content">Client {sortOrder === 'az' ? '↑' : '↓'}</span>
                                     </th>
-                                    <th><span className="th-content">Client ID</span></th>
-                                    <th><span className="th-content">Gender</span></th>
-                                    <th><span className="th-content">DOB</span></th>
-                                    <th><span className="th-content">Services</span></th>
-                                    <th><span className="th-content">Last Visit</span></th>
-                                    <th><span className="th-content">Status</span></th>
-                                    <th style={{ width: 40 }}></th>
+                                    <th scope="col"><span className="th-content">Client ID</span></th>
+                                    <th scope="col"><span className="th-content">Gender</span></th>
+                                    <th scope="col"><span className="th-content">DOB</span></th>
+                                    <th scope="col"><span className="th-content">Services</span></th>
+                                    <th scope="col"><span className="th-content">Last Visit</span></th>
+                                    <th scope="col"><span className="th-content">Status</span></th>
+                                    <th scope="col" style={{ width: 40 }}></th>
                                 </tr>
                             </thead>
                             <tbody>

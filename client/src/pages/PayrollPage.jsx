@@ -4,6 +4,7 @@ import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import Breadcrumbs from '../components/common/Breadcrumbs';
 import { fmtDate } from '../utils/dates';
 import { hhmm12 } from '../utils/time';
 import { visitRowClass } from '../utils/status';
@@ -60,7 +61,7 @@ function PayrollUploadModal({ onUpload, onClose }) {
                     <input id="periodEnd" type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
                 </div>
                 <div className="form-group">
-                    <label htmlFor="payrollFile">XLSX File <span style={{ color: 'hsl(var(--destructive))' }}>*</span></label>
+                    <label htmlFor="payrollFile">XLSX File <span className="text-destructive">*</span></label>
                     <input id="payrollFile" type="file" accept=".xlsx,.xls" required onChange={(e) => setFile(e.target.files[0] || null)} />
                 </div>
                 {error && <p style={{ color: 'hsl(var(--destructive))', fontSize: 13, marginBottom: 8 }}>{error}</p>}
@@ -287,7 +288,7 @@ const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits
                             <td>{v.visitStatus}</td>
                             <td style={v.unitsRaw > 28 && !v.voidFlag && !v.needsReview ? { background: 'hsl(0 84% 92%)', fontWeight: 700 } : undefined}>{v.unitsRaw}</td>
                             <td>
-                                {readOnly ? (v.voidFlag ? <span style={{ color: 'hsl(var(--destructive))' }}>VOID</span> : v.finalPayableUnits) : (
+                                {readOnly ? (v.voidFlag ? <span className="text-destructive">VOID</span> : v.finalPayableUnits) : (
                                 <PayrollEditableUnits
                                     visit={v}
                                     onChange={(newUnits) => onVisitChange(v.id, { finalPayableUnits: newUnits })}
@@ -452,7 +453,7 @@ const PayrollEditableUnits = memo(function PayrollEditableUnits({ visit, onChang
         }
     };
 
-    if (visit.voidFlag) return <span style={{ color: 'hsl(var(--destructive))' }}>VOID</span>;
+    if (visit.voidFlag) return <span className="text-destructive">VOID</span>;
 
     if (editing) {
         return (
@@ -885,11 +886,9 @@ function PayrollPage() {
     if (selectedRun) {
         return (
             <div>
+                <Breadcrumbs items={[{ label: 'Payroll', path: '/payroll' }, { label: selectedRun.name }]} />
                 <div className="page-hero">
                     <div className="page-hero__left">
-                        <button className="btn btn--outline btn--sm" onClick={() => { setSelectedRun(null); onNavigate('payroll'); }}>
-                            {Icons.chevronLeft} Back
-                        </button>
                         {editingRunName ? (
                             <form onSubmit={async (e) => {
                                 e.preventDefault();

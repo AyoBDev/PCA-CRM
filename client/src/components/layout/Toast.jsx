@@ -30,7 +30,7 @@ export default function Toast() {
     };
 
     return (
-        <div className={`toast toast--${toast.type}`}>
+        <div className={`toast toast--${toast.type}`} role="alert" aria-live="polite">
             {toast.type === 'success' ? Icons.checkCircle : toast.type === 'undo' ? Icons.alertCircle : Icons.alertCircle}
             <span className="toast__message">{toast.message}</span>
             {toast.type === 'undo' && (

@@ -359,7 +359,7 @@ function BulkImportModal({ onImport, onClose }) {
                     </p>
                     <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)', fontSize: 12 }}>
                         <table className="data-table" style={{ fontSize: 12 }}>
-                            <thead><tr><th>Client Name</th><th>Medicaid ID</th><th>Insurance</th><th>Authorizations</th></tr></thead>
+                            <thead><tr><th scope="col">Client Name</th><th scope="col">Medicaid ID</th><th scope="col">Insurance</th><th scope="col">Authorizations</th></tr></thead>
                             <tbody>
                                 {preview.slice(0, 20).map((c, i) => (
                                     <tr key={i}><td>{c.clientName}</td><td>{c.medicaidId}</td><td>{c.insuranceType}</td><td>{c.authorizations?.length || 0}</td></tr>
@@ -680,7 +680,7 @@ export default function ClientsPage() {
                             <span className="card__title">Expired</span>
                             {expiredCount > 0 && <span className="card__trend card__trend--down">{Icons.trendingDown} Needs attention</span>}
                         </div>
-                        <div className="card__value" style={{ color: expiredCount > 0 ? 'hsl(0 84.2% 60.2%)' : undefined }}>{expiredCount}</div>
+                        <div className={`card__value${expiredCount > 0 ? ' text-destructive' : ''}`}>{expiredCount}</div>
                         <div className="card__description">Clients with expired auths</div>
                     </div>
                     <div className="card">
@@ -688,7 +688,7 @@ export default function ClientsPage() {
                             <span className="card__title">Active / OK</span>
                             <span className="card__trend card__trend--up">{Icons.trendingUp}</span>
                         </div>
-                        <div className="card__value" style={{ color: okCount > 0 ? 'hsl(142 71% 45%)' : undefined }}>{okCount}</div>
+                        <div className={`card__value${okCount > 0 ? ' text-success' : ''}`}>{okCount}</div>
                         <div className="card__description">{renewalCount > 0 ? `${renewalCount} renewal(s) due` : 'All auths current'}</div>
                     </div>
                 </div>
@@ -752,15 +752,15 @@ export default function ClientsPage() {
                                 <table className="sheet-table">
                                     <thead>
                                         <tr>
-                                            <th style={{ width: 36 }}>
+                                            <th scope="col" style={{ width: 36 }}>
                                                 <input type="checkbox" checked={selectedIds.size === filteredClients.length && filteredClients.length > 0} onChange={toggleSelectAll} />
                                             </th>
-                                            <th>Client Name</th>
-                                            <th>Medicaid ID</th>
-                                            <th>Insurance Type</th>
-                                            <th>Status</th>
-                                            <th>Days to Expire</th>
-                                            <th>Actions</th>
+                                            <th scope="col">Client Name</th>
+                                            <th scope="col">Medicaid ID</th>
+                                            <th scope="col">Insurance Type</th>
+                                            <th scope="col">Status</th>
+                                            <th scope="col">Days to Expire</th>
+                                            <th scope="col">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -967,8 +967,8 @@ export default function ClientsPage() {
                             <table className="drawer-auth-table">
                                 <thead>
                                     <tr>
-                                        <th>Service</th><th>Code</th><th>Units</th>
-                                        <th>Start</th><th>End</th><th>Status</th><th></th>
+                                        <th scope="col">Service</th><th scope="col">Code</th><th scope="col">Units</th>
+                                        <th scope="col">Start</th><th scope="col">End</th><th scope="col">Status</th><th scope="col"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
