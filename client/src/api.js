@@ -116,6 +116,8 @@ export const permanentlyDeleteClient = (id) =>
     request(`/clients/${id}/permanent`, { method: 'DELETE' });
 export const bulkPermanentlyDeleteClients = () =>
     request('/clients/bulk-permanent', { method: 'DELETE' });
+export const mergeClients = (keepId, mergeId) =>
+    request(`/clients/${keepId}/merge`, { method: 'POST', body: JSON.stringify({ mergeId }) });
 
 // Bulk Import
 export const bulkImport = (clients) =>
