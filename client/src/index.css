@@ -914,7 +914,14 @@ body {
 }
 .data-table th .th-sort {
   display: inline-flex;
-  opacity: 0.6;
+  opacity: 0.4;
+  transition: opacity 0.15s;
+}
+.data-table th .th-sort--active {
+  opacity: 1;
+}
+.data-table th:hover .th-sort {
+  opacity: 0.8;
 }
 .data-table th .th-sort svg { width: 14px; height: 14px; }
 
