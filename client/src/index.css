@@ -6272,6 +6272,32 @@ button.sdr-section-tag:hover:not(:disabled) {
   margin: 0;
 }
 
+/* ═══ Info List (label/value rows inside cards) ═══ */
+.cp-info-list {
+  display: flex;
+  flex-direction: column;
+}
+.cp-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+  font-size: 13px;
+}
+.cp-info-row:last-child {
+  border-bottom: none;
+}
+.cp-info-row__label {
+  color: hsl(var(--muted-foreground));
+  font-weight: 500;
+}
+.cp-info-row__value {
+  color: hsl(var(--foreground));
+  font-weight: 600;
+  text-align: right;
+}
+
 /* ═══ Authorization Groups ═══ */
 .cp-auth-sections {
   display: flex;

@@ -266,7 +266,7 @@ export default function EmployeesPage() {
         const s = getEmpCertStatus(emp);
         if (s === 'expired') expiredCount++;
         else if (s === 'expiring') expiringCount++;
-        else okCount++;
+        else if (!emp.critical) okCount++;
     });
 
     // Apply filters
@@ -276,7 +276,7 @@ export default function EmployeesPage() {
             (e.npi || '').includes(search);
         if (!matchesSearch) return false;
 
-        if (statusFilter === 'OK') return getEmpCertStatus(e) === 'valid';
+        if (statusFilter === 'OK') return getEmpCertStatus(e) === 'valid' && !e.critical;
         if (statusFilter === 'Critical') return e.critical;
         if (statusFilter === 'Expiring') return getEmpCertStatus(e) === 'expiring';
         if (statusFilter === 'Expired') return getEmpCertStatus(e) === 'expired';
