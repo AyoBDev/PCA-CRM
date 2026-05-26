@@ -26,7 +26,7 @@ export default function TimesheetsTab({ client, navigate }) {
         async function fetch() {
             try {
                 const all = await api.getTimesheets();
-                const filtered = all.filter(t => t.clientId === client.id);
+                const filtered = all.filter(t => t.clientId === client.id || (t.client && t.client.clientName === client.clientName));
                 if (!cancelled) setTimesheets(filtered);
             } catch { /* ignore */ }
             if (!cancelled) setLoading(false);
