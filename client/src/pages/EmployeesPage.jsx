@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useToast } from '../hooks/useToast';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
@@ -143,11 +144,12 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
 export default function EmployeesPage() {
     const { isAdmin } = useAuth();
     const { showToast, showUndoToast } = useToast();
+    const navigate = useNavigate();
     const [employees, setEmployees] = useState([]);
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
-    const [statusFilter, setStatusFilter] = useState('All');
+    const [statusFilter, setStatusFilter] = useState('OK');
     const [modal, setModal] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
     const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(null);
@@ -259,12 +261,12 @@ export default function EmployeesPage() {
 
     // Counts for filter pills
     const criticalCount = employees.filter(e => e.critical).length;
-    const now = new Date();
-    let expiredCount = 0, expiringCount = 0;
+    let expiredCount = 0, expiringCount = 0, okCount = 0;
     employees.forEach(emp => {
         const s = getEmpCertStatus(emp);
         if (s === 'expired') expiredCount++;
         else if (s === 'expiring') expiringCount++;
+        else okCount++;
     });
 
     // Apply filters
@@ -274,6 +276,7 @@ export default function EmployeesPage() {
             (e.npi || '').includes(search);
         if (!matchesSearch) return false;
 
+        if (statusFilter === 'OK') return getEmpCertStatus(e) === 'valid';
         if (statusFilter === 'Critical') return e.critical;
         if (statusFilter === 'Expiring') return getEmpCertStatus(e) === 'expiring';
         if (statusFilter === 'Expired') return getEmpCertStatus(e) === 'expired';
@@ -320,43 +323,6 @@ export default function EmployeesPage() {
                 </div>
             </div>
 
-            {!showArchived && !loading && (
-                <div className="stats-grid">
-                    <div className="card">
-                        <div className="card__header">
-                            <span className="card__title">Total Employees</span>
-                            <span className="card__icon">{Icons.users}</span>
-                        </div>
-                        <div className="card__value">{employees.length}</div>
-                        <div className="card__description">{filtered.length} shown with current filters</div>
-                    </div>
-                    <div className="card">
-                        <div className="card__header">
-                            <span className="card__title">Critical</span>
-                            <span className="card__icon text-destructive">{Icons.alertTriangle}</span>
-                        </div>
-                        <div className="card__value text-destructive">{criticalCount}</div>
-                        <div className="card__description">Employees on critical list</div>
-                    </div>
-                    <div className="card">
-                        <div className="card__header">
-                            <span className="card__title">Expiring Soon</span>
-                            <span className="card__icon text-warning">{Icons.alertTriangle}</span>
-                        </div>
-                        <div className="card__value text-warning">{expiringCount}</div>
-                        <div className="card__description">Certifications due within 30 days</div>
-                    </div>
-                    <div className="card">
-                        <div className="card__header">
-                            <span className="card__title">Expired</span>
-                            <span className="card__icon text-destructive">{Icons.alertTriangle}</span>
-                        </div>
-                        <div className="card__value text-destructive">{expiredCount}</div>
-                        <div className="card__description">Certifications past due date</div>
-                    </div>
-                </div>
-            )}
-
             <div className="page-content">
                 {showArchived && (
                     <div className="archived-banner">
@@ -372,6 +338,44 @@ export default function EmployeesPage() {
                         </button>
                     </div>
                 )}
+
+                {!showArchived && !loading && (
+                    <div className="stats-grid">
+                        <div className="card">
+                            <div className="card__header">
+                                <span className="card__title">Total Employees</span>
+                                <span className="card__icon">{Icons.users}</span>
+                            </div>
+                            <div className="card__value">{employees.length}</div>
+                            <div className="card__description">{filtered.length} shown with current filters</div>
+                        </div>
+                        <div className="card">
+                            <div className="card__header">
+                                <span className="card__title">Critical</span>
+                                <span className="card__icon text-destructive">{Icons.alertTriangle}</span>
+                            </div>
+                            <div className="card__value text-destructive">{criticalCount}</div>
+                            <div className="card__description">Employees on critical list</div>
+                        </div>
+                        <div className="card">
+                            <div className="card__header">
+                                <span className="card__title">Expiring Soon</span>
+                                <span className="card__icon text-warning">{Icons.alertTriangle}</span>
+                            </div>
+                            <div className="card__value text-warning">{expiringCount}</div>
+                            <div className="card__description">Certifications due within 30 days</div>
+                        </div>
+                        <div className="card">
+                            <div className="card__header">
+                                <span className="card__title">Expired</span>
+                                <span className="card__icon text-destructive">{Icons.alertTriangle}</span>
+                            </div>
+                            <div className="card__value text-destructive">{expiredCount}</div>
+                            <div className="card__description">Certifications past due date</div>
+                        </div>
+                    </div>
+                )}
+
                 {loading ? (
                     <div style={{ padding: 16 }}>
                         {[1, 2, 3].map(i => <div key={i} className="skeleton skeleton-row" style={{ marginBottom: 4 }} />)}
@@ -381,6 +385,7 @@ export default function EmployeesPage() {
                         <div className="filter-pills">
                             {[
                                 { key: 'All', color: '', count: employees.length },
+                                { key: 'OK', color: 'green', count: okCount },
                                 { key: 'Critical', color: 'red', count: criticalCount },
                                 { key: 'Expiring', color: 'orange', count: expiringCount },
                                 { key: 'Expired', color: 'red', count: expiredCount },
@@ -418,9 +423,9 @@ export default function EmployeesPage() {
                                     </thead>
                                     <tbody>
                                         {filtered.map(emp => (
-                                            <tr key={emp.id} className={emp.critical ? 'row--critical' : ''}>
+                                            <tr key={emp.id} className={emp.critical ? 'row--critical' : ''} style={{ cursor: 'pointer' }} onClick={() => navigate(`/employees/${emp.id}`)}>
                                                 <td style={{ fontWeight: 500 }}>
-                                                    {emp.name}
+                                                    <span style={{ color: 'hsl(var(--primary))' }}>{emp.name}</span>
                                                     {emp.critical && <span className="ts-badge ts-badge--danger" style={{ marginLeft: 6, fontSize: 10 }}>CRITICAL</span>}
                                                 </td>
                                                 <td>{emp.phone || '—'}</td>
@@ -431,7 +436,7 @@ export default function EmployeesPage() {
                                                         {emp.active ? 'Active' : 'Inactive'}
                                                     </span>
                                                 </td>
-                                                <td>
+                                                <td onClick={e => e.stopPropagation()}>
                                                     <div className="row-actions">
                                                         {showArchived ? (
                                                             <div style={{ display: 'flex', gap: 6 }}>

@@ -20,6 +20,7 @@ const UsersPage = lazy(() => import('./pages/UsersPage'));
 const PayrollPage = lazy(() => import('./pages/PayrollPage'));
 const SchedulingPage = lazy(() => import('./pages/SchedulingPage'));
 const EmployeesPage = lazy(() => import('./pages/EmployeesPage'));
+const EmployeeDetailPage = lazy(() => import('./pages/EmployeeDetailPage'));
 const ScheduleConfirmPage = lazy(() => import('./pages/scheduling/ScheduleConfirmPage'));
 const ScheduleViewPage = lazy(() => import('./pages/scheduling/ScheduleViewPage'));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
@@ -65,6 +66,7 @@ function AppRoutes() {
                 <Route path="/insurance-types" element={<ProtectedRoute staffOnly><Layout><InsuranceTypesPage /></Layout></ProtectedRoute>} />
                 <Route path="/services" element={<ProtectedRoute staffOnly><Layout><ServicesPage /></Layout></ProtectedRoute>} />
                 <Route path="/employees" element={<ProtectedRoute staffOnly><Layout><EmployeesPage /></Layout></ProtectedRoute>} />
+                <Route path="/employees/:employeeId" element={<ProtectedRoute staffOnly><Layout><EmployeeDetailPage /></Layout></ProtectedRoute>} />
                 <Route path="/users" element={<ProtectedRoute adminOnly><Layout><UsersPage /></Layout></ProtectedRoute>} />
 
                 {/* Default redirect */}
