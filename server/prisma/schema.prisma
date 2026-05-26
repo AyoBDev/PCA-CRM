@@ -39,20 +39,35 @@ model PasswordResetToken {
 }
 
 model Employee {
-  id                  Int                    @id @default(autoincrement())
-  name                String
-  phone               String                 @default("") @map("phone")
-  email               String                 @default("") @map("email")
-  active              Boolean                @default(true) @map("active")
-  userId              Int?                   @unique @map("user_id")
-  archivedAt          DateTime?              @map("archived_at")
-  createdAt           DateTime               @default(now()) @map("created_at")
-  updatedAt           DateTime               @updatedAt @map("updated_at")
-  careTeamAssignments ClientCareTeam[]
-  scheduleLink        EmployeeScheduleLink?
-  user                User?                  @relation(fields: [userId], references: [id])
-  notifications       ScheduleNotification[]
-  shifts              Shift[]
+  id                      Int                    @id @default(autoincrement())
+  name                    String
+  phone                   String                 @default("") @map("phone")
+  email                   String                 @default("") @map("email")
+  active                  Boolean                @default(true) @map("active")
+  userId                  Int?                   @unique @map("user_id")
+  archivedAt              DateTime?              @map("archived_at")
+  createdAt               DateTime               @default(now()) @map("created_at")
+  updatedAt               DateTime               @updatedAt @map("updated_at")
+  dob                     DateTime?              @map("dob")
+  address                 String                 @default("") @map("address")
+  clientAssignment        String                 @default("") @map("client_assignment")
+  npi                     String                 @default("") @map("npi")
+  idExpDate               DateTime?              @map("id_exp_date")
+  firstAssignmentDate     DateTime?              @map("first_assignment_date")
+  tbDueDate               DateTime?              @map("tb_due_date")
+  tbType                  String                 @default("") @map("tb_type")
+  cprDueDate              DateTime?              @map("cpr_due_date")
+  trainingDueDate         DateTime?              @map("training_due_date")
+  backgroundCheckDueDate  DateTime?              @map("background_check_due_date")
+  dischargeDate           DateTime?              @map("discharge_date")
+  status                  String                 @default("active") @map("status")
+  notes                   String                 @default("") @map("notes")
+  critical                Boolean                @default(false) @map("critical")
+  careTeamAssignments     ClientCareTeam[]
+  scheduleLink            EmployeeScheduleLink?
+  user                    User?                  @relation(fields: [userId], references: [id])
+  notifications           ScheduleNotification[]
+  shifts                  Shift[]
 
   @@map("employees")
 }

@@ -413,6 +413,8 @@ export const deleteEmployee = (id) => request(`/employees/${id}`, { method: 'DEL
 export const restoreEmployee = (id) => request(`/employees/${id}/restore`, { method: 'PUT' });
 export const permanentlyDeleteEmployee = (id) => request(`/employees/${id}/permanent`, { method: 'DELETE' });
 export const bulkPermanentlyDeleteEmployees = () => request('/employees/bulk-permanent', { method: 'DELETE' });
+export const bulkImportEmployees = (formData) =>
+    fetch(`${BASE}/employees/bulk-import`, { method: 'POST', headers: { Authorization: `Bearer ${getToken()}` }, body: formData }).then(handleRes);
 
 // ── Employee Schedule Links ──
 export const getEmployeeScheduleLinks = () => request('/employee-schedule-links');

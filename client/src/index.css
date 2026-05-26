@@ -2159,6 +2159,28 @@ body {
   letter-spacing: 0.5px;
 }
 
+.ts-badge--success {
+  background: hsl(160 60% 94%);
+  color: hsl(160 84% 30%);
+}
+
+.ts-badge--warning {
+  background: hsl(38 100% 94%);
+  color: hsl(30 90% 35%);
+}
+
+.ts-badge--danger {
+  background: hsl(0 86% 95%);
+  color: hsl(0 72% 45%);
+}
+
+.row--critical {
+  background: hsl(0 84% 97%);
+}
+.row--critical:hover {
+  background: hsl(0 84% 95%) !important;
+}
+
 .ts-auth-limit {
   font-size: 11px;
   color: hsl(var(--muted-foreground));

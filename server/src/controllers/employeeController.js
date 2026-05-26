@@ -48,15 +48,16 @@ async function createEmployee(req, res, next) {
 
 async function updateEmployee(req, res, next) {
     try {
-        const { name, phone, email, userId, active } = req.body;
         const id = Number(req.params.id);
         const oldEmployee = await prisma.employee.findUnique({ where: { id } });
+        if (!oldEmployee) return res.status(404).json({ error: 'Employee not found' });
+
+        const fields = ['name', 'phone', 'email', 'userId', 'active', 'address', 'clientAssignment', 'npi', 'dob', 'idExpDate', 'firstAssignmentDate', 'tbDueDate', 'tbType', 'cprDueDate', 'trainingDueDate', 'backgroundCheckDueDate', 'dischargeDate', 'status', 'notes', 'critical'];
         const data = {};
-        if (name !== undefined) data.name = name.trim();
-        if (phone !== undefined) data.phone = phone;
-        if (email !== undefined) data.email = email;
-        if (userId !== undefined) data.userId = userId;
-        if (active !== undefined) data.active = active;
+        for (const f of fields) {
+            if (req.body[f] !== undefined) data[f] = req.body[f];
+        }
+        if (data.name) data.name = data.name.trim();
 
         const employee = await prisma.employee.update({
             where: { id },
@@ -121,4 +122,89 @@ async function bulkPermanentlyDeleteEmployees(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listEmployees, getEmployee, createEmployee, updateEmployee, deleteEmployee, restoreEmployee, permanentlyDeleteEmployee, bulkPermanentlyDeleteEmployees };
+async function bulkImportEmployees(req, res, next) {
+    try {
+        const XLSX = require('xlsx');
+        if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+        const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+        function excelDate(serial) {
+            if (!serial || typeof serial !== 'number' || serial < 1000) return null;
+            return new Date((serial - 25569) * 86400000);
+        }
+
+        // Find sections
+        const sections = [];
+        for (let i = 0; i < data.length; i++) {
+            const row = data[i];
+            if (row && row.length <= 2 && typeof row[0] === 'string') {
+                const label = row[0].trim().toLowerCase();
+                if (label === 'critical list' || label === 'all employees' || label === 'inactive employees') {
+                    sections.push({ label: row[0].trim(), headerRow: i + 1, startRow: i + 2 });
+                }
+            }
+        }
+        for (let i = 0; i < sections.length; i++) {
+            sections[i].endRow = i + 1 < sections.length ? sections[i + 1].headerRow - 2 : data.length - 1;
+        }
+
+        let created = 0, updated = 0;
+
+        for (const section of sections) {
+            const isCritical = section.label.toLowerCase().includes('critical');
+            const isInactive = section.label.toLowerCase().includes('inactive');
+
+            for (let i = section.startRow; i <= section.endRow; i++) {
+                const row = data[i];
+                if (!row || !row[0] || typeof row[0] !== 'string' || row[0].trim().length === 0) continue;
+
+                const name = row[0].trim();
+                const employeeData = {
+                    name,
+                    phone: row[3] ? String(row[3]).replace(/\D/g, '').slice(0, 10) : '',
+                    email: (row[6] || '').toString().trim(),
+                    address: (row[4] || '').toString().trim(),
+                    clientAssignment: (row[5] || '').toString().trim(),
+                    npi: (row[20] || '').toString().trim(),
+                    dob: excelDate(row[1]),
+                    idExpDate: excelDate(row[7]),
+                    firstAssignmentDate: excelDate(row[8]),
+                    tbDueDate: excelDate(row[9]),
+                    tbType: (row[10] || '').toString().trim(),
+                    cprDueDate: excelDate(row[12]),
+                    trainingDueDate: excelDate(row[14]),
+                    backgroundCheckDueDate: excelDate(row[17]),
+                    dischargeDate: excelDate(row[23]),
+                    status: (row[21] || 'active').toString().trim(),
+                    notes: (row[22] || '').toString().trim(),
+                    critical: isCritical,
+                    active: !isInactive,
+                    archivedAt: isInactive ? new Date() : null,
+                };
+
+                const existing = await prisma.employee.findFirst({ where: { name } });
+                if (existing) {
+                    await prisma.employee.update({ where: { id: existing.id }, data: employeeData });
+                    updated++;
+                } else {
+                    await prisma.employee.create({ data: employeeData });
+                    created++;
+                }
+            }
+        }
+
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Employee', entityId: 0, entityName: 'Bulk Import', metadata: { created, updated } });
+
+        const employees = await prisma.employee.findMany({
+            where: { archivedAt: null },
+            include: { user: { select: { id: true, name: true, email: true, role: true } } },
+            orderBy: { name: 'asc' },
+        });
+        res.status(201).json({ imported: created + updated, created, updated, employees });
+    } catch (err) { next(err); }
+}
+
+module.exports = { listEmployees, getEmployee, createEmployee, updateEmployee, deleteEmployee, restoreEmployee, permanentlyDeleteEmployee, bulkPermanentlyDeleteEmployees, bulkImportEmployees };
