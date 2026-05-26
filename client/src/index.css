@@ -1767,7 +1767,7 @@ body {
   padding: 7px 16px;
   border: 1px solid hsl(var(--border));
   border-radius: 999px;
-  background: hsl(var(--muted) / 0.5);
+  background: hsl(var(--muted));
   color: hsl(var(--foreground) / 0.7);
   font-size: 13px;
   font-weight: 600;
