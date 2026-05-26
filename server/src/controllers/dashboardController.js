@@ -54,11 +54,13 @@ async function getDashboardStats(req, res) {
     const weekHours = weekShifts.reduce((sum, s) => sum + s.hours, 0);
     const weekUnits = weekShifts.reduce((sum, s) => sum + s.units, 0);
 
-    // Find expiring authorizations
+    // Find expiring authorizations (exclude archived and manually-marked inactive/expired)
     const enrichedClients = clients.map(enrichClient);
     const expiringAuths = [];
     for (const client of enrichedClients) {
         for (const auth of (client.authorizations || [])) {
+            if (auth.archivedAt) continue;
+            if ((auth.manualStatus || 'active') !== 'active') continue;
             if (auth.status === 'Renewal Reminder' || auth.status === 'Expired') {
                 expiringAuths.push({
                     clientName: client.clientName,
