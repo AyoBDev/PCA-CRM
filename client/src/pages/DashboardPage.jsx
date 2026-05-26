@@ -32,13 +32,13 @@ export default function DashboardPage() {
         </div>
     );
 
-    const expiredAuths = stats.expiringAuths.filter(a => a.status === 'Expired');
-    const renewalAuths = stats.expiringAuths.filter(a => a.status === 'Renewal Reminder');
+    const expiredCount = stats.expiredClientCount || 0;
+    const renewalCount = stats.renewalClientCount || 0;
 
     const attentionItems = [];
-    if (expiredAuths.length > 0) attentionItems.push({ icon: Icons.alertTriangle, label: `${expiredAuths.length} expired authorization${expiredAuths.length > 1 ? 's' : ''}`, severity: 'destructive', action: () => navigate('/authorizations') });
+    if (expiredCount > 0) attentionItems.push({ icon: Icons.alertTriangle, label: `${expiredCount} client${expiredCount > 1 ? 's' : ''} with expired authorization`, severity: 'destructive', action: () => navigate('/authorizations') });
     if (stats.unconfirmedCount > 0) attentionItems.push({ icon: Icons.alertTriangle, label: `${stats.unconfirmedCount} unconfirmed schedule${stats.unconfirmedCount > 1 ? 's' : ''}`, severity: 'warning', action: () => navigate('/scheduling') });
-    if (renewalAuths.length > 0) attentionItems.push({ icon: Icons.clock, label: `${renewalAuths.length} authorization renewal${renewalAuths.length > 1 ? 's' : ''} due`, severity: 'warning', action: () => navigate('/authorizations') });
+    if (renewalCount > 0) attentionItems.push({ icon: Icons.clock, label: `${renewalCount} client${renewalCount > 1 ? 's' : ''} with authorization renewal due`, severity: 'warning', action: () => navigate('/authorizations') });
     if (stats.timesheetDraft > 0) attentionItems.push({ icon: Icons.fileText, label: `${stats.timesheetDraft} draft timesheet${stats.timesheetDraft > 1 ? 's' : ''} awaiting completion`, severity: 'warning', action: () => navigate('/timesheets') });
 
     return (
@@ -124,14 +124,14 @@ export default function DashboardPage() {
                             <span className="card__title">Auth Status</span>
                             <span className="card__icon">{Icons.shieldCheck}</span>
                         </div>
-                        <div className={`card__value${expiredAuths.length > 0 ? ' text-destructive' : renewalAuths.length > 0 ? ' text-warning' : ' text-success'}`}>
-                            {stats.expiringAuths.length || 0}
+                        <div className={`card__value${expiredCount > 0 ? ' text-destructive' : renewalCount > 0 ? ' text-warning' : ' text-success'}`}>
+                            {expiredCount + renewalCount || 0}
                         </div>
                         <div className="card__description">
-                            {expiredAuths.length > 0 ? `${expiredAuths.length} expired` : ''}
-                            {expiredAuths.length > 0 && renewalAuths.length > 0 ? ', ' : ''}
-                            {renewalAuths.length > 0 ? `${renewalAuths.length} renewal(s) due` : ''}
-                            {stats.expiringAuths.length === 0 ? 'All authorizations current' : ''}
+                            {expiredCount > 0 ? `${expiredCount} expired` : ''}
+                            {expiredCount > 0 && renewalCount > 0 ? ', ' : ''}
+                            {renewalCount > 0 ? `${renewalCount} renewal(s) due` : ''}
+                            {expiredCount === 0 && renewalCount === 0 ? 'All authorizations current' : ''}
                         </div>
                     </div>
                     <div className="card">

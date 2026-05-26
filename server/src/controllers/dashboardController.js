@@ -54,10 +54,15 @@ async function getDashboardStats(req, res) {
     const weekHours = weekShifts.reduce((sum, s) => sum + s.hours, 0);
     const weekUnits = weekShifts.reduce((sum, s) => sum + s.units, 0);
 
-    // Find expiring authorizations (exclude archived and manually-marked inactive/expired)
+    // Compute auth stats at client level (matches Authorizations page KPI)
     const enrichedClients = clients.map(enrichClient);
     const expiringAuths = [];
+    let expiredClientCount = 0;
+    let renewalClientCount = 0;
     for (const client of enrichedClients) {
+        if (client.overallStatus === 'Expired') expiredClientCount++;
+        else if (client.overallStatus === 'Renewal Reminder') renewalClientCount++;
+
         for (const auth of (client.authorizations || [])) {
             if (auth.archivedAt) continue;
             if ((auth.manualStatus || 'active') !== 'active') continue;
@@ -80,6 +85,8 @@ async function getDashboardStats(req, res) {
         weekUnits,
         unconfirmedCount: unconfirmedNotifications,
         expiringAuths,
+        expiredClientCount,
+        renewalClientCount,
         timesheetDraft,
         timesheetSubmitted,
         recentPayrollRuns: payrollRuns,
