@@ -47,7 +47,7 @@ export default function ScheduleConfirmPage() {
                 <p style={{ color: '#6b7280', margin: '0 0 16px' }}>Week of {data.weekStart} to {data.weekEnd}</p>
 
                 <div className="table-scroll" style={{ marginTop: 8 }}>
-                <table className="data-table">
+                <table className="data-table data-table--sheet">
                     <thead>
                         <tr>
                             <th scope="col">Day</th>

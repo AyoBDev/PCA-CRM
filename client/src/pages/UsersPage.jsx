@@ -146,7 +146,7 @@ export default function UsersPage() {
                 ) : (
                     <div className="sheet-card">
                       <div className="table-scroll">
-                        <table className="data-table">
+                        <table className="data-table data-table--sheet">
                             <thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Created</th><th scope="col">Actions</th></tr></thead>
                             <tbody>
                                 {users.filter((u) => u.role !== 'admin').map((u) => (
