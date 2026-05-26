@@ -232,7 +232,7 @@ export default function EmployeesPage() {
                 ) : (
                     <div className="sheet-card">
                       <div className="table-scroll">
-                        <table className="data-table">
+                        <table className="data-table data-table--sheet">
                             <thead>
                                 <tr>
                                     <th scope="col">Name</th>
