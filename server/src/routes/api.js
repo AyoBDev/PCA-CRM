@@ -115,6 +115,7 @@ const {
     restoreEmployee,
     permanentlyDeleteEmployee,
     bulkPermanentlyDeleteEmployees,
+    bulkImportEmployees,
 } = require('../controllers/employeeController');
 const { getDashboardStats } = require('../controllers/dashboardController');
 const { sendSchedules, getNotificationStatus, getScheduleConfirm, confirmSchedule, respondToSchedule, getScheduleResponses } = require('../controllers/scheduleNotificationController');
@@ -277,6 +278,7 @@ router.get('/employees',       requireRole('admin', 'user', 'pca'), listEmployee
 router.delete('/employees/bulk-permanent', requireRole('admin'), bulkPermanentlyDeleteEmployees);
 router.get('/employees/:id',   requireRole('admin', 'user', 'pca'), getEmployee);
 router.post('/employees',      requireRole('admin', 'user', 'pca'), createEmployee);
+router.post('/employees/bulk-import', requireRole('admin'), upload.single('file'), bulkImportEmployees);
 router.put('/employees/:id/restore', requireRole('admin', 'user', 'pca'), restoreEmployee);
 router.put('/employees/:id',   requireRole('admin', 'user', 'pca'), updateEmployee);
 router.delete('/employees/:id', requireRole('admin', 'user', 'pca'), deleteEmployee);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '../hooks/useToast';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
@@ -7,15 +7,43 @@ import * as api from '../api';
 import { useAuth } from '../hooks/useAuth';
 import { ActivityButton } from '../components/common/ActivityDrawer';
 
+function fmtDate(d) {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+}
+
+function certStatus(dateStr) {
+    if (!dateStr) return 'unknown';
+    const now = new Date();
+    const d = new Date(dateStr);
+    const daysLeft = Math.ceil((d - now) / 86400000);
+    if (daysLeft < 0) return 'expired';
+    if (daysLeft <= 30) return 'expiring';
+    return 'valid';
+}
+
+function CertBadge({ date, label }) {
+    const status = certStatus(date);
+    const cls = status === 'expired' ? 'ts-badge ts-badge--danger' : status === 'expiring' ? 'ts-badge ts-badge--warning' : 'ts-badge ts-badge--success';
+    return (
+        <span className={cls} title={`${label}: ${fmtDate(date)}`}>
+            {fmtDate(date)}
+        </span>
+    );
+}
+
 function EmployeeFormModal({ employee, users, onSave, onClose }) {
     const [name, setName] = useState(employee?.name || '');
     const [phone, setPhone] = useState(employee?.phone || '');
     const [email, setEmail] = useState(employee?.email || '');
     const [userId, setUserId] = useState(employee?.userId || '');
+    const [address, setAddress] = useState(employee?.address || '');
+    const [npi, setNpi] = useState(employee?.npi || '');
+    const [clientAssignment, setClientAssignment] = useState(employee?.clientAssignment || '');
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        onSave({ name, phone, email, userId: userId || null });
+        onSave({ name, phone, email, userId: userId || null, address, npi, clientAssignment });
     };
 
     return (
@@ -35,6 +63,20 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
                     <div className="form-group">
                         <label htmlFor="empEmail">Email</label>
                         <input id="empEmail" type="email" value={email} onChange={e => setEmail(e.target.value)} />
+                    </div>
+                </div>
+                <div className="form-group">
+                    <label htmlFor="empAddress">Address</label>
+                    <input id="empAddress" value={address} onChange={e => setAddress(e.target.value)} />
+                </div>
+                <div className="form-grid-2">
+                    <div className="form-group">
+                        <label htmlFor="empNpi">NPI</label>
+                        <input id="empNpi" value={npi} onChange={e => setNpi(e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="empClient">Client Assignment</label>
+                        <input id="empClient" value={clientAssignment} onChange={e => setClientAssignment(e.target.value)} />
                     </div>
                 </div>
                 <div className="form-group">
@@ -72,6 +114,8 @@ export default function EmployeesPage() {
     const [showArchived, setShowArchived] = useState(false);
     const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(null);
     const [confirmBulkPermanentDelete, setConfirmBulkPermanentDelete] = useState(false);
+    const [importing, setImporting] = useState(false);
+    const fileRef = useRef();
 
     const fetchData = useCallback(async () => {
         try {
@@ -157,8 +201,28 @@ export default function EmployeesPage() {
         }
     };
 
+    const handleImport = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setImporting(true);
+        try {
+            const fd = new FormData();
+            fd.append('file', file);
+            const result = await api.bulkImportEmployees(fd);
+            showToast(`Imported ${result.imported} employees (${result.created} new, ${result.updated} updated)`);
+            fetchData();
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setImporting(false);
+            if (fileRef.current) fileRef.current.value = '';
+        }
+    };
+
     const filtered = employees.filter(e =>
-        e.name.toLowerCase().includes(search.toLowerCase())
+        e.name.toLowerCase().includes(search.toLowerCase()) ||
+        (e.clientAssignment || '').toLowerCase().includes(search.toLowerCase()) ||
+        (e.npi || '').includes(search)
     );
 
     return (
@@ -168,7 +232,7 @@ export default function EmployeesPage() {
                     <div className="page-hero__icon">{Icons.users}</div>
                     <div>
                         <div className="page-hero__title">Employees</div>
-                        <div className="page-hero__subtitle">Manage caregiver profiles and status</div>
+                        <div className="page-hero__subtitle">Manage caregiver profiles, certifications and status</div>
                     </div>
                 </div>
                 <div className="page-hero__right">
@@ -190,6 +254,14 @@ export default function EmployeesPage() {
                             <option value="false">Inactive</option>
                             <option value="">All</option>
                         </select>
+                    )}
+                    {!showArchived && isAdmin && (
+                        <>
+                            <input type="file" ref={fileRef} accept=".xlsx,.xls" onChange={handleImport} style={{ display: 'none' }} />
+                            <button className="btn btn--outline" onClick={() => fileRef.current?.click()} disabled={importing}>
+                                {Icons.upload} {importing ? 'Importing...' : 'Import'}
+                            </button>
+                        </>
                     )}
                     {!showArchived && (
                         <button className="btn btn--outline" onClick={() => setShowArchived(true)}>
@@ -237,19 +309,30 @@ export default function EmployeesPage() {
                                 <tr>
                                     <th scope="col">Name</th>
                                     <th scope="col">Phone</th>
-                                    <th scope="col">Email</th>
-                                    <th scope="col">Linked Client</th>
+                                    <th scope="col">Client</th>
+                                    <th scope="col">ID Exp</th>
+                                    <th scope="col">TB</th>
+                                    <th scope="col">CPR</th>
+                                    <th scope="col">Training</th>
+                                    <th scope="col">Background</th>
                                     <th scope="col">Status</th>
                                     <th scope="col">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {filtered.map(emp => (
-                                    <tr key={emp.id}>
-                                        <td style={{ fontWeight: 500 }}>{emp.name}</td>
-                                        <td>{emp.phone || '—'}{!emp.phone && <span className="text-warn" title="No phone">&#x26A0;</span>}</td>
-                                        <td>{emp.email || '—'}{!emp.email && <span className="text-warn" title="No email">&#x26A0;</span>}</td>
-                                        <td>{emp.user ? emp.user.name : '—'}</td>
+                                    <tr key={emp.id} className={emp.critical ? 'row--critical' : ''}>
+                                        <td style={{ fontWeight: 500 }}>
+                                            {emp.name}
+                                            {emp.critical && <span className="ts-badge ts-badge--danger" style={{ marginLeft: 6, fontSize: 10 }}>CRITICAL</span>}
+                                        </td>
+                                        <td>{emp.phone || '—'}</td>
+                                        <td>{emp.clientAssignment || '—'}</td>
+                                        <td><CertBadge date={emp.idExpDate} label="ID Expiration" /></td>
+                                        <td><CertBadge date={emp.tbDueDate} label="TB Screening" /></td>
+                                        <td><CertBadge date={emp.cprDueDate} label="CPR" /></td>
+                                        <td><CertBadge date={emp.trainingDueDate} label="8hr Training" /></td>
+                                        <td><CertBadge date={emp.backgroundCheckDueDate} label="Background Check" /></td>
                                         <td>
                                             <span className={`ts-badge ts-badge--${emp.active ? 'submitted' : 'draft'}`}>
                                                 {emp.active ? 'Active' : 'Inactive'}
