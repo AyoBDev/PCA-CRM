@@ -13,6 +13,7 @@ const {
     restoreClient,
     permanentlyDeleteClient,
     bulkPermanentlyDeleteClients,
+    mergeClients,
 } = require('../controllers/clientController');
 const {
     createAuthorization,
@@ -183,6 +184,7 @@ router.put('/clients/:id', requireRole('admin', 'user', 'pca'), updateClient);
 router.patch('/clients/:id', requireRole('admin', 'user', 'pca'), patchClient);
 router.delete('/clients/:id', requireRole('admin', 'user', 'pca'), deleteClient);
 router.delete('/clients/:id/permanent', requireRole('admin'), permanentlyDeleteClient);
+router.post('/clients/:id/merge', requireRole('admin'), mergeClients);
 
 // Authorization routes
 router.post('/clients/:clientId/authorizations', requireRole('admin', 'user', 'pca'), createAuthorization);

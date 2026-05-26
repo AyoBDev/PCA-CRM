@@ -367,4 +367,35 @@ async function bulkPermanentlyDeleteClients(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listClients, getClient, createClient, updateClient, patchClient, deleteClient, bulkDelete, bulkImport, restoreClient, permanentlyDeleteClient, bulkPermanentlyDeleteClients };
+async function mergeClients(req, res, next) {
+    try {
+        const keepId = Number(req.params.id);
+        const { mergeId } = req.body;
+        if (!mergeId || keepId === Number(mergeId)) return res.status(400).json({ error: 'Invalid merge target' });
+
+        const keep = await prisma.client.findUnique({ where: { id: keepId } });
+        const merge = await prisma.client.findUnique({ where: { id: Number(mergeId) } });
+        if (!keep || !merge) return res.status(404).json({ error: 'Client not found' });
+
+        await prisma.$transaction([
+            prisma.timesheet.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } }),
+            prisma.authorization.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } }),
+            prisma.permanentLink.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } }),
+            prisma.shift.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } }),
+            prisma.clientNote.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } }),
+            prisma.clientCareTeam.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } }),
+            prisma.clientDocument.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } }),
+            prisma.hospitalVisit.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } }),
+            prisma.incident.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } }),
+            prisma.clientActivity.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } }),
+            prisma.client.delete({ where: { id: Number(mergeId) } }),
+        ]);
+
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Client', entityId: keepId, entityName: keep.clientName, metadata: { mergedFrom: merge.clientName, mergedId: Number(mergeId) } });
+
+        const updated = await prisma.client.findUnique({ where: { id: keepId }, include: { authorizations: { orderBy: { createdAt: 'asc' } } } });
+        res.json(enrichClient(updated));
+    } catch (err) { next(err); }
+}
+
+module.exports = { listClients, getClient, createClient, updateClient, patchClient, deleteClient, bulkDelete, bulkImport, restoreClient, permanentlyDeleteClient, bulkPermanentlyDeleteClients, mergeClients };
