@@ -16,11 +16,11 @@ const TABS = [
 ];
 
 const CERT_FIELDS = [
-    { key: 'tbDueDate', label: 'TB Test', icon: 'shieldCheck' },
-    { key: 'cprDueDate', label: 'CPR', icon: 'shieldCheck' },
-    { key: 'trainingDueDate', label: '8hr Training', icon: 'shieldCheck' },
-    { key: 'backgroundCheckDueDate', label: 'Background Check', icon: 'shieldCheck' },
-    { key: 'idExpDate', label: 'ID Expiration', icon: 'shieldCheck' },
+    { key: 'tbDueDate', label: 'TB Test' },
+    { key: 'cprDueDate', label: 'CPR' },
+    { key: 'trainingDueDate', label: '8hr Training' },
+    { key: 'backgroundCheckDueDate', label: 'Background Check' },
+    { key: 'idExpDate', label: 'ID Expiration' },
 ];
 
 function formatDate(d) {
@@ -40,6 +40,15 @@ function getCertStatus(dateStr) {
     if (days < 0) return { status: 'expired', label: `Expired ${Math.abs(days)}d ago`, days };
     if (days <= 30) return { status: 'expiring', label: `Expires in ${days}d`, days };
     return { status: 'valid', label: `Valid (${days}d)`, days };
+}
+
+function hhmm12(time) {
+    if (!time) return '—';
+    const [h, m] = time.split(':');
+    const hr = parseInt(h, 10);
+    const ampm = hr >= 12 ? 'PM' : 'AM';
+    const hr12 = hr % 12 || 12;
+    return `${hr12}:${m} ${ampm}`;
 }
 
 function EditEmployeeModal({ employee, users, onSave, onClose }) {
@@ -276,6 +285,12 @@ export default function EmployeeDetailPage() {
         return worst;
     })();
 
+    const certCounts = { valid: 0, expiring: 0, expired: 0, unknown: 0 };
+    CERT_FIELDS.forEach(({ key }) => {
+        const { status } = getCertStatus(employee[key]);
+        certCounts[status]++;
+    });
+
     return (
         <>
             {/* Page Header */}
@@ -308,8 +323,8 @@ export default function EmployeeDetailPage() {
                         <div className="cp-bio__info">
                             <div className="cp-bio__name-row">
                                 <h2 className="cp-bio__name">{employee.name}</h2>
-                                {employee.critical && <span className="ts-badge ts-badge--critical">Critical</span>}
-                                <span className={`ts-badge ts-badge--${employee.active ? 'submitted' : 'draft'}`}>
+                                {employee.critical && <span className="ts-badge ts-badge--danger">Critical</span>}
+                                <span className={`ts-badge ts-badge--${employee.active ? 'success' : 'draft'}`}>
                                     {employee.active ? 'Active' : 'Inactive'}
                                 </span>
                             </div>
@@ -318,10 +333,10 @@ export default function EmployeeDetailPage() {
                                     <span className="cp-chip cp-chip--program">{employee.clientAssignment}</span>
                                 )}
                                 <span className={`cp-chip ${overallStatus === 'valid' ? 'cp-chip--program' : overallStatus === 'expiring' ? 'cp-chip--risk' : 'cp-chip--complaint'}`}>
-                                    {overallStatus === 'valid' ? 'Certs OK' : overallStatus === 'expiring' ? 'Certs Expiring' : 'Certs Expired'}
+                                    {overallStatus === 'valid' ? 'All Certs Valid' : overallStatus === 'expiring' ? 'Certs Expiring Soon' : 'Certs Expired'}
                                 </span>
                                 {employee.user && (
-                                    <span className="cp-chip cp-chip--program">Linked: {employee.user.name}</span>
+                                    <span className="cp-chip cp-chip--program">{Icons.users} {employee.user.name}</span>
                                 )}
                             </div>
                         </div>
@@ -383,6 +398,12 @@ export default function EmployeeDetailPage() {
                             onClick={() => setActiveTab(tab.key)}
                         >
                             {tab.label}
+                            {tab.key === 'certifications' && certCounts.expired > 0 && (
+                                <span className="cp-tab__badge cp-tab__badge--danger">{certCounts.expired}</span>
+                            )}
+                            {tab.key === 'certifications' && certCounts.expired === 0 && certCounts.expiring > 0 && (
+                                <span className="cp-tab__badge">{certCounts.expiring}</span>
+                            )}
                         </button>
                     ))}
                 </div>
@@ -425,74 +446,82 @@ export default function EmployeeDetailPage() {
 
 function ProfileTab({ employee }) {
     return (
-        <div className="cp-profile-grid">
-            <div className="cp-section">
-                <div className="cp-section__header">
-                    <h3 className="cp-section__title">Contact Information</h3>
-                </div>
-                <div className="cp-section__body">
-                    <div className="cp-detail-grid">
-                        <div className="cp-detail">
-                            <span className="cp-detail__label">Full Name</span>
-                            <span className="cp-detail__value">{employee.name}</span>
-                        </div>
-                        <div className="cp-detail">
-                            <span className="cp-detail__label">Phone</span>
-                            <span className="cp-detail__value">{employee.phone || '—'}</span>
-                        </div>
-                        <div className="cp-detail">
-                            <span className="cp-detail__label">Email</span>
-                            <span className="cp-detail__value">{employee.email || '—'}</span>
-                        </div>
-                        <div className="cp-detail">
-                            <span className="cp-detail__label">Address</span>
-                            <span className="cp-detail__value">{employee.address || '—'}</span>
+        <div className="cp-tab-panel">
+            <div className="cp-summary-grid">
+                <div className="cp-card cp-card--elevated">
+                    <div className="cp-card__header">
+                        <h3 className="cp-card__title">
+                            <span className="cp-card__dot cp-card__dot--green" />
+                            Contact Information
+                        </h3>
+                    </div>
+                    <div className="cp-card__body">
+                        <div className="cp-info-list">
+                            <div className="cp-info-row">
+                                <span className="cp-info-row__label">Full Name</span>
+                                <span className="cp-info-row__value">{employee.name}</span>
+                            </div>
+                            <div className="cp-info-row">
+                                <span className="cp-info-row__label">Phone</span>
+                                <span className="cp-info-row__value">{employee.phone || '—'}</span>
+                            </div>
+                            <div className="cp-info-row">
+                                <span className="cp-info-row__label">Email</span>
+                                <span className="cp-info-row__value">{employee.email || '—'}</span>
+                            </div>
+                            <div className="cp-info-row">
+                                <span className="cp-info-row__label">Address</span>
+                                <span className="cp-info-row__value">{employee.address || '—'}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div className="cp-section">
-                <div className="cp-section__header">
-                    <h3 className="cp-section__title">Employment Details</h3>
-                </div>
-                <div className="cp-section__body">
-                    <div className="cp-detail-grid">
-                        <div className="cp-detail">
-                            <span className="cp-detail__label">NPI</span>
-                            <span className="cp-detail__value">{employee.npi || '—'}</span>
-                        </div>
-                        <div className="cp-detail">
-                            <span className="cp-detail__label">Client Assignment</span>
-                            <span className="cp-detail__value">{employee.clientAssignment || '—'}</span>
-                        </div>
-                        <div className="cp-detail">
-                            <span className="cp-detail__label">Date of Birth</span>
-                            <span className="cp-detail__value">{employee.dob ? `${formatDate(employee.dob)} (${computeAge(employee.dob)} yrs)` : '—'}</span>
-                        </div>
-                        <div className="cp-detail">
-                            <span className="cp-detail__label">First Assignment</span>
-                            <span className="cp-detail__value">{formatDate(employee.firstAssignmentDate)}</span>
-                        </div>
-                        <div className="cp-detail">
-                            <span className="cp-detail__label">Status</span>
-                            <span className="cp-detail__value">{employee.status || '—'}</span>
-                        </div>
-                        <div className="cp-detail">
-                            <span className="cp-detail__label">Linked User</span>
-                            <span className="cp-detail__value">{employee.user ? `${employee.user.name} (${employee.user.email})` : '—'}</span>
+                <div className="cp-card cp-card--elevated">
+                    <div className="cp-card__header">
+                        <h3 className="cp-card__title">
+                            <span className="cp-card__dot cp-card__dot--green" />
+                            Employment Details
+                        </h3>
+                    </div>
+                    <div className="cp-card__body">
+                        <div className="cp-info-list">
+                            <div className="cp-info-row">
+                                <span className="cp-info-row__label">NPI</span>
+                                <span className="cp-info-row__value" style={{ fontFamily: 'var(--font-mono, monospace)' }}>{employee.npi || '—'}</span>
+                            </div>
+                            <div className="cp-info-row">
+                                <span className="cp-info-row__label">Client Assignment</span>
+                                <span className="cp-info-row__value">{employee.clientAssignment || '—'}</span>
+                            </div>
+                            <div className="cp-info-row">
+                                <span className="cp-info-row__label">Date of Birth</span>
+                                <span className="cp-info-row__value">{employee.dob ? `${formatDate(employee.dob)} (${computeAge(employee.dob)} yrs)` : '—'}</span>
+                            </div>
+                            <div className="cp-info-row">
+                                <span className="cp-info-row__label">First Assignment</span>
+                                <span className="cp-info-row__value">{formatDate(employee.firstAssignmentDate)}</span>
+                            </div>
+                            <div className="cp-info-row">
+                                <span className="cp-info-row__label">Status</span>
+                                <span className="cp-info-row__value">{employee.status || '—'}</span>
+                            </div>
+                            <div className="cp-info-row">
+                                <span className="cp-info-row__label">Linked User</span>
+                                <span className="cp-info-row__value">{employee.user ? `${employee.user.name} (${employee.user.email})` : '—'}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
             {employee.notes && (
-                <div className="cp-section">
-                    <div className="cp-section__header">
-                        <h3 className="cp-section__title">Notes</h3>
+                <div className="cp-card cp-card--elevated" style={{ marginTop: 12 }}>
+                    <div className="cp-card__header">
+                        <h3 className="cp-card__title">Notes</h3>
                     </div>
-                    <div className="cp-section__body">
-                        <p style={{ whiteSpace: 'pre-wrap', color: 'hsl(var(--foreground))' }}>{employee.notes}</p>
+                    <div className="cp-card__body">
+                        <p style={{ whiteSpace: 'pre-wrap', margin: 0, color: 'hsl(var(--foreground))', fontSize: 13, lineHeight: 1.6 }}>{employee.notes}</p>
                     </div>
                 </div>
             )}
@@ -502,43 +531,48 @@ function ProfileTab({ employee }) {
 
 function CertificationsTab({ employee, onEdit }) {
     return (
-        <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <h3 className="cp-section__title" style={{ margin: 0 }}>Certification Status</h3>
-                <button className="btn btn--outline btn--sm" onClick={onEdit}>
-                    {Icons.edit} Edit Dates
-                </button>
-            </div>
-            <div className="table-scroll">
-                <table className="data-table data-table--sheet">
-                    <thead>
-                        <tr>
-                            <th>Certification</th>
-                            <th>Due Date</th>
-                            <th>Status</th>
-                            <th>Details</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {CERT_FIELDS.map(({ key, label }) => {
-                            const { status, label: statusLabel } = getCertStatus(employee[key]);
-                            return (
-                                <tr key={key}>
-                                    <td style={{ fontWeight: 500 }}>{label}</td>
-                                    <td>{formatDate(employee[key])}</td>
-                                    <td>
-                                        <span className={`ts-badge ts-badge--${status === 'valid' ? 'success' : status === 'expiring' ? 'warning' : status === 'expired' ? 'danger' : 'draft'}`}>
-                                            {statusLabel}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        {key === 'tbDueDate' && employee.tbType ? employee.tbType : '—'}
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+        <div className="cp-tab-panel">
+            <div className="cp-card cp-card--elevated">
+                <div className="cp-card__header">
+                    <h3 className="cp-card__title">
+                        <span className="cp-card__dot cp-card__dot--green" />
+                        Certification Status
+                    </h3>
+                    <button className="btn btn--outline btn--sm" onClick={onEdit}>
+                        {Icons.edit} Edit Dates
+                    </button>
+                </div>
+                <div className="cp-card__body" style={{ padding: 0 }}>
+                    <table className="data-table data-table--sheet" style={{ borderRadius: 0 }}>
+                        <thead>
+                            <tr>
+                                <th>Certification</th>
+                                <th>Due Date</th>
+                                <th>Status</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {CERT_FIELDS.map(({ key, label }) => {
+                                const { status, label: statusLabel } = getCertStatus(employee[key]);
+                                return (
+                                    <tr key={key}>
+                                        <td style={{ fontWeight: 500 }}>{label}</td>
+                                        <td>{formatDate(employee[key])}</td>
+                                        <td>
+                                            <span className={`ts-badge ts-badge--${status === 'valid' ? 'success' : status === 'expiring' ? 'warning' : status === 'expired' ? 'danger' : 'draft'}`}>
+                                                {statusLabel}
+                                            </span>
+                                        </td>
+                                        <td style={{ color: 'hsl(var(--muted-foreground))' }}>
+                                            {key === 'tbDueDate' && employee.tbType ? employee.tbType : '—'}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );
@@ -547,68 +581,87 @@ function CertificationsTab({ employee, onEdit }) {
 function ScheduleTab({ shifts, loading, navigate }) {
     if (loading) {
         return (
-            <div style={{ padding: 24, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>
-                Loading schedule...
+            <div className="cp-tab-panel">
+                <div style={{ padding: 24, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>
+                    Loading schedule...
+                </div>
             </div>
         );
     }
 
     if (!shifts || shifts.length === 0) {
         return (
-            <div className="empty-state">
-                <div className="empty-state__icon">{Icons.calendar}</div>
-                <div className="empty-state__title">No shifts scheduled</div>
-                <div className="empty-state__desc">This employee has no upcoming shifts.</div>
-                <button className="btn btn--primary btn--sm" onClick={() => navigate('/scheduling')}>
-                    Go to Scheduling
-                </button>
+            <div className="cp-tab-panel">
+                <div className="cp-card cp-card--elevated">
+                    <div className="cp-card__body">
+                        <div className="cp-empty-state-card">
+                            <div className="cp-empty-state-card__icon">{Icons.calendar}</div>
+                            <p style={{ margin: '8px 0', color: 'hsl(var(--muted-foreground))' }}>No shifts scheduled for this employee.</p>
+                            <button className="btn btn--primary btn--sm" onClick={() => navigate('/scheduling')}>
+                                Go to Scheduling
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         );
     }
 
     const sortedShifts = [...shifts].sort((a, b) => new Date(a.date) - new Date(b.date));
-    const upcoming = sortedShifts.filter(s => new Date(s.date) >= new Date(new Date().toDateString()));
-    const past = sortedShifts.filter(s => new Date(s.date) < new Date(new Date().toDateString()));
+    const today = new Date(new Date().toDateString());
+    const upcoming = sortedShifts.filter(s => new Date(s.date) >= today);
+    const past = sortedShifts.filter(s => new Date(s.date) < today);
 
     return (
-        <div>
-            <h3 className="cp-section__title" style={{ marginBottom: 12 }}>
-                Upcoming Shifts ({upcoming.length})
-            </h3>
-            {upcoming.length > 0 ? (
-                <div className="table-scroll" style={{ marginBottom: 24 }}>
-                    <table className="data-table data-table--sheet">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Client</th>
-                                <th>Service</th>
-                                <th>Time</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {upcoming.slice(0, 20).map(shift => (
-                                <tr key={shift.id}>
-                                    <td>{formatDate(shift.date)}</td>
-                                    <td>{shift.client?.clientName || '—'}</td>
-                                    <td>{shift.serviceCode || '—'}</td>
-                                    <td>{shift.startTime || '—'} – {shift.endTime || '—'}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+        <div className="cp-tab-panel">
+            <div className="cp-card cp-card--elevated">
+                <div className="cp-card__header">
+                    <h3 className="cp-card__title">
+                        <span className="cp-card__dot cp-card__dot--green" />
+                        Upcoming Shifts
+                        <span className="cp-card__count">{upcoming.length}</span>
+                    </h3>
                 </div>
-            ) : (
-                <p style={{ color: 'hsl(var(--muted-foreground))', marginBottom: 24 }}>No upcoming shifts.</p>
-            )}
+                <div className="cp-card__body" style={{ padding: 0 }}>
+                    {upcoming.length > 0 ? (
+                        <table className="data-table data-table--sheet" style={{ borderRadius: 0 }}>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Client</th>
+                                    <th>Service</th>
+                                    <th>Time</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {upcoming.slice(0, 20).map(shift => (
+                                    <tr key={shift.id}>
+                                        <td style={{ fontWeight: 500 }}>{formatDate(shift.date)}</td>
+                                        <td>{shift.client?.clientName || '—'}</td>
+                                        <td><span className="ts-badge ts-badge--draft">{shift.serviceCode || '—'}</span></td>
+                                        <td>{hhmm12(shift.startTime)} – {hhmm12(shift.endTime)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    ) : (
+                        <div style={{ padding: 16, textAlign: 'center', color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>
+                            No upcoming shifts.
+                        </div>
+                    )}
+                </div>
+            </div>
 
             {past.length > 0 && (
-                <>
-                    <h3 className="cp-section__title" style={{ marginBottom: 12 }}>
-                        Past Shifts ({past.length})
-                    </h3>
-                    <div className="table-scroll">
-                        <table className="data-table data-table--sheet">
+                <div className="cp-card cp-card--elevated" style={{ marginTop: 12 }}>
+                    <div className="cp-card__header">
+                        <h3 className="cp-card__title">
+                            Past Shifts
+                            <span className="cp-card__count">{past.length}</span>
+                        </h3>
+                    </div>
+                    <div className="cp-card__body" style={{ padding: 0 }}>
+                        <table className="data-table data-table--sheet" style={{ borderRadius: 0 }}>
                             <thead>
                                 <tr>
                                     <th>Date</th>
@@ -622,14 +675,14 @@ function ScheduleTab({ shifts, loading, navigate }) {
                                     <tr key={shift.id}>
                                         <td>{formatDate(shift.date)}</td>
                                         <td>{shift.client?.clientName || '—'}</td>
-                                        <td>{shift.serviceCode || '—'}</td>
-                                        <td>{shift.startTime || '—'} – {shift.endTime || '—'}</td>
+                                        <td><span className="ts-badge ts-badge--draft">{shift.serviceCode || '—'}</span></td>
+                                        <td>{hhmm12(shift.startTime)} – {hhmm12(shift.endTime)}</td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     </div>
-                </>
+                </div>
             )}
         </div>
     );
@@ -637,9 +690,16 @@ function ScheduleTab({ shifts, loading, navigate }) {
 
 function ActivityTab({ employeeId }) {
     return (
-        <div style={{ padding: 24, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>
-            <EntityActivityButton entityType="Employee" entityId={employeeId} />
-            <p style={{ marginTop: 12 }}>Click the button above to view the full activity log for this employee.</p>
+        <div className="cp-tab-panel">
+            <div className="cp-card cp-card--elevated">
+                <div className="cp-card__body">
+                    <div className="cp-empty-state-card">
+                        <div className="cp-empty-state-card__icon">{Icons.clock}</div>
+                        <p style={{ margin: '8px 0', color: 'hsl(var(--muted-foreground))' }}>View all changes and actions taken on this employee record.</p>
+                        <EntityActivityButton entityType="Employee" entityId={employeeId} />
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
