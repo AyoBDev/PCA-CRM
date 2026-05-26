@@ -225,6 +225,20 @@ export default function EmployeesPage() {
         (e.npi || '').includes(search)
     );
 
+    // KPI stats
+    const now = new Date();
+    const criticalCount = employees.filter(e => e.critical).length;
+    const certFields = ['idExpDate', 'tbDueDate', 'cprDueDate', 'trainingDueDate', 'backgroundCheckDueDate'];
+    let expiredCerts = 0, expiringCerts = 0;
+    employees.forEach(emp => {
+        certFields.forEach(f => {
+            if (!emp[f]) return;
+            const days = Math.ceil((new Date(emp[f]) - now) / 86400000);
+            if (days < 0) expiredCerts++;
+            else if (days <= 30) expiringCerts++;
+        });
+    });
+
     return (
         <>
             <div className="page-hero">
@@ -275,6 +289,43 @@ export default function EmployeesPage() {
                     )}
                 </div>
             </div>
+
+            {!showArchived && !loading && (
+                <div className="stats-grid">
+                    <div className="card">
+                        <div className="card__header">
+                            <span className="card__title">Total Employees</span>
+                            <span className="card__icon">{Icons.users}</span>
+                        </div>
+                        <div className="card__value">{employees.length}</div>
+                        <div className="card__description">{filtered.length} shown with current filters</div>
+                    </div>
+                    <div className="card">
+                        <div className="card__header">
+                            <span className="card__title">Critical</span>
+                            <span className="card__icon text-destructive">{Icons.alertTriangle}</span>
+                        </div>
+                        <div className="card__value text-destructive">{criticalCount}</div>
+                        <div className="card__description">Employees on critical list</div>
+                    </div>
+                    <div className="card">
+                        <div className="card__header">
+                            <span className="card__title">Expiring Soon</span>
+                            <span className="card__icon text-warning">{Icons.alertTriangle}</span>
+                        </div>
+                        <div className="card__value text-warning">{expiringCerts}</div>
+                        <div className="card__description">Certifications due within 30 days</div>
+                    </div>
+                    <div className="card">
+                        <div className="card__header">
+                            <span className="card__title">Expired</span>
+                            <span className="card__icon text-destructive">{Icons.alertTriangle}</span>
+                        </div>
+                        <div className="card__value text-destructive">{expiredCerts}</div>
+                        <div className="card__description">Certifications past due date</div>
+                    </div>
+                </div>
+            )}
 
             <div className="page-content">
                 {showArchived && (
