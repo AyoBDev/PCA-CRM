@@ -784,7 +784,10 @@ function PayrollPage() {
 
     // On mount (or when initialRunId changes from URL), load that run
     useEffect(() => {
-        if (!initialRunId) return;
+        if (!initialRunId) {
+            setSelectedRun(null);
+            return;
+        }
         api.getPayrollRun(initialRunId)
             .then(setSelectedRun)
             .catch(() => onNavigate('payroll')); // run not found — fall back to list
