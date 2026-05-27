@@ -4,7 +4,6 @@ import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
-import Breadcrumbs from '../components/common/Breadcrumbs';
 import { fmtDate } from '../utils/dates';
 import { hhmm12 } from '../utils/time';
 import { visitRowClass } from '../utils/status';
@@ -888,53 +887,50 @@ function PayrollPage() {
     if (selectedRun) {
         return (
             <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-                    <button className="btn btn--ghost btn--icon" onClick={() => navigate('/payroll')} title="Back to Payroll">
-                        {Icons.chevronLeft}
-                    </button>
-                    <Breadcrumbs items={[{ label: 'Payroll', path: '/payroll' }, { label: selectedRun.name }]} />
-                </div>
-                <div className="page-hero">
-                    <div className="page-hero__left">
-                        {editingRunName ? (
-                            <form onSubmit={async (e) => {
-                                e.preventDefault();
-                                if (!runNameValue.trim()) return;
-                                try {
-                                    const updated = await api.updatePayrollRun(selectedRun.id, { name: runNameValue.trim() });
-                                    setSelectedRun(prev => ({ ...prev, name: updated.name }));
-                                    setRuns(prev => prev.map(r => r.id === selectedRun.id ? { ...r, name: updated.name } : r));
-                                    showToast('Run renamed');
-                                } catch (err) { showToast(err.message, 'error'); }
-                                setEditingRunName(false);
-                            }} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <input
-                                    type="text"
-                                    value={runNameValue}
-                                    onChange={(e) => setRunNameValue(e.target.value)}
-                                    style={{ fontSize: 18, fontWeight: 600, padding: '2px 8px', width: 300 }}
-                                    autoFocus
-                                />
-                                <button type="submit" className="btn btn--primary btn--xs">Save</button>
-                                <button type="button" className="btn btn--outline btn--xs" onClick={() => setEditingRunName(false)}>Cancel</button>
-                            </form>
-                        ) : (
-                            <div>
-                                <div className="page-hero__title" style={{ cursor: isAdmin ? 'pointer' : 'default' }} onClick={() => {
-                                    if (!isAdmin) return;
-                                    setRunNameValue(selectedRun.name);
-                                    setEditingRunName(true);
-                                }} title={isAdmin ? 'Click to rename' : undefined}>
-                                    {selectedRun.name}
-                                    {isAdmin && <span style={{ marginLeft: 6, opacity: 0.4, display: 'inline-flex', width: 14, height: 14 }}>{Icons.edit}</span>}
-                                </div>
-                                <div className="page-hero__subtitle">
-                                    {selectedRun.totalVisits} visits · {selectedRun.totalPayable} payable units
-                                </div>
-                            </div>
-                        )}
+                <div className="content-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <button className="btn btn--ghost btn--icon" onClick={() => navigate('/payroll')} title="Back">←</button>
+                        <div>
+                            {editingRunName ? (
+                                <form onSubmit={async (e) => {
+                                    e.preventDefault();
+                                    if (!runNameValue.trim()) return;
+                                    try {
+                                        const updated = await api.updatePayrollRun(selectedRun.id, { name: runNameValue.trim() });
+                                        setSelectedRun(prev => ({ ...prev, name: updated.name }));
+                                        setRuns(prev => prev.map(r => r.id === selectedRun.id ? { ...r, name: updated.name } : r));
+                                        showToast('Run renamed');
+                                    } catch (err) { showToast(err.message, 'error'); }
+                                    setEditingRunName(false);
+                                }} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <input
+                                        type="text"
+                                        value={runNameValue}
+                                        onChange={(e) => setRunNameValue(e.target.value)}
+                                        style={{ fontSize: 18, fontWeight: 600, padding: '2px 8px', width: 300 }}
+                                        autoFocus
+                                    />
+                                    <button type="submit" className="btn btn--primary btn--xs">Save</button>
+                                    <button type="button" className="btn btn--outline btn--xs" onClick={() => setEditingRunName(false)}>Cancel</button>
+                                </form>
+                            ) : (
+                                <>
+                                    <h1 className="content-header__title" style={{ margin: 0, cursor: isAdmin ? 'pointer' : 'default' }} onClick={() => {
+                                        if (!isAdmin) return;
+                                        setRunNameValue(selectedRun.name);
+                                        setEditingRunName(true);
+                                    }} title={isAdmin ? 'Click to rename' : undefined}>
+                                        {selectedRun.name}
+                                        {isAdmin && <span style={{ marginLeft: 6, opacity: 0.4, display: 'inline-flex', width: 14, height: 14 }}>{Icons.edit}</span>}
+                                    </h1>
+                                    <p style={{ margin: 0, fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>
+                                        {selectedRun.totalVisits} visits · {selectedRun.totalPayable} payable units
+                                    </p>
+                                </>
+                            )}
+                        </div>
                     </div>
-                    <div className="page-hero__right">
+                    <div className="content-header__actions">
                         {isAdmin && <ActivityButton entityType="PayrollRun" />}
                         <button className="btn btn--primary" onClick={handleExport} disabled={exporting}>
                             {Icons.download} {exporting ? 'Exporting...' : 'Export XLSX'}
