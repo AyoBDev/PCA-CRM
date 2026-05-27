@@ -888,7 +888,12 @@ function PayrollPage() {
     if (selectedRun) {
         return (
             <div>
-                <Breadcrumbs items={[{ label: 'Payroll', path: '/payroll' }, { label: selectedRun.name }]} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                    <button className="btn btn--ghost btn--icon" onClick={() => navigate('/payroll')} title="Back to Payroll">
+                        {Icons.chevronLeft}
+                    </button>
+                    <Breadcrumbs items={[{ label: 'Payroll', path: '/payroll' }, { label: selectedRun.name }]} />
+                </div>
                 <div className="page-hero">
                     <div className="page-hero__left">
                         {editingRunName ? (
