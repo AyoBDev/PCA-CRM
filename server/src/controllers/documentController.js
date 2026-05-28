@@ -50,10 +50,12 @@ async function downloadDocument(req, res, next) {
         if (!doc) return res.status(404).json({ error: 'Document not found' });
 
         if (doc.fileData) {
-            res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(doc.fileName)}"`);
-            res.setHeader('Content-Type', doc.mimeType || 'application/octet-stream');
+            const mimeType = doc.mimeType || 'application/octet-stream';
+            const disposition = mimeType === 'application/pdf' ? 'inline' : 'attachment';
+            res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(doc.fileName)}"`);
+            res.setHeader('Content-Type', mimeType);
             res.setHeader('Content-Length', doc.fileData.length);
-            return res.send(doc.fileData);
+            return res.send(Buffer.from(doc.fileData));
         }
 
         // Fallback to filesystem for old uploads
