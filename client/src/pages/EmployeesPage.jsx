@@ -432,21 +432,31 @@ export default function EmployeesPage() {
                                 <select
                                     className="table-toolbar__select"
                                     value=""
-                                    onChange={(e) => {
+                                    onChange={async (e) => {
                                         const action = e.target.value;
                                         if (!action) return;
-                                        if (selectedIds.size === 0) { showToast('Select employees first', 'error'); e.target.value = ''; return; }
-                                        if (action === 'toggle') {
-                                            const selected = employees.filter(emp => selectedIds.has(emp.id));
-                                            selected.forEach(emp => handleToggleActive(emp));
-                                            setSelectedIds(new Set());
-                                        } else if (action === 'archive') {
-                                            if (confirm(`Archive ${selectedIds.size} employee(s)?`)) {
-                                                selectedIds.forEach(id => api.deleteEmployee(id));
-                                                setTimeout(() => { fetchData(); setSelectedIds(new Set()); }, 300);
-                                            }
-                                        }
                                         e.target.value = '';
+                                        if (selectedIds.size === 0) { showToast('Select employees first', 'error'); return; }
+                                        const selected = employees.filter(emp => selectedIds.has(emp.id));
+                                        if (action === 'toggle') {
+                                            const prevStates = selected.map(emp => ({ id: emp.id, active: emp.active }));
+                                            await Promise.all(selected.map(emp => api.updateEmployee(emp.id, { active: !emp.active })));
+                                            setSelectedIds(new Set());
+                                            fetchData();
+                                            showUndoToast(`Toggled status for ${selected.length} employee(s)`, async () => {
+                                                await Promise.all(prevStates.map(s => api.updateEmployee(s.id, { active: s.active })));
+                                                fetchData();
+                                            });
+                                        } else if (action === 'archive') {
+                                            const ids = selected.map(emp => emp.id);
+                                            await Promise.all(ids.map(id => api.deleteEmployee(id)));
+                                            setSelectedIds(new Set());
+                                            fetchData();
+                                            showUndoToast(`Archived ${selected.length} employee(s)`, async () => {
+                                                await Promise.all(ids.map(id => api.restoreEmployee(id)));
+                                                fetchData();
+                                            });
+                                        }
                                     }}
                                 >
                                     <option value="">Bulk Actions</option>

@@ -26,7 +26,7 @@ function formatShortDate(d) {
 
 export default function ClientsListPage() {
     const { isAdmin } = useAuth();
-    const { showToast } = useToast();
+    const { showToast, showUndoToast } = useToast();
     const navigate = useNavigate();
     const [clients, setClients] = useState([]);
     const [search, setSearch] = useState('');
@@ -211,18 +211,46 @@ export default function ClientsListPage() {
                             <select
                                 className="table-toolbar__select"
                                 value=""
-                                onChange={(e) => {
+                                onChange={async (e) => {
                                     const action = e.target.value;
-                                    if (!action || selectedIds.size === 0) { if (action) showToast('Select clients first', 'error'); e.target.value = ''; return; }
-                                    showToast(`${action} — coming soon`);
+                                    if (!action) return;
                                     e.target.value = '';
+                                    if (selectedIds.size === 0) { showToast('Select clients first', 'error'); return; }
+                                    const selected = clients.filter(c => selectedIds.has(c.id));
+                                    if (action === 'Discharge') {
+                                        const prevStatuses = selected.map(c => ({ id: c.id, status: c.clientStatus || 'active' }));
+                                        await Promise.all(selected.map(c => api.patchClient(c.id, { clientStatus: 'discharged' })));
+                                        setSelectedIds(new Set());
+                                        fetchClients();
+                                        showUndoToast(`Discharged ${selected.length} client(s)`, async () => {
+                                            await Promise.all(prevStatuses.map(s => api.patchClient(s.id, { clientStatus: s.status })));
+                                            fetchClients();
+                                        });
+                                    } else if (action === 'Transfer') {
+                                        const prevStatuses = selected.map(c => ({ id: c.id, status: c.clientStatus || 'active' }));
+                                        await Promise.all(selected.map(c => api.patchClient(c.id, { clientStatus: 'transferred' })));
+                                        setSelectedIds(new Set());
+                                        fetchClients();
+                                        showUndoToast(`Transferred ${selected.length} client(s)`, async () => {
+                                            await Promise.all(prevStatuses.map(s => api.patchClient(s.id, { clientStatus: s.status })));
+                                            fetchClients();
+                                        });
+                                    } else if (action === 'Deactivate') {
+                                        const prevStatuses = selected.map(c => ({ id: c.id, status: c.clientStatus || 'active' }));
+                                        await Promise.all(selected.map(c => api.patchClient(c.id, { clientStatus: 'inactive' })));
+                                        setSelectedIds(new Set());
+                                        fetchClients();
+                                        showUndoToast(`Deactivated ${selected.length} client(s)`, async () => {
+                                            await Promise.all(prevStatuses.map(s => api.patchClient(s.id, { clientStatus: s.status })));
+                                            fetchClients();
+                                        });
+                                    } else {
+                                        showToast(`${action} — coming soon`);
+                                    }
                                 }}
                             >
                                 <option value="">Bulk Actions</option>
-                                <option value="Change Status">Change Status</option>
-                                <option value="Add Services">Add Services</option>
-                                <option value="Assign Caregiver">Assign Caregiver</option>
-                                <option value="Add Note">Add Note</option>
+                                <option value="Deactivate">Deactivate</option>
                                 <option value="Transfer">Transfer</option>
                                 <option value="Discharge">Discharge</option>
                             </select>
