@@ -64,12 +64,33 @@ model Employee {
   notes                   String                 @default("") @map("notes")
   critical                Boolean                @default(false) @map("critical")
   careTeamAssignments     ClientCareTeam[]
+  certifications          EmployeeCertification[]
   scheduleLink            EmployeeScheduleLink?
   user                    User?                  @relation(fields: [userId], references: [id])
   notifications           ScheduleNotification[]
   shifts                  Shift[]
 
   @@map("employees")
+}
+
+model EmployeeCertification {
+  id           Int       @id @default(autoincrement())
+  employeeId   Int       @map("employee_id")
+  certType     String    @map("cert_type")
+  expirationDate DateTime? @map("expiration_date")
+  status       String    @default("active") @map("status")
+  fileName     String    @default("") @map("file_name")
+  fileSize     Int       @default(0) @map("file_size")
+  fileType     String    @default("") @map("file_type")
+  fileData     Bytes?    @map("file_data")
+  notes        String    @default("") @map("notes")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, certType])
+  @@map("employee_certifications")
 }
 
 model EmployeeScheduleLink {
