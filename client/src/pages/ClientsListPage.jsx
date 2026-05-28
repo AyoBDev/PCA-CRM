@@ -31,6 +31,7 @@ export default function ClientsListPage() {
     const [clients, setClients] = useState([]);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('active');
+    const [serviceFilter, setServiceFilter] = useState('all');
     const [loading, setLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [form, setForm] = useState({
@@ -94,7 +95,7 @@ export default function ClientsListPage() {
         return () => document.removeEventListener('click', close);
     }, [menuOpenId]);
 
-    useEffect(() => { setSelectedIds(new Set()); }, [statusFilter, search]);
+    useEffect(() => { setSelectedIds(new Set()); }, [statusFilter, serviceFilter, search]);
 
     const handleCreate = async (e) => {
         e.preventDefault();
@@ -127,8 +128,11 @@ export default function ClientsListPage() {
 
     const getEffectiveStatus = (c) => c.clientStatus || 'active';
 
+    const allServiceCodes = [...new Set(clients.flatMap(c => getServiceCodes(c)))].sort();
+
     const filtered = clients.filter(c => {
         if (statusFilter !== 'all' && getEffectiveStatus(c) !== statusFilter) return false;
+        if (serviceFilter !== 'all' && !getServiceCodes(c).includes(serviceFilter)) return false;
         if (!search) return true;
         const s = search.toLowerCase();
         return c.clientName.toLowerCase().includes(s) || (c.medicaidId || '').toLowerCase().includes(s);
@@ -204,28 +208,39 @@ export default function ClientsListPage() {
                                 onChange={toggleSelectAll}
                             />
                             <span className="table-toolbar__selected">{selectedIds.size} selected</span>
-                            <div className="table-toolbar__dropdown">
-                                <select
-                                    className="table-toolbar__select"
-                                    value=""
-                                    onChange={(e) => {
-                                        const action = e.target.value;
-                                        if (!action || selectedIds.size === 0) { if (action) showToast('Select clients first', 'error'); e.target.value = ''; return; }
-                                        showToast(`${action} — coming soon`);
-                                        e.target.value = '';
-                                    }}
-                                >
-                                    <option value="">Bulk Actions</option>
-                                    <option value="Change Status">Change Status</option>
-                                    <option value="Add Services">Add Services</option>
-                                    <option value="Assign Caregiver">Assign Caregiver</option>
-                                    <option value="Add Note">Add Note</option>
-                                    <option value="Transfer">Transfer</option>
-                                    <option value="Discharge">Discharge</option>
-                                </select>
-                            </div>
+                            <select
+                                className="table-toolbar__select"
+                                value=""
+                                onChange={(e) => {
+                                    const action = e.target.value;
+                                    if (!action || selectedIds.size === 0) { if (action) showToast('Select clients first', 'error'); e.target.value = ''; return; }
+                                    showToast(`${action} — coming soon`);
+                                    e.target.value = '';
+                                }}
+                            >
+                                <option value="">Bulk Actions</option>
+                                <option value="Change Status">Change Status</option>
+                                <option value="Add Services">Add Services</option>
+                                <option value="Assign Caregiver">Assign Caregiver</option>
+                                <option value="Add Note">Add Note</option>
+                                <option value="Transfer">Transfer</option>
+                                <option value="Discharge">Discharge</option>
+                            </select>
                         </div>
                         <div className="table-toolbar__right">
+                            <button className="table-toolbar__filter-btn">
+                                {Icons.filter} Filters
+                            </button>
+                            <select
+                                className="table-toolbar__filter"
+                                value={serviceFilter}
+                                onChange={(e) => setServiceFilter(e.target.value)}
+                            >
+                                <option value="all">All Services</option>
+                                {allServiceCodes.map(code => (
+                                    <option key={code} value={code}>{code}</option>
+                                ))}
+                            </select>
                             <select
                                 className="table-toolbar__filter"
                                 value={statusFilter}
@@ -237,8 +252,8 @@ export default function ClientsListPage() {
                                 <option value="discharged">Discharged</option>
                                 <option value="transferred">Transferred</option>
                             </select>
-                            {statusFilter !== 'active' && (
-                                <button className="table-toolbar__reset" onClick={() => setStatusFilter('active')}>
+                            {(statusFilter !== 'active' || serviceFilter !== 'all') && (
+                                <button className="table-toolbar__reset" onClick={() => { setStatusFilter('active'); setServiceFilter('all'); }}>
                                     {Icons.rotateCcw} Reset
                                 </button>
                             )}
@@ -257,13 +272,13 @@ export default function ClientsListPage() {
                         </div>
                     ) : (
                         <div className="table-scroll">
-                            <table className="data-table data-table--sheet">
+                            <table className="data-table data-table--sheet data-table--dark-header">
                             <thead>
                                 <tr>
                                     <th scope="col" style={{ width: 40 }}>
                                         <input
                                             type="checkbox"
-                                            className="bulk-checkbox"
+                                            className="bulk-checkbox bulk-checkbox--light"
                                             checked={allSelected}
                                             onChange={toggleSelectAll}
                                         />
