@@ -569,14 +569,22 @@ function CertificationsTab({ employee, onEdit }) {
         const legacyDate = typeDef?.legacyKey ? employee[typeDef.legacyKey] : null;
         const expDate = activeRecord?.expirationDate || legacyDate;
 
-        if (!expDate) return { status: 'unknown', label: 'Not set', days: null, expDate: null, record: activeRecord };
+        if (!expDate) return { status: 'unknown', days: null, expDate: null, record: activeRecord };
         const now = new Date();
         const d = new Date(expDate);
         const days = Math.ceil((d - now) / 86400000);
-        if (days < 0) return { status: 'expired', label: `Expired ${Math.abs(days)}d ago`, days, expDate, record: activeRecord };
-        if (days <= 30) return { status: 'critical', label: `Expires in ${days}d`, days, expDate, record: activeRecord };
-        return { status: 'ok', label: `Valid (${days}d)`, days, expDate, record: activeRecord };
+        if (days < 0) return { status: 'expired', days, expDate, record: activeRecord };
+        if (days <= 30) return { status: 'critical', days, expDate, record: activeRecord };
+        return { status: 'ok', days, expDate, record: activeRecord };
     };
+
+    const counts = { all: CERT_TYPES.length, ok: 0, critical: 0, expired: 0 };
+    CERT_TYPES.forEach(ct => {
+        const { status } = getCertStatusForType(ct.type);
+        if (status === 'ok') counts.ok++;
+        else if (status === 'critical') counts.critical++;
+        else if (status === 'expired') counts.expired++;
+    });
 
     const filteredTypes = CERT_TYPES.filter(ct => {
         if (certFilter === 'All') return true;
@@ -632,113 +640,151 @@ function CertificationsTab({ employee, onEdit }) {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    const CERT_ICONS = {
+        id_expiration: Icons.user,
+        tb_test: Icons.heart,
+        cpr: Icons.heart,
+        annual_training: Icons.clock,
+        cultural_competency: Icons.users,
+        infection_control: Icons.shieldCheck,
+        background_check: Icons.shieldCheck,
+        other: Icons.fileText,
+    };
+
     return (
         <div className="cp-tab-panel">
-            <div className="cp-card cp-card--elevated">
-                <div className="cp-card__header">
-                    <h3 className="cp-card__title">{Icons.shieldCheck} Certifications</h3>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <select
-                            className="table-toolbar__filter"
-                            value={certFilter}
-                            onChange={(e) => setCertFilter(e.target.value)}
-                        >
-                            <option value="All">All</option>
-                            <option value="OK">OK</option>
-                            <option value="Critical">Critical</option>
-                            <option value="Expired">Expired</option>
-                        </select>
-                        <button className="btn btn--outline btn--sm" onClick={onEdit}>
-                            {Icons.edit} Edit Dates
-                        </button>
-                    </div>
+            <div className="cert-section">
+                <div className="cert-section__header">
+                    <h3 className="cert-section__title">Certifications</h3>
+                    <button className="btn btn--outline btn--sm" onClick={onEdit}>
+                        {Icons.edit} Edit Dates
+                    </button>
                 </div>
-                <div className="cp-card__body">
-                    {loadingCerts ? (
-                        <p style={{ padding: 16, color: 'hsl(var(--muted-foreground))' }}>Loading...</p>
-                    ) : (
-                        <div className="cert-grid">
-                            {filteredTypes.map(ct => {
-                                const { status, label: statusLabel, expDate } = getCertStatusForType(ct.type);
-                                const isExpanded = expandedType === ct.type;
-                                const history = certRecords.filter(r => r.certType === ct.type);
-                                const statusColor = status === 'ok' ? 'hsl(142 60% 40%)' : status === 'critical' ? 'hsl(38 92% 45%)' : status === 'expired' ? 'hsl(0 72% 50%)' : 'hsl(var(--muted-foreground))';
 
-                                return (
-                                    <div key={ct.type} className={`cert-card cert-card--${status}`}>
-                                        <div className="cert-card__header">
-                                            <div className="cert-card__info">
-                                                <div className="cert-card__title">{ct.label}</div>
-                                                <div className="cert-card__exp">
-                                                    {expDate ? `Exp: ${formatDate(expDate)}` : 'No date set'}
+                <div className="cert-filter-pills">
+                    <button className={`cert-pill ${certFilter === 'All' ? 'cert-pill--active' : ''}`} onClick={() => setCertFilter('All')}>
+                        All <span className="cert-pill__count">{counts.all}</span>
+                    </button>
+                    <button className={`cert-pill cert-pill--ok ${certFilter === 'OK' ? 'cert-pill--active' : ''}`} onClick={() => setCertFilter('OK')}>
+                        OK <span className="cert-pill__count">{counts.ok}</span>
+                    </button>
+                    <button className={`cert-pill cert-pill--critical ${certFilter === 'Critical' ? 'cert-pill--active' : ''}`} onClick={() => setCertFilter('Critical')}>
+                        Critical <span className="cert-pill__count">{counts.critical}</span>
+                    </button>
+                    <button className={`cert-pill cert-pill--expired ${certFilter === 'Expired' ? 'cert-pill--active' : ''}`} onClick={() => setCertFilter('Expired')}>
+                        Expired <span className="cert-pill__count">{counts.expired}</span>
+                    </button>
+                </div>
+
+                {loadingCerts ? (
+                    <p style={{ padding: 16, color: 'hsl(var(--muted-foreground))' }}>Loading...</p>
+                ) : (
+                    <div className="cert-grid">
+                        {filteredTypes.map((ct, idx) => {
+                            const { status, days, expDate, record } = getCertStatusForType(ct.type);
+                            const isExpanded = expandedType === ct.type;
+                            const allRecords = certRecords.filter(r => r.certType === ct.type);
+                            const activeRecords = allRecords.filter(r => r.status === 'active');
+                            const expiredRecords = allRecords.filter(r => r.status === 'expired');
+                            const currentAttachment = activeRecords.find(r => r.fileName);
+                            const certIcon = CERT_ICONS[ct.type] || Icons.fileText;
+                            const certNum = CERT_TYPES.indexOf(ct) + 1;
+
+                            return (
+                                <div key={ct.type} className={`cert-card cert-card--${status} ${isExpanded ? 'cert-card--expanded' : ''}`}>
+                                    <button className="cert-card__toggle" onClick={() => setExpandedType(isExpanded ? null : ct.type)}>
+                                        <div className="cert-card__icon-wrap" data-status={status}>
+                                            {certIcon}
+                                        </div>
+                                        <div className="cert-card__info">
+                                            <div className="cert-card__title">{certNum}. {ct.label}</div>
+                                            <span className={`cert-card__badge cert-card__badge--${status}`}>
+                                                {status === 'ok' ? 'OK' : status === 'critical' ? 'Critical' : status === 'expired' ? 'Expired' : '—'}
+                                            </span>
+                                        </div>
+                                        <span className="cert-card__chevron">
+                                            {isExpanded ? Icons.chevronDown : Icons.chevronRight}
+                                        </span>
+                                    </button>
+
+                                    {isExpanded && (
+                                        <div className="cert-card__body">
+                                            <div className="cert-card__fields">
+                                                <div className="cert-field">
+                                                    <div className="cert-field__label">Status</div>
+                                                    <div className="cert-field__value">
+                                                        <span className={`cert-dot cert-dot--${status}`} />
+                                                        {status === 'ok' ? 'OK' : status === 'critical' ? 'Critical' : status === 'expired' ? 'Expired' : 'Not set'}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <div className="cert-card__right">
-                                                <span className="cert-card__badge" style={{ background: statusColor }}>
-                                                    {status === 'ok' ? 'OK' : status === 'critical' ? 'Critical' : status === 'expired' ? 'Expired' : 'Unknown'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div className="cert-card__footer">
-                                            <button
-                                                className="btn btn--ghost btn--sm"
-                                                onClick={() => setExpandedType(isExpanded ? null : ct.type)}
-                                            >
-                                                {isExpanded ? 'Hide Details' : 'View Details'} {isExpanded ? Icons.chevronDown : Icons.chevronRight}
-                                            </button>
-                                            <button
-                                                className="btn btn--ghost btn--sm"
-                                                onClick={() => setShowUploadModal(ct.type)}
-                                            >
-                                                {Icons.upload} Upload
-                                            </button>
-                                        </div>
-                                        {isExpanded && (
-                                            <div className="cert-card__details">
-                                                {ct.renewalYears && (
-                                                    <div className="cert-card__renewal">
-                                                        Renewal period: every {ct.renewalYears} year{ct.renewalYears > 1 ? 's' : ''}
+                                                <div className="cert-field">
+                                                    <div className="cert-field__label">Due Date</div>
+                                                    <div className="cert-field__value">{expDate ? formatDate(expDate) : '—'}</div>
+                                                </div>
+                                                <div className="cert-field">
+                                                    <div className="cert-field__label">Expires On</div>
+                                                    <div className="cert-field__value">
+                                                        {expDate ? formatDate(expDate) : '—'}
+                                                        {days !== null && (
+                                                            <span className={`cert-days cert-days--${status}`}>
+                                                                {days >= 0 ? `${days} days left` : `${Math.abs(days)} days ago`}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {currentAttachment && (
+                                                    <div className="cert-field">
+                                                        <div className="cert-field__label">Attachment</div>
+                                                        <div className="cert-field__value">
+                                                            <button className="cert-file-link" onClick={() => handleDownload(currentAttachment)}>
+                                                                {Icons.paperclip} {currentAttachment.fileName}
+                                                            </button>
+                                                            <button className="cert-file-dl" onClick={() => handleDownload(currentAttachment)}>
+                                                                {Icons.download}
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 )}
-                                                {history.length === 0 ? (
-                                                    <p className="cert-card__empty">No records uploaded yet.</p>
-                                                ) : (
-                                                    <div className="cert-card__history">
-                                                        {history.map(rec => (
-                                                            <div key={rec.id} className="cert-history-row">
-                                                                <div className="cert-history-row__main">
-                                                                    {rec.fileName && (
-                                                                        <button className="cert-history-row__file" onClick={() => handleDownload(rec)}>
+                                            </div>
+
+                                            {expiredRecords.length > 0 && (
+                                                <div className="cert-card__history-section">
+                                                    <div className="cert-card__history-title">Previous Expired</div>
+                                                    {expiredRecords.map(rec => (
+                                                        <div key={rec.id} className="cert-history-item">
+                                                            <div className="cert-history-item__row">
+                                                                <span className="cert-history-item__status">
+                                                                    <span className="cert-dot cert-dot--expired" /> Expired
+                                                                </span>
+                                                                <span className="cert-history-item__date">{rec.expirationDate ? formatDate(rec.expirationDate) : '—'}</span>
+                                                                {rec.fileName && (
+                                                                    <span className="cert-history-item__file">
+                                                                        <button className="cert-file-link" onClick={() => handleDownload(rec)}>
                                                                             {Icons.paperclip} {rec.fileName}
                                                                         </button>
-                                                                    )}
-                                                                    <span className="cert-history-row__date">
-                                                                        {rec.expirationDate ? formatDate(rec.expirationDate) : 'No expiry'}
+                                                                        <button className="cert-file-dl" onClick={() => handleDownload(rec)}>
+                                                                            {Icons.download}
+                                                                        </button>
                                                                     </span>
-                                                                    <select
-                                                                        className="cert-history-row__status"
-                                                                        value={rec.status}
-                                                                        onChange={(e) => handleStatusChange(rec.id, e.target.value)}
-                                                                    >
-                                                                        <option value="active">Active</option>
-                                                                        <option value="expired">Expired</option>
-                                                                    </select>
-                                                                </div>
-                                                                <button className="btn btn--danger-ghost btn--icon" title="Delete" onClick={() => handleDelete(rec.id)}>
-                                                                    {Icons.trash}
-                                                                </button>
+                                                                )}
                                                             </div>
-                                                        ))}
-                                                    </div>
-                                                )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            <div className="cert-card__actions">
+                                                <button className="btn btn--outline btn--sm" onClick={() => setShowUploadModal(ct.type)}>
+                                                    {Icons.upload} Upload New
+                                                </button>
                                             </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
             {showUploadModal && (
                 <CertUploadModal
