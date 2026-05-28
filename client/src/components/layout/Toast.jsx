@@ -8,7 +8,7 @@ export default function Toast() {
 
     useEffect(() => {
         if (!toast) return;
-        const duration = toast.type === 'undo' ? 5000 : 3000;
+        const duration = toast.type === 'undo' ? 15000 : 3000;
         setProgress(100);
 
         const interval = setInterval(() => {
