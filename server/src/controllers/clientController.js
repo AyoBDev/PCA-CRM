@@ -1,4 +1,5 @@
 const prisma = require('../lib/prisma');
+const XLSX = require('xlsx');
 const { enrichClient } = require('../services/authorizationService');
 const audit = require('../services/auditService');
 
@@ -287,72 +288,185 @@ async function restoreClient(req, res, next) {
 // POST /api/clients/bulk-import
 async function bulkImport(req, res, next) {
     try {
-        const { clients: rows } = req.body;
-        if (!Array.isArray(rows) || rows.length === 0) {
-            return res.status(400).json({ error: 'clients array is required' });
+        if (!req.file) {
+            return res.status(400).json({ error: 'File upload required (.xlsx, .xls, or .csv)' });
         }
 
-        const results = [];
+        const wb = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: false, raw: true });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true });
 
-        for (const row of rows) {
-            if (!row.clientName || !row.clientName.trim()) continue;
+        // Parse parent/child rows
+        const parsed = [];
+        let current = null;
+        for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            const hasContent = row.some(cell => cell !== '' && cell !== undefined && cell !== null);
+            if (!hasContent) continue;
 
-            // Create or find client
-            let client = await prisma.client.findFirst({
-                where: { clientName: row.clientName.trim() },
-            });
+            const clientName = String(row[1] || '').trim();
+            const medicaidId = String(row[2] || '').trim();
+            const insuranceType = String(row[3] || '').trim();
+            const serviceCategory = String(row[4] || '').trim();
+            const serviceCode = String(row[5] || '').trim();
+            const serviceName = String(row[6] || '').trim();
+            const authorizedUnits = row[7];
+            const authStart = row[8];
+            const authEnd = row[9];
+            const notes = String(row[12] || '').trim();
 
-            if (!client) {
-                client = await prisma.client.create({
-                    data: {
-                        clientName: row.clientName.trim(),
-                        medicaidId: (row.medicaidId || '').trim(),
-                        insuranceType: row.insuranceType || 'MEDICAID',
-                    },
+            if (clientName) {
+                if (current) parsed.push(current);
+                current = { clientName, medicaidId, insuranceType: insuranceType || 'MEDICAID', authorizations: [] };
+                continue;
+            }
+
+            if (current && serviceCode) {
+                current.authorizations.push({
+                    serviceCategory,
+                    serviceCode,
+                    serviceName: serviceName || serviceCode,
+                    authorizedUnits: parseInt(authorizedUnits, 10) || 0,
+                    authorizationStartDate: parseExcelDate(authStart),
+                    authorizationEndDate: parseExcelDate(authEnd),
+                    notes,
                 });
             }
+        }
+        if (current) parsed.push(current);
 
-            // Create authorizations if provided
-            if (Array.isArray(row.authorizations)) {
-                for (const auth of row.authorizations) {
-                    if (!auth.serviceCode) continue;
-                    await prisma.authorization.create({
-                        data: {
-                            clientId: client.id,
-                            serviceCategory: (auth.serviceCategory || '').trim(),
-                            serviceCode: auth.serviceCode.trim(),
-                            serviceName: (auth.serviceName || '').trim(),
-                            authorizedUnits: parseInt(auth.authorizedUnits) || 0,
-                            authorizationStartDate: auth.authorizationStartDate
-                                ? new Date(auth.authorizationStartDate)
-                                : null,
-                            authorizationEndDate: auth.authorizationEndDate
-                                ? new Date(auth.authorizationEndDate)
-                                : null,
-                            notes: (auth.notes || '').trim(),
-                        },
-                    });
-                }
-            }
-
-            results.push({ clientName: client.clientName, id: client.id });
+        if (parsed.length === 0) {
+            return res.status(400).json({ error: 'No valid client rows found in the spreadsheet' });
         }
 
-        // Return all clients enriched
+        // Load existing clients by Medicaid ID
+        const existingClients = await prisma.client.findMany({ include: { authorizations: true } });
+        const clientByMedicaid = {};
+        for (const c of existingClients) {
+            if (c.medicaidId) clientByMedicaid[c.medicaidId] = c;
+        }
+
+        let clientsCreated = 0, clientsUpdated = 0, authsCreated = 0, authsUpdated = 0;
+
+        for (const c of parsed) {
+            const existing = c.medicaidId ? clientByMedicaid[c.medicaidId] : null;
+
+            if (existing) {
+                const updates = {};
+                if (c.clientName && c.clientName !== existing.clientName) updates.clientName = c.clientName;
+                if (c.insuranceType && c.insuranceType !== existing.insuranceType) updates.insuranceType = c.insuranceType;
+                if (Object.keys(updates).length > 0) {
+                    await prisma.client.update({ where: { id: existing.id }, data: updates });
+                }
+
+                for (const auth of c.authorizations) {
+                    const match = existing.authorizations.find(a =>
+                        a.serviceCode === auth.serviceCode &&
+                        sameDay(a.authorizationStartDate, auth.authorizationStartDate) &&
+                        sameDay(a.authorizationEndDate, auth.authorizationEndDate)
+                    );
+
+                    if (match) {
+                        const authUpdates = {};
+                        if (auth.authorizedUnits && auth.authorizedUnits !== match.authorizedUnits) authUpdates.authorizedUnits = auth.authorizedUnits;
+                        if (auth.serviceName && auth.serviceName !== match.serviceName) authUpdates.serviceName = auth.serviceName;
+                        if (auth.serviceCategory && auth.serviceCategory !== match.serviceCategory) authUpdates.serviceCategory = auth.serviceCategory;
+                        if (auth.notes && auth.notes !== (match.notes || '')) authUpdates.notes = auth.notes;
+                        if (Object.keys(authUpdates).length > 0) {
+                            await prisma.authorization.update({ where: { id: match.id }, data: authUpdates });
+                            authsUpdated++;
+                        }
+                    } else {
+                        await prisma.authorization.create({
+                            data: {
+                                clientId: existing.id,
+                                serviceCategory: auth.serviceCategory,
+                                serviceCode: auth.serviceCode,
+                                serviceName: auth.serviceName,
+                                authorizedUnits: auth.authorizedUnits,
+                                authorizationStartDate: auth.authorizationStartDate,
+                                authorizationEndDate: auth.authorizationEndDate || new Date('2030-12-31'),
+                                notes: auth.notes,
+                            },
+                        });
+                        authsCreated++;
+                    }
+                }
+                clientsUpdated++;
+            } else {
+                const auths = c.authorizations.map(a => ({
+                    serviceCategory: a.serviceCategory,
+                    serviceCode: a.serviceCode,
+                    serviceName: a.serviceName,
+                    authorizedUnits: a.authorizedUnits,
+                    authorizationStartDate: a.authorizationStartDate,
+                    authorizationEndDate: a.authorizationEndDate || new Date('2030-12-31'),
+                    notes: a.notes,
+                }));
+
+                const newClient = await prisma.client.create({
+                    data: {
+                        clientName: c.clientName,
+                        medicaidId: c.medicaidId,
+                        insuranceType: c.insuranceType,
+                        authorizations: { create: auths },
+                    },
+                });
+                clientByMedicaid[c.medicaidId] = { ...newClient, authorizations: auths };
+                clientsCreated++;
+                authsCreated += auths.length;
+            }
+        }
+
+        // Return refreshed client list
         const allClients = await prisma.client.findMany({
             where: { archivedAt: null },
-            include: { authorizations: { orderBy: { createdAt: 'asc' } } },
+            include: {
+                authorizations: {
+                    orderBy: { createdAt: 'asc' },
+                    include: {
+                        authorization_documents: {
+                            select: { id: true, authorization_id: true, file_name: true, file_path: true, file_size: true, mime_type: true, uploaded_by: true, notes: true, created_at: true, users: { select: { id: true, name: true } } },
+                            orderBy: { created_at: 'desc' }
+                        }
+                    }
+                },
+            },
             orderBy: { createdAt: 'desc' },
         });
 
-        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Client', entityId: 0, entityName: 'Bulk Import', metadata: { count: results.length } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Client', entityId: 0, entityName: 'Bulk Import', metadata: { clientsCreated, clientsUpdated, authsCreated, authsUpdated } });
+
         res.status(201).json({
-            imported: results.length,
+            clientsCreated,
+            clientsUpdated,
+            authsCreated,
+            authsUpdated,
             clients: allClients.map(enrichClient),
         });
     } catch (err) {
         next(err);
     }
+}
+
+function parseExcelDate(val) {
+    if (!val && val !== 0) return null;
+    if (val instanceof Date) return val;
+    if (typeof val === 'number') {
+        const d = XLSX.SSF.parse_date_code(val);
+        if (d) return new Date(d.y, d.m - 1, d.d);
+        return null;
+    }
+    const str = String(val).trim();
+    if (!str) return null;
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? null : d;
+}
+
+function sameDay(a, b) {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    return new Date(a).toISOString().slice(0, 10) === new Date(b).toISOString().slice(0, 10);
 }
 
 async function permanentlyDeleteClient(req, res, next) {
