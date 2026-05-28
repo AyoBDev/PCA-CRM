@@ -9,7 +9,15 @@ async function listClients(req, res, next) {
         const clients = await prisma.client.findMany({
             where,
             include: {
-                authorizations: { orderBy: { createdAt: 'asc' } },
+                authorizations: {
+                    orderBy: { createdAt: 'asc' },
+                    include: {
+                        authorization_documents: {
+                            select: { id: true, authorization_id: true, file_name: true, file_path: true, file_size: true, mime_type: true, uploaded_by: true, notes: true, created_at: true, users: { select: { id: true, name: true } } },
+                            orderBy: { created_at: 'desc' }
+                        }
+                    }
+                },
                 timesheets: { orderBy: { weekStart: 'desc' }, take: 1, select: { weekStart: true } },
             },
             orderBy: { createdAt: 'asc' },

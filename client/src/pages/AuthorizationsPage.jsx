@@ -767,6 +767,22 @@ export default function AuthorizationsPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    const handleDownloadDoc = async (doc) => {
+        try {
+            const blob = await api.downloadAuthDocument(doc.id);
+            const url = URL.createObjectURL(blob);
+            if (doc.mimeType === 'application/pdf' || doc.fileName?.toLowerCase().endsWith('.pdf')) {
+                window.open(url, '_blank');
+            } else {
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = doc.fileName;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+        } catch (err) { showToast('Failed to download file', 'error'); }
+    };
+
     const toggleSelect = (id) => {
         setSelectedIds((prev) => {
             const next = new Set(prev);
@@ -1277,12 +1293,20 @@ export default function AuthorizationsPage() {
                                                                         <td style={{ fontSize: 13, fontWeight: 500 }}>{auth.authorizedUnits || 0}</td>
                                                                         <td>
                                                                             {(auth.documents || []).length > 0 ? (
-                                                                                <span className="auth-attachment-link" title={(auth.documents || []).map(d => d.fileName).join(', ')}>
+                                                                                <span
+                                                                                    className="auth-attachment-link"
+                                                                                    title={(auth.documents || []).map(d => d.fileName).join(', ')}
+                                                                                    onClick={(e) => { e.stopPropagation(); handleDownloadDoc((auth.documents || [])[0]); }}
+                                                                                    style={{ cursor: 'pointer' }}
+                                                                                >
                                                                                     {Icons.paperclip} {(() => {
                                                                                         const name = (auth.documents || [])[0]?.fileName || 'file';
                                                                                         const withoutExt = name.replace(/\.[^.]+$/, '');
                                                                                         return withoutExt.replace(/[_-]/g, ' ');
                                                                                     })()}
+                                                                                    {(auth.documents || []).length > 1 && (
+                                                                                        <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.7 }}>+{(auth.documents || []).length - 1}</span>
+                                                                                    )}
                                                                                 </span>
                                                                             ) : (
                                                                                 <span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12 }}>—</span>
