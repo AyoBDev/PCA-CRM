@@ -544,6 +544,17 @@ function ProfileTab({ employee }) {
     );
 }
 
+const CERT_COLORS = {
+    id_expiration: { accent: '#3b82f6', bg: 'hsl(217 91% 96%)', border: '#3b82f6', label: 'ID EXPIRATION', icon: 'user' },
+    tb_test: { accent: '#22c55e', bg: 'hsl(142 76% 96%)', border: '#22c55e', label: 'TB TEST', icon: 'heart' },
+    cpr: { accent: '#ef4444', bg: 'hsl(0 84% 96%)', border: '#ef4444', label: 'CPR', icon: 'heart' },
+    annual_training: { accent: '#f59e0b', bg: 'hsl(38 100% 96%)', border: '#f59e0b', label: '8HR ANNUAL TRAINING', icon: 'clock' },
+    cultural_competency: { accent: '#8b5cf6', bg: 'hsl(270 76% 96%)', border: '#8b5cf6', label: 'CULTURAL COMPETENCY', icon: 'users' },
+    infection_control: { accent: '#06b6d4', bg: 'hsl(188 80% 96%)', border: '#06b6d4', label: 'INFECTION CONTROL', icon: 'shieldCheck' },
+    background_check: { accent: '#64748b', bg: 'hsl(215 20% 96%)', border: '#64748b', label: 'BACKGROUND CHECK', icon: 'shieldCheck' },
+    other: { accent: '#a855f7', bg: 'hsl(270 76% 96%)', border: '#a855f7', label: 'OTHER', icon: 'fileText' },
+};
+
 function CertificationsTab({ employee, onEdit }) {
     const { showToast } = useToast();
     const [certRecords, setCertRecords] = useState([]);
@@ -604,14 +615,6 @@ function CertificationsTab({ employee, onEdit }) {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
-    const handleDelete = async (id) => {
-        try {
-            await api.deleteEmployeeCertification(id);
-            showToast('Record deleted');
-            fetchCerts();
-        } catch (err) { showToast(err.message, 'error'); }
-    };
-
     const handleDownload = async (cert) => {
         try {
             const res = await api.downloadEmployeeCertification(cert.id);
@@ -631,160 +634,86 @@ function CertificationsTab({ employee, onEdit }) {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
-    const handleStatusChange = async (certId, newStatus) => {
-        try {
-            const formData = new FormData();
-            formData.append('status', newStatus);
-            await api.updateEmployeeCertification(certId, formData);
-            fetchCerts();
-        } catch (err) { showToast(err.message, 'error'); }
-    };
-
-    const CERT_ICONS = {
-        id_expiration: Icons.user,
-        tb_test: Icons.heart,
-        cpr: Icons.heart,
-        annual_training: Icons.clock,
-        cultural_competency: Icons.users,
-        infection_control: Icons.shieldCheck,
-        background_check: Icons.shieldCheck,
-        other: Icons.fileText,
-    };
+    const statusLabel = (s) => s === 'ok' ? 'Active' : s === 'critical' ? 'Expiring Soon' : s === 'expired' ? 'Expired' : 'Not Set';
+    const statusBadgeClass = (s) => s === 'ok' ? 'submitted' : s === 'critical' ? 'draft' : s === 'expired' ? 'critical' : 'draft';
 
     return (
         <div className="cp-tab-panel">
-            <div className="cert-section">
-                <div className="cert-section__header">
-                    <h3 className="cert-section__title">Certifications</h3>
-                    <button className="btn btn--outline btn--sm" onClick={onEdit}>
-                        {Icons.edit} Edit Dates
-                    </button>
-                </div>
-
-                <div className="cert-filter-pills">
-                    <button className={`cert-pill ${certFilter === 'All' ? 'cert-pill--active' : ''}`} onClick={() => setCertFilter('All')}>
-                        All <span className="cert-pill__count">{counts.all}</span>
-                    </button>
-                    <button className={`cert-pill cert-pill--ok ${certFilter === 'OK' ? 'cert-pill--active' : ''}`} onClick={() => setCertFilter('OK')}>
-                        OK <span className="cert-pill__count">{counts.ok}</span>
-                    </button>
-                    <button className={`cert-pill cert-pill--critical ${certFilter === 'Critical' ? 'cert-pill--active' : ''}`} onClick={() => setCertFilter('Critical')}>
-                        Critical <span className="cert-pill__count">{counts.critical}</span>
-                    </button>
-                    <button className={`cert-pill cert-pill--expired ${certFilter === 'Expired' ? 'cert-pill--active' : ''}`} onClick={() => setCertFilter('Expired')}>
-                        Expired <span className="cert-pill__count">{counts.expired}</span>
-                    </button>
-                </div>
-
-                {loadingCerts ? (
-                    <p style={{ padding: 16, color: 'hsl(var(--muted-foreground))' }}>Loading...</p>
-                ) : (
-                    <div className="cert-grid">
-                        {filteredTypes.map((ct, idx) => {
-                            const { status, days, expDate, record } = getCertStatusForType(ct.type);
-                            const isExpanded = expandedType === ct.type;
-                            const allRecords = certRecords.filter(r => r.certType === ct.type);
-                            const activeRecords = allRecords.filter(r => r.status === 'active');
-                            const expiredRecords = allRecords.filter(r => r.status === 'expired');
-                            const currentAttachment = activeRecords.find(r => r.fileName);
-                            const certIcon = CERT_ICONS[ct.type] || Icons.fileText;
-                            const certNum = CERT_TYPES.indexOf(ct) + 1;
-
-                            return (
-                                <div key={ct.type} className={`cert-card cert-card--${status} ${isExpanded ? 'cert-card--expanded' : ''}`}>
-                                    <button className="cert-card__toggle" onClick={() => setExpandedType(isExpanded ? null : ct.type)}>
-                                        <div className="cert-card__icon-wrap" data-status={status}>
-                                            {certIcon}
-                                        </div>
-                                        <div className="cert-card__info">
-                                            <div className="cert-card__title">{certNum}. {ct.label}</div>
-                                            <span className={`cert-card__badge cert-card__badge--${status}`}>
-                                                {status === 'ok' ? 'OK' : status === 'critical' ? 'Critical' : status === 'expired' ? 'Expired' : '—'}
-                                            </span>
-                                        </div>
-                                        <span className="cert-card__chevron">
-                                            {isExpanded ? Icons.chevronDown : Icons.chevronRight}
-                                        </span>
-                                    </button>
-
-                                    {isExpanded && (
-                                        <div className="cert-card__body">
-                                            <div className="cert-card__fields">
-                                                <div className="cert-field">
-                                                    <div className="cert-field__label">Status</div>
-                                                    <div className="cert-field__value">
-                                                        <span className={`cert-dot cert-dot--${status}`} />
-                                                        {status === 'ok' ? 'OK' : status === 'critical' ? 'Critical' : status === 'expired' ? 'Expired' : 'Not set'}
-                                                    </div>
-                                                </div>
-                                                <div className="cert-field">
-                                                    <div className="cert-field__label">Due Date</div>
-                                                    <div className="cert-field__value">{expDate ? formatDate(expDate) : '—'}</div>
-                                                </div>
-                                                <div className="cert-field">
-                                                    <div className="cert-field__label">Expires On</div>
-                                                    <div className="cert-field__value">
-                                                        {expDate ? formatDate(expDate) : '—'}
-                                                        {days !== null && (
-                                                            <span className={`cert-days cert-days--${status}`}>
-                                                                {days >= 0 ? `${days} days left` : `${Math.abs(days)} days ago`}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                {currentAttachment && (
-                                                    <div className="cert-field">
-                                                        <div className="cert-field__label">Attachment</div>
-                                                        <div className="cert-field__value">
-                                                            <button className="cert-file-link" onClick={() => handleDownload(currentAttachment)}>
-                                                                {Icons.paperclip} {currentAttachment.fileName}
-                                                            </button>
-                                                            <button className="cert-file-dl" onClick={() => handleDownload(currentAttachment)}>
-                                                                {Icons.download}
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {expiredRecords.length > 0 && (
-                                                <div className="cert-card__history-section">
-                                                    <div className="cert-card__history-title">Previous Expired</div>
-                                                    {expiredRecords.map(rec => (
-                                                        <div key={rec.id} className="cert-history-item">
-                                                            <div className="cert-history-item__row">
-                                                                <span className="cert-history-item__status">
-                                                                    <span className="cert-dot cert-dot--expired" /> Expired
-                                                                </span>
-                                                                <span className="cert-history-item__date">{rec.expirationDate ? formatDate(rec.expirationDate) : '—'}</span>
-                                                                {rec.fileName && (
-                                                                    <span className="cert-history-item__file">
-                                                                        <button className="cert-file-link" onClick={() => handleDownload(rec)}>
-                                                                            {Icons.paperclip} {rec.fileName}
-                                                                        </button>
-                                                                        <button className="cert-file-dl" onClick={() => handleDownload(rec)}>
-                                                                            {Icons.download}
-                                                                        </button>
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-
-                                            <div className="cert-card__actions">
-                                                <button className="btn btn--outline btn--sm" onClick={() => setShowUploadModal(ct.type)}>
-                                                    {Icons.upload} Upload New
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+            <div className="cp-card cp-card--elevated">
+                <div className="cp-card__header">
+                    <h3 className="cp-card__title" style={{ fontSize: 18, fontWeight: 700 }}>Certifications</h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div className="pa-filter-tabs">
+                            {[
+                                { value: 'All', label: 'All' },
+                                { value: 'OK', label: 'Active' },
+                                { value: 'Critical', label: 'Expiring' },
+                                { value: 'Expired', label: 'Expired' },
+                            ].map(opt => (
+                                <button
+                                    key={opt.value}
+                                    className={`pa-filter-tabs__tab ${certFilter === opt.value ? 'pa-filter-tabs__tab--active' : ''}`}
+                                    onClick={() => setCertFilter(opt.value)}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                        <button className="btn btn--outline btn--sm" onClick={onEdit}>{Icons.edit} Edit Dates</button>
                     </div>
-                )}
+                </div>
+                <div className="cp-card__body">
+                    {loadingCerts ? (
+                        <p style={{ padding: 16, color: 'hsl(var(--muted-foreground))' }}>Loading...</p>
+                    ) : filteredTypes.length === 0 ? (
+                        <div className="cp-empty-state-card">
+                            <div className="cp-empty-state-card__icon">{Icons.shieldCheck}</div>
+                            <p>No certifications match the current filter.</p>
+                        </div>
+                    ) : (
+                        <div className="pa-services-grid">
+                            <div className="pa-services-grid__left">
+                                {filteredTypes.filter((_, i) => i % 2 === 0).map(ct => renderCertCard(ct))}
+                            </div>
+                            <div className="pa-services-grid__right">
+                                {filteredTypes.filter((_, i) => i % 2 === 1).map(ct => renderCertCard(ct))}
+                            </div>
+                        </div>
+                    )}
+
+                    {!loadingCerts && filteredTypes.length > 0 && (
+                        <div className="pa-summary-bar">
+                            <div className="pa-summary-bar__item">
+                                <div className="pa-summary-bar__icon" style={{ color: '#22c55e' }}>{Icons.checkCircle}</div>
+                                <div className="pa-summary-bar__data">
+                                    <span className="pa-summary-bar__label">ACTIVE</span>
+                                    <span className="pa-summary-bar__value">{counts.ok}</span>
+                                </div>
+                            </div>
+                            <div className="pa-summary-bar__item">
+                                <div className="pa-summary-bar__icon" style={{ color: '#f59e0b' }}>{Icons.clock}</div>
+                                <div className="pa-summary-bar__data">
+                                    <span className="pa-summary-bar__label">EXPIRING SOON</span>
+                                    <span className="pa-summary-bar__value">{counts.critical}</span>
+                                </div>
+                            </div>
+                            <div className="pa-summary-bar__item">
+                                <div className="pa-summary-bar__icon" style={{ color: '#ef4444' }}>{Icons.alertTriangle}</div>
+                                <div className="pa-summary-bar__data">
+                                    <span className="pa-summary-bar__label">EXPIRED</span>
+                                    <span className="pa-summary-bar__value">{counts.expired}</span>
+                                </div>
+                            </div>
+                            <div className="pa-summary-bar__item">
+                                <div className="pa-summary-bar__icon" style={{ color: '#3b82f6' }}>{Icons.fileText}</div>
+                                <div className="pa-summary-bar__data">
+                                    <span className="pa-summary-bar__label">TOTAL</span>
+                                    <span className="pa-summary-bar__value">{counts.all}</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
             {showUploadModal && (
                 <CertUploadModal
@@ -796,6 +725,130 @@ function CertificationsTab({ employee, onEdit }) {
             )}
         </div>
     );
+
+    function renderCertCard(ct) {
+        const { status, days, expDate } = getCertStatusForType(ct.type);
+        const isExpanded = expandedType === ct.type;
+        const colors = CERT_COLORS[ct.type] || CERT_COLORS.other;
+        const allRecords = certRecords.filter(r => r.certType === ct.type);
+        const activeRecords = allRecords.filter(r => r.status === 'active');
+        const expiredRecords = allRecords.filter(r => r.status === 'expired');
+        const currentAttachment = activeRecords.find(r => r.fileName);
+        const attachCount = allRecords.filter(r => r.fileName).length;
+
+        return (
+            <div key={ct.type} className="pa-service-card" style={{ '--card-accent': colors.accent, '--card-bg': colors.bg, '--card-border': colors.border }}>
+                <div className="pa-service-card__header">
+                    <div className="pa-service-card__icon-wrap" style={{ background: colors.bg, color: colors.accent }}>
+                        {Icons[colors.icon]}
+                    </div>
+                    <div className="pa-service-card__title-area">
+                        <h4 className="pa-service-card__title">{colors.label}</h4>
+                        <span className={`pa-badge pa-badge--active`} style={
+                            status === 'ok' ? { background: 'hsl(142 76% 92%)', color: '#16a34a' } :
+                            status === 'critical' ? { background: 'hsl(38 92% 92%)', color: '#d97706' } :
+                            status === 'expired' ? { background: 'hsl(0 84% 94%)', color: '#dc2626' } :
+                            { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }
+                        }>
+                            {statusLabel(status)}
+                        </span>
+                    </div>
+                    {ct.renewalYears && (
+                        <div className="pa-service-card__account">
+                            <span className="pa-service-card__account-label">Renewal</span>
+                            <span style={{ fontSize: 13, fontWeight: 600 }}>{ct.renewalYears}yr</span>
+                        </div>
+                    )}
+                </div>
+
+                <div className="pa-service-card__body">
+                    <div className="pa-service-card__detail">
+                        {Icons.calendar} <span>{expDate ? `Expires ${formatDate(expDate)}` : 'No expiration date set'}</span>
+                    </div>
+                    <div className="pa-service-card__detail">
+                        {Icons.clock} <span>{days !== null ? (days >= 0 ? `${days} days remaining` : `Expired ${Math.abs(days)} days ago`) : '—'}</span>
+                    </div>
+                    <div className="pa-service-card__detail">
+                        {Icons.paperclip} <span>{attachCount} attachment{attachCount !== 1 ? 's' : ''}</span>
+                    </div>
+                </div>
+
+                <div className="pa-service-card__footer">
+                    <button className="btn btn--outline btn--sm" onClick={() => setShowUploadModal(ct.type)}>{Icons.upload} Upload</button>
+                    <button
+                        className="btn btn--outline btn--sm pa-btn--view-details"
+                        style={{ color: colors.accent, borderColor: colors.accent }}
+                        onClick={() => setExpandedType(isExpanded ? null : ct.type)}
+                    >
+                        {isExpanded ? Icons.chevronDown : Icons.chevronRight} {isExpanded ? 'Hide Details' : 'View Details'}
+                    </button>
+                </div>
+
+                {isExpanded && (
+                    <div className="pa-service-card__expanded">
+                        {activeRecords.length === 0 && expiredRecords.length === 0 ? (
+                            <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', padding: '12px 0' }}>No certification records on file.</div>
+                        ) : (
+                            <div className="pa-auth-list">
+                                {activeRecords.map(rec => (
+                                    <div key={rec.id} className="pa-auth-item pa-auth-item--active">
+                                        <div className="pa-auth-item__header">
+                                            <div className="pa-auth-item__left">
+                                                <span className="pa-auth-item__name">
+                                                    {rec.fileName || 'Current Record'}
+                                                </span>
+                                                <span className="pa-auth-item__dates">
+                                                    {rec.expirationDate ? `Expires ${formatDate(rec.expirationDate)}` : 'No expiry'}
+                                                </span>
+                                            </div>
+                                            <div className="pa-auth-item__right">
+                                                <span className={`ts-badge ts-badge--${statusBadgeClass(status)}`}>
+                                                    {statusLabel(status)} {days !== null && `(${days >= 0 ? `${days}d` : `${Math.abs(days)}d ago`})`}
+                                                </span>
+                                                {rec.fileName && (
+                                                    <button className="btn btn--ghost btn--xs" onClick={() => handleDownload(rec)}>{Icons.download}</button>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {rec.notes && (
+                                            <div className="pa-auth-item__body">
+                                                <div className="pa-auth-item__notes">{rec.notes}</div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                                {expiredRecords.length > 0 && (
+                                    <>
+                                        <div style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '8px 0 4px' }}>Previous Expired</div>
+                                        {expiredRecords.map(rec => (
+                                            <div key={rec.id} className="pa-auth-item pa-auth-item--inactive">
+                                                <div className="pa-auth-item__header">
+                                                    <div className="pa-auth-item__left">
+                                                        <span className="pa-auth-item__name" style={{ textDecoration: 'line-through', opacity: 0.6 }}>
+                                                            {rec.fileName || 'Expired Record'}
+                                                        </span>
+                                                        <span className="pa-auth-item__dates">
+                                                            {rec.expirationDate ? `Expired ${formatDate(rec.expirationDate)}` : '—'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="pa-auth-item__right">
+                                                        <span className="ts-badge ts-badge--critical">Expired</span>
+                                                        {rec.fileName && (
+                                                            <button className="btn btn--ghost btn--xs" onClick={() => handleDownload(rec)}>{Icons.download}</button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        );
+    }
 }
 
 function CertUploadModal({ certType, certLabel, onUpload, onClose }) {
