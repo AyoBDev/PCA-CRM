@@ -687,9 +687,6 @@ export default function ClientDetailPage() {
                                 {client.insuranceType && (
                                     <span className="cp-chip cp-chip--program">{client.insuranceType}</span>
                                 )}
-                                {client.critical && (
-                                    <span className="cp-chip cp-chip--risk">Fall Risk</span>
-                                )}
                                 {openIncidents > 0 && (
                                     <span className="cp-chip cp-chip--complaint">
                                         {openIncidents} Open Incident{openIncidents > 1 ? 's' : ''}
