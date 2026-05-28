@@ -420,58 +420,60 @@ export default function EmployeesPage() {
                     </div>
                 ) : (
                     <div className="sheet-card">
-                        {selectedIds.size > 0 && (
-                            <div className="bulk-action-bar">
-                                <span className="bulk-action-bar__count">
-                                    {Icons.checkCircle} {selectedIds.size} selected
-                                </span>
-                                <span className="bulk-action-bar__divider" />
-                                <div className="bulk-action-bar__actions">
-                                    <button className="btn--bulk" onClick={() => {
-                                        const selected = employees.filter(e => selectedIds.has(e.id));
-                                        selected.forEach(emp => handleToggleActive(emp));
-                                        setSelectedIds(new Set());
-                                    }}>
-                                        {Icons.shieldCheck} Toggle Status
-                                    </button>
-                                    <button className="btn--bulk" onClick={() => setModal({ type: 'form' })}>
-                                        {Icons.edit} Edit
-                                    </button>
-                                    <button className="btn--bulk btn--bulk-danger" onClick={() => {
-                                        if (confirm(`Archive ${selectedIds.size} employee(s)?`)) {
-                                            selectedIds.forEach(id => api.deleteEmployee(id));
-                                            setTimeout(() => { fetchData(); setSelectedIds(new Set()); }, 300);
-                                        }
-                                    }}>
-                                        {Icons.archive} Archive
-                                    </button>
-                                </div>
-                                <button className="bulk-action-bar__close" onClick={() => setSelectedIds(new Set())} title="Clear selection">
-                                    ✕
-                                </button>
-                            </div>
-                        )}
-
-                        {selectedIds.size === 0 && (
-                            <div className="filter-pills">
-                                {[
-                                    { key: 'All', color: '', count: employees.length },
-                                    { key: 'OK', color: 'green', count: okCount },
-                                    { key: 'Critical', color: 'red', count: criticalCount },
-                                    { key: 'Expired', color: 'red', count: expiredCount },
-                                ].map(({ key, color, count }) => (
-                                    <button
-                                        key={key}
-                                        className={`filter-pill ${color ? `filter-pill--${color}` : ''} ${statusFilter === key ? 'filter-pill--active' : ''}`}
-                                        onClick={() => setStatusFilter(key)}
+                        <div className="table-toolbar">
+                            <div className="table-toolbar__left">
+                                <input
+                                    type="checkbox"
+                                    className="bulk-checkbox"
+                                    checked={allSelected}
+                                    onChange={toggleSelectAll}
+                                />
+                                <span className="table-toolbar__selected">{selectedIds.size} selected</span>
+                                <div className="table-toolbar__dropdown">
+                                    <select
+                                        className="table-toolbar__select"
+                                        value=""
+                                        onChange={(e) => {
+                                            const action = e.target.value;
+                                            if (!action) return;
+                                            if (selectedIds.size === 0) { showToast('Select employees first', 'error'); e.target.value = ''; return; }
+                                            if (action === 'toggle') {
+                                                const selected = employees.filter(emp => selectedIds.has(emp.id));
+                                                selected.forEach(emp => handleToggleActive(emp));
+                                                setSelectedIds(new Set());
+                                            } else if (action === 'archive') {
+                                                if (confirm(`Archive ${selectedIds.size} employee(s)?`)) {
+                                                    selectedIds.forEach(id => api.deleteEmployee(id));
+                                                    setTimeout(() => { fetchData(); setSelectedIds(new Set()); }, 300);
+                                                }
+                                            }
+                                            e.target.value = '';
+                                        }}
                                     >
-                                        <span className="filter-pill__dot" />
-                                        {key}
-                                        <span className="filter-pill__count">{count}</span>
-                                    </button>
-                                ))}
+                                        <option value="">Bulk Actions</option>
+                                        <option value="toggle">Toggle Status</option>
+                                        <option value="archive">Archive</option>
+                                    </select>
+                                </div>
                             </div>
-                        )}
+                            <div className="table-toolbar__right">
+                                <select
+                                    className="table-toolbar__filter"
+                                    value={statusFilter}
+                                    onChange={(e) => setStatusFilter(e.target.value)}
+                                >
+                                    <option value="All">All Status</option>
+                                    <option value="OK">OK</option>
+                                    <option value="Critical">Critical</option>
+                                    <option value="Expired">Expired</option>
+                                </select>
+                                {statusFilter !== 'All' && (
+                                    <button className="table-toolbar__reset" onClick={() => setStatusFilter('All')}>
+                                        {Icons.rotateCcw} Reset
+                                    </button>
+                                )}
+                            </div>
+                        </div>
 
                         {filtered.length === 0 ? (
                             <div className="empty-state">

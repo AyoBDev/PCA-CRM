@@ -195,59 +195,55 @@ export default function ClientsListPage() {
             </div>
             <div className="page-content">
                 <div className="sheet-card">
-                    {selectedIds.size > 0 && (
-                        <div className="bulk-action-bar">
-                            <span className="bulk-action-bar__count">
-                                {Icons.checkCircle} {selectedIds.size} client{selectedIds.size !== 1 ? 's' : ''} selected
-                            </span>
-                            <span className="bulk-action-bar__divider" />
-                            <div className="bulk-action-bar__actions">
-                                <button className="btn--bulk">
-                                    {Icons.edit} Change Status
-                                </button>
-                                <button className="btn--bulk">
-                                    {Icons.plus} Add Services
-                                </button>
-                                <button className="btn--bulk">
-                                    {Icons.users} Assign Caregiver
-                                </button>
-                                <button className="btn--bulk">
-                                    {Icons.fileText} Add Note
-                                </button>
-                                <button className="btn--bulk">
-                                    {Icons.share} Transfer
-                                </button>
-                                <button className="btn--bulk btn--bulk-danger">
-                                    {Icons.trash} Discharge
-                                </button>
-                            </div>
-                            <button className="bulk-action-bar__close" onClick={() => setSelectedIds(new Set())} title="Clear selection">
-                                ✕
-                            </button>
-                        </div>
-                    )}
-
-                    {selectedIds.size === 0 && (
-                        <div className="filter-pills">
-                            {[
-                                { key: 'active', color: 'green', label: 'Active', count: clients.filter(c => getEffectiveStatus(c) === 'active').length },
-                                { key: 'inactive', color: 'orange', label: 'Inactive', count: clients.filter(c => getEffectiveStatus(c) === 'inactive').length },
-                                { key: 'discharged', color: 'red', label: 'Discharged', count: clients.filter(c => getEffectiveStatus(c) === 'discharged').length },
-                                { key: 'transferred', color: '', label: 'Transferred', count: clients.filter(c => getEffectiveStatus(c) === 'transferred').length },
-                                { key: 'all', color: '', label: 'All', count: clients.length },
-                            ].map(({ key, color, label, count }) => (
-                                <button
-                                    key={key}
-                                    className={`filter-pill ${color ? `filter-pill--${color}` : ''} ${statusFilter === key ? 'filter-pill--active' : ''}`}
-                                    onClick={() => setStatusFilter(key)}
+                    <div className="table-toolbar">
+                        <div className="table-toolbar__left">
+                            <input
+                                type="checkbox"
+                                className="bulk-checkbox"
+                                checked={allSelected}
+                                onChange={toggleSelectAll}
+                            />
+                            <span className="table-toolbar__selected">{selectedIds.size} selected</span>
+                            <div className="table-toolbar__dropdown">
+                                <select
+                                    className="table-toolbar__select"
+                                    value=""
+                                    onChange={(e) => {
+                                        const action = e.target.value;
+                                        if (!action || selectedIds.size === 0) { if (action) showToast('Select clients first', 'error'); e.target.value = ''; return; }
+                                        showToast(`${action} — coming soon`);
+                                        e.target.value = '';
+                                    }}
                                 >
-                                    <span className="filter-pill__dot" />
-                                    {label}
-                                    <span className="filter-pill__count">{count}</span>
-                                </button>
-                            ))}
+                                    <option value="">Bulk Actions</option>
+                                    <option value="Change Status">Change Status</option>
+                                    <option value="Add Services">Add Services</option>
+                                    <option value="Assign Caregiver">Assign Caregiver</option>
+                                    <option value="Add Note">Add Note</option>
+                                    <option value="Transfer">Transfer</option>
+                                    <option value="Discharge">Discharge</option>
+                                </select>
+                            </div>
                         </div>
-                    )}
+                        <div className="table-toolbar__right">
+                            <select
+                                className="table-toolbar__filter"
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                            >
+                                <option value="all">All Status</option>
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                                <option value="discharged">Discharged</option>
+                                <option value="transferred">Transferred</option>
+                            </select>
+                            {statusFilter !== 'active' && (
+                                <button className="table-toolbar__reset" onClick={() => setStatusFilter('active')}>
+                                    {Icons.rotateCcw} Reset
+                                </button>
+                            )}
+                        </div>
+                    </div>
 
                     {loading ? (
                         <div style={{ padding: 16 }}>

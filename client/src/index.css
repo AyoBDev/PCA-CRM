@@ -1661,6 +1661,89 @@ body {
   cursor: pointer;
 }
 
+/* ─── Table Toolbar ─── */
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid hsl(var(--border));
+  gap: 12px;
+}
+
+.table-toolbar__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.table-toolbar__selected {
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.table-toolbar__dropdown {}
+
+.table-toolbar__select {
+  padding: 6px 12px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  background: hsl(var(--background));
+  cursor: pointer;
+  appearance: auto;
+}
+.table-toolbar__select:hover {
+  border-color: hsl(var(--muted-foreground));
+}
+
+.table-toolbar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.table-toolbar__filter {
+  padding: 6px 12px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  background: hsl(var(--background));
+  cursor: pointer;
+  appearance: auto;
+}
+.table-toolbar__filter:hover {
+  border-color: hsl(var(--muted-foreground));
+}
+
+.table-toolbar__reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: hsl(var(--primary));
+  background: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.table-toolbar__reset:hover {
+  background: hsl(var(--muted));
+}
+.table-toolbar__reset svg {
+  width: 13px;
+  height: 13px;
+}
+
 .card--clickable {
   cursor: pointer;
   transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
