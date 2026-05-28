@@ -80,18 +80,31 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
     const [userId, setUserId] = useState(employee?.userId || '');
     const [address, setAddress] = useState(employee?.address || '');
     const [npi, setNpi] = useState(employee?.npi || '');
+    const [dob, setDob] = useState(employee?.dob ? new Date(employee.dob).toISOString().split('T')[0] : '');
     const [clientAssignment, setClientAssignment] = useState(employee?.clientAssignment || '');
+    const [idExpDate, setIdExpDate] = useState(employee?.idExpDate ? new Date(employee.idExpDate).toISOString().split('T')[0] : '');
+    const [tbDueDate, setTbDueDate] = useState(employee?.tbDueDate ? new Date(employee.tbDueDate).toISOString().split('T')[0] : '');
+    const [cprDueDate, setCprDueDate] = useState(employee?.cprDueDate ? new Date(employee.cprDueDate).toISOString().split('T')[0] : '');
+    const [trainingDueDate, setTrainingDueDate] = useState(employee?.trainingDueDate ? new Date(employee.trainingDueDate).toISOString().split('T')[0] : '');
+    const [backgroundCheckDueDate, setBackgroundCheckDueDate] = useState(employee?.backgroundCheckDueDate ? new Date(employee.backgroundCheckDueDate).toISOString().split('T')[0] : '');
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        onSave({ name, phone, email, userId: userId || null, address, npi, clientAssignment });
+        const data = { name, phone, email, userId: userId || null, address, npi, clientAssignment };
+        if (dob) data.dob = new Date(dob).toISOString();
+        if (idExpDate) data.idExpDate = new Date(idExpDate).toISOString();
+        if (tbDueDate) data.tbDueDate = new Date(tbDueDate).toISOString();
+        if (cprDueDate) data.cprDueDate = new Date(cprDueDate).toISOString();
+        if (trainingDueDate) data.trainingDueDate = new Date(trainingDueDate).toISOString();
+        if (backgroundCheckDueDate) data.backgroundCheckDueDate = new Date(backgroundCheckDueDate).toISOString();
+        onSave(data);
     };
 
     return (
         <Modal onClose={onClose}>
             <h2 className="modal__title">{employee ? 'Edit Employee' : 'Add Employee'}</h2>
-            <p className="modal__desc">{employee ? 'Update the employee details below.' : 'Fill in the details to add a new employee.'}</p>
-            <form onSubmit={handleSubmit}>
+            <p className="modal__desc">{employee ? 'Update the employee details below.' : 'Fill in all employee information below.'}</p>
+            <form onSubmit={handleSubmit} style={{ maxHeight: '70vh', overflowY: 'auto' }}>
                 <div className="form-group">
                     <label htmlFor="empName">Name *</label>
                     <input id="empName" value={name} onChange={e => setName(e.target.value)} required autoFocus />
@@ -106,9 +119,15 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
                         <input id="empEmail" type="email" value={email} onChange={e => setEmail(e.target.value)} />
                     </div>
                 </div>
-                <div className="form-group">
-                    <label htmlFor="empAddress">Address</label>
-                    <input id="empAddress" value={address} onChange={e => setAddress(e.target.value)} />
+                <div className="form-grid-2">
+                    <div className="form-group">
+                        <label htmlFor="empDob">Date of Birth</label>
+                        <input id="empDob" type="date" value={dob} onChange={e => setDob(e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="empAddress">Address</label>
+                        <input id="empAddress" value={address} onChange={e => setAddress(e.target.value)} />
+                    </div>
                 </div>
                 <div className="form-grid-2">
                     <div className="form-group">
@@ -134,6 +153,33 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
                         No contact info — this employee won't receive schedule notifications.
                     </div>
                 )}
+                <div style={{ borderTop: '1px solid hsl(var(--border))', margin: '16px 0', paddingTop: 16 }}>
+                    <h4 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: 'hsl(var(--foreground))' }}>Certification Expiry Dates</h4>
+                    <div className="form-grid-2">
+                        <div className="form-group">
+                            <label htmlFor="empIdExp">ID Expiration</label>
+                            <input id="empIdExp" type="date" value={idExpDate} onChange={e => setIdExpDate(e.target.value)} />
+                        </div>
+                        <div className="form-group">
+                            <label htmlFor="empTb">TB Test</label>
+                            <input id="empTb" type="date" value={tbDueDate} onChange={e => setTbDueDate(e.target.value)} />
+                        </div>
+                    </div>
+                    <div className="form-grid-2">
+                        <div className="form-group">
+                            <label htmlFor="empCpr">CPR</label>
+                            <input id="empCpr" type="date" value={cprDueDate} onChange={e => setCprDueDate(e.target.value)} />
+                        </div>
+                        <div className="form-group">
+                            <label htmlFor="empTraining">8hr Annual Training</label>
+                            <input id="empTraining" type="date" value={trainingDueDate} onChange={e => setTrainingDueDate(e.target.value)} />
+                        </div>
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="empBg">Background Check</label>
+                        <input id="empBg" type="date" value={backgroundCheckDueDate} onChange={e => setBackgroundCheckDueDate(e.target.value)} />
+                    </div>
+                </div>
                 <div className="form-actions">
                     <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
                     <button type="submit" className="btn btn--primary">{employee ? 'Save Changes' : 'Add Employee'}</button>
@@ -281,13 +327,12 @@ export default function EmployeesPage() {
     };
 
     // Counts for filter pills
-    const criticalCount = employees.filter(e => e.critical).length;
-    let expiredCount = 0, expiringCount = 0, okCount = 0;
+    let expiredCount = 0, criticalCount = 0, okCount = 0;
     employees.forEach(emp => {
         const s = getEmpCertStatus(emp);
         if (s === 'expired') expiredCount++;
-        else if (s === 'expiring') expiringCount++;
-        else if (!emp.critical) okCount++;
+        else if (s === 'expiring' || emp.critical) criticalCount++;
+        else okCount++;
     });
 
     // Apply filters
@@ -298,7 +343,7 @@ export default function EmployeesPage() {
         if (!matchesSearch) return false;
 
         if (statusFilter === 'OK') return getEmpCertStatus(e) === 'valid' && !e.critical;
-        if (statusFilter === 'Critical') return e.critical;
+        if (statusFilter === 'Critical') return e.critical || getEmpCertStatus(e) === 'expiring';
         if (statusFilter === 'Expired') return getEmpCertStatus(e) === 'expired';
         return true;
     }).sort((a, b) => (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase()));

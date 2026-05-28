@@ -117,6 +117,7 @@ const {
     bulkPermanentlyDeleteEmployees,
     bulkImportEmployees,
 } = require('../controllers/employeeController');
+const { listCertifications, createCertification, updateCertification, deleteCertification, downloadCertification } = require('../controllers/employeeCertController');
 const { getDashboardStats } = require('../controllers/dashboardController');
 const { sendSchedules, getNotificationStatus, getScheduleConfirm, confirmSchedule, respondToSchedule, getScheduleResponses } = require('../controllers/scheduleNotificationController');
 const { createLink, listLinks, deleteLink, getScheduleView } = require('../controllers/employeeScheduleLinkController');
@@ -283,6 +284,13 @@ router.put('/employees/:id/restore', requireRole('admin', 'user', 'pca'), restor
 router.put('/employees/:id',   requireRole('admin', 'user', 'pca'), updateEmployee);
 router.delete('/employees/:id', requireRole('admin', 'user', 'pca'), deleteEmployee);
 router.delete('/employees/:id/permanent', requireRole('admin'), permanentlyDeleteEmployee);
+
+// Employee Certifications
+router.get('/employees/:employeeId/certifications', requireRole('admin', 'user', 'pca'), listCertifications);
+router.post('/employees/:employeeId/certifications', requireRole('admin', 'user', 'pca'), upload.single('file'), createCertification);
+router.put('/certifications/:id', requireRole('admin', 'user', 'pca'), upload.single('file'), updateCertification);
+router.delete('/certifications/:id', requireRole('admin', 'user', 'pca'), deleteCertification);
+router.get('/certifications/:id/download', requireRole('admin', 'user', 'pca'), downloadCertification);
 
 // Scheduling
 router.get('/shifts',                       requireRole('admin', 'user', 'pca'), listShifts);

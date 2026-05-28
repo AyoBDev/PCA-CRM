@@ -420,6 +420,16 @@ export const bulkPermanentlyDeleteEmployees = () => request('/employees/bulk-per
 export const bulkImportEmployees = (formData) =>
     fetch(`${BASE}/employees/bulk-import`, { method: 'POST', headers: { Authorization: `Bearer ${getToken()}` }, body: formData }).then(handleRes);
 
+// Employee Certifications
+export const getEmployeeCertifications = (employeeId) => request(`/employees/${employeeId}/certifications`);
+export const createEmployeeCertification = (employeeId, formData) =>
+    fetch(`${BASE}/employees/${employeeId}/certifications`, { method: 'POST', headers: { Authorization: `Bearer ${getToken()}` }, body: formData }).then(handleRes);
+export const updateEmployeeCertification = (id, formData) =>
+    fetch(`${BASE}/certifications/${id}`, { method: 'PUT', headers: { Authorization: `Bearer ${getToken()}` }, body: formData }).then(handleRes);
+export const deleteEmployeeCertification = (id) => request(`/certifications/${id}`, { method: 'DELETE' });
+export const downloadEmployeeCertification = (id) =>
+    fetch(`${BASE}/certifications/${id}/download`, { headers: { Authorization: `Bearer ${getToken()}` } });
+
 // ── Employee Schedule Links ──
 export const getEmployeeScheduleLinks = () => request('/employee-schedule-links');
 export const createEmployeeScheduleLink = (employeeId) =>

@@ -24,6 +24,17 @@ const CERT_FIELDS = [
     { key: 'idExpDate', label: 'ID Expiration' },
 ];
 
+const CERT_TYPES = [
+    { type: 'id_expiration', label: 'ID Expiration', legacyKey: 'idExpDate', renewalYears: null },
+    { type: 'tb_test', label: 'TB Test', legacyKey: 'tbDueDate', renewalYears: 1 },
+    { type: 'cpr', label: 'CPR', legacyKey: 'cprDueDate', renewalYears: 2 },
+    { type: 'annual_training', label: '8hr Annual Training', legacyKey: 'trainingDueDate', renewalYears: 1 },
+    { type: 'cultural_competency', label: 'Cultural Competency Training', legacyKey: null, renewalYears: 2 },
+    { type: 'infection_control', label: 'Infection Control Training', legacyKey: null, renewalYears: 1 },
+    { type: 'background_check', label: 'Background Check', legacyKey: 'backgroundCheckDueDate', renewalYears: 5 },
+    { type: 'other', label: 'Other', legacyKey: null, renewalYears: null },
+];
+
 function formatDate(d) {
     if (!d) return '—';
     return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
@@ -534,51 +545,251 @@ function ProfileTab({ employee }) {
 }
 
 function CertificationsTab({ employee, onEdit }) {
+    const { showToast } = useToast();
+    const [certRecords, setCertRecords] = useState([]);
+    const [loadingCerts, setLoadingCerts] = useState(true);
+    const [expandedType, setExpandedType] = useState(null);
+    const [showUploadModal, setShowUploadModal] = useState(null);
+    const [certFilter, setCertFilter] = useState('All');
+
+    const fetchCerts = useCallback(async () => {
+        try {
+            const data = await api.getEmployeeCertifications(employee.id);
+            setCertRecords(data);
+        } catch (err) { showToast(err.message, 'error'); }
+        finally { setLoadingCerts(false); }
+    }, [employee.id, showToast]);
+
+    useEffect(() => { fetchCerts(); }, [fetchCerts]);
+
+    const getCertStatusForType = (certType) => {
+        const typeDef = CERT_TYPES.find(t => t.type === certType);
+        const records = certRecords.filter(r => r.certType === certType);
+        const activeRecord = records.find(r => r.status === 'active');
+        const legacyDate = typeDef?.legacyKey ? employee[typeDef.legacyKey] : null;
+        const expDate = activeRecord?.expirationDate || legacyDate;
+
+        if (!expDate) return { status: 'unknown', label: 'Not set', days: null, expDate: null, record: activeRecord };
+        const now = new Date();
+        const d = new Date(expDate);
+        const days = Math.ceil((d - now) / 86400000);
+        if (days < 0) return { status: 'expired', label: `Expired ${Math.abs(days)}d ago`, days, expDate, record: activeRecord };
+        if (days <= 30) return { status: 'critical', label: `Expires in ${days}d`, days, expDate, record: activeRecord };
+        return { status: 'ok', label: `Valid (${days}d)`, days, expDate, record: activeRecord };
+    };
+
+    const filteredTypes = CERT_TYPES.filter(ct => {
+        if (certFilter === 'All') return true;
+        const { status } = getCertStatusForType(ct.type);
+        if (certFilter === 'OK') return status === 'ok';
+        if (certFilter === 'Critical') return status === 'critical';
+        if (certFilter === 'Expired') return status === 'expired';
+        return true;
+    });
+
+    const handleUpload = async (certType, formData) => {
+        try {
+            await api.createEmployeeCertification(employee.id, formData);
+            showToast('Certification uploaded');
+            setShowUploadModal(null);
+            fetchCerts();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleDelete = async (id) => {
+        try {
+            await api.deleteEmployeeCertification(id);
+            showToast('Record deleted');
+            fetchCerts();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleDownload = async (cert) => {
+        try {
+            const res = await api.downloadEmployeeCertification(cert.id);
+            if (!res.ok) throw new Error('Download failed');
+            const contentType = res.headers.get('Content-Type') || 'application/octet-stream';
+            const blob = await res.blob();
+            const url = URL.createObjectURL(new Blob([blob], { type: contentType }));
+            if (contentType === 'application/pdf') {
+                window.open(url, '_blank');
+            } else {
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = cert.fileName;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleStatusChange = async (certId, newStatus) => {
+        try {
+            const formData = new FormData();
+            formData.append('status', newStatus);
+            await api.updateEmployeeCertification(certId, formData);
+            fetchCerts();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     return (
         <div className="cp-tab-panel">
             <div className="cp-card cp-card--elevated">
                 <div className="cp-card__header">
-                    <h3 className="cp-card__title">
-                        <span className="cp-card__dot cp-card__dot--green" />
-                        Certification Status
-                    </h3>
-                    <button className="btn btn--outline btn--sm" onClick={onEdit}>
-                        {Icons.edit} Edit Dates
-                    </button>
+                    <h3 className="cp-card__title">{Icons.shieldCheck} Certifications</h3>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <select
+                            className="table-toolbar__filter"
+                            value={certFilter}
+                            onChange={(e) => setCertFilter(e.target.value)}
+                        >
+                            <option value="All">All</option>
+                            <option value="OK">OK</option>
+                            <option value="Critical">Critical</option>
+                            <option value="Expired">Expired</option>
+                        </select>
+                        <button className="btn btn--outline btn--sm" onClick={onEdit}>
+                            {Icons.edit} Edit Dates
+                        </button>
+                    </div>
                 </div>
-                <div className="cp-card__body" style={{ padding: 0 }}>
-                    <table className="data-table data-table--sheet" style={{ borderRadius: 0 }}>
-                        <thead>
-                            <tr>
-                                <th>Certification</th>
-                                <th>Due Date</th>
-                                <th>Status</th>
-                                <th>Details</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {CERT_FIELDS.map(({ key, label }) => {
-                                const { status, label: statusLabel } = getCertStatus(employee[key]);
+                <div className="cp-card__body">
+                    {loadingCerts ? (
+                        <p style={{ padding: 16, color: 'hsl(var(--muted-foreground))' }}>Loading...</p>
+                    ) : (
+                        <div className="cert-grid">
+                            {filteredTypes.map(ct => {
+                                const { status, label: statusLabel, expDate } = getCertStatusForType(ct.type);
+                                const isExpanded = expandedType === ct.type;
+                                const history = certRecords.filter(r => r.certType === ct.type);
+                                const statusColor = status === 'ok' ? 'hsl(142 60% 40%)' : status === 'critical' ? 'hsl(38 92% 45%)' : status === 'expired' ? 'hsl(0 72% 50%)' : 'hsl(var(--muted-foreground))';
+
                                 return (
-                                    <tr key={key}>
-                                        <td style={{ fontWeight: 500 }}>{label}</td>
-                                        <td>{formatDate(employee[key])}</td>
-                                        <td>
-                                            <span className={`ts-badge ts-badge--${status === 'valid' ? 'success' : status === 'expiring' ? 'warning' : status === 'expired' ? 'danger' : 'draft'}`}>
-                                                {statusLabel}
-                                            </span>
-                                        </td>
-                                        <td style={{ color: 'hsl(var(--muted-foreground))' }}>
-                                            {key === 'tbDueDate' && employee.tbType ? employee.tbType : '—'}
-                                        </td>
-                                    </tr>
+                                    <div key={ct.type} className={`cert-card cert-card--${status}`}>
+                                        <div className="cert-card__header">
+                                            <div className="cert-card__info">
+                                                <div className="cert-card__title">{ct.label}</div>
+                                                <div className="cert-card__exp">
+                                                    {expDate ? `Exp: ${formatDate(expDate)}` : 'No date set'}
+                                                </div>
+                                            </div>
+                                            <div className="cert-card__right">
+                                                <span className="cert-card__badge" style={{ background: statusColor }}>
+                                                    {status === 'ok' ? 'OK' : status === 'critical' ? 'Critical' : status === 'expired' ? 'Expired' : 'Unknown'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="cert-card__footer">
+                                            <button
+                                                className="btn btn--ghost btn--sm"
+                                                onClick={() => setExpandedType(isExpanded ? null : ct.type)}
+                                            >
+                                                {isExpanded ? 'Hide Details' : 'View Details'} {isExpanded ? Icons.chevronDown : Icons.chevronRight}
+                                            </button>
+                                            <button
+                                                className="btn btn--ghost btn--sm"
+                                                onClick={() => setShowUploadModal(ct.type)}
+                                            >
+                                                {Icons.upload} Upload
+                                            </button>
+                                        </div>
+                                        {isExpanded && (
+                                            <div className="cert-card__details">
+                                                {ct.renewalYears && (
+                                                    <div className="cert-card__renewal">
+                                                        Renewal period: every {ct.renewalYears} year{ct.renewalYears > 1 ? 's' : ''}
+                                                    </div>
+                                                )}
+                                                {history.length === 0 ? (
+                                                    <p className="cert-card__empty">No records uploaded yet.</p>
+                                                ) : (
+                                                    <div className="cert-card__history">
+                                                        {history.map(rec => (
+                                                            <div key={rec.id} className="cert-history-row">
+                                                                <div className="cert-history-row__main">
+                                                                    {rec.fileName && (
+                                                                        <button className="cert-history-row__file" onClick={() => handleDownload(rec)}>
+                                                                            {Icons.paperclip} {rec.fileName}
+                                                                        </button>
+                                                                    )}
+                                                                    <span className="cert-history-row__date">
+                                                                        {rec.expirationDate ? formatDate(rec.expirationDate) : 'No expiry'}
+                                                                    </span>
+                                                                    <select
+                                                                        className="cert-history-row__status"
+                                                                        value={rec.status}
+                                                                        onChange={(e) => handleStatusChange(rec.id, e.target.value)}
+                                                                    >
+                                                                        <option value="active">Active</option>
+                                                                        <option value="expired">Expired</option>
+                                                                    </select>
+                                                                </div>
+                                                                <button className="btn btn--danger-ghost btn--icon" title="Delete" onClick={() => handleDelete(rec.id)}>
+                                                                    {Icons.trash}
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                 );
                             })}
-                        </tbody>
-                    </table>
+                        </div>
+                    )}
                 </div>
             </div>
+            {showUploadModal && (
+                <CertUploadModal
+                    certType={showUploadModal}
+                    certLabel={CERT_TYPES.find(t => t.type === showUploadModal)?.label || showUploadModal}
+                    onUpload={handleUpload}
+                    onClose={() => setShowUploadModal(null)}
+                />
+            )}
         </div>
+    );
+}
+
+function CertUploadModal({ certType, certLabel, onUpload, onClose }) {
+    const [expDate, setExpDate] = useState('');
+    const [file, setFile] = useState(null);
+    const [notes, setNotes] = useState('');
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        const formData = new FormData();
+        formData.append('certType', certType);
+        if (expDate) formData.append('expirationDate', new Date(expDate).toISOString());
+        if (notes) formData.append('notes', notes);
+        if (file) formData.append('file', file);
+        onUpload(certType, formData);
+    };
+
+    return (
+        <Modal onClose={onClose}>
+            <h2 className="modal__title">Upload {certLabel}</h2>
+            <p className="modal__desc">Add a new certification record with optional file attachment.</p>
+            <form onSubmit={handleSubmit}>
+                <div className="form-group">
+                    <label htmlFor="certExpDate">Expiration Date</label>
+                    <input id="certExpDate" type="date" value={expDate} onChange={e => setExpDate(e.target.value)} />
+                </div>
+                <div className="form-group">
+                    <label htmlFor="certFile">File Attachment</label>
+                    <input id="certFile" type="file" onChange={e => setFile(e.target.files[0])} accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" />
+                </div>
+                <div className="form-group">
+                    <label htmlFor="certNotes">Notes</label>
+                    <textarea id="certNotes" rows={2} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes..." />
+                </div>
+                <div className="form-actions">
+                    <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn--primary">Upload</button>
+                </div>
+            </form>
+        </Modal>
     );
 }
 
