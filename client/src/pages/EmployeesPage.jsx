@@ -429,34 +429,35 @@ export default function EmployeesPage() {
                                     onChange={toggleSelectAll}
                                 />
                                 <span className="table-toolbar__selected">{selectedIds.size} selected</span>
-                                <div className="table-toolbar__dropdown">
-                                    <select
-                                        className="table-toolbar__select"
-                                        value=""
-                                        onChange={(e) => {
-                                            const action = e.target.value;
-                                            if (!action) return;
-                                            if (selectedIds.size === 0) { showToast('Select employees first', 'error'); e.target.value = ''; return; }
-                                            if (action === 'toggle') {
-                                                const selected = employees.filter(emp => selectedIds.has(emp.id));
-                                                selected.forEach(emp => handleToggleActive(emp));
-                                                setSelectedIds(new Set());
-                                            } else if (action === 'archive') {
-                                                if (confirm(`Archive ${selectedIds.size} employee(s)?`)) {
-                                                    selectedIds.forEach(id => api.deleteEmployee(id));
-                                                    setTimeout(() => { fetchData(); setSelectedIds(new Set()); }, 300);
-                                                }
+                                <select
+                                    className="table-toolbar__select"
+                                    value=""
+                                    onChange={(e) => {
+                                        const action = e.target.value;
+                                        if (!action) return;
+                                        if (selectedIds.size === 0) { showToast('Select employees first', 'error'); e.target.value = ''; return; }
+                                        if (action === 'toggle') {
+                                            const selected = employees.filter(emp => selectedIds.has(emp.id));
+                                            selected.forEach(emp => handleToggleActive(emp));
+                                            setSelectedIds(new Set());
+                                        } else if (action === 'archive') {
+                                            if (confirm(`Archive ${selectedIds.size} employee(s)?`)) {
+                                                selectedIds.forEach(id => api.deleteEmployee(id));
+                                                setTimeout(() => { fetchData(); setSelectedIds(new Set()); }, 300);
                                             }
-                                            e.target.value = '';
-                                        }}
-                                    >
-                                        <option value="">Bulk Actions</option>
-                                        <option value="toggle">Toggle Status</option>
-                                        <option value="archive">Archive</option>
-                                    </select>
-                                </div>
+                                        }
+                                        e.target.value = '';
+                                    }}
+                                >
+                                    <option value="">Bulk Actions</option>
+                                    <option value="toggle">Toggle Status</option>
+                                    <option value="archive">Archive</option>
+                                </select>
                             </div>
                             <div className="table-toolbar__right">
+                                <button className="table-toolbar__filter-btn">
+                                    {Icons.filter} Filters
+                                </button>
                                 <select
                                     className="table-toolbar__filter"
                                     value={statusFilter}
@@ -483,13 +484,13 @@ export default function EmployeesPage() {
                             </div>
                         ) : (
                             <div className="table-scroll">
-                                <table className="data-table data-table--sheet">
+                                <table className="data-table data-table--sheet data-table--dark-header">
                                     <thead>
                                         <tr>
                                             <th scope="col" style={{ width: 40 }}>
                                                 <input
                                                     type="checkbox"
-                                                    className="bulk-checkbox"
+                                                    className="bulk-checkbox bulk-checkbox--light"
                                                     checked={allSelected}
                                                     onChange={toggleSelectAll}
                                                 />
