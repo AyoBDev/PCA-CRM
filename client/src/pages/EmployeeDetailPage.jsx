@@ -244,7 +244,7 @@ export default function EmployeeDetailPage() {
         try {
             setShiftsLoading(true);
             const data = await api.getEmployeeSchedule(Number(employeeId));
-            setShifts(data);
+            setShifts(Array.isArray(data) ? data : data.shifts || []);
         } catch (err) { /* ignore */ }
         finally { setShiftsLoading(false); }
     }, [employeeId]);
