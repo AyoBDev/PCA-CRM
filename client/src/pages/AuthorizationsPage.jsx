@@ -931,7 +931,7 @@ export default function AuthorizationsPage() {
                     )}
                     {!showArchived && isAdmin && (
                         <button className="btn btn--outline" onClick={() => setModal({ type: 'bulkImport' })}>
-                            {Icons.download} Import
+                            {Icons.upload} Import
                         </button>
                     )}
                     {!showArchived && (
