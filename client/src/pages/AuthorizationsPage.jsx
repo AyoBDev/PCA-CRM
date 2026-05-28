@@ -437,11 +437,11 @@ function BulkImportModal({ onImport, onClose }) {
 
             {file && !error && (
                 <p style={{ color: 'hsl(142 71% 45%)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-                    {Icons.checkCircle} {file.name} selected — ready to import
+                    <span style={{ width: 16, height: 16, flexShrink: 0, display: 'inline-flex' }}>{Icons.checkCircle}</span> {file.name} selected — ready to import
                 </p>
             )}
 
-            {error && <p style={{ color: 'hsl(0 84% 60%)', fontSize: 13, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>{Icons.alertCircle} {error}</p>}
+            {error && <p style={{ color: 'hsl(0 84% 60%)', fontSize: 13, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 16, height: 16, flexShrink: 0, display: 'inline-flex' }}>{Icons.alertCircle}</span> {error}</p>}
 
             <div className="form-actions">
                 <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
