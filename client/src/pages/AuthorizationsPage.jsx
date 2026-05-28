@@ -1278,7 +1278,11 @@ export default function AuthorizationsPage() {
                                                                         <td>
                                                                             {(auth.documents || []).length > 0 ? (
                                                                                 <span className="auth-attachment-link" title={(auth.documents || []).map(d => d.fileName).join(', ')}>
-                                                                                    {Icons.paperclip} {(auth.documents || [])[0]?.fileName || 'file'}
+                                                                                    {Icons.paperclip} {(() => {
+                                                                                        const name = (auth.documents || [])[0]?.fileName || 'file';
+                                                                                        const withoutExt = name.replace(/\.[^.]+$/, '');
+                                                                                        return withoutExt.replace(/[_-]/g, ' ');
+                                                                                    })()}
                                                                                 </span>
                                                                             ) : (
                                                                                 <span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12 }}>—</span>
