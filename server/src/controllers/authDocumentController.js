@@ -52,10 +52,12 @@ async function downloadAuthDocument(req, res, next) {
         if (!doc) return res.status(404).json({ error: 'Document not found' });
 
         if (doc.file_data) {
-            res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(doc.file_name)}"`);
-            res.setHeader('Content-Type', doc.mime_type || 'application/octet-stream');
+            const mimeType = doc.mime_type || 'application/octet-stream';
+            const disposition = mimeType === 'application/pdf' ? 'inline' : 'attachment';
+            res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(doc.file_name)}"`);
+            res.setHeader('Content-Type', mimeType);
             res.setHeader('Content-Length', doc.file_data.length);
-            return res.send(doc.file_data);
+            return res.send(Buffer.from(doc.file_data));
         }
 
         // Fallback to filesystem for old uploads

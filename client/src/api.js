@@ -174,9 +174,11 @@ export const downloadDocument = (id) => {
     const headers = {};
     if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
     return fetch(`${BASE}/documents/${id}/download`, { headers })
-        .then(res => {
+        .then(async res => {
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            return res.blob();
+            const contentType = res.headers.get('Content-Type') || 'application/octet-stream';
+            const arrayBuffer = await res.arrayBuffer();
+            return new Blob([arrayBuffer], { type: contentType });
         });
 };
 export const deleteDocument = (id) =>
@@ -207,9 +209,11 @@ export const downloadAuthDocument = (id) => {
     const headers = {};
     if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
     return fetch(`${BASE}/auth-documents/${id}/download`, { headers })
-        .then(res => {
+        .then(async res => {
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            return res.blob();
+            const contentType = res.headers.get('Content-Type') || 'application/octet-stream';
+            const arrayBuffer = await res.arrayBuffer();
+            return new Blob([arrayBuffer], { type: contentType });
         });
 };
 export const deleteAuthDocument = (id) =>

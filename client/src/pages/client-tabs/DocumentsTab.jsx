@@ -31,6 +31,7 @@ export default function DocumentsTab({
     setDocCategory,
     setShowDocUploadModal,
     handleDownloadDoc,
+    handleDownloadAuthDoc,
     setConfirmDelete,
 }) {
     const docsByCategory = (client.documents || []).reduce((acc, d) => {
@@ -38,9 +39,10 @@ export default function DocumentsTab({
         acc[d.category].push(d);
         return acc;
     }, {});
-    const activeAuthDocs = (client.authorizations || [])
-        .filter(a => !a.archivedAt && (a.manualStatus || 'active') === 'active')
-        .reduce((sum, a) => sum + (a.documents || []).length, 0);
+    const authDocs = (client.authorizations || [])
+        .filter(a => !a.archivedAt)
+        .flatMap(a => (a.documents || []).map(d => ({ ...d, _authServiceCode: a.serviceCode })));
+    const activeAuthDocs = authDocs.length;
     const clientDocs = (client.documents || []).filter(d => !d.category || !d.category.startsWith('auth_')).length;
     const totalDocs = activeAuthDocs + clientDocs;
 
@@ -98,6 +100,38 @@ export default function DocumentsTab({
                             </div>
                         );
                     })}
+                    {authDocs.length > 0 && (
+                        <div className={`cp-doc-folder cp-doc-folder--has-files`}>
+                            <button
+                                className="cp-doc-folder__header"
+                                onClick={() => toggleFolder('_auth_attachments')}
+                                style={{ '--folder-color': '#10b981' }}
+                            >
+                                <span className="cp-doc-folder__chevron" style={{ transform: expandedFolders['_auth_attachments'] !== false ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+                                    {Icons.chevronRight}
+                                </span>
+                                <span className="cp-doc-folder__icon">{Icons.shieldCheck}</span>
+                                <span className="cp-doc-folder__name">Authorization Attachments</span>
+                                <span className="cp-doc-folder__count">{authDocs.length}</span>
+                            </button>
+                            {expandedFolders['_auth_attachments'] !== false && (
+                                <div className="cp-doc-folder__files">
+                                    {authDocs.map(doc => (
+                                        <div key={`auth-${doc.id}`} className="cp-doc-file">
+                                            <span className="cp-doc-file__icon">{Icons.paperclip}</span>
+                                            <span className="cp-doc-file__name">{doc.fileName}</span>
+                                            <span className="cp-doc-file__meta">{doc._authServiceCode}</span>
+                                            <span className="cp-doc-file__meta">{formatFileSize(doc.fileSize)}</span>
+                                            <span className="cp-doc-file__meta">{formatDate(doc.createdAt)}</span>
+                                            <div className="cp-doc-file__actions">
+                                                <button className="btn btn--ghost btn--icon" title="Download" onClick={() => handleDownloadAuthDoc(doc)}>{Icons.download}</button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
