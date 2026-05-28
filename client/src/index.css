@@ -1569,11 +1569,82 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 24px;
+  padding: 10px 24px;
   background: hsl(240 5.9% 10%);
   color: hsl(0 0% 98%);
   font-size: 13px;
   font-weight: 500;
+  border-radius: 10px 10px 0 0;
+}
+
+.btn--ghost-light {
+  background: transparent;
+  border: 1px solid hsl(0 0% 100% / 0.2);
+  color: hsl(0 0% 98%);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn--ghost-light:hover {
+  background: hsl(0 0% 100% / 0.1);
+}
+
+.btn--primary-light {
+  background: hsl(217 91% 60%);
+  border: none;
+  color: #fff;
+  border-radius: 6px;
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn--primary-light:hover {
+  background: hsl(217 91% 50%);
+}
+
+.bulk-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: hsl(var(--primary));
+  cursor: pointer;
+}
+
+.card--clickable {
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+.card--clickable:hover {
+  box-shadow: 0 4px 12px hsl(0 0% 0% / 0.06);
+  transform: translateY(-1px);
+}
+.card--active {
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 1px hsl(var(--primary) / 0.3), 0 4px 12px hsl(var(--primary) / 0.08);
+}
+
+.compliance-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.compliance-indicator svg {
+  width: 14px;
+  height: 14px;
+}
+.compliance-indicator--success {
+  color: hsl(142 76% 36%);
+}
+.compliance-indicator--warning {
+  color: hsl(32 95% 44%);
+}
+.compliance-indicator--danger {
+  color: hsl(0 72% 51%);
 }
 
 .filter-btn {

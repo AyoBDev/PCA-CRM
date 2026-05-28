@@ -42,6 +42,7 @@ export default function ClientsListPage() {
     const [menuOpenId, setMenuOpenId] = useState(null);
     const [sortOrder, setSortOrder] = useState('az');
     const [previewClient, setPreviewClient] = useState(null);
+    const [selectedIds, setSelectedIds] = useState(new Set());
 
     const handleDatePaste = (field) => (e) => {
         const text = (e.clipboardData || window.clipboardData).getData('text').trim();
@@ -92,6 +93,8 @@ export default function ClientsListPage() {
         document.addEventListener('click', close);
         return () => document.removeEventListener('click', close);
     }, [menuOpenId]);
+
+    useEffect(() => { setSelectedIds(new Set()); }, [statusFilter, search]);
 
     const handleCreate = async (e) => {
         e.preventDefault();
@@ -148,6 +151,25 @@ export default function ClientsListPage() {
         return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
     };
 
+    const allSelected = filtered.length > 0 && filtered.every(c => selectedIds.has(c.id));
+
+    const toggleSelectAll = () => {
+        if (allSelected) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(filtered.map(c => c.id)));
+        }
+    };
+
+    const toggleSelect = (id) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
     return (
         <>
             <div className="page-hero">
@@ -173,25 +195,47 @@ export default function ClientsListPage() {
             </div>
             <div className="page-content">
                 <div className="sheet-card">
-                    <div className="filter-pills">
-                        {[
-                            { key: 'active', color: 'green', label: 'Active', count: clients.filter(c => getEffectiveStatus(c) === 'active').length },
-                            { key: 'inactive', color: 'orange', label: 'Inactive', count: clients.filter(c => getEffectiveStatus(c) === 'inactive').length },
-                            { key: 'discharged', color: 'red', label: 'Discharged', count: clients.filter(c => getEffectiveStatus(c) === 'discharged').length },
-                            { key: 'transferred', color: '', label: 'Transferred', count: clients.filter(c => getEffectiveStatus(c) === 'transferred').length },
-                            { key: 'all', color: '', label: 'All', count: clients.length },
-                        ].map(({ key, color, label, count }) => (
-                            <button
-                                key={key}
-                                className={`filter-pill ${color ? `filter-pill--${color}` : ''} ${statusFilter === key ? 'filter-pill--active' : ''}`}
-                                onClick={() => setStatusFilter(key)}
-                            >
-                                <span className="filter-pill__dot" />
-                                {label}
-                                <span className="filter-pill__count">{count}</span>
+                    {selectedIds.size > 0 && (
+                        <div className="bulk-action-bar">
+                            <span>{selectedIds.size} client{selectedIds.size !== 1 ? 's' : ''} selected</span>
+                            <button className="btn btn--sm btn--ghost-light">Change Status</button>
+                            <button className="btn btn--sm btn--ghost-light">Add Services</button>
+                            <button className="btn btn--sm btn--ghost-light">Assign Caregiver</button>
+                            <button className="btn btn--sm btn--ghost-light">Add Note</button>
+                            <button className="btn btn--sm btn--ghost-light">Transfer</button>
+                            <button className="btn btn--sm btn--ghost-light">Discharge</button>
+                            <div style={{ flex: 1 }} />
+                            <button className="btn btn--sm btn--primary-light">
+                                Apply to {selectedIds.size}
                             </button>
-                        ))}
-                    </div>
+                            <button className="btn btn--sm btn--ghost-light" onClick={() => setSelectedIds(new Set())}>
+                                ✕
+                            </button>
+                        </div>
+                    )}
+
+                    {selectedIds.size === 0 && (
+                        <div className="filter-pills">
+                            {[
+                                { key: 'active', color: 'green', label: 'Active', count: clients.filter(c => getEffectiveStatus(c) === 'active').length },
+                                { key: 'inactive', color: 'orange', label: 'Inactive', count: clients.filter(c => getEffectiveStatus(c) === 'inactive').length },
+                                { key: 'discharged', color: 'red', label: 'Discharged', count: clients.filter(c => getEffectiveStatus(c) === 'discharged').length },
+                                { key: 'transferred', color: '', label: 'Transferred', count: clients.filter(c => getEffectiveStatus(c) === 'transferred').length },
+                                { key: 'all', color: '', label: 'All', count: clients.length },
+                            ].map(({ key, color, label, count }) => (
+                                <button
+                                    key={key}
+                                    className={`filter-pill ${color ? `filter-pill--${color}` : ''} ${statusFilter === key ? 'filter-pill--active' : ''}`}
+                                    onClick={() => setStatusFilter(key)}
+                                >
+                                    <span className="filter-pill__dot" />
+                                    {label}
+                                    <span className="filter-pill__count">{count}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
                     {loading ? (
                         <div style={{ padding: 16 }}>
                             {[1, 2, 3, 4].map(i => <div key={i} className="skeleton skeleton-row" style={{ marginBottom: 4 }} />)}
@@ -207,6 +251,14 @@ export default function ClientsListPage() {
                             <table className="data-table data-table--sheet">
                             <thead>
                                 <tr>
+                                    <th scope="col" style={{ width: 40 }}>
+                                        <input
+                                            type="checkbox"
+                                            className="bulk-checkbox"
+                                            checked={allSelected}
+                                            onChange={toggleSelectAll}
+                                        />
+                                    </th>
                                     <th scope="col" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setSortOrder(sortOrder === 'az' ? 'za' : 'az')}>
                                         <span className="th-content">Client {sortOrder === 'az' ? '↑' : '↓'}</span>
                                     </th>
@@ -226,15 +278,23 @@ export default function ClientsListPage() {
                                     const clientStatusStyle = CLIENT_STATUS_STYLES[effectiveStatus] || CLIENT_STATUS_STYLES.active;
                                     const rowColor = effectiveStatus === 'active' ? 'BLUE' : effectiveStatus === 'discharged' ? 'RED' : effectiveStatus === 'inactive' ? 'ORANGE' : 'BLUE';
                                     return (
-                                        <tr key={c.id} className={`row-client row-client--${rowColor}`} style={{ cursor: 'pointer' }} onClick={() => setPreviewClient(c)}>
-                                            <td>
+                                        <tr key={c.id} className={`row-client row-client--${rowColor}`}>
+                                            <td onClick={e => e.stopPropagation()}>
+                                                <input
+                                                    type="checkbox"
+                                                    className="bulk-checkbox"
+                                                    checked={selectedIds.has(c.id)}
+                                                    onChange={() => toggleSelect(c.id)}
+                                                />
+                                            </td>
+                                            <td style={{ cursor: 'pointer' }} onClick={() => setPreviewClient(c)}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                                     <div className="client-avatar" style={{ background: getAvatarColor(c.clientName) }}>{getInitials(c.clientName)}</div>
                                                     <div style={{ fontWeight: 500, lineHeight: 1.3 }}>{c.clientName}</div>
                                                 </div>
                                             </td>
-                                            <td style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 12 }}>{c.medicaidId || '\u2014'}</td>
-                                            <td style={{ fontSize: 12 }}>{c.gender || '\u2014'}</td>
+                                            <td style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 12 }}>{c.medicaidId || '—'}</td>
+                                            <td style={{ fontSize: 12 }}>{c.gender || '—'}</td>
                                             <td style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{formatShortDate(c.dob)}</td>
                                             <td>
                                                 {services.length > 0 ? (
@@ -244,7 +304,7 @@ export default function ClientsListPage() {
                                                         ))}
                                                     </div>
                                                 ) : (
-                                                    <span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12 }}>{'\u2014'}</span>
+                                                    <span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12 }}>{'—'}</span>
                                                 )}
                                             </td>
                                             <td style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{formatShortDate(c.lastVisit)}</td>
@@ -263,7 +323,7 @@ export default function ClientsListPage() {
                                                         onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === c.id ? null : c.id); }}
                                                         title="Actions"
                                                     >
-                                                        {Icons.moreVertical || '\u22ee'}
+                                                        {Icons.moreVertical || '⋮'}
                                                     </button>
                                                     {menuOpenId === c.id && (
                                                         <div className="cl-row-menu__dropdown" onClick={(e) => e.stopPropagation()}>
