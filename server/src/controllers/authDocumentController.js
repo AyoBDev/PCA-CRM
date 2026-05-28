@@ -24,7 +24,11 @@ async function uploadAuthDocument(req, res, next) {
                 uploaded_by: req.user.id,
                 notes: (req.body.notes || '').trim(),
             },
-            include: { users: { select: { id: true, name: true } } },
+            select: {
+                id: true, authorization_id: true, file_name: true, file_path: true,
+                file_size: true, mime_type: true, uploaded_by: true, notes: true, created_at: true,
+                users: { select: { id: true, name: true } },
+            },
         });
 
 
