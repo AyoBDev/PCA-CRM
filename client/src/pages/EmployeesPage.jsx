@@ -422,23 +422,31 @@ export default function EmployeesPage() {
                     <div className="sheet-card">
                         {selectedIds.size > 0 && (
                             <div className="bulk-action-bar">
-                                <span>{selectedIds.size} selected</span>
-                                <button className="btn btn--sm btn--ghost-light" onClick={() => {
-                                    const selected = employees.filter(e => selectedIds.has(e.id));
-                                    selected.forEach(emp => handleToggleActive(emp));
-                                }}>
-                                    Toggle Status
-                                </button>
-                                <button className="btn btn--sm btn--ghost-light" onClick={() => {
-                                    if (confirm(`Archive ${selectedIds.size} employee(s)?`)) {
-                                        selectedIds.forEach(id => api.deleteEmployee(id));
-                                        setTimeout(() => { fetchData(); setSelectedIds(new Set()); }, 300);
-                                    }
-                                }}>
-                                    Archive
-                                </button>
-                                <div style={{ flex: 1 }} />
-                                <button className="btn btn--sm btn--ghost-light" onClick={() => setSelectedIds(new Set())}>
+                                <span className="bulk-action-bar__count">
+                                    {Icons.checkCircle} {selectedIds.size} selected
+                                </span>
+                                <span className="bulk-action-bar__divider" />
+                                <div className="bulk-action-bar__actions">
+                                    <button className="btn--bulk" onClick={() => {
+                                        const selected = employees.filter(e => selectedIds.has(e.id));
+                                        selected.forEach(emp => handleToggleActive(emp));
+                                        setSelectedIds(new Set());
+                                    }}>
+                                        {Icons.shieldCheck} Toggle Status
+                                    </button>
+                                    <button className="btn--bulk" onClick={() => setModal({ type: 'form' })}>
+                                        {Icons.edit} Edit
+                                    </button>
+                                    <button className="btn--bulk btn--bulk-danger" onClick={() => {
+                                        if (confirm(`Archive ${selectedIds.size} employee(s)?`)) {
+                                            selectedIds.forEach(id => api.deleteEmployee(id));
+                                            setTimeout(() => { fetchData(); setSelectedIds(new Set()); }, 300);
+                                        }
+                                    }}>
+                                        {Icons.archive} Archive
+                                    </button>
+                                </div>
+                                <button className="bulk-action-bar__close" onClick={() => setSelectedIds(new Set())} title="Clear selection">
                                     ✕
                                 </button>
                             </div>
