@@ -44,6 +44,20 @@ async function request(path, options = {}) {
     return res.json();
 }
 
+async function handleRes(res) {
+    if (res.status === 401) {
+        clearToken();
+        window.dispatchEvent(new Event('auth:logout'));
+        throw new Error('Session expired. Please log in again.');
+    }
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+    }
+    if (res.status === 204) return null;
+    return res.json();
+}
+
 // ── Auth ──
 export const login = (email, password) =>
     fetch(`${BASE}/auth/login`, {
@@ -120,8 +134,11 @@ export const mergeClients = (keepId, mergeId) =>
     request(`/clients/${keepId}/merge`, { method: 'POST', body: JSON.stringify({ mergeId }) });
 
 // Bulk Import
-export const bulkImport = (clients) =>
-    request('/clients/bulk-import', { method: 'POST', body: JSON.stringify({ clients }) });
+export const bulkImport = (file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return fetch(`${BASE}/clients/bulk-import`, { method: 'POST', headers: { Authorization: `Bearer ${getToken()}` }, body: fd }).then(handleRes);
+};
 
 // Bulk Delete
 export const bulkDeleteClients = (ids) =>

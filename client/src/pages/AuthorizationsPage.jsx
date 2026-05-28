@@ -388,164 +388,70 @@ function AuthFormModal({ auth, clientId, onSave, onClose }) {
 
 // ── Bulk Import Modal ──
 function BulkImportModal({ onImport, onClose }) {
-    const fileRef = useRef(null);
-    const [preview, setPreview] = useState(null);
+    const [file, setFile] = useState(null);
     const [error, setError] = useState('');
-    const [fileName, setFileName] = useState('');
+    const [uploading, setUploading] = useState(false);
 
-    const excelDateToString = (v, XLSXLib) => {
-        if (!v && v !== 0) return '';
-        if (typeof v === 'number' && XLSXLib) {
-            const d = XLSXLib.SSF.parse_date_code(v);
-            if (d) return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`;
+    const handleFileChange = (e) => {
+        const f = e.target.files[0];
+        if (!f) return;
+        const ext = f.name.split('.').pop().toLowerCase();
+        if (!['csv', 'xlsx', 'xls'].includes(ext)) {
+            setError('Unsupported file type. Please use .xlsx, .xls, or .csv');
+            setFile(null);
+            return;
         }
-        const str = String(v).trim();
-        if (!str) return '';
-        const dt = new Date(str);
-        return isNaN(dt.getTime()) ? '' : dt.toISOString().slice(0, 10);
+        setFile(f);
+        setError('');
     };
 
-    const parseParentChildRows = (rawRows, XLSXLib) => {
-        const clients = [];
-        let current = null;
-
-        for (let i = 1; i < rawRows.length; i++) {
-            const row = rawRows[i];
-            const hasContent = row.some(cell => cell !== '' && cell !== undefined && cell !== null);
-            if (!hasContent) continue;
-
-            const clientName = String(row[1] || '').trim();
-            const medicaidId = String(row[2] || '').trim();
-            const insuranceType = String(row[3] || '').trim();
-            const serviceCategory = String(row[4] || '').trim();
-            const serviceCode = String(row[5] || '').trim();
-            const serviceName = String(row[6] || '').trim();
-            const authorizedUnits = row[7];
-            const authStart = row[8];
-            const authEnd = row[9];
-            const notes = String(row[12] || '').trim();
-
-            if (clientName) {
-                if (current) clients.push(current);
-                current = {
-                    clientName,
-                    medicaidId,
-                    insuranceType: insuranceType || 'MEDICAID',
-                    authorizations: [],
-                };
-                continue;
-            }
-
-            if (current && serviceCode) {
-                current.authorizations.push({
-                    serviceCategory,
-                    serviceCode,
-                    serviceName: serviceName || serviceCode,
-                    authorizedUnits: parseInt(authorizedUnits, 10) || 0,
-                    authorizationStartDate: excelDateToString(authStart, XLSXLib),
-                    authorizationEndDate: excelDateToString(authEnd, XLSXLib),
-                    notes,
-                });
-            }
-        }
-        if (current) clients.push(current);
-        return clients;
-    };
-
-    const handleFileUpload = (e) => {
-        const file = e.target.files[0];
+    const handleSubmit = async () => {
         if (!file) return;
-        setFileName(file.name);
-        const ext = file.name.split('.').pop().toLowerCase();
-
-        if (ext === 'json') {
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-                try {
-                    const parsed = JSON.parse(evt.target.result);
-                    if (!Array.isArray(parsed)) throw new Error('JSON must be an array');
-                    setPreview(parsed);
-                    setError('');
-                } catch (err) { setError('Invalid JSON: ' + err.message); setPreview(null); }
-            };
-            reader.readAsText(file);
-        } else if (['csv', 'xlsx', 'xls'].includes(ext)) {
-            const reader = new FileReader();
-            reader.onload = async (evt) => {
-                try {
-                    const XLSX = await import('xlsx');
-                    const wb = XLSX.read(evt.target.result, { type: 'array', cellDates: false });
-                    const sheet = wb.Sheets[wb.SheetNames[0]];
-                    const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true });
-                    if (!rawRows.length) throw new Error('Spreadsheet is empty');
-                    const clients = parseParentChildRows(rawRows, XLSX);
-                    if (!clients.length) throw new Error('No valid client rows found. Make sure column B has client names.');
-                    setPreview(clients);
-                    setError('');
-                } catch (err) { setError(err.message); setPreview(null); }
-            };
-            reader.readAsArrayBuffer(file);
-        } else {
-            setError('Unsupported file type. Please use .csv, .xlsx, .xls, or .json');
-            setPreview(null);
+        setUploading(true);
+        setError('');
+        try {
+            await onImport(file);
+        } catch (err) {
+            setError(err.message || 'Import failed');
         }
-    };
-
-    const handleSubmit = () => {
-        if (!preview) return;
-        onImport(preview);
+        setUploading(false);
     };
 
     return (
         <Modal onClose={onClose} wide>
-            <h2 className="modal__title">Import Clients</h2>
+            <h2 className="modal__title">Import Clients & Authorizations</h2>
             <p className="modal__desc">
-                Upload a <strong>CSV</strong>, <strong>XLSX</strong>, or <strong>JSON</strong> file. Spreadsheets should have columns like: Client Name, Medicaid ID, Insurance Type, Service Code, Service Name, Authorized Units, Auth Start, Auth End.
+                Upload an <strong>XLSX</strong> or <strong>CSV</strong> file with the standard format (Client Name, Medicaid ID, Insurance Type, Service Code, etc.).
+                Existing clients are matched by Medicaid ID and updated. New clients are created automatically.
             </p>
 
             <div className="form-group">
                 <label>Choose File</label>
                 <input
-                    ref={fileRef}
                     type="file"
-                    accept=".csv,.xlsx,.xls,.json"
-                    onChange={handleFileUpload}
+                    accept=".csv,.xlsx,.xls"
+                    onChange={handleFileChange}
                     style={{ fontSize: 13 }}
                 />
             </div>
 
-            {fileName && !error && !preview && <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>Parsing {fileName}…</p>}
+            {file && !error && (
+                <p style={{ color: 'hsl(142 71% 45%)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                    {Icons.checkCircle} {file.name} selected — ready to import
+                </p>
+            )}
 
             {error && <p style={{ color: 'hsl(0 84% 60%)', fontSize: 13, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>{Icons.alertCircle} {error}</p>}
-
-            {preview && (
-                <div style={{ marginBottom: 12 }}>
-                    <p style={{ color: 'hsl(142 71% 45%)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                        {Icons.checkCircle} {preview.length} client(s) ready to import ({preview.reduce((s, c) => s + (c.authorizations?.length || 0), 0)} authorization(s))
-                    </p>
-                    <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)', fontSize: 12 }}>
-                        <table className="data-table data-table--compact">
-                            <thead><tr><th scope="col">Client Name</th><th scope="col">Medicaid ID</th><th scope="col">Insurance</th><th scope="col">Authorizations</th></tr></thead>
-                            <tbody>
-                                {preview.slice(0, 20).map((c, i) => (
-                                    <tr key={i}><td>{c.clientName}</td><td>{c.medicaidId}</td><td>{c.insuranceType}</td><td>{c.authorizations?.length || 0}</td></tr>
-                                ))}
-                                {preview.length > 20 && <tr><td colSpan={4} style={{ textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>…and {preview.length - 20} more</td></tr>}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
 
             <div className="form-actions">
                 <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
                 <button
                     className="btn btn--primary"
                     onClick={handleSubmit}
-                    disabled={!preview}
-                    style={{ opacity: preview ? 1 : 0.5 }}
+                    disabled={!file || uploading}
+                    style={{ opacity: file && !uploading ? 1 : 0.5 }}
                 >
-                    {Icons.upload} Import Data
+                    {Icons.upload} {uploading ? 'Importing...' : 'Import'}
                 </button>
             </div>
         </Modal>
@@ -894,10 +800,10 @@ export default function AuthorizationsPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
-    const handleBulkImport = async (rows) => {
+    const handleBulkImport = async (file) => {
         try {
-            const result = await api.bulkImport(rows);
-            showToast(`Imported ${result.imported} client(s)`);
+            const result = await api.bulkImport(file);
+            showToast(`Import complete: ${result.clientsCreated} new clients, ${result.clientsUpdated} updated, ${result.authsCreated} new authorizations`);
             setClients(result.clients);
             setModal(null);
         } catch (err) { showToast(err.message, 'error'); }

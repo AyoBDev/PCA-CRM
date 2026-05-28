@@ -179,7 +179,7 @@ router.get('/clients', requireRole('admin', 'user', 'pca'), listClients);
 router.delete('/clients/bulk-permanent', requireRole('admin'), bulkPermanentlyDeleteClients);
 router.get('/clients/:id', requireRole('admin', 'user', 'pca'), getClient);
 router.post('/clients', requireRole('admin', 'user', 'pca'), createClient);
-router.post('/clients/bulk-import', requireRole('admin'), bulkImport);
+router.post('/clients/bulk-import', requireRole('admin'), upload.single('file'), bulkImport);
 router.post('/clients/bulk-delete', requireRole('admin', 'user', 'pca'), bulkDelete);
 router.put('/clients/:id/restore', requireRole('admin', 'user', 'pca'), restoreClient);
 router.put('/clients/:id', requireRole('admin', 'user', 'pca'), updateClient);
