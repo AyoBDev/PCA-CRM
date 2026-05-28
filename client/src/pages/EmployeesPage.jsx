@@ -43,31 +43,33 @@ function getEmpCertStatus(emp) {
     return 'valid';
 }
 
-function CertCell({ emp }) {
-    const { worst, items } = getCertSummary(emp);
-    if (!worst) return <span style={{ color: 'hsl(var(--muted-foreground))' }}>—</span>;
-
+function ComplianceCell({ emp }) {
+    const status = getEmpCertStatus(emp);
+    const { items } = getCertSummary(emp);
     const expired = items.filter(i => i.status === 'expired');
     const expiring = items.filter(i => i.status === 'expiring');
 
-    if (expired.length > 0) {
+    if (status === 'expired') {
         return (
-            <span className="ts-badge ts-badge--danger" title={expired.map(i => `${i.label}: ${fmtDate(i.date)}`).join('\n')}>
-                {expired.length} expired
-            </span>
+            <div className="compliance-indicator compliance-indicator--danger" title={expired.map(i => `${i.label}: ${fmtDate(i.date)}`).join('\n')}>
+                {Icons.alertTriangle}
+                <span>{expired.length} expired</span>
+            </div>
         );
     }
-    if (expiring.length > 0) {
+    if (status === 'expiring') {
         return (
-            <span className="ts-badge ts-badge--warning" title={expiring.map(i => `${i.label}: ${fmtDate(i.date)} (${i.days}d)`).join('\n')}>
-                {expiring.length} due soon
-            </span>
+            <div className="compliance-indicator compliance-indicator--warning" title={expiring.map(i => `${i.label}: ${fmtDate(i.date)} (${i.days}d)`).join('\n')}>
+                {Icons.alertTriangle}
+                <span>Action needed</span>
+            </div>
         );
     }
     return (
-        <span className="ts-badge ts-badge--success" title={items.map(i => `${i.label}: ${fmtDate(i.date)}`).join('\n')}>
-            All current
-        </span>
+        <div className="compliance-indicator compliance-indicator--success" title={items.map(i => `${i.label}: ${fmtDate(i.date)}`).join('\n')}>
+            {Icons.checkCircle}
+            <span>Up to date</span>
+        </div>
     );
 }
 
@@ -141,6 +143,21 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
     );
 }
 
+const AVATAR_COLORS = ['#3b82f6', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#6366f1', '#14b8a6', '#f97316'];
+
+function getInitials(name) {
+    if (!name) return '?';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+}
+
+function getAvatarColor(name) {
+    let hash = 0;
+    for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
 export default function EmployeesPage() {
     const { isAdmin } = useAuth();
     const { showToast, showUndoToast } = useToast();
@@ -149,12 +166,13 @@ export default function EmployeesPage() {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
-    const [statusFilter, setStatusFilter] = useState('OK');
+    const [statusFilter, setStatusFilter] = useState('All');
     const [modal, setModal] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
     const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(null);
     const [confirmBulkPermanentDelete, setConfirmBulkPermanentDelete] = useState(false);
     const [importing, setImporting] = useState(false);
+    const [selectedIds, setSelectedIds] = useState(new Set());
     const fileRef = useRef();
 
     const fetchData = useCallback(async () => {
@@ -173,6 +191,8 @@ export default function EmployeesPage() {
     }, [showArchived, showToast]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
+
+    useEffect(() => { setSelectedIds(new Set()); }, [statusFilter, search, showArchived]);
 
     const handleSave = async (data) => {
         try {
@@ -278,10 +298,28 @@ export default function EmployeesPage() {
 
         if (statusFilter === 'OK') return getEmpCertStatus(e) === 'valid' && !e.critical;
         if (statusFilter === 'Critical') return e.critical;
-        if (statusFilter === 'Expiring') return getEmpCertStatus(e) === 'expiring';
         if (statusFilter === 'Expired') return getEmpCertStatus(e) === 'expired';
         return true;
-    });
+    }).sort((a, b) => (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase()));
+
+    const allSelected = filtered.length > 0 && filtered.every(e => selectedIds.has(e.id));
+
+    const toggleSelectAll = () => {
+        if (allSelected) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(filtered.map(e => e.id)));
+        }
+    };
+
+    const toggleSelect = (id) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
 
     return (
         <>
@@ -341,37 +379,37 @@ export default function EmployeesPage() {
 
                 {!showArchived && !loading && (
                     <div className="stats-grid">
-                        <div className="card">
+                        <div className={`card card--clickable ${statusFilter === 'All' ? 'card--active' : ''}`} onClick={() => setStatusFilter('All')}>
                             <div className="card__header">
-                                <span className="card__title">Total Employees</span>
+                                <span className="card__title">All</span>
                                 <span className="card__icon">{Icons.users}</span>
                             </div>
                             <div className="card__value">{employees.length}</div>
-                            <div className="card__description">{filtered.length} shown with current filters</div>
+                            <div className="card__description">Total Employees</div>
                         </div>
-                        <div className="card">
+                        <div className={`card card--clickable ${statusFilter === 'OK' ? 'card--active' : ''}`} onClick={() => setStatusFilter('OK')}>
+                            <div className="card__header">
+                                <span className="card__title">OK</span>
+                                <span className="card__icon" style={{ color: 'hsl(142 76% 36%)' }}>{Icons.checkCircle}</span>
+                            </div>
+                            <div className="card__value" style={{ color: 'hsl(142 76% 36%)' }}>{okCount}</div>
+                            <div className="card__description">Up to date</div>
+                        </div>
+                        <div className={`card card--clickable ${statusFilter === 'Critical' ? 'card--active' : ''}`} onClick={() => setStatusFilter('Critical')}>
                             <div className="card__header">
                                 <span className="card__title">Critical</span>
                                 <span className="card__icon text-destructive">{Icons.alertTriangle}</span>
                             </div>
                             <div className="card__value text-destructive">{criticalCount}</div>
-                            <div className="card__description">Employees on critical list</div>
+                            <div className="card__description">Action needed</div>
                         </div>
-                        <div className="card">
-                            <div className="card__header">
-                                <span className="card__title">Expiring Soon</span>
-                                <span className="card__icon text-warning">{Icons.alertTriangle}</span>
-                            </div>
-                            <div className="card__value text-warning">{expiringCount}</div>
-                            <div className="card__description">Certifications due within 30 days</div>
-                        </div>
-                        <div className="card">
+                        <div className={`card card--clickable ${statusFilter === 'Expired' ? 'card--active' : ''}`} onClick={() => setStatusFilter('Expired')}>
                             <div className="card__header">
                                 <span className="card__title">Expired</span>
                                 <span className="card__icon text-destructive">{Icons.alertTriangle}</span>
                             </div>
                             <div className="card__value text-destructive">{expiredCount}</div>
-                            <div className="card__description">Certifications past due date</div>
+                            <div className="card__description">Past due</div>
                         </div>
                     </div>
                 )}
@@ -382,25 +420,50 @@ export default function EmployeesPage() {
                     </div>
                 ) : (
                     <div className="sheet-card">
-                        <div className="filter-pills">
-                            {[
-                                { key: 'All', color: '', count: employees.length },
-                                { key: 'OK', color: 'green', count: okCount },
-                                { key: 'Critical', color: 'red', count: criticalCount },
-                                { key: 'Expiring', color: 'orange', count: expiringCount },
-                                { key: 'Expired', color: 'red', count: expiredCount },
-                            ].map(({ key, color, count }) => (
-                                <button
-                                    key={key}
-                                    className={`filter-pill ${color ? `filter-pill--${color}` : ''} ${statusFilter === key ? 'filter-pill--active' : ''}`}
-                                    onClick={() => setStatusFilter(key)}
-                                >
-                                    <span className="filter-pill__dot" />
-                                    {key}
-                                    <span className="filter-pill__count">{count}</span>
+                        {selectedIds.size > 0 && (
+                            <div className="bulk-action-bar">
+                                <span>{selectedIds.size} selected</span>
+                                <button className="btn btn--sm btn--ghost-light" onClick={() => {
+                                    const selected = employees.filter(e => selectedIds.has(e.id));
+                                    selected.forEach(emp => handleToggleActive(emp));
+                                }}>
+                                    Toggle Status
                                 </button>
-                            ))}
-                        </div>
+                                <button className="btn btn--sm btn--ghost-light" onClick={() => {
+                                    if (confirm(`Archive ${selectedIds.size} employee(s)?`)) {
+                                        selectedIds.forEach(id => api.deleteEmployee(id));
+                                        setTimeout(() => { fetchData(); setSelectedIds(new Set()); }, 300);
+                                    }
+                                }}>
+                                    Archive
+                                </button>
+                                <div style={{ flex: 1 }} />
+                                <button className="btn btn--sm btn--ghost-light" onClick={() => setSelectedIds(new Set())}>
+                                    ✕
+                                </button>
+                            </div>
+                        )}
+
+                        {selectedIds.size === 0 && (
+                            <div className="filter-pills">
+                                {[
+                                    { key: 'All', color: '', count: employees.length },
+                                    { key: 'OK', color: 'green', count: okCount },
+                                    { key: 'Critical', color: 'red', count: criticalCount },
+                                    { key: 'Expired', color: 'red', count: expiredCount },
+                                ].map(({ key, color, count }) => (
+                                    <button
+                                        key={key}
+                                        className={`filter-pill ${color ? `filter-pill--${color}` : ''} ${statusFilter === key ? 'filter-pill--active' : ''}`}
+                                        onClick={() => setStatusFilter(key)}
+                                    >
+                                        <span className="filter-pill__dot" />
+                                        {key}
+                                        <span className="filter-pill__count">{count}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
 
                         {filtered.length === 0 ? (
                             <div className="empty-state">
@@ -413,28 +476,55 @@ export default function EmployeesPage() {
                                 <table className="data-table data-table--sheet">
                                     <thead>
                                         <tr>
-                                            <th scope="col">Name</th>
+                                            <th scope="col" style={{ width: 40 }}>
+                                                <input
+                                                    type="checkbox"
+                                                    className="bulk-checkbox"
+                                                    checked={allSelected}
+                                                    onChange={toggleSelectAll}
+                                                />
+                                            </th>
+                                            <th scope="col">Employee</th>
                                             <th scope="col">Phone</th>
-                                            <th scope="col">Client</th>
-                                            <th scope="col">Certifications</th>
+                                            <th scope="col">Client(s) Assigned</th>
                                             <th scope="col">Status</th>
+                                            <th scope="col">Compliance</th>
+                                            <th scope="col">Last Updated</th>
                                             <th scope="col">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {filtered.map(emp => (
-                                            <tr key={emp.id} className={emp.critical ? 'row--critical' : ''} style={{ cursor: 'pointer' }} onClick={() => navigate(`/employees/${emp.id}`)}>
-                                                <td style={{ fontWeight: 500 }}>
-                                                    <span style={{ color: 'hsl(var(--primary))' }}>{emp.name}</span>
-                                                    {emp.critical && <span className="ts-badge ts-badge--danger" style={{ marginLeft: 6, fontSize: 10 }}>CRITICAL</span>}
+                                            <tr key={emp.id} className={emp.critical ? 'row--critical' : ''}>
+                                                <td onClick={e => e.stopPropagation()}>
+                                                    <input
+                                                        type="checkbox"
+                                                        className="bulk-checkbox"
+                                                        checked={selectedIds.has(emp.id)}
+                                                        onChange={() => toggleSelect(emp.id)}
+                                                    />
+                                                </td>
+                                                <td style={{ cursor: 'pointer' }} onClick={() => navigate(`/employees/${emp.id}`)}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                        <div className="client-avatar" style={{ background: getAvatarColor(emp.name), width: 32, height: 32, fontSize: 12 }}>
+                                                            {getInitials(emp.name)}
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontWeight: 500, color: 'hsl(var(--primary))' }}>{emp.name}</div>
+                                                            {emp.email && <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>{emp.email}</div>}
+                                                        </div>
+                                                    </div>
                                                 </td>
                                                 <td>{emp.phone || '—'}</td>
                                                 <td>{emp.clientAssignment || '—'}</td>
-                                                <td><CertCell emp={emp} /></td>
                                                 <td>
                                                     <span className={`ts-badge ts-badge--${emp.active ? 'submitted' : 'draft'}`}>
                                                         {emp.active ? 'Active' : 'Inactive'}
                                                     </span>
+                                                </td>
+                                                <td><ComplianceCell emp={emp} /></td>
+                                                <td style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
+                                                    {fmtDate(emp.updatedAt)}
                                                 </td>
                                                 <td onClick={e => e.stopPropagation()}>
                                                     <div className="row-actions">
@@ -447,11 +537,11 @@ export default function EmployeesPage() {
                                                             </div>
                                                         ) : (
                                                             <>
+                                                                <button className="btn btn--ghost btn--icon" onClick={() => navigate(`/employees/${emp.id}`)} title="View">
+                                                                    {Icons.eye}
+                                                                </button>
                                                                 <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'form', employee: emp })} title="Edit">
                                                                     {Icons.edit}
-                                                                </button>
-                                                                <button className="btn btn--ghost btn--icon" onClick={() => handleToggleActive(emp)} title={emp.active ? 'Deactivate' : 'Activate'}>
-                                                                    {emp.active ? Icons.shieldCheck : Icons.checkCircle}
                                                                 </button>
                                                                 <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDelete', employee: emp })} title="Delete">
                                                                     {Icons.trash}
