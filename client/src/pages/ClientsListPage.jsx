@@ -122,7 +122,7 @@ export default function ClientsListPage() {
         }
     };
 
-    const getEffectiveStatus = (c) => c.critical ? 'inactive' : (c.clientStatus || 'active');
+    const getEffectiveStatus = (c) => c.clientStatus || 'active';
 
     const filtered = clients.filter(c => {
         if (statusFilter !== 'all' && getEffectiveStatus(c) !== statusFilter) return false;
