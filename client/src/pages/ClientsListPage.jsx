@@ -44,6 +44,9 @@ export default function ClientsListPage() {
     const [sortOrder, setSortOrder] = useState('az');
     const [previewClient, setPreviewClient] = useState(null);
     const [selectedIds, setSelectedIds] = useState(new Set());
+    const [bulkNoteModal, setBulkNoteModal] = useState(false);
+    const [bulkAssignModal, setBulkAssignModal] = useState(false);
+    const [allEmployees, setAllEmployees] = useState([]);
 
     const handleDatePaste = (field) => (e) => {
         const text = (e.clipboardData || window.clipboardData).getData('text').trim();
@@ -86,7 +89,7 @@ export default function ClientsListPage() {
         } catch (err) { /* ignore */ }
     }, []);
 
-    useEffect(() => { fetchClients(); fetchInsuranceTypes(); }, [fetchClients, fetchInsuranceTypes]);
+    useEffect(() => { fetchClients(); fetchInsuranceTypes(); api.getEmployees().then(setAllEmployees).catch(() => {}); }, [fetchClients, fetchInsuranceTypes]);
 
     useEffect(() => {
         if (!menuOpenId) return;
@@ -244,13 +247,27 @@ export default function ClientsListPage() {
                                             await Promise.all(prevStatuses.map(s => api.patchClient(s.id, { clientStatus: s.status })));
                                             fetchClients();
                                         });
-                                    } else {
-                                        showToast(`${action} — coming soon`);
+                                    } else if (action === 'Activate') {
+                                        const prevStatuses = selected.map(c => ({ id: c.id, status: c.clientStatus || 'active' }));
+                                        await Promise.all(selected.map(c => api.patchClient(c.id, { clientStatus: 'active' })));
+                                        setSelectedIds(new Set());
+                                        fetchClients();
+                                        showUndoToast(`Activated ${selected.length} client(s)`, async () => {
+                                            await Promise.all(prevStatuses.map(s => api.patchClient(s.id, { clientStatus: s.status })));
+                                            fetchClients();
+                                        });
+                                    } else if (action === 'Add Note') {
+                                        setBulkNoteModal(true);
+                                    } else if (action === 'Assign Caregiver') {
+                                        setBulkAssignModal(true);
                                     }
                                 }}
                             >
                                 <option value="">Bulk Actions</option>
+                                <option value="Activate">Activate</option>
                                 <option value="Deactivate">Deactivate</option>
+                                <option value="Add Note">Add Note</option>
+                                <option value="Assign Caregiver">Assign Caregiver</option>
                                 <option value="Transfer">Transfer</option>
                                 <option value="Discharge">Discharge</option>
                             </select>
@@ -531,6 +548,115 @@ export default function ClientsListPage() {
                     </div>
                 </Modal>
             )}
+            {bulkNoteModal && (
+                <BulkNoteModal
+                    count={selectedIds.size}
+                    onSave={async (note) => {
+                        const selected = clients.filter(c => selectedIds.has(c.id));
+                        const prevNotes = selected.map(c => ({ id: c.id, notes: c.notes || '' }));
+                        await Promise.all(selected.map(c =>
+                            api.patchClient(c.id, { notes: c.notes ? `${c.notes}\n${note}` : note })
+                        ));
+                        setBulkNoteModal(false);
+                        setSelectedIds(new Set());
+                        fetchClients();
+                        showUndoToast(`Added note to ${selected.length} client(s)`, async () => {
+                            await Promise.all(prevNotes.map(s => api.patchClient(s.id, { notes: s.notes })));
+                            fetchClients();
+                        });
+                    }}
+                    onClose={() => setBulkNoteModal(false)}
+                />
+            )}
+            {bulkAssignModal && (
+                <BulkAssignModal
+                    employees={allEmployees.filter(e => e.active)}
+                    count={selectedIds.size}
+                    onSave={async (employeeId) => {
+                        const emp = allEmployees.find(e => e.id === employeeId);
+                        const selected = clients.filter(c => selectedIds.has(c.id));
+                        const clientNames = selected.map(c => c.clientName).join(', ');
+                        const prevAssignment = emp?.clientAssignment || '';
+                        const newAssignment = prevAssignment
+                            ? `${prevAssignment}, ${clientNames}`
+                            : clientNames;
+                        await api.updateEmployee(employeeId, { clientAssignment: newAssignment });
+                        setBulkAssignModal(false);
+                        setSelectedIds(new Set());
+                        showUndoToast(`Assigned ${selected.length} client(s) to ${emp?.name}`, async () => {
+                            await api.updateEmployee(employeeId, { clientAssignment: prevAssignment });
+                        });
+                    }}
+                    onClose={() => setBulkAssignModal(false)}
+                />
+            )}
         </>
+    );
+}
+
+function BulkNoteModal({ count, onSave, onClose }) {
+    const [note, setNote] = useState('');
+    return (
+        <Modal onClose={onClose}>
+            <h2 className="modal__title">Add Note to {count} Client(s)</h2>
+            <p className="modal__desc">This note will be appended to each selected client's notes.</p>
+            <form onSubmit={(e) => { e.preventDefault(); if (note.trim()) onSave(note.trim()); }}>
+                <div className="form-group">
+                    <label htmlFor="bulkNote">Note</label>
+                    <textarea
+                        id="bulkNote"
+                        rows={4}
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
+                        placeholder="Enter note..."
+                        autoFocus
+                    />
+                </div>
+                <div className="form-actions">
+                    <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn--primary" disabled={!note.trim()}>Add Note</button>
+                </div>
+            </form>
+        </Modal>
+    );
+}
+
+function BulkAssignModal({ employees, count, onSave, onClose }) {
+    const [selectedEmp, setSelectedEmp] = useState('');
+    const [search, setSearch] = useState('');
+    const filtered = employees.filter(e =>
+        e.name.toLowerCase().includes(search.toLowerCase())
+    );
+    return (
+        <Modal onClose={onClose}>
+            <h2 className="modal__title">Assign Caregiver to {count} Client(s)</h2>
+            <p className="modal__desc">Select a caregiver to assign to the selected clients.</p>
+            <form onSubmit={(e) => { e.preventDefault(); if (selectedEmp) onSave(Number(selectedEmp)); }}>
+                <div className="form-group">
+                    <label htmlFor="empSearch">Search Employee</label>
+                    <input
+                        id="empSearch"
+                        type="text"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Type to filter..."
+                        autoFocus
+                    />
+                </div>
+                <div className="form-group">
+                    <label htmlFor="empSelect">Employee</label>
+                    <select id="empSelect" value={selectedEmp} onChange={(e) => setSelectedEmp(e.target.value)}>
+                        <option value="">Select an employee...</option>
+                        {filtered.map(e => (
+                            <option key={e.id} value={e.id}>{e.name}</option>
+                        ))}
+                    </select>
+                </div>
+                <div className="form-actions">
+                    <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn--primary" disabled={!selectedEmp}>Assign</button>
+                </div>
+            </form>
+        </Modal>
     );
 }
