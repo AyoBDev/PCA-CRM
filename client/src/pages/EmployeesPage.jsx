@@ -173,6 +173,7 @@ export default function EmployeesPage() {
     const [confirmBulkPermanentDelete, setConfirmBulkPermanentDelete] = useState(false);
     const [importing, setImporting] = useState(false);
     const [selectedIds, setSelectedIds] = useState(new Set());
+    const [bulkNoteModal, setBulkNoteModal] = useState(false);
     const fileRef = useRef();
 
     const fetchData = useCallback(async () => {
@@ -456,11 +457,14 @@ export default function EmployeesPage() {
                                                 await Promise.all(ids.map(id => api.restoreEmployee(id)));
                                                 fetchData();
                                             });
+                                        } else if (action === 'note') {
+                                            setBulkNoteModal(true);
                                         }
                                     }}
                                 >
                                     <option value="">Bulk Actions</option>
                                     <option value="toggle">Toggle Status</option>
+                                    <option value="note">Add Note</option>
                                     <option value="archive">Archive</option>
                                 </select>
                             </div>
@@ -617,6 +621,52 @@ export default function EmployeesPage() {
                     onClose={() => setConfirmBulkPermanentDelete(false)}
                 />
             )}
+            {bulkNoteModal && (
+                <Modal onClose={() => setBulkNoteModal(false)}>
+                    <h2 className="modal__title">Add Note to {selectedIds.size} Employee(s)</h2>
+                    <p className="modal__desc">This note will be appended to each selected employee's notes.</p>
+                    <BulkNoteForm
+                        onSave={async (note) => {
+                            const selected = employees.filter(emp => selectedIds.has(emp.id));
+                            const prevNotes = selected.map(emp => ({ id: emp.id, notes: emp.notes || '' }));
+                            await Promise.all(selected.map(emp =>
+                                api.updateEmployee(emp.id, { notes: emp.notes ? `${emp.notes}\n${note}` : note })
+                            ));
+                            setBulkNoteModal(false);
+                            setSelectedIds(new Set());
+                            fetchData();
+                            showUndoToast(`Added note to ${selected.length} employee(s)`, async () => {
+                                await Promise.all(prevNotes.map(s => api.updateEmployee(s.id, { notes: s.notes })));
+                                fetchData();
+                            });
+                        }}
+                        onClose={() => setBulkNoteModal(false)}
+                    />
+                </Modal>
+            )}
         </>
+    );
+}
+
+function BulkNoteForm({ onSave, onClose }) {
+    const [note, setNote] = useState('');
+    return (
+        <form onSubmit={(e) => { e.preventDefault(); if (note.trim()) onSave(note.trim()); }}>
+            <div className="form-group">
+                <label htmlFor="bulkEmpNote">Note</label>
+                <textarea
+                    id="bulkEmpNote"
+                    rows={4}
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="Enter note..."
+                    autoFocus
+                />
+            </div>
+            <div className="form-actions">
+                <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
+                <button type="submit" className="btn btn--primary" disabled={!note.trim()}>Add Note</button>
+            </div>
+        </form>
     );
 }
