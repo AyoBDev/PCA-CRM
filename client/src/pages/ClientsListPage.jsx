@@ -197,18 +197,31 @@ export default function ClientsListPage() {
                 <div className="sheet-card">
                     {selectedIds.size > 0 && (
                         <div className="bulk-action-bar">
-                            <span>{selectedIds.size} client{selectedIds.size !== 1 ? 's' : ''} selected</span>
-                            <button className="btn btn--sm btn--ghost-light">Change Status</button>
-                            <button className="btn btn--sm btn--ghost-light">Add Services</button>
-                            <button className="btn btn--sm btn--ghost-light">Assign Caregiver</button>
-                            <button className="btn btn--sm btn--ghost-light">Add Note</button>
-                            <button className="btn btn--sm btn--ghost-light">Transfer</button>
-                            <button className="btn btn--sm btn--ghost-light">Discharge</button>
-                            <div style={{ flex: 1 }} />
-                            <button className="btn btn--sm btn--primary-light">
-                                Apply to {selectedIds.size}
-                            </button>
-                            <button className="btn btn--sm btn--ghost-light" onClick={() => setSelectedIds(new Set())}>
+                            <span className="bulk-action-bar__count">
+                                {Icons.checkCircle} {selectedIds.size} client{selectedIds.size !== 1 ? 's' : ''} selected
+                            </span>
+                            <span className="bulk-action-bar__divider" />
+                            <div className="bulk-action-bar__actions">
+                                <button className="btn--bulk">
+                                    {Icons.edit} Change Status
+                                </button>
+                                <button className="btn--bulk">
+                                    {Icons.plus} Add Services
+                                </button>
+                                <button className="btn--bulk">
+                                    {Icons.users} Assign Caregiver
+                                </button>
+                                <button className="btn--bulk">
+                                    {Icons.fileText} Add Note
+                                </button>
+                                <button className="btn--bulk">
+                                    {Icons.share} Transfer
+                                </button>
+                                <button className="btn--bulk btn--bulk-danger">
+                                    {Icons.trash} Discharge
+                                </button>
+                            </div>
+                            <button className="bulk-action-bar__close" onClick={() => setSelectedIds(new Set())} title="Clear selection">
                                 ✕
                             </button>
                         </div>
