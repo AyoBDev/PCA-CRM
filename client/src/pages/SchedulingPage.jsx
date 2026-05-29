@@ -1212,8 +1212,34 @@ function BulkEditInline({ count, employees, clients, onSave, onDelete, saving, s
 function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDelete, onClose, saving, onUndo, bulkBatches }) {
     const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-    // Selection state lives inside the modal
-    const [selectedIds, setSelectedIds] = useState(() => new Set(allShifts.map(s => s.id)));
+    // Filter state — user picks a client or employee to scope the edit
+    const [filterClientId, setFilterClientId] = useState('');
+    const [filterEmployeeId, setFilterEmployeeId] = useState('');
+
+    // Derive unique clients/employees from the shifts this week
+    const shiftClients = useMemo(() => {
+        const map = new Map();
+        for (const s of allShifts) { if (s.client?.id) map.set(s.client.id, s.client.clientName); }
+        return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+    }, [allShifts]);
+    const shiftEmployees = useMemo(() => {
+        const map = new Map();
+        for (const s of allShifts) {
+            const name = s.displayEmployeeName || s.employee?.name;
+            const id = s.employeeId || s.employee?.id;
+            if (id && name) map.set(id, name);
+        }
+        return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+    }, [allShifts]);
+
+    // Filtered shifts based on client/employee selection
+    const filteredShifts = useMemo(() => {
+        return allShifts.filter(s => {
+            if (filterClientId && s.clientId !== Number(filterClientId)) return false;
+            if (filterEmployeeId && (s.employeeId || s.employee?.id) !== Number(filterEmployeeId)) return false;
+            return true;
+        });
+    }, [allShifts, filterClientId, filterEmployeeId]);
 
     const ws = new Date(weekStart + 'T00:00:00');
     const weekDates = [];
@@ -1223,9 +1249,15 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
         weekDates.push(toLocalDateStr(d));
     }
 
+    // Selection state — defaults to all filtered shifts
+    const [selectedIds, setSelectedIds] = useState(() => new Set(allShifts.map(s => s.id)));
+    useEffect(() => {
+        setSelectedIds(new Set(filteredShifts.map(s => s.id)));
+    }, [filterClientId, filterEmployeeId]);
+
     const selectByDay = (dayIdx) => {
         const dateStr = weekDates[dayIdx];
-        const dayShiftIds = allShifts.filter(s => toLocalDateStr(s.shiftDate) === dateStr).map(s => s.id);
+        const dayShiftIds = filteredShifts.filter(s => toLocalDateStr(s.shiftDate) === dateStr).map(s => s.id);
         const allSelected = dayShiftIds.every(id => selectedIds.has(id));
         setSelectedIds(prev => {
             const next = new Set(prev);
@@ -1234,7 +1266,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
         });
     };
 
-    const selectedShifts = allShifts.filter(s => selectedIds.has(s.id));
+    const selectedShifts = filteredShifts.filter(s => selectedIds.has(s.id));
     const count = selectedShifts.length;
 
     // Group selected shifts by day
@@ -1321,25 +1353,46 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
         onSave(perShiftUpdates, applyToFuture);
     };
 
-    const affectedClients = [...new Set(selectedShifts.map(s => s.client?.clientName).filter(Boolean))];
-    const affectedEmployees = [...new Set(selectedShifts.map(s => s.displayEmployeeName || s.employee?.name).filter(Boolean))];
-
     return (
         <Modal onClose={onClose} wide>
             <h2 className="modal__title">Bulk Edit Shifts</h2>
-            <p className="modal__desc">Select shifts by day, then edit service types, times, and accounts.</p>
+            <p className="modal__desc">Select a client or employee, then edit service types, times, and accounts per day.</p>
             <form onSubmit={handleSubmit}>
-                {/* Selection controls */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                {/* Client + Employee filter */}
+                <div className="form-grid-2">
+                    <div className="form-group">
+                        <label>Client</label>
+                        <select value={filterClientId} onChange={e => setFilterClientId(e.target.value)}>
+                            <option value="">All clients ({allShifts.length} shifts)</option>
+                            {shiftClients.map(([id, name]) => {
+                                const c = allShifts.filter(s => s.clientId === id).length;
+                                return <option key={id} value={id}>{name} ({c})</option>;
+                            })}
+                        </select>
+                    </div>
+                    <div className="form-group">
+                        <label>Employee</label>
+                        <select value={filterEmployeeId} onChange={e => setFilterEmployeeId(e.target.value)}>
+                            <option value="">All employees</option>
+                            {shiftEmployees.map(([id, name]) => {
+                                const c = allShifts.filter(s => (s.employeeId || s.employee?.id) === id).length;
+                                return <option key={id} value={id}>{name} ({c})</option>;
+                            })}
+                        </select>
+                    </div>
+                </div>
+
+                {/* Day selection buttons */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: 'hsl(217 91% 50%)' }}>{count} shift{count !== 1 ? 's' : ''} selected</span>
-                    <button type="button" className="btn btn--outline btn--xs" onClick={() => setSelectedIds(selectedIds.size === allShifts.length ? new Set() : new Set(allShifts.map(s => s.id)))}>
-                        {selectedIds.size === allShifts.length ? 'Deselect All' : 'Select All'}
+                    <button type="button" className="btn btn--outline btn--xs" onClick={() => setSelectedIds(selectedIds.size === filteredShifts.length ? new Set() : new Set(filteredShifts.map(s => s.id)))}>
+                        {selectedIds.size === filteredShifts.length && filteredShifts.length > 0 ? 'Deselect All' : 'Select All'}
                     </button>
                 </div>
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 16 }}>
                     {DAY_NAMES.map((day, i) => {
-                        const dayCount = allShifts.filter(s => toLocalDateStr(s.shiftDate) === weekDates[i]).length;
-                        const dayAllSelected = dayCount > 0 && allShifts.filter(s => toLocalDateStr(s.shiftDate) === weekDates[i]).every(s => selectedIds.has(s.id));
+                        const dayCount = filteredShifts.filter(s => toLocalDateStr(s.shiftDate) === weekDates[i]).length;
+                        const dayAllSelected = dayCount > 0 && filteredShifts.filter(s => toLocalDateStr(s.shiftDate) === weekDates[i]).every(s => selectedIds.has(s.id));
                         return (
                             <button key={i} type="button" className={`btn btn--outline btn--xs ${dayAllSelected ? 'btn--active' : ''}`} onClick={() => selectByDay(i)} disabled={dayCount === 0}>
                                 {day} ({dayCount})
@@ -1347,20 +1400,6 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                         );
                     })}
                 </div>
-
-                {/* Client + Employee context */}
-                {count > 0 && (
-                    <div className="form-grid-2" style={{ marginBottom: 12 }}>
-                        <div className="form-group">
-                            <label>Client{affectedClients.length !== 1 ? 's' : ''}</label>
-                            <input value={affectedClients.join(', ') || '—'} disabled style={{ background: 'hsl(var(--muted))', cursor: 'default' }} />
-                        </div>
-                        <div className="form-group">
-                            <label>Employee{affectedEmployees.length !== 1 ? 's' : ''}</label>
-                            <input value={affectedEmployees.join(', ') || '—'} disabled style={{ background: 'hsl(var(--muted))', cursor: 'default' }} />
-                        </div>
-                    </div>
-                )}
 
                 {/* Day grid */}
                 {count > 0 && (
@@ -1474,7 +1513,9 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                 {/* Undo history */}
                 {bulkBatches && bulkBatches.length > 0 && (
                     <div style={{ marginTop: 12, padding: '8px 12px', background: 'hsl(var(--muted))', borderRadius: 'var(--radius)', fontSize: 13 }}>
-                        <div style={{ fontWeight: 600, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>{Icons.clock} Recent Actions</div>
+                        <div style={{ fontWeight: 600, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ width: 14, height: 14, display: 'inline-flex', flexShrink: 0 }}>{Icons.clock}</span> Recent Actions
+                        </div>
                         {bulkBatches.slice(0, 3).map(b => (
                             <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
                                 <span>{b.action === 'ARCHIVE' ? 'Deleted' : 'Edited'} {b.shiftCount} shift{b.shiftCount !== 1 ? 's' : ''} <span style={{ color: 'hsl(var(--muted-foreground))' }}>— {new Date(b.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span></span>
