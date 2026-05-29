@@ -7874,33 +7874,35 @@ button.sdr-section-tag:hover:not(:disabled) {
 .pa-filter-tabs {
   display: flex;
   gap: 0;
-  border-radius: 6px;
-  overflow: hidden;
-  border: 1px solid hsl(217 91% 60%);
+  border-bottom: 2px solid hsl(var(--border));
+  padding: 0 4px;
 }
 .pa-filter-tabs__tab {
-  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   border: none;
-  background: transparent;
-  color: hsl(217 91% 50%);
+  background: none;
+  color: hsl(var(--muted-foreground));
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  border-right: 1px solid hsl(217 91% 60% / 0.3);
-}
-.pa-filter-tabs__tab:last-child {
-  border-right: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s, font-weight 0.15s;
 }
 .pa-filter-tabs__tab:hover {
-  background: hsl(217 91% 96%);
+  color: hsl(var(--foreground));
+  font-weight: 600;
 }
 .pa-filter-tabs__tab--active {
-  background: hsl(217 91% 50%);
-  color: #fff;
+  color: hsl(var(--primary));
+  border-bottom-color: hsl(var(--primary));
+  font-weight: 600;
 }
 .pa-filter-tabs__tab--active:hover {
-  background: hsl(217 91% 45%);
+  color: hsl(var(--primary));
 }
 
 /* Three-dot menu */

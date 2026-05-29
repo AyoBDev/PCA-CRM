@@ -669,7 +669,6 @@ export default function ClientDetailPage() {
                         <div className="cp-bio__info">
                             <div className="cp-bio__name-row">
                                 <h2 className="cp-bio__name">{client.clientName}</h2>
-                                {client.critical && <span className="ts-badge ts-badge--critical">Critical</span>}
                                 <select
                                     className={`cp-bio__status-select cp-bio__status-select--${client.clientStatus || 'active'}`}
                                     value={client.clientStatus || 'active'}
@@ -1185,16 +1184,6 @@ export default function ClientDetailPage() {
                                 <label>Backup Doctor Phone</label>
                                 <input type="tel" value={editClientForm.backupDoctorPhone} onChange={(e) => setEditClientForm({ ...editClientForm, backupDoctorPhone: e.target.value })} />
                             </div>
-                        </div>
-                        <div className="form-group">
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <input
-                                    type="checkbox"
-                                    checked={editClientForm.critical}
-                                    onChange={(e) => setEditClientForm({ ...editClientForm, critical: e.target.checked })}
-                                />
-                                Critical client (requires special attention)
-                            </label>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                             <div className="form-group">
