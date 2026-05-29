@@ -5,6 +5,7 @@ import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
+import ClientCreationWizard from '../components/ClientCreationWizard';
 
 
 function getServiceCodes(client) {
@@ -33,13 +34,8 @@ export default function ClientsListPage() {
     const [statusFilter, setStatusFilter] = useState('active');
     const [serviceFilter, setServiceFilter] = useState('all');
     const [loading, setLoading] = useState(true);
-    const [showCreateModal, setShowCreateModal] = useState(false);
-    const [form, setForm] = useState({
-        clientName: '', medicaidId: '', insuranceType: 'MEDICAID', address: '', phone: '',
-        dob: '', gender: '', paNumber: '', doctorName: '', doctorPhone: '', backupDoctorName: '', backupDoctorPhone: '', critical: false,
-    });
+    const [showCreateWizard, setShowCreateWizard] = useState(false);
     const [insuranceTypes, setInsuranceTypes] = useState([]);
-    const [saving, setSaving] = useState(false);
     const [menuOpenId, setMenuOpenId] = useState(null);
     const [sortOrder, setSortOrder] = useState('az');
     const [previewClient, setPreviewClient] = useState(null);
@@ -47,29 +43,6 @@ export default function ClientsListPage() {
     const [bulkNoteModal, setBulkNoteModal] = useState(false);
     const [bulkAssignModal, setBulkAssignModal] = useState(false);
     const [allEmployees, setAllEmployees] = useState([]);
-
-    const handleDatePaste = (field) => (e) => {
-        const text = (e.clipboardData || window.clipboardData).getData('text').trim();
-        if (!text) return;
-        let parsed = null;
-        let m = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
-        if (m) parsed = `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
-        if (!parsed) {
-            m = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
-            if (m) parsed = `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
-        }
-        if (!parsed) {
-            m = text.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
-            if (m) {
-                const d = new Date(`${m[1]} ${m[2]}, ${m[3]}`);
-                if (!isNaN(d)) parsed = d.toISOString().split('T')[0];
-            }
-        }
-        if (parsed && !isNaN(new Date(parsed + 'T00:00:00'))) {
-            e.preventDefault();
-            setForm(prev => ({ ...prev, [field]: parsed }));
-        }
-    };
 
     const fetchClients = useCallback(async () => {
         try {
@@ -100,33 +73,9 @@ export default function ClientsListPage() {
 
     useEffect(() => { setSelectedIds(new Set()); }, [statusFilter, serviceFilter, search]);
 
-    const handleCreate = async (e) => {
-        e.preventDefault();
-        if (!form.clientName.trim()) return;
-        setSaving(true);
-        try {
-            const client = await api.createClient(form.clientName, {
-                medicaidId: form.medicaidId,
-                insuranceType: form.insuranceType,
-                address: form.address,
-                phone: form.phone,
-                gender: form.gender,
-                dob: form.dob || null,
-                doctorName: form.doctorName,
-                doctorPhone: form.doctorPhone,
-            });
-            showToast(`"${client.clientName}" created`);
-            setShowCreateModal(false);
-            setForm({
-                clientName: '', medicaidId: '', insuranceType: 'MEDICAID', address: '', phone: '',
-                dob: '', paNumber: '', doctorName: '', doctorPhone: '', backupDoctorName: '', backupDoctorPhone: '', critical: false,
-            });
-            navigate(`/clients/${client.id}`);
-        } catch (err) {
-            showToast(err.message, 'error');
-        } finally {
-            setSaving(false);
-        }
+    const handleClientCreated = (client) => {
+        setShowCreateWizard(false);
+        navigate(`/clients/${client.id}`);
     };
 
     const getEffectiveStatus = (c) => c.clientStatus || 'active';
@@ -195,7 +144,7 @@ export default function ClientsListPage() {
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
-                    <button className="btn btn--primary" onClick={() => setShowCreateModal(true)}>
+                    <button className="btn btn--primary" onClick={() => setShowCreateWizard(true)}>
                         {Icons.plus} Add Client
                     </button>
                 </div>
@@ -416,72 +365,12 @@ export default function ClientsListPage() {
                 </div>
             </div>
 
-            {showCreateModal && (
-                <Modal onClose={() => setShowCreateModal(false)}>
-                    <h2 className="modal__title">Add Client</h2>
-                    <p className="modal__desc">Enter the client's basic information. Authorization details can be added later in the Authorization section.</p>
-                    <form onSubmit={handleCreate}>
-                        <div className="form-group">
-                            <label>Client Name <span style={{ color: '#dc2626' }}>*</span></label>
-                            <input type="text" value={form.clientName} onChange={(e) => setForm({ ...form, clientName: e.target.value })} placeholder="Full name" required />
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                            <div className="form-group">
-                                <label>Medicaid ID</label>
-                                <input type="text" value={form.medicaidId} onChange={(e) => setForm({ ...form, medicaidId: e.target.value })} placeholder="e.g. 00002399084" />
-                            </div>
-                            <div className="form-group">
-                                <label>Insurance Type</label>
-                                <select value={form.insuranceType} onChange={(e) => setForm({ ...form, insuranceType: e.target.value })}>
-                                    {insuranceTypes.length > 0 ? insuranceTypes.map(t => (
-                                        <option key={t.id} value={t.name}>{t.name}</option>
-                                    )) : <option value="MEDICAID">MEDICAID</option>}
-                                </select>
-                            </div>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                            <div className="form-group">
-                                <label>Phone</label>
-                                <input type="text" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Optional" />
-                            </div>
-                            <div className="form-group">
-                                <label>Date of Birth</label>
-                                <input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} onPaste={handleDatePaste('dob')} />
-                            </div>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                            <div className="form-group">
-                                <label>Gender</label>
-                                <select value={form.gender || ''} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
-                                    <option value="">— Select —</option>
-                                    <option value="Male">Male</option>
-                                    <option value="Female">Female</option>
-                                    <option value="Other">Other</option>
-                                </select>
-                            </div>
-                            <div className="form-group">
-                                <label>Address</label>
-                                <input type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Optional" />
-                            </div>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                            <div className="form-group">
-                                <label>Doctor Name</label>
-                                <input type="text" value={form.doctorName} onChange={(e) => setForm({ ...form, doctorName: e.target.value })} placeholder="Optional" />
-                            </div>
-                            <div className="form-group">
-                                <label>Doctor Phone</label>
-                                <input type="text" value={form.doctorPhone} onChange={(e) => setForm({ ...form, doctorPhone: e.target.value })} placeholder="Optional" />
-                            </div>
-                        </div>
-                        <div className="form-actions">
-                            <button type="button" className="btn btn--outline" onClick={() => setShowCreateModal(false)}>Cancel</button>
-                            <button type="submit" className="btn btn--primary" disabled={saving || !form.clientName.trim()}>
-                                {saving ? 'Creating...' : 'Create Client'}
-                            </button>
-                        </div>
-                    </form>
-                </Modal>
+            {showCreateWizard && (
+                <ClientCreationWizard
+                    onClose={() => setShowCreateWizard(false)}
+                    onCreated={handleClientCreated}
+                    insuranceTypes={insuranceTypes}
+                />
             )}
 
             {previewClient && (
