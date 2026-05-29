@@ -1229,6 +1229,155 @@ body {
   margin-bottom: 20px;
 }
 
+/* ── Wizard Step Indicator ── */
+.wizard-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 24px;
+  padding: 0 16px;
+}
+.wizard-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.wizard-step:hover {
+  background: hsl(var(--muted));
+}
+.wizard-step--disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+.wizard-step__circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  border: 2px solid hsl(var(--border));
+  color: hsl(var(--muted-foreground));
+  transition: all 0.15s;
+}
+.wizard-step--active .wizard-step__circle {
+  background: hsl(var(--primary));
+  border-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+.wizard-step--completed .wizard-step__circle {
+  background: hsl(142 76% 36%);
+  border-color: hsl(142 76% 36%);
+  color: white;
+}
+.wizard-step__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+}
+.wizard-step--active .wizard-step__label {
+  color: hsl(var(--foreground));
+}
+.wizard-step--completed .wizard-step__label {
+  color: hsl(142 76% 36%);
+}
+.wizard-step-connector {
+  width: 32px;
+  height: 2px;
+  background: hsl(var(--border));
+  margin: 0 4px;
+}
+.wizard-step-connector--completed {
+  background: hsl(142 76% 36%);
+}
+
+/* ── Wizard Auth Card ── */
+.wizard-auth-card {
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  position: relative;
+}
+.wizard-auth-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.wizard-auth-card__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+.wizard-auth-card__remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: hsl(var(--muted-foreground));
+  transition: all 0.15s;
+}
+.wizard-auth-card__remove:hover {
+  background: hsl(0 84% 95%);
+  color: hsl(0 72% 45%);
+}
+
+/* ── Wizard Navigation ── */
+.wizard-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid hsl(var(--border));
+}
+.wizard-nav__right {
+  display: flex;
+  gap: 8px;
+}
+
+/* ── Wizard Review Section ── */
+.wizard-review-section {
+  margin-bottom: 20px;
+}
+.wizard-review-section__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 8px;
+}
+.wizard-review-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+}
+.wizard-review-item {
+  font-size: 13px;
+}
+.wizard-review-item__label {
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
+  margin-bottom: 1px;
+}
+.wizard-review-item__value {
+  color: hsl(var(--foreground));
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
