@@ -1209,11 +1209,35 @@ function BulkEditInline({ count, employees, clients, onSave, onDelete, saving, s
     );
 }
 
-function BulkEditModal({ selectedShifts, employees, clients, onSave, onDelete, onClose, saving }) {
+function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDelete, onClose, saving, onUndo, bulkBatches }) {
     const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    // Selection state lives inside the modal
+    const [selectedIds, setSelectedIds] = useState(() => new Set(allShifts.map(s => s.id)));
+
+    const ws = new Date(weekStart + 'T00:00:00');
+    const weekDates = [];
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(ws);
+        d.setDate(ws.getDate() + i);
+        weekDates.push(toLocalDateStr(d));
+    }
+
+    const selectByDay = (dayIdx) => {
+        const dateStr = weekDates[dayIdx];
+        const dayShiftIds = allShifts.filter(s => toLocalDateStr(s.shiftDate) === dateStr).map(s => s.id);
+        const allSelected = dayShiftIds.every(id => selectedIds.has(id));
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            dayShiftIds.forEach(id => allSelected ? next.delete(id) : next.add(id));
+            return next;
+        });
+    };
+
+    const selectedShifts = allShifts.filter(s => selectedIds.has(s.id));
     const count = selectedShifts.length;
 
-    // Group shifts by day (sorted by date)
+    // Group selected shifts by day
     const shiftsByDay = useMemo(() => {
         const grouped = {};
         for (const s of selectedShifts) {
@@ -1224,10 +1248,10 @@ function BulkEditModal({ selectedShifts, employees, clients, onSave, onDelete, o
         return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
     }, [selectedShifts]);
 
-    // Editable state: per-shift overrides keyed by shift ID
+    // Editable state per shift
     const [edits, setEdits] = useState(() => {
         const map = {};
-        for (const s of selectedShifts) {
+        for (const s of allShifts) {
             map[s.id] = {
                 serviceCode: s.serviceCode || 'PCS',
                 startTime: s.startTime || '09:00',
@@ -1268,8 +1292,8 @@ function BulkEditModal({ selectedShifts, employees, clients, onSave, onDelete, o
         return { hours, units: Math.round(hours * 4) };
     };
 
-    const totalHours = Object.values(edits).reduce((sum, e) => sum + computeHrs(e.startTime, e.endTime).hours, 0);
-    const totalUnits = Object.values(edits).reduce((sum, e) => sum + computeHrs(e.startTime, e.endTime).units, 0);
+    const totalHours = selectedShifts.reduce((sum, s) => sum + computeHrs(edits[s.id]?.startTime, edits[s.id]?.endTime).hours, 0);
+    const totalUnits = selectedShifts.reduce((sum, s) => sum + computeHrs(edits[s.id]?.startTime, edits[s.id]?.endTime).units, 0);
 
     const hasChanges = selectedShifts.some(s => {
         const e = edits[s.id];
@@ -1302,139 +1326,176 @@ function BulkEditModal({ selectedShifts, employees, clients, onSave, onDelete, o
 
     return (
         <Modal onClose={onClose} wide>
-            <h2 className="modal__title">Edit {count} Shift{count !== 1 ? 's' : ''}</h2>
-            <p className="modal__desc">Edit each day individually — set different service types, times, and accounts per shift.</p>
+            <h2 className="modal__title">Bulk Edit Shifts</h2>
+            <p className="modal__desc">Select shifts by day, then edit service types, times, and accounts.</p>
             <form onSubmit={handleSubmit}>
-                {/* Client + Employee summary (read-only context) */}
-                <div className="form-grid-2">
-                    <div className="form-group">
-                        <label>Client{affectedClients.length !== 1 ? 's' : ''}</label>
-                        <input value={affectedClients.join(', ') || '—'} disabled style={{ background: 'hsl(var(--muted))', cursor: 'default' }} />
-                    </div>
-                    <div className="form-group">
-                        <label>Employee{affectedEmployees.length !== 1 ? 's' : ''}</label>
-                        <input value={affectedEmployees.join(', ') || '—'} disabled style={{ background: 'hsl(var(--muted))', cursor: 'default' }} />
-                    </div>
+                {/* Selection controls */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'hsl(217 91% 50%)' }}>{count} shift{count !== 1 ? 's' : ''} selected</span>
+                    <button type="button" className="btn btn--outline btn--xs" onClick={() => setSelectedIds(selectedIds.size === allShifts.length ? new Set() : new Set(allShifts.map(s => s.id)))}>
+                        {selectedIds.size === allShifts.length ? 'Deselect All' : 'Select All'}
+                    </button>
                 </div>
-
-                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Days of the Week</label>
-                <div className="sched-day-grid">
-                    {shiftsByDay.map(([dateStr, dayShifts], dayIdx) => {
-                        const dateObj = new Date(dateStr + 'T12:00:00');
-                        const dayName = DAY_NAMES[dateObj.getDay()];
-                        const dayTotalHrs = dayShifts.reduce((s, sh) => s + computeHrs(edits[sh.id]?.startTime, edits[sh.id]?.endTime).hours, 0);
-                        const dayTotalUnits = dayShifts.reduce((s, sh) => s + computeHrs(edits[sh.id]?.startTime, edits[sh.id]?.endTime).units, 0);
-                        const firstEdit = edits[dayShifts[0].id];
-                        const firstColor = SERVICE_COLORS[firstEdit?.serviceCode] || { color: '#6B7280' };
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 16 }}>
+                    {DAY_NAMES.map((day, i) => {
+                        const dayCount = allShifts.filter(s => toLocalDateStr(s.shiftDate) === weekDates[i]).length;
+                        const dayAllSelected = dayCount > 0 && allShifts.filter(s => toLocalDateStr(s.shiftDate) === weekDates[i]).every(s => selectedIds.has(s.id));
                         return (
-                            <div key={dateStr} className="sched-day-row sched-day-row--active">
-                                <div className="sched-day-row__header">
-                                    <label className="sched-day-row__toggle">
-                                        <span className="sched-day-row__day">{dayName}</span>
-                                        <span className="sched-day-row__date">{dateStr.slice(5)}</span>
-                                    </label>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                        <span className="sched-day-row__badge" style={{ background: `color-mix(in srgb, ${firstColor.color} 15%, white)`, color: firstColor.color }}>
-                                            {dayTotalHrs}h / {dayTotalUnits}u
-                                        </span>
-                                    </div>
-                                </div>
-                                {dayShifts.map((shift, si) => {
-                                    const edit = edits[shift.id];
-                                    if (!edit) return null;
-                                    const shColorInfo = SERVICE_COLORS[edit.serviceCode] || { color: '#6B7280', label: edit.serviceCode };
-                                    return (
-                                        <div key={shift.id} className="sched-day-row__fields">
-                                            {dayShifts.length > 1 && (
-                                                <div className="sched-day-row__shift-label">
-                                                    <span>Shift {si + 1}</span>
-                                                </div>
-                                            )}
-                                            <div className="sched-day-row__field">
-                                                <label className="sched-day-row__field-label">Service</label>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: shColorInfo.color, flexShrink: 0 }} />
-                                                    <select value={edit.serviceCode} onChange={e => updateShiftField(shift.id, 'serviceCode', e.target.value)} className="sched-day-row__input">
-                                                        {Object.entries(SERVICE_COLORS).map(([code, info]) => (
-                                                            <option key={code} value={code}>{info.label}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <div className="sched-day-row__field">
-                                                <label className="sched-day-row__field-label">Start</label>
-                                                <input type="time" value={edit.startTime} onChange={e => updateShiftField(shift.id, 'startTime', e.target.value)} className="sched-day-row__input" />
-                                            </div>
-                                            <div className="sched-day-row__field">
-                                                <label className="sched-day-row__field-label">End</label>
-                                                <input type="time" value={edit.endTime} onChange={e => updateShiftField(shift.id, 'endTime', e.target.value)} className="sched-day-row__input" />
-                                            </div>
-                                            <div className="sched-day-row__field">
-                                                <label className="sched-day-row__field-label">Account</label>
-                                                <select value={edit.accountNumber} onChange={e => updateShiftField(shift.id, 'accountNumber', e.target.value)} className="sched-day-row__input">
-                                                    <option value="">—</option>
-                                                    {VALID_ACCOUNT_NUMBERS.map(n => <option key={n} value={n}>{n}</option>)}
-                                                </select>
-                                            </div>
-                                            {si === 0 && shiftsByDay.length > 1 && (
-                                                <button type="button" className="sched-day-row__apply" title="Apply this day's settings to all days" onClick={() => applyDayToAll(dateStr)}>
-                                                    Apply to all
-                                                </button>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                            <button key={i} type="button" className={`btn btn--outline btn--xs ${dayAllSelected ? 'btn--active' : ''}`} onClick={() => selectByDay(i)} disabled={dayCount === 0}>
+                                {day} ({dayCount})
+                            </button>
                         );
                     })}
                 </div>
 
+                {/* Client + Employee context */}
                 {count > 0 && (
-                    <div className="sched-hours-display" style={{ borderLeftColor: 'hsl(217 91% 50%)' }}>
-                        <span className="sched-hours-display__value">{count}</span>
-                        <span className="sched-hours-display__label">shift{count !== 1 ? 's' : ''}</span>
-                        <span className="sched-hours-display__sep">/</span>
-                        <span className="sched-hours-display__value">{totalHours}</span>
-                        <span className="sched-hours-display__label">hours</span>
-                        <span className="sched-hours-display__sep">/</span>
-                        <span className="sched-hours-display__value">{totalUnits}</span>
-                        <span className="sched-hours-display__label">units</span>
+                    <div className="form-grid-2" style={{ marginBottom: 12 }}>
+                        <div className="form-group">
+                            <label>Client{affectedClients.length !== 1 ? 's' : ''}</label>
+                            <input value={affectedClients.join(', ') || '—'} disabled style={{ background: 'hsl(var(--muted))', cursor: 'default' }} />
+                        </div>
+                        <div className="form-group">
+                            <label>Employee{affectedEmployees.length !== 1 ? 's' : ''}</label>
+                            <input value={affectedEmployees.join(', ') || '—'} disabled style={{ background: 'hsl(var(--muted))', cursor: 'default' }} />
+                        </div>
                     </div>
                 )}
 
-                <div className="sched-recurring">
-                    <label className="sched-recurring__toggle">
-                        <input type="radio" name="bulkScope" checked={!applyToFuture} onChange={() => setApplyToFuture(false)} />
-                        <span>Apply to current week only</span>
-                    </label>
-                    <label className="sched-recurring__toggle" style={{ marginTop: 6 }}>
-                        <input type="radio" name="bulkScope" checked={applyToFuture} onChange={() => setApplyToFuture(true)} />
-                        <span>Apply to all future recurring weeks</span>
-                    </label>
-                    {applyToFuture && hasRecurringShifts && (
-                        <div className="sched-recurring__preview">
-                            Changes will update all future shifts sharing the same recurring schedule.
+                {/* Day grid */}
+                {count > 0 && (
+                    <>
+                        <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Days of the Week</label>
+                        <div className="sched-day-grid">
+                            {shiftsByDay.map(([dateStr, dayShifts]) => {
+                                const dateObj = new Date(dateStr + 'T12:00:00');
+                                const dayName = DAY_NAMES[dateObj.getDay()];
+                                const dayTotalHrs = dayShifts.reduce((s, sh) => s + computeHrs(edits[sh.id]?.startTime, edits[sh.id]?.endTime).hours, 0);
+                                const dayTotalUnits = dayShifts.reduce((s, sh) => s + computeHrs(edits[sh.id]?.startTime, edits[sh.id]?.endTime).units, 0);
+                                const firstEdit = edits[dayShifts[0].id];
+                                const firstColor = SERVICE_COLORS[firstEdit?.serviceCode] || { color: '#6B7280' };
+                                return (
+                                    <div key={dateStr} className="sched-day-row sched-day-row--active">
+                                        <div className="sched-day-row__header">
+                                            <label className="sched-day-row__toggle">
+                                                <span className="sched-day-row__day">{dayName}</span>
+                                                <span className="sched-day-row__date">{dateStr.slice(5)}</span>
+                                            </label>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <span className="sched-day-row__badge" style={{ background: `color-mix(in srgb, ${firstColor.color} 15%, white)`, color: firstColor.color }}>
+                                                    {dayTotalHrs}h / {dayTotalUnits}u
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {dayShifts.map((shift, si) => {
+                                            const edit = edits[shift.id];
+                                            if (!edit) return null;
+                                            const shColorInfo = SERVICE_COLORS[edit.serviceCode] || { color: '#6B7280', label: edit.serviceCode };
+                                            return (
+                                                <div key={shift.id} className="sched-day-row__fields">
+                                                    {dayShifts.length > 1 && (
+                                                        <div className="sched-day-row__shift-label">
+                                                            <span>Shift {si + 1}</span>
+                                                        </div>
+                                                    )}
+                                                    <div className="sched-day-row__field">
+                                                        <label className="sched-day-row__field-label">Service</label>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                            <span style={{ width: 10, height: 10, borderRadius: '50%', background: shColorInfo.color, flexShrink: 0 }} />
+                                                            <select value={edit.serviceCode} onChange={e => updateShiftField(shift.id, 'serviceCode', e.target.value)} className="sched-day-row__input">
+                                                                {Object.entries(SERVICE_COLORS).map(([code, info]) => (
+                                                                    <option key={code} value={code}>{info.label}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                    <div className="sched-day-row__field">
+                                                        <label className="sched-day-row__field-label">Start</label>
+                                                        <input type="time" value={edit.startTime} onChange={e => updateShiftField(shift.id, 'startTime', e.target.value)} className="sched-day-row__input" />
+                                                    </div>
+                                                    <div className="sched-day-row__field">
+                                                        <label className="sched-day-row__field-label">End</label>
+                                                        <input type="time" value={edit.endTime} onChange={e => updateShiftField(shift.id, 'endTime', e.target.value)} className="sched-day-row__input" />
+                                                    </div>
+                                                    <div className="sched-day-row__field">
+                                                        <label className="sched-day-row__field-label">Account</label>
+                                                        <select value={edit.accountNumber} onChange={e => updateShiftField(shift.id, 'accountNumber', e.target.value)} className="sched-day-row__input">
+                                                            <option value="">—</option>
+                                                            {VALID_ACCOUNT_NUMBERS.map(n => <option key={n} value={n}>{n}</option>)}
+                                                        </select>
+                                                    </div>
+                                                    {si === 0 && shiftsByDay.length > 1 && (
+                                                        <button type="button" className="sched-day-row__apply" title="Apply this day's settings to all days" onClick={() => applyDayToAll(dateStr)}>
+                                                            Apply to all
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })}
                         </div>
-                    )}
-                    {applyToFuture && !hasRecurringShifts && (
-                        <div className="sched-recurring__preview" style={{ color: '#f59e0b' }}>
-                            No recurring group found — changes will apply to selected shifts only.
+
+                        <div className="sched-hours-display" style={{ borderLeftColor: 'hsl(217 91% 50%)' }}>
+                            <span className="sched-hours-display__value">{count}</span>
+                            <span className="sched-hours-display__label">shift{count !== 1 ? 's' : ''}</span>
+                            <span className="sched-hours-display__sep">/</span>
+                            <span className="sched-hours-display__value">{totalHours}</span>
+                            <span className="sched-hours-display__label">hours</span>
+                            <span className="sched-hours-display__sep">/</span>
+                            <span className="sched-hours-display__value">{totalUnits}</span>
+                            <span className="sched-hours-display__label">units</span>
                         </div>
-                    )}
-                </div>
+
+                        <div className="sched-recurring">
+                            <label className="sched-recurring__toggle">
+                                <input type="radio" name="bulkScope" checked={!applyToFuture} onChange={() => setApplyToFuture(false)} />
+                                <span>Apply to current week only</span>
+                            </label>
+                            <label className="sched-recurring__toggle" style={{ marginTop: 6 }}>
+                                <input type="radio" name="bulkScope" checked={applyToFuture} onChange={() => setApplyToFuture(true)} />
+                                <span>Apply to all future recurring weeks</span>
+                            </label>
+                            {applyToFuture && hasRecurringShifts && (
+                                <div className="sched-recurring__preview">
+                                    Changes will update all future shifts sharing the same recurring schedule.
+                                </div>
+                            )}
+                            {applyToFuture && !hasRecurringShifts && (
+                                <div className="sched-recurring__preview" style={{ color: '#f59e0b' }}>
+                                    No recurring group found — changes will apply to selected shifts only.
+                                </div>
+                            )}
+                        </div>
+                    </>
+                )}
+
+                {/* Undo history */}
+                {bulkBatches && bulkBatches.length > 0 && (
+                    <div style={{ marginTop: 12, padding: '8px 12px', background: 'hsl(var(--muted))', borderRadius: 'var(--radius)', fontSize: 13 }}>
+                        <div style={{ fontWeight: 600, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>{Icons.clock} Recent Actions</div>
+                        {bulkBatches.slice(0, 3).map(b => (
+                            <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+                                <span>{b.action === 'ARCHIVE' ? 'Deleted' : 'Edited'} {b.shiftCount} shift{b.shiftCount !== 1 ? 's' : ''} <span style={{ color: 'hsl(var(--muted-foreground))' }}>— {new Date(b.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span></span>
+                                <button type="button" className="btn btn--outline btn--xs" onClick={() => onUndo(b.id)}>Undo</button>
+                            </div>
+                        ))}
+                    </div>
+                )}
 
                 <div className="form-actions">
-                    {!confirmDelete ? (
+                    {count > 0 && !confirmDelete ? (
                         <button type="button" className="btn btn--outline" style={{ color: 'hsl(0 84% 60%)', borderColor: 'hsl(0 84% 80%)', marginRight: 'auto' }} onClick={() => setConfirmDelete(true)}>
                             {Icons.trash} Delete Selected
                         </button>
-                    ) : (
-                        <button type="button" className="btn" style={{ background: 'hsl(0 84% 60%)', color: '#fff', marginRight: 'auto' }} onClick={onDelete}>
-                            Confirm Delete {count} Shift{count !== 1 ? 's' : ''}?
+                    ) : count > 0 && confirmDelete ? (
+                        <button type="button" className="btn" style={{ background: 'hsl(0 84% 60%)', color: '#fff', marginRight: 'auto' }} onClick={() => onDelete(selectedIds)}>
+                            Confirm Delete {count}?
                         </button>
-                    )}
+                    ) : <span />}
                     <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn--primary" disabled={!hasChanges || saving}>
+                    <button type="submit" className="btn btn--primary" disabled={!hasChanges || saving || count === 0}>
                         {saving ? 'Saving…' : `Update ${count} Shift${count !== 1 ? 's' : ''}`}
                     </button>
                 </div>
@@ -1902,7 +1963,7 @@ export default function SchedulingPage() {
     useEffect(() => { fetchAllShifts(); }, [fetchAllShifts]);
     useEffect(() => { fetchClientSchedule(); }, [fetchClientSchedule]);
     useEffect(() => { fetchEmployeeSchedule(); }, [fetchEmployeeSchedule]);
-    useEffect(() => { if (bulkEditMode) fetchBatches(); }, [bulkEditMode, fetchBatches]);
+    useEffect(() => { if (modal?.type === 'bulkEdit') fetchBatches(); }, [modal, fetchBatches]);
 
 
     const handleSaveShift = async (data) => {
@@ -2140,13 +2201,13 @@ export default function SchedulingPage() {
                 <div className="page-hero__right">
                     {isAdmin && <ActivityButton entityType="Shift" />}
                     <button
-                        className={`btn btn--outline ${bulkEditMode ? 'btn--active' : ''}`}
-                        onClick={() => { setBulkEditMode(!bulkEditMode); setSelectedShiftIds(new Set()); }}
-                        style={bulkEditMode ? { background: 'hsl(217 91% 50%)', color: 'white', borderColor: 'hsl(217 91% 50%)' } : undefined}
+                        className="btn btn--outline"
+                        onClick={() => setModal({ type: 'bulkEdit' })}
+                        disabled={allShifts.length === 0}
                     >
-                        {Icons.edit} {bulkEditMode ? 'Exit Bulk Edit' : 'Bulk Edit'}
+                        {Icons.edit} Bulk Edit
                     </button>
-                    {allShifts.length > 0 && !bulkEditMode && (
+                    {allShifts.length > 0 && (
                         <button className="btn btn--outline" style={{ color: 'hsl(0 84% 60%)', borderColor: 'hsl(0 84% 80%)' }} onClick={() => setModal({ type: 'confirmDeleteAll' })}>
                             {Icons.trash} Delete All
                         </button>
@@ -2355,79 +2416,6 @@ export default function SchedulingPage() {
                     </ScheduleCard>
                 </div>
 
-                {/* Bulk Edit Toolbar */}
-                {bulkEditMode && (
-                    <div className="sched-bulk-toolbar">
-                        <div className="sched-bulk-toolbar__top">
-                            <span className="sched-bulk-toolbar__count">{selectedShiftIds.size} shift{selectedShiftIds.size !== 1 ? 's' : ''} selected</span>
-                            <button className="btn btn--outline btn--sm" onClick={toggleSelectAll}>
-                                {selectedShiftIds.size === allShifts.length ? 'Deselect All' : 'Select Entire Week'}
-                            </button>
-                            {selectedShiftIds.size > 0 && (
-                                <button className="btn btn--outline btn--sm" onClick={() => setSelectedShiftIds(new Set())}>
-                                    Clear
-                                </button>
-                            )}
-                        </div>
-                        <div className="sched-bulk-toolbar__helpers">
-                            <span className="sched-bulk-toolbar__helper-label">Select by day:</span>
-                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, i) => {
-                                const ws2 = new Date(weekStart + 'T00:00:00');
-                                const d2 = new Date(ws2); d2.setDate(ws2.getDate() + i);
-                                const dateStr2 = toLocalDateStr(d2);
-                                const dayCount = allShifts.filter(s => toLocalDateStr(s.shiftDate) === dateStr2).length;
-                                const daySelected = dayCount > 0 && allShifts.filter(s => toLocalDateStr(s.shiftDate) === dateStr2).every(s => selectedShiftIds.has(s.id));
-                                return (
-                                    <button
-                                        key={i}
-                                        className={`btn btn--outline btn--xs ${daySelected ? 'btn--active' : ''}`}
-                                        onClick={() => selectShiftsByDay(i)}
-                                        disabled={dayCount === 0}
-                                        title={`${dayCount} shift${dayCount !== 1 ? 's' : ''}`}
-                                    >
-                                        {day} ({dayCount})
-                                    </button>
-                                );
-                            })}
-                        </div>
-                        {selectedShiftIds.size > 0 && (
-                            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                                <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'bulkEdit' })}>
-                                    {Icons.edit} Edit {selectedShiftIds.size} Shift{selectedShiftIds.size !== 1 ? 's' : ''}
-                                </button>
-                                <button className="btn btn--outline btn--sm" style={{ color: '#ef4444', borderColor: '#fca5a5' }} onClick={handleBulkDelete}>
-                                    {Icons.trash} Delete Selected
-                                </button>
-                            </div>
-                        )}
-                        {bulkBatches.length > 0 && (
-                            <div className="sched-undo-history">
-                                <div className="sched-undo-history__title">{Icons.clock} Recent Actions (undo available)</div>
-                                {bulkBatches.map(b => (
-                                    <div key={b.id} className="sched-undo-history__item">
-                                        <span className="sched-undo-history__desc">
-                                            {b.action === 'ARCHIVE' ? 'Deleted' : 'Edited'} {b.shiftCount} shift{b.shiftCount !== 1 ? 's' : ''}
-                                            <span className="sched-undo-history__meta"> — {b.userName}, {new Date(b.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
-                                        </span>
-                                        <button
-                                            className="btn btn--outline btn--xs"
-                                            onClick={async () => {
-                                                try {
-                                                    await api.bulkUndoShifts(b.id);
-                                                    showToast(`Undid ${b.action === 'ARCHIVE' ? 'delete' : 'edit'} of ${b.shiftCount} shift${b.shiftCount !== 1 ? 's' : ''}`);
-                                                    refetchAll();
-                                                    fetchBatches();
-                                                } catch (err) { showToast(err.message, 'error'); }
-                                            }}
-                                        >
-                                            {Icons.undo} Undo
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
 
                 {/* Weekly Schedule Overview (always global) */}
                 <ScheduleCard
@@ -2457,7 +2445,7 @@ export default function SchedulingPage() {
                             No shifts scheduled this week. Click + Create Shift to get started.
                         </div>
                     ) : (
-                        <WeeklyCalendarView shifts={allShifts} weekStart={weekStart} overlapIds={allOverlapIds} onEditShift={handleEditShift} onAddShift={handleAddShift} bulkEditMode={bulkEditMode} selectedShiftIds={selectedShiftIds} onToggleSelect={toggleShiftSelection} groupBy={summaryViewBy} />
+                        <WeeklyCalendarView shifts={allShifts} weekStart={weekStart} overlapIds={allOverlapIds} onEditShift={handleEditShift} onAddShift={handleAddShift} bulkEditMode={false} selectedShiftIds={selectedShiftIds} onToggleSelect={toggleShiftSelection} groupBy={summaryViewBy} />
                     )}
                 </ScheduleCard>
 
@@ -2570,13 +2558,30 @@ export default function SchedulingPage() {
             {/* Bulk Edit Modal */}
             {modal?.type === 'bulkEdit' && (
                 <BulkEditModal
-                    selectedShifts={allShifts.filter(s => selectedShiftIds.has(s.id))}
+                    allShifts={allShifts}
+                    weekStart={weekStart}
                     employees={employees}
                     clients={clients}
                     onSave={handleBulkEditPerShift}
-                    onDelete={handleBulkDelete}
+                    onDelete={async (ids) => {
+                        try {
+                            await api.bulkDeleteShifts([...ids]);
+                            showToast(`Deleted ${ids.size} shift${ids.size !== 1 ? 's' : ''}`);
+                            refetchAll();
+                            fetchBatches();
+                        } catch (err) { showToast(err.message, 'error'); }
+                    }}
                     onClose={() => setModal(null)}
                     saving={bulkSaving}
+                    onUndo={async (batchId) => {
+                        try {
+                            await api.bulkUndoShifts(batchId);
+                            showToast('Undo successful');
+                            refetchAll();
+                            fetchBatches();
+                        } catch (err) { showToast(err.message, 'error'); }
+                    }}
+                    bulkBatches={bulkBatches}
                 />
             )}
         </>
