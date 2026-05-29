@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import DrawerPanel from '../components/common/DrawerPanel';
+import ClientCreationWizard from '../components/ClientCreationWizard';
 import { fmtDate, daysClass } from '../utils/dates';
 import { statusLabel } from '../utils/status';
 import { useToast } from '../hooks/useToast';
@@ -582,6 +584,8 @@ function NoteDrawer({ client, onClose, onSaved }) {
 export default function AuthorizationsPage() {
     const { isAdmin } = useAuth();
     const { showToast, showUndoToast } = useToast();
+    const navigate = useNavigate();
+    const [showCreateWizard, setShowCreateWizard] = useState(false);
     const [clients, setClients] = useState([]);
     const [insuranceTypes, setInsuranceTypes] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -935,7 +939,7 @@ export default function AuthorizationsPage() {
                         </button>
                     )}
                     {!showArchived && (
-                        <button className="btn btn--primary" onClick={() => setModal({ type: 'client' })}>
+                        <button className="btn btn--primary" onClick={() => setShowCreateWizard(true)}>
                             {Icons.plus} Add Client
                         </button>
                     )}
@@ -1273,7 +1277,14 @@ export default function AuthorizationsPage() {
             </div>
 
             {/* Modals */}
-            {modal?.type === 'client' && (
+            {showCreateWizard && (
+                <ClientCreationWizard
+                    onClose={() => setShowCreateWizard(false)}
+                    onCreated={(client) => { setShowCreateWizard(false); navigate(`/clients/${client.id}`); }}
+                    insuranceTypes={insuranceTypes}
+                />
+            )}
+            {modal?.type === 'client' && modal.client && (
                 <ClientFormModal client={modal.client} onSave={handleSaveClient} onClose={() => setModal(null)} insuranceTypeNames={insuranceTypeNames} />
             )}
             {modal?.type === 'auth' && (

@@ -43,3 +43,7 @@ worktrees/
 # Uploads
 server/uploads/
 .gstack/
+
+# Backups & scripts
+backups/
+scripts/restore-backup.js
