@@ -1354,6 +1354,39 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
         return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([id, name]) => ({ value: id, label: name }));
     }, [allShifts]);
 
+    // Authorization table for the selected client
+    const selectedClient = useMemo(() => {
+        if (!filterClientId) return null;
+        return clients.find(c => c.id === Number(filterClientId));
+    }, [filterClientId, clients]);
+
+    const authServiceMap = useMemo(() => {
+        if (!selectedClient?.authorizations?.length) return {};
+        const now = new Date();
+        const map = {};
+        for (const auth of selectedClient.authorizations) {
+            if (auth.authorizationEndDate && new Date(auth.authorizationEndDate) < now) continue;
+            let code = auth.serviceCode;
+            if (!code || code === 'TIMESHEETS') {
+                const lower = (auth.serviceName || '').toLowerCase();
+                if (lower.includes('self') && (lower.includes('directed') || lower.includes('direct'))) code = 'SDPC';
+                else if (lower.includes('personal') && lower.includes('care')) code = 'PCS';
+                else if (lower === 'pas' || lower === 'pca') code = 'PCS';
+                else if (lower.includes('homemaker') || lower === 'hm') code = 'S5130';
+                else if (lower.includes('attendant')) code = 'S5125';
+                else if (lower.includes('companion')) code = 'S5135';
+                else if (lower.includes('respite')) code = 'S5150';
+                else if (lower === 'timesheets') code = 'TIMESHEETS';
+                else code = auth.serviceCode === 'TIMESHEETS' ? 'TIMESHEETS' : null;
+            }
+            if (!code) continue;
+            if (!map[code]) map[code] = { units: 0, category: '' };
+            map[code].units += auth.authorizedUnits || 0;
+            if (auth.serviceCategory && !map[code].category) map[code].category = auth.serviceCategory;
+        }
+        return map;
+    }, [selectedClient]);
+
     return (
         <Modal onClose={onClose} wide>
             <h2 className="modal__title">Bulk Edit Shifts</h2>
@@ -1380,6 +1413,40 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                         />
                     </div>
                 </div>
+
+                {/* Authorization table — shown when a client is selected */}
+                {filterClientId && Object.keys(authServiceMap).length > 0 && (
+                    <table className="sched-modal-auth-table">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Service</th>
+                                <th>Units</th>
+                                <th>Hours</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {Object.entries(authServiceMap).map(([code, svcData]) => {
+                                const info = SERVICE_COLORS[code] || { color: '#6B7280', label: code };
+                                const units = svcData.units || 0;
+                                const hrs = Math.round((units / 4) * 100) / 100;
+                                return (
+                                    <tr key={code}>
+                                        <td style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>{svcData.category || '—'}</td>
+                                        <td>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: info.color, flexShrink: 0 }} />
+                                                {info.label} ({code})
+                                            </span>
+                                        </td>
+                                        <td>{units}</td>
+                                        <td>{hrs}</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                )}
 
                 {/* Empty state */}
                 {!filterClientId && !filterEmployeeId && (
