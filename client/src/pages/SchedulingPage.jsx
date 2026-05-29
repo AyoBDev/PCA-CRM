@@ -1297,13 +1297,27 @@ function BulkEditModal({ selectedShifts, employees, clients, onSave, onDelete, o
         onSave(perShiftUpdates, applyToFuture);
     };
 
+    const affectedClients = [...new Set(selectedShifts.map(s => s.client?.clientName).filter(Boolean))];
+    const affectedEmployees = [...new Set(selectedShifts.map(s => s.displayEmployeeName || s.employee?.name).filter(Boolean))];
+
     return (
         <Modal onClose={onClose}>
             <h2 className="modal__title">Edit {count} Shift{count !== 1 ? 's' : ''}</h2>
-            <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', margin: '0 0 16px' }}>
-                Edit each day individually — set different service types, times, and accounts per shift.
-            </p>
+            <p className="modal__desc">Edit each day individually — set different service types, times, and accounts per shift.</p>
             <form onSubmit={handleSubmit}>
+                {/* Client + Employee summary (read-only context) */}
+                <div className="form-grid-2">
+                    <div className="form-group">
+                        <label>Client{affectedClients.length !== 1 ? 's' : ''}</label>
+                        <input value={affectedClients.join(', ') || '—'} disabled style={{ background: 'hsl(var(--muted))', cursor: 'default' }} />
+                    </div>
+                    <div className="form-group">
+                        <label>Employee{affectedEmployees.length !== 1 ? 's' : ''}</label>
+                        <input value={affectedEmployees.join(', ') || '—'} disabled style={{ background: 'hsl(var(--muted))', cursor: 'default' }} />
+                    </div>
+                </div>
+
+                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Days of the Week</label>
                 <div className="sched-day-grid">
                     {shiftsByDay.map(([dateStr, dayShifts], dayIdx) => {
                         const dateObj = new Date(dateStr + 'T12:00:00');
@@ -1388,7 +1402,7 @@ function BulkEditModal({ selectedShifts, employees, clients, onSave, onDelete, o
                     </div>
                 )}
 
-                <div className="sched-recurring" style={{ marginTop: 12 }}>
+                <div className="sched-recurring">
                     <label className="sched-recurring__toggle">
                         <input type="radio" name="bulkScope" checked={!applyToFuture} onChange={() => setApplyToFuture(false)} />
                         <span>Apply to current week only</span>
@@ -1398,24 +1412,24 @@ function BulkEditModal({ selectedShifts, employees, clients, onSave, onDelete, o
                         <span>Apply to all future recurring weeks</span>
                     </label>
                     {applyToFuture && hasRecurringShifts && (
-                        <p style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', margin: '6px 0 0 24px' }}>
+                        <div className="sched-recurring__preview">
                             Changes will update all future shifts sharing the same recurring schedule.
-                        </p>
+                        </div>
                     )}
                     {applyToFuture && !hasRecurringShifts && (
-                        <p style={{ fontSize: 12, color: '#f59e0b', margin: '6px 0 0 24px' }}>
+                        <div className="sched-recurring__preview" style={{ color: '#f59e0b' }}>
                             No recurring group found — changes will apply to selected shifts only.
-                        </p>
+                        </div>
                     )}
                 </div>
 
-                <div className="form-actions" style={{ marginTop: 20, display: 'flex', gap: 8 }}>
+                <div className="form-actions">
                     {!confirmDelete ? (
-                        <button type="button" className="btn btn--outline btn--sm" style={{ color: '#ef4444', borderColor: '#fca5a5', marginRight: 'auto' }} onClick={() => setConfirmDelete(true)}>
+                        <button type="button" className="btn btn--outline" style={{ color: 'hsl(0 84% 60%)', borderColor: 'hsl(0 84% 80%)', marginRight: 'auto' }} onClick={() => setConfirmDelete(true)}>
                             {Icons.trash} Delete Selected
                         </button>
                     ) : (
-                        <button type="button" className="btn btn--sm" style={{ background: '#ef4444', color: 'white', border: 'none', marginRight: 'auto' }} onClick={onDelete}>
+                        <button type="button" className="btn" style={{ background: 'hsl(0 84% 60%)', color: '#fff', marginRight: 'auto' }} onClick={onDelete}>
                             Confirm Delete {count} Shift{count !== 1 ? 's' : ''}?
                         </button>
                     )}
