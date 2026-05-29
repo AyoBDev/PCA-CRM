@@ -1082,7 +1082,7 @@ function InlineWeekPicker({ weekStart, setWeekStart }) {
     );
 }
 
-function BulkEditInline({ count, employees, clients, onSave, onDelete, saving, selectedShifts = [] }) {
+function BulkEditInline({ count, employees, clients, onSave, onDelete, saving, selectedShifts = [], onOpenModal }) {
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
     const [employeeId, setEmployeeId] = useState('');
@@ -1180,16 +1180,19 @@ function BulkEditInline({ count, employees, clients, onSave, onDelete, saving, s
                 </div>
             )}
             <div className="sched-bulk-inline__actions">
+                <button className="btn btn--primary btn--sm" onClick={onOpenModal}>
+                    {Icons.edit} Edit Per Day
+                </button>
                 {confirmApply ? (
                     <>
-                        <button className="btn btn--primary btn--sm" onClick={handleApply} disabled={saving}>
-                            {saving ? 'Applying…' : `Confirm — Apply to ${count} Shift${count !== 1 ? 's' : ''}`}
+                        <button className="btn btn--outline btn--sm" onClick={handleApply} disabled={saving}>
+                            {saving ? 'Applying…' : `Quick Apply to ${count}`}
                         </button>
                         <button className="btn btn--outline btn--sm" onClick={() => setConfirmApply(false)}>Cancel</button>
                     </>
                 ) : (
-                    <button className="btn btn--primary btn--sm" onClick={handleApply} disabled={!hasChanges || saving}>
-                        {saving ? 'Applying…' : `Apply to ${count} Shift${count !== 1 ? 's' : ''}`}
+                    <button className="btn btn--outline btn--sm" onClick={handleApply} disabled={!hasChanges || saving}>
+                        {saving ? 'Applying…' : `Quick Apply to ${count}`}
                     </button>
                 )}
                 {!confirmDelete ? (
@@ -1206,86 +1209,210 @@ function BulkEditInline({ count, employees, clients, onSave, onDelete, saving, s
     );
 }
 
-function BulkEditModal({ count, employees, clients, onSave, onDelete, onClose, saving }) {
-    const [startTime, setStartTime] = useState('');
-    const [endTime, setEndTime] = useState('');
-    const [employeeId, setEmployeeId] = useState('');
-    const [clientId, setClientId] = useState('');
-    const [serviceCode, setServiceCode] = useState('');
-    const [status, setStatus] = useState('');
-    const [notes, setNotes] = useState('');
+function BulkEditModal({ selectedShifts, employees, clients, onSave, onDelete, onClose, saving }) {
+    const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const count = selectedShifts.length;
+
+    // Group shifts by day (sorted by date)
+    const shiftsByDay = useMemo(() => {
+        const grouped = {};
+        for (const s of selectedShifts) {
+            const dateStr = toLocalDateStr(s.shiftDate);
+            if (!grouped[dateStr]) grouped[dateStr] = [];
+            grouped[dateStr].push(s);
+        }
+        return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
+    }, [selectedShifts]);
+
+    // Editable state: per-shift overrides keyed by shift ID
+    const [edits, setEdits] = useState(() => {
+        const map = {};
+        for (const s of selectedShifts) {
+            map[s.id] = {
+                serviceCode: s.serviceCode || 'PCS',
+                startTime: s.startTime || '09:00',
+                endTime: s.endTime || '13:00',
+                accountNumber: s.accountNumber || '',
+            };
+        }
+        return map;
+    });
+
+    const [applyToFuture, setApplyToFuture] = useState(true);
     const [confirmDelete, setConfirmDelete] = useState(false);
+
+    const updateShiftField = (shiftId, field, value) => {
+        setEdits(prev => ({ ...prev, [shiftId]: { ...prev[shiftId], [field]: value } }));
+    };
+
+    const applyDayToAll = (sourceDateStr) => {
+        const sourceShifts = shiftsByDay.find(([d]) => d === sourceDateStr)?.[1];
+        if (!sourceShifts?.length) return;
+        const sourceEdit = edits[sourceShifts[0].id];
+        setEdits(prev => {
+            const next = { ...prev };
+            for (const s of selectedShifts) {
+                next[s.id] = { ...next[s.id], serviceCode: sourceEdit.serviceCode, startTime: sourceEdit.startTime, endTime: sourceEdit.endTime, accountNumber: sourceEdit.accountNumber };
+            }
+            return next;
+        });
+    };
+
+    const computeHrs = (sT, eT) => {
+        if (!sT || !eT) return { hours: 0, units: 0 };
+        const [sh, sm] = sT.split(':').map(Number);
+        const [eh, em] = eT.split(':').map(Number);
+        let startMin = sh * 60 + sm, endMin = eh * 60 + em;
+        if (endMin <= startMin) endMin += 24 * 60;
+        const hours = Math.round(((endMin - startMin) / 60) * 100) / 100;
+        return { hours, units: Math.round(hours * 4) };
+    };
+
+    const totalHours = Object.values(edits).reduce((sum, e) => sum + computeHrs(e.startTime, e.endTime).hours, 0);
+    const totalUnits = Object.values(edits).reduce((sum, e) => sum + computeHrs(e.startTime, e.endTime).units, 0);
+
+    const hasChanges = selectedShifts.some(s => {
+        const e = edits[s.id];
+        return e.serviceCode !== (s.serviceCode || '') ||
+            e.startTime !== (s.startTime || '') ||
+            e.endTime !== (s.endTime || '') ||
+            e.accountNumber !== (s.accountNumber || '');
+    });
+
+    const hasRecurringShifts = selectedShifts.some(s => s.recurringGroupId);
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        const updates = {};
-        if (startTime) updates.startTime = startTime;
-        if (endTime) updates.endTime = endTime;
-        if (employeeId) updates.employeeId = Number(employeeId);
-        if (clientId) updates.clientId = Number(clientId);
-        if (serviceCode) updates.serviceCode = serviceCode;
-        if (status) updates.status = status;
-        if (notes) updates.notes = notes;
-        if (Object.keys(updates).length === 0) return;
-        onSave(updates);
+        const perShiftUpdates = {};
+        for (const s of selectedShifts) {
+            const edit = edits[s.id];
+            const updates = {};
+            if (edit.serviceCode !== (s.serviceCode || '')) updates.serviceCode = edit.serviceCode;
+            if (edit.startTime !== (s.startTime || '')) updates.startTime = edit.startTime;
+            if (edit.endTime !== (s.endTime || '')) updates.endTime = edit.endTime;
+            if (edit.accountNumber !== (s.accountNumber || '')) updates.accountNumber = edit.accountNumber;
+            if (Object.keys(updates).length > 0) perShiftUpdates[s.id] = updates;
+        }
+        if (Object.keys(perShiftUpdates).length === 0) return;
+        onSave(perShiftUpdates, applyToFuture);
     };
-
-    const hasChanges = startTime || endTime || employeeId || clientId || serviceCode || status || notes;
 
     return (
         <Modal onClose={onClose}>
-            <h2 className="modal__title">Bulk Edit {count} Shift{count !== 1 ? 's' : ''}</h2>
+            <h2 className="modal__title">Edit {count} Shift{count !== 1 ? 's' : ''}</h2>
             <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', margin: '0 0 16px' }}>
-                Only fields you fill in will be updated. Leave blank to keep unchanged.
+                Edit each day individually — set different service types, times, and accounts per shift.
             </p>
             <form onSubmit={handleSubmit}>
-                <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div className="form-group">
-                        <label className="form-label">Start Time</label>
-                        <input type="time" className="form-input" value={startTime} onChange={e => setStartTime(e.target.value)} />
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">End Time</label>
-                        <input type="time" className="form-input" value={endTime} onChange={e => setEndTime(e.target.value)} />
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">Employee</label>
-                        <select className="form-input" value={employeeId} onChange={e => setEmployeeId(e.target.value)}>
-                            <option value="">— No change —</option>
-                            {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
-                        </select>
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">Client</label>
-                        <select className="form-input" value={clientId} onChange={e => setClientId(e.target.value)}>
-                            <option value="">— No change —</option>
-                            {clients.map(c => <option key={c.id} value={c.id}>{c.clientName}</option>)}
-                        </select>
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">Service Code</label>
-                        <select className="form-input" value={serviceCode} onChange={e => setServiceCode(e.target.value)}>
-                            <option value="">— No change —</option>
-                            {Object.entries(SERVICE_COLORS).map(([code, info]) => <option key={code} value={code}>{info.label} ({code})</option>)}
-                        </select>
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">Status</label>
-                        <select className="form-input" value={status} onChange={e => setStatus(e.target.value)}>
-                            <option value="">— No change —</option>
-                            <option value="scheduled">Scheduled</option>
-                            <option value="cancelled">Cancelled</option>
-                        </select>
-                    </div>
-                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                        <label className="form-label">Notes</label>
-                        <input type="text" className="form-input" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Set notes on all selected shifts…" />
-                    </div>
+                <div className="sched-day-grid">
+                    {shiftsByDay.map(([dateStr, dayShifts], dayIdx) => {
+                        const dateObj = new Date(dateStr + 'T12:00:00');
+                        const dayName = DAY_NAMES[dateObj.getDay()];
+                        const dayTotalHrs = dayShifts.reduce((s, sh) => s + computeHrs(edits[sh.id]?.startTime, edits[sh.id]?.endTime).hours, 0);
+                        const dayTotalUnits = dayShifts.reduce((s, sh) => s + computeHrs(edits[sh.id]?.startTime, edits[sh.id]?.endTime).units, 0);
+                        const firstEdit = edits[dayShifts[0].id];
+                        const firstColor = SERVICE_COLORS[firstEdit?.serviceCode] || { color: '#6B7280' };
+                        return (
+                            <div key={dateStr} className="sched-day-row sched-day-row--active">
+                                <div className="sched-day-row__header">
+                                    <label className="sched-day-row__toggle">
+                                        <span className="sched-day-row__day">{dayName}</span>
+                                        <span className="sched-day-row__date">{dateStr.slice(5)}</span>
+                                    </label>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <span className="sched-day-row__badge" style={{ background: `color-mix(in srgb, ${firstColor.color} 15%, white)`, color: firstColor.color }}>
+                                            {dayTotalHrs}h / {dayTotalUnits}u
+                                        </span>
+                                    </div>
+                                </div>
+                                {dayShifts.map((shift, si) => {
+                                    const edit = edits[shift.id];
+                                    if (!edit) return null;
+                                    const shColorInfo = SERVICE_COLORS[edit.serviceCode] || { color: '#6B7280', label: edit.serviceCode };
+                                    return (
+                                        <div key={shift.id} className="sched-day-row__fields">
+                                            {dayShifts.length > 1 && (
+                                                <div className="sched-day-row__shift-label">
+                                                    <span>Shift {si + 1}</span>
+                                                </div>
+                                            )}
+                                            <div className="sched-day-row__field">
+                                                <label className="sched-day-row__field-label">Service</label>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: shColorInfo.color, flexShrink: 0 }} />
+                                                    <select value={edit.serviceCode} onChange={e => updateShiftField(shift.id, 'serviceCode', e.target.value)} className="sched-day-row__input">
+                                                        {Object.entries(SERVICE_COLORS).map(([code, info]) => (
+                                                            <option key={code} value={code}>{info.label}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div className="sched-day-row__field">
+                                                <label className="sched-day-row__field-label">Start</label>
+                                                <input type="time" value={edit.startTime} onChange={e => updateShiftField(shift.id, 'startTime', e.target.value)} className="sched-day-row__input" />
+                                            </div>
+                                            <div className="sched-day-row__field">
+                                                <label className="sched-day-row__field-label">End</label>
+                                                <input type="time" value={edit.endTime} onChange={e => updateShiftField(shift.id, 'endTime', e.target.value)} className="sched-day-row__input" />
+                                            </div>
+                                            <div className="sched-day-row__field">
+                                                <label className="sched-day-row__field-label">Account</label>
+                                                <select value={edit.accountNumber} onChange={e => updateShiftField(shift.id, 'accountNumber', e.target.value)} className="sched-day-row__input">
+                                                    <option value="">—</option>
+                                                    {VALID_ACCOUNT_NUMBERS.map(n => <option key={n} value={n}>{n}</option>)}
+                                                </select>
+                                            </div>
+                                            {si === 0 && shiftsByDay.length > 1 && (
+                                                <button type="button" className="sched-day-row__apply" title="Apply this day's settings to all days" onClick={() => applyDayToAll(dateStr)}>
+                                                    Apply to all
+                                                </button>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        );
+                    })}
                 </div>
+
+                {count > 0 && (
+                    <div className="sched-hours-display" style={{ borderLeftColor: 'hsl(217 91% 50%)' }}>
+                        <span className="sched-hours-display__value">{count}</span>
+                        <span className="sched-hours-display__label">shift{count !== 1 ? 's' : ''}</span>
+                        <span className="sched-hours-display__sep">/</span>
+                        <span className="sched-hours-display__value">{totalHours}</span>
+                        <span className="sched-hours-display__label">hours</span>
+                        <span className="sched-hours-display__sep">/</span>
+                        <span className="sched-hours-display__value">{totalUnits}</span>
+                        <span className="sched-hours-display__label">units</span>
+                    </div>
+                )}
+
+                <div className="sched-recurring" style={{ marginTop: 12 }}>
+                    <label className="sched-recurring__toggle">
+                        <input type="radio" name="bulkScope" checked={!applyToFuture} onChange={() => setApplyToFuture(false)} />
+                        <span>Apply to current week only</span>
+                    </label>
+                    <label className="sched-recurring__toggle" style={{ marginTop: 6 }}>
+                        <input type="radio" name="bulkScope" checked={applyToFuture} onChange={() => setApplyToFuture(true)} />
+                        <span>Apply to all future recurring weeks</span>
+                    </label>
+                    {applyToFuture && hasRecurringShifts && (
+                        <p style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', margin: '6px 0 0 24px' }}>
+                            Changes will update all future shifts sharing the same recurring schedule.
+                        </p>
+                    )}
+                    {applyToFuture && !hasRecurringShifts && (
+                        <p style={{ fontSize: 12, color: '#f59e0b', margin: '6px 0 0 24px' }}>
+                            No recurring group found — changes will apply to selected shifts only.
+                        </p>
+                    )}
+                </div>
+
                 <div className="form-actions" style={{ marginTop: 20, display: 'flex', gap: 8 }}>
                     {!confirmDelete ? (
                         <button type="button" className="btn btn--outline btn--sm" style={{ color: '#ef4444', borderColor: '#fca5a5', marginRight: 'auto' }} onClick={() => setConfirmDelete(true)}>
-                            {Icons.trash} Delete All Selected
+                            {Icons.trash} Delete Selected
                         </button>
                     ) : (
                         <button type="button" className="btn btn--sm" style={{ background: '#ef4444', color: 'white', border: 'none', marginRight: 'auto' }} onClick={onDelete}>
@@ -1874,6 +2001,31 @@ export default function SchedulingPage() {
         }
     };
 
+    const handleBulkEditPerShift = async (perShiftUpdates, applyToFuture) => {
+        if (Object.keys(perShiftUpdates).length === 0) return;
+        try {
+            setBulkSaving(true);
+            const result = await api.bulkUpdateShiftsPerShift(perShiftUpdates, applyToFuture);
+            setSelectedShiftIds(new Set());
+            setBulkEditMode(false);
+            setModal(null);
+            refetchAll();
+            fetchBatches();
+            const msg = result.futureUpdated
+                ? `Updated ${result.count} shift${result.count !== 1 ? 's' : ''} + ${result.futureUpdated} future`
+                : `Updated ${result.count} shift${result.count !== 1 ? 's' : ''}`;
+            showUndoToast(msg, async () => {
+                await api.bulkUndoShifts(result.batchId);
+                refetchAll();
+                fetchBatches();
+            });
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setBulkSaving(false);
+        }
+    };
+
     const handleBulkDelete = async () => {
         if (selectedShiftIds.size === 0) return;
         try {
@@ -2233,6 +2385,7 @@ export default function SchedulingPage() {
                                 onDelete={handleBulkDelete}
                                 saving={bulkSaving}
                                 selectedShifts={allShifts.filter(s => selectedShiftIds.has(s.id))}
+                                onOpenModal={() => setModal({ type: 'bulkEdit' })}
                             />
                         )}
                         {bulkBatches.length > 0 && (
@@ -2405,10 +2558,10 @@ export default function SchedulingPage() {
             {/* Bulk Edit Modal */}
             {modal?.type === 'bulkEdit' && (
                 <BulkEditModal
-                    count={selectedShiftIds.size}
+                    selectedShifts={allShifts.filter(s => selectedShiftIds.has(s.id))}
                     employees={employees}
                     clients={clients}
-                    onSave={handleBulkEdit}
+                    onSave={handleBulkEditPerShift}
                     onDelete={handleBulkDelete}
                     onClose={() => setModal(null)}
                     saving={bulkSaving}

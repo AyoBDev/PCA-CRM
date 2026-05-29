@@ -403,6 +403,8 @@ export const updateShift = (id, data) =>
     request(`/shifts/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const bulkUpdateShifts = (shiftIds, updates) =>
     request('/shifts/bulk', { method: 'PATCH', body: JSON.stringify({ shiftIds, updates }) });
+export const bulkUpdateShiftsPerShift = (perShiftUpdates, applyToFuture) =>
+    request('/shifts/bulk-per-shift', { method: 'PATCH', body: JSON.stringify({ perShiftUpdates, applyToFuture }) });
 export const bulkDeleteShifts = (shiftIds) =>
     request('/shifts/bulk', { method: 'DELETE', body: JSON.stringify({ shiftIds }) });
 export const bulkUndoShifts = (batchId) =>

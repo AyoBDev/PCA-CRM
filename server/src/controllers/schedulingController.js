@@ -1009,6 +1009,173 @@ async function bulkUpdateShifts(req, res, next) {
     } catch (err) { next(err); }
 }
 
+// PATCH /api/shifts/bulk-per-shift — update each shift individually (different values per shift)
+// Also supports propagating changes to future recurring shifts
+async function bulkUpdateShiftsPerShift(req, res, next) {
+    try {
+        const { perShiftUpdates, applyToFuture } = req.body;
+        if (!perShiftUpdates || typeof perShiftUpdates !== 'object' || Object.keys(perShiftUpdates).length === 0) {
+            return res.status(400).json({ error: 'perShiftUpdates object is required' });
+        }
+
+        const shiftIds = Object.keys(perShiftUpdates).map(Number);
+
+        const shifts = await prisma.shift.findMany({
+            where: { id: { in: shiftIds }, archivedAt: null },
+            include: shiftInclude,
+        });
+
+        if (shifts.length === 0) {
+            return res.status(404).json({ error: 'No matching shifts found' });
+        }
+
+        // Save pre-edit snapshot for undo
+        const snapshot = shifts.map(s => ({
+            shiftId: s.id,
+            oldValues: {
+                startTime: s.startTime, endTime: s.endTime,
+                serviceCode: s.serviceCode, accountNumber: s.accountNumber,
+                hours: s.hours, units: s.units,
+            }
+        }));
+
+        // Collect future shifts for recurring propagation
+        let futureSnapshot = [];
+        let futureShifts = [];
+        if (applyToFuture) {
+            const recurringGroupIds = [...new Set(shifts.map(s => s.recurringGroupId).filter(Boolean))];
+            if (recurringGroupIds.length > 0) {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                futureShifts = await prisma.shift.findMany({
+                    where: {
+                        recurringGroupId: { in: recurringGroupIds },
+                        archivedAt: null,
+                        shiftDate: { gt: today },
+                        id: { notIn: shiftIds },
+                    },
+                    include: shiftInclude,
+                });
+                futureSnapshot = futureShifts.map(s => ({
+                    shiftId: s.id,
+                    oldValues: {
+                        startTime: s.startTime, endTime: s.endTime,
+                        serviceCode: s.serviceCode, accountNumber: s.accountNumber,
+                        hours: s.hours, units: s.units,
+                    }
+                }));
+            }
+        }
+
+        const batch = await prisma.bulkEditBatch.create({
+            data: {
+                userId: req.user.id, userName: req.user.name,
+                action: 'UPDATE', shiftCount: shifts.length + futureShifts.length,
+                snapshot: JSON.stringify([...snapshot, ...futureSnapshot]),
+            }
+        });
+
+        const updated = [];
+        const errors = [];
+
+        // Update each selected shift with its individual changes
+        for (const existing of shifts) {
+            const updates = perShiftUpdates[String(existing.id)];
+            if (!updates || Object.keys(updates).length === 0) continue;
+
+            const data = {};
+            if (updates.startTime !== undefined) data.startTime = updates.startTime;
+            if (updates.endTime !== undefined) data.endTime = updates.endTime;
+            if (updates.serviceCode !== undefined) data.serviceCode = updates.serviceCode;
+            if (updates.accountNumber !== undefined) data.accountNumber = updates.accountNumber;
+
+            if (updates.accountNumber && !VALID_ACCOUNT_NUMBERS.includes(updates.accountNumber)) {
+                errors.push({ id: existing.id, error: 'Invalid account number' });
+                continue;
+            }
+
+            // Recompute hours/units if times changed
+            const st = data.startTime || existing.startTime;
+            const et = data.endTime || existing.endTime;
+            if (data.startTime || data.endTime) {
+                const { hours, units } = computeShiftHours(st, et);
+                data.hours = hours;
+                data.units = units;
+            }
+
+            try {
+                const shift = await prisma.shift.update({
+                    where: { id: existing.id },
+                    data,
+                    include: shiftInclude,
+                });
+                updated.push(enrichShift(shift));
+
+                audit.logAction({
+                    userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+                    action: 'UPDATE', entityType: 'Shift', entityId: shift.id,
+                    changes: audit.diffFields(existing, shift, ['serviceCode', 'startTime', 'endTime', 'accountNumber']),
+                    metadata: { bulkEdit: true, batchId: batch.id, perShift: true },
+                });
+            } catch (err) {
+                errors.push({ id: existing.id, error: err.message });
+            }
+        }
+
+        // Propagate to future recurring shifts
+        let futureUpdated = 0;
+        if (applyToFuture && futureShifts.length > 0) {
+            // Build a day-of-week → updates mapping from the selected shifts
+            const dowUpdates = {};
+            for (const existing of shifts) {
+                const updates = perShiftUpdates[String(existing.id)];
+                if (!updates || Object.keys(updates).length === 0) continue;
+                const dow = new Date(existing.shiftDate).getDay();
+                if (!dowUpdates[dow]) dowUpdates[dow] = [];
+                dowUpdates[dow].push({
+                    oldServiceCode: existing.serviceCode,
+                    updates: { ...updates },
+                });
+            }
+
+            for (const futureShift of futureShifts) {
+                const dow = new Date(futureShift.shiftDate).getDay();
+                const dayRules = dowUpdates[dow];
+                if (!dayRules) continue;
+
+                // Match by day-of-week and old service code
+                const match = dayRules.find(r => r.oldServiceCode === futureShift.serviceCode) || dayRules[0];
+                if (!match) continue;
+
+                const data = {};
+                if (match.updates.startTime) data.startTime = match.updates.startTime;
+                if (match.updates.endTime) data.endTime = match.updates.endTime;
+                if (match.updates.serviceCode) data.serviceCode = match.updates.serviceCode;
+                if (match.updates.accountNumber !== undefined) data.accountNumber = match.updates.accountNumber;
+
+                if (Object.keys(data).length === 0) continue;
+
+                const st = data.startTime || futureShift.startTime;
+                const et = data.endTime || futureShift.endTime;
+                if (data.startTime || data.endTime) {
+                    const { hours, units } = computeShiftHours(st, et);
+                    data.hours = hours;
+                    data.units = units;
+                }
+
+                try {
+                    await prisma.shift.update({ where: { id: futureShift.id }, data });
+                    futureUpdated++;
+                } catch (err) {
+                    // skip individual failures
+                }
+            }
+        }
+
+        res.json({ updated, errors, count: updated.length, futureUpdated, batchId: batch.id });
+    } catch (err) { next(err); }
+}
+
 async function bulkDeleteShifts(req, res, next) {
     try {
         const { shiftIds } = req.body;
@@ -1103,4 +1270,4 @@ async function listBulkEditBatches(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listShifts, createShift, updateShift, bulkUpdateShifts, bulkDeleteShifts, bulkUndoBatch, listBulkEditBatches, deleteShift, deleteAllShifts, getClientSchedule, getEmployeeSchedule, authCheck, restoreShift, repeatShift };
+module.exports = { listShifts, createShift, updateShift, bulkUpdateShifts, bulkUpdateShiftsPerShift, bulkDeleteShifts, bulkUndoBatch, listBulkEditBatches, deleteShift, deleteAllShifts, getClientSchedule, getEmployeeSchedule, authCheck, restoreShift, repeatShift };
