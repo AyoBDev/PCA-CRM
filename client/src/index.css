@@ -8505,12 +8505,16 @@ button.sdr-section-tag:hover:not(:disabled) {
 }
 .csp-history-item {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
   border: 1px solid hsl(var(--border));
   border-radius: 8px;
   transition: border-color 0.15s ease;
+}
+.csp-history-item > .csp-attachments {
+  flex-basis: 100%;
 }
 .csp-history-item:hover {
   border-color: hsl(var(--muted-foreground) / 0.5);

@@ -33,6 +33,7 @@ export default function ClientServicePage() {
     const [client, setClient] = useState(null);
     const [loading, setLoading] = useState(true);
     const [historyExpanded, setHistoryExpanded] = useState(true);
+    const [expandedHistoryDocs, setExpandedHistoryDocs] = useState(new Set());
 
     // Auth modal state
     const [showAuthModal, setShowAuthModal] = useState(false);
@@ -313,31 +314,69 @@ export default function ClientServicePage() {
                         </button>
                         {historyExpanded && (
                             <div className="csp-history-list">
-                                {historyAuths.map(a => (
-                                    <div key={a.id} className={`csp-history-item ${a.archivedAt ? 'csp-history-item--archived' : ''}`}>
-                                        <div className="csp-history-item__main">
-                                            <div className="csp-history-item__dates">
-                                                {formatDate(a.authorizationStartDate)} – {formatDate(a.authorizationEndDate)}
+                                {historyAuths.map(a => {
+                                    const docsExpanded = expandedHistoryDocs.has(a.id);
+                                    const docs = a.documents || [];
+                                    return (
+                                        <div key={a.id} className={`csp-history-item ${a.archivedAt ? 'csp-history-item--archived' : ''}`}>
+                                            <div className="csp-history-item__main">
+                                                <div className="csp-history-item__dates">
+                                                    {formatDate(a.authorizationStartDate)} – {formatDate(a.authorizationEndDate)}
+                                                </div>
+                                                <div className="csp-history-item__meta">
+                                                    {a.authorizedUnits > 0 && <span>{a.authorizedUnits} units</span>}
+                                                    {(a.authorizedHours > 0 || a.authorizedUnits > 0) && <span>{a.authorizedHours || unitsToHours(a.authorizedUnits)} hrs</span>}
+                                                    {a.authorizationNumber && <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11 }}>#{a.authorizationNumber}</span>}
+                                                </div>
                                             </div>
-                                            <div className="csp-history-item__meta">
-                                                {a.authorizedUnits > 0 && <span>{a.authorizedUnits} units</span>}
-                                                {(a.authorizedHours > 0 || a.authorizedUnits > 0) && <span>{a.authorizedHours || unitsToHours(a.authorizedUnits)} hrs</span>}
-                                                {a.authorizationNumber && <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11 }}>#{a.authorizationNumber}</span>}
+                                            <div className="csp-history-item__actions">
+                                                {a.archivedAt ? (
+                                                    <span className="ts-badge ts-badge--draft">Archived</span>
+                                                ) : (
+                                                    <span className="ts-badge ts-badge--critical">Expired</span>
+                                                )}
+                                                <button className="btn btn--ghost btn--xs" onClick={() => {
+                                                    setExpandedHistoryDocs(prev => {
+                                                        const next = new Set(prev);
+                                                        next.has(a.id) ? next.delete(a.id) : next.add(a.id);
+                                                        return next;
+                                                    });
+                                                }} title="Attachments">
+                                                    {Icons.download}
+                                                    {docs.length > 0 && <span style={{ marginLeft: 2, fontSize: 10 }}>{docs.length}</span>}
+                                                </button>
+                                                <button className="btn btn--ghost btn--xs" onClick={() => openAuthModal(a)}>{Icons.edit}</button>
+                                                {a.archivedAt && (
+                                                    <button className="btn btn--ghost btn--xs" onClick={() => handleRestoreAuth(a.id)}>{Icons.rotateCcw}</button>
+                                                )}
                                             </div>
-                                        </div>
-                                        <div className="csp-history-item__actions">
-                                            {a.archivedAt ? (
-                                                <span className="ts-badge ts-badge--draft">Archived</span>
-                                            ) : (
-                                                <span className="ts-badge ts-badge--critical">Expired</span>
+                                            {docsExpanded && (
+                                                <div className="csp-attachments" style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid hsl(var(--border))' }}>
+                                                    {docs.length === 0 ? (
+                                                        <div className="csp-attachments__empty">No attachments</div>
+                                                    ) : (
+                                                        <div className="csp-attachments__list">
+                                                            {docs.map(doc => (
+                                                                <div key={doc.id} className="csp-attachments__item">
+                                                                    <span className="csp-attachments__name" onClick={() => handleDownloadAuthDoc(doc)}>
+                                                                        {Icons.download} {doc.fileName}
+                                                                    </span>
+                                                                    <button className="btn btn--danger-ghost btn--icon btn--xs" onClick={() => handleDeleteAuthDoc(doc)}>
+                                                                        {Icons.trash}
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    <label className="csp-attachments__upload">
+                                                        {Icons.upload} Upload
+                                                        <input type="file" style={{ display: 'none' }} onChange={(e) => { if (e.target.files[0]) handleUploadAuthDoc(a.id, e.target.files[0]); e.target.value = ''; }} />
+                                                    </label>
+                                                </div>
                                             )}
-                                            <button className="btn btn--ghost btn--xs" onClick={() => openAuthModal(a)}>{Icons.edit}</button>
-                                            {a.archivedAt && (
-                                                <button className="btn btn--ghost btn--xs" onClick={() => handleRestoreAuth(a.id)}>{Icons.rotateCcw}</button>
-                                            )}
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
