@@ -179,4 +179,80 @@ async function updateAuthManualStatus(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { createAuthorization, updateAuthorization, archiveAuthorization, restoreAuthorization, deleteAuthorization, updateAccountNumber, updateAuthManualStatus };
+// POST /api/authorizations/dedup — one-time cleanup of duplicate authorizations
+async function dedupAuthorizations(req, res, next) {
+    try {
+        const auths = await prisma.authorization.findMany({
+            where: { archivedAt: null, manualStatus: 'active' },
+            orderBy: [{ clientId: 'asc' }, { serviceCode: 'asc' }, { createdAt: 'asc' }],
+            include: { client: { select: { clientName: true } } }
+        });
+
+        const groups = {};
+        for (const a of auths) {
+            const key = `${a.clientId}|${a.serviceCode}`;
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(a);
+        }
+
+        const toDelete = [];
+        const toMarkInactive = [];
+
+        for (const [key, items] of Object.entries(groups)) {
+            if (items.length <= 1) continue;
+
+            const kept = items[0];
+            for (let i = 1; i < items.length; i++) {
+                const dupe = items[i];
+                const sameUnits = dupe.authorizedUnits === kept.authorizedUnits;
+                const noStartDate = !dupe.authorizationStartDate;
+                const exactDateMatch =
+                    kept.authorizationStartDate?.toISOString()?.split('T')[0] === dupe.authorizationStartDate?.toISOString()?.split('T')[0] &&
+                    kept.authorizationEndDate?.toISOString()?.split('T')[0] === dupe.authorizationEndDate?.toISOString()?.split('T')[0];
+
+                if (sameUnits && (noStartDate || exactDateMatch)) {
+                    toDelete.push(dupe.id);
+                }
+            }
+
+            // If oldest has no dates but newer has proper dates with same units, delete the oldest
+            if (!kept.authorizationStartDate && !kept.authorizationEndDate) {
+                for (let i = 1; i < items.length; i++) {
+                    const newer = items[i];
+                    if (newer.authorizedUnits === kept.authorizedUnits && newer.authorizationStartDate && !toDelete.includes(newer.id)) {
+                        toDelete.push(kept.id);
+                        break;
+                    }
+                }
+            }
+
+            // For remaining dupes: if one has an end date in the past, mark it inactive
+            const today = new Date();
+            const remaining = items.filter(i => !toDelete.includes(i.id));
+            if (remaining.length > 1) {
+                for (const r of remaining) {
+                    if (r.authorizationEndDate && r.authorizationEndDate < today && r.id !== remaining[remaining.length - 1].id) {
+                        toMarkInactive.push(r.id);
+                    }
+                }
+            }
+        }
+
+        let deletedCount = 0;
+        let inactiveCount = 0;
+
+        if (toDelete.length > 0) {
+            const result = await prisma.authorization.deleteMany({ where: { id: { in: toDelete } } });
+            deletedCount = result.count;
+        }
+
+        if (toMarkInactive.length > 0) {
+            const result = await prisma.authorization.updateMany({ where: { id: { in: toMarkInactive } }, data: { manualStatus: 'inactive' } });
+            inactiveCount = result.count;
+        }
+
+        res.json({ deleted: deletedCount, markedInactive: inactiveCount, deletedIds: toDelete, inactiveIds: toMarkInactive });
+    } catch (err) { next(err); }
+}
+
+module.exports = { createAuthorization, updateAuthorization, archiveAuthorization, restoreAuthorization, deleteAuthorization, updateAccountNumber, updateAuthManualStatus, dedupAuthorizations };
