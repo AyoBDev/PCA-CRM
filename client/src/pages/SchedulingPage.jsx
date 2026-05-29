@@ -1301,7 +1301,7 @@ function BulkEditModal({ selectedShifts, employees, clients, onSave, onDelete, o
     const affectedEmployees = [...new Set(selectedShifts.map(s => s.displayEmployeeName || s.employee?.name).filter(Boolean))];
 
     return (
-        <Modal onClose={onClose}>
+        <Modal onClose={onClose} wide>
             <h2 className="modal__title">Edit {count} Shift{count !== 1 ? 's' : ''}</h2>
             <p className="modal__desc">Edit each day individually — set different service types, times, and accounts per shift.</p>
             <form onSubmit={handleSubmit}>
