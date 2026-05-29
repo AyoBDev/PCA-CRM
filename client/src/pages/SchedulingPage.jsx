@@ -2391,16 +2391,14 @@ export default function SchedulingPage() {
                             })}
                         </div>
                         {selectedShiftIds.size > 0 && (
-                            <BulkEditInline
-                                count={selectedShiftIds.size}
-                                employees={employees}
-                                clients={clients}
-                                onSave={handleBulkEdit}
-                                onDelete={handleBulkDelete}
-                                saving={bulkSaving}
-                                selectedShifts={allShifts.filter(s => selectedShiftIds.has(s.id))}
-                                onOpenModal={() => setModal({ type: 'bulkEdit' })}
-                            />
+                            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                                <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'bulkEdit' })}>
+                                    {Icons.edit} Edit {selectedShiftIds.size} Shift{selectedShiftIds.size !== 1 ? 's' : ''}
+                                </button>
+                                <button className="btn btn--outline btn--sm" style={{ color: '#ef4444', borderColor: '#fca5a5' }} onClick={handleBulkDelete}>
+                                    {Icons.trash} Delete Selected
+                                </button>
+                            </div>
                         )}
                         {bulkBatches.length > 0 && (
                             <div className="sched-undo-history">
