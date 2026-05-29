@@ -8006,6 +8006,10 @@ button.sdr-section-tag:hover:not(:disabled) {
   border-color: #dc2626;
   background: hsl(0 84% 97%);
 }
+.auth-status-card--renewal {
+  border-color: #2563eb;
+  background: hsl(217 91% 97%);
+}
 .auth-status-card__radio {
   width: 18px;
   height: 18px;
@@ -8025,6 +8029,9 @@ button.sdr-section-tag:hover:not(:disabled) {
 .auth-status-card--expired .auth-status-card__radio {
   border-color: #dc2626;
 }
+.auth-status-card--renewal .auth-status-card__radio {
+  border-color: #2563eb;
+}
 .auth-status-card__dot {
   width: 8px;
   height: 8px;
@@ -8040,6 +8047,9 @@ button.sdr-section-tag:hover:not(:disabled) {
 }
 .auth-status-card--expired .auth-status-card__dot {
   background: #dc2626;
+}
+.auth-status-card--renewal .auth-status-card__dot {
+  background: #2563eb;
 }
 .auth-status-card__label {
   display: block;

@@ -213,23 +213,23 @@ const SERVICE_CODE_COLORS = {
     TIMESHEETS: '#64748b',
 };
 
-function AuthFormModal({ auth, clientId, onSave, onClose }) {
+function AuthFormModal({ auth, clientId, onSave, onClose, onRenewal, isRenewal }) {
     const [serviceCategory, setServiceCategory] = useState(auth?.serviceCategory || '');
     const [serviceCode, setServiceCode] = useState(auth?.serviceCode || 'PCS');
     const [serviceName, setServiceName] = useState(auth?.serviceName || '');
-    const [authorizedUnits, setAuthorizedUnits] = useState(auth?.authorizedUnits || '');
-    const [authorizationNumber, setAuthorizationNumber] = useState(auth?.authorizationNumber || '');
+    const [authorizedUnits, setAuthorizedUnits] = useState(isRenewal ? '' : (auth?.authorizedUnits || ''));
+    const [authorizationNumber, setAuthorizationNumber] = useState(isRenewal ? '' : (auth?.authorizationNumber || ''));
     const [accountNumber, setAccountNumber] = useState(auth?.accountNumber || DEFAULT_ACCOUNT_BY_CODE[auth?.serviceCode || 'PCS'] || '');
     const [startDate, setStartDate] = useState(
-        auth?.authorizationStartDate ? new Date(auth.authorizationStartDate).toISOString().split('T')[0] : ''
+        !isRenewal && auth?.authorizationStartDate ? new Date(auth.authorizationStartDate).toISOString().split('T')[0] : ''
     );
     const [endDate, setEndDate] = useState(
-        auth?.authorizationEndDate ? new Date(auth.authorizationEndDate).toISOString().split('T')[0] : ''
+        !isRenewal && auth?.authorizationEndDate ? new Date(auth.authorizationEndDate).toISOString().split('T')[0] : ''
     );
-    const [notes, setNotes] = useState(auth?.notes || '');
-    const [manualStatus, setManualStatus] = useState(auth?.manualStatus || 'active');
+    const [notes, setNotes] = useState('');
+    const [manualStatus, setManualStatus] = useState(isRenewal ? 'active' : (auth?.manualStatus || 'active'));
     const [files, setFiles] = useState([]);
-    const isEdit = !!auth;
+    const isEdit = !!auth?.id;
 
     // Parse pasted date text into YYYY-MM-DD for date inputs
     const handleDatePaste = (setter) => (e) => {
@@ -267,6 +267,17 @@ function AuthFormModal({ auth, clientId, onSave, onClose }) {
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        if (manualStatus === 'renewal' && isEdit && onRenewal) {
+            onRenewal({
+                oldAuthId: auth.id,
+                clientId: auth.clientId || clientId,
+                serviceCategory,
+                serviceCode,
+                serviceName,
+                accountNumber,
+            });
+            return;
+        }
         onSave({
             serviceCategory,
             serviceCode,
@@ -284,8 +295,8 @@ function AuthFormModal({ auth, clientId, onSave, onClose }) {
 
     return (
         <Modal onClose={onClose} wide>
-            <h2 className="modal__title">{isEdit ? 'Edit Authorization' : 'Add Authorization'}</h2>
-            <p className="modal__desc">{isEdit ? 'Update the authorization details below.' : 'Fill in the service and date details.'}</p>
+            <h2 className="modal__title">{isRenewal ? 'Renew Authorization' : isEdit ? 'Edit Authorization' : 'Add Authorization'}</h2>
+            <p className="modal__desc">{isRenewal ? 'Create a new authorization to replace the previous one.' : isEdit ? 'Update the authorization details below.' : 'Fill in the service and date details.'}</p>
             <form onSubmit={handleSubmit}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-group">
@@ -351,17 +362,19 @@ function AuthFormModal({ auth, clientId, onSave, onClose }) {
                             <span className="auth-status-card__label">Active</span>
                             <span className="auth-status-card__desc">Authorization is currently valid and in use.</span>
                         </label>
+                        {isEdit && !isRenewal && (
+                        <label className={`auth-status-card ${manualStatus === 'renewal' ? 'auth-status-card--renewal' : ''}`}>
+                            <input type="radio" name="authStatus" value="renewal" checked={manualStatus === 'renewal'} onChange={() => setManualStatus('renewal')} />
+                            <div className="auth-status-card__radio"><span className="auth-status-card__dot" /></div>
+                            <span className="auth-status-card__label" style={{ color: '#2563eb' }}>Renewal</span>
+                            <span className="auth-status-card__desc">Move to history and create a new authorization.</span>
+                        </label>
+                        )}
                         <label className={`auth-status-card ${manualStatus === 'inactive' ? 'auth-status-card--inactive' : ''}`}>
                             <input type="radio" name="authStatus" value="inactive" checked={manualStatus === 'inactive'} onChange={() => setManualStatus('inactive')} />
                             <div className="auth-status-card__radio"><span className="auth-status-card__dot" /></div>
                             <span className="auth-status-card__label">Inactive</span>
                             <span className="auth-status-card__desc">Authorization is no longer in use.</span>
-                        </label>
-                        <label className={`auth-status-card ${manualStatus === 'expired' ? 'auth-status-card--expired' : ''}`}>
-                            <input type="radio" name="authStatus" value="expired" checked={manualStatus === 'expired'} onChange={() => setManualStatus('expired')} />
-                            <div className="auth-status-card__radio"><span className="auth-status-card__dot" /></div>
-                            <span className="auth-status-card__label" style={{ color: '#dc2626' }}>Expired</span>
-                            <span className="auth-status-card__desc">Authorization has expired based on the end date.</span>
                         </label>
                     </div>
                 </div>
@@ -1288,7 +1301,31 @@ export default function AuthorizationsPage() {
                 <ClientFormModal client={modal.client} onSave={handleSaveClient} onClose={() => setModal(null)} insuranceTypeNames={insuranceTypeNames} />
             )}
             {modal?.type === 'auth' && (
-                <AuthFormModal auth={modal.auth} clientId={modal.clientId} onSave={handleSaveAuth} onClose={() => setModal(null)} />
+                <AuthFormModal
+                    auth={modal.auth}
+                    clientId={modal.clientId}
+                    isRenewal={modal.isRenewal}
+                    onSave={handleSaveAuth}
+                    onClose={() => setModal(null)}
+                    onRenewal={async ({ oldAuthId, clientId: cId, serviceCategory, serviceCode, serviceName, accountNumber }) => {
+                        try {
+                            await api.updateAuthManualStatus(oldAuthId, 'inactive');
+                            showToast('Previous authorization moved to history');
+                            const refreshed = await api.getClients();
+                            setClients(refreshed);
+                            if (drawerClient) {
+                                const updated = refreshed.find(c => c.id === drawerClient.id);
+                                if (updated) setDrawerClient(updated);
+                            }
+                            setModal({
+                                type: 'auth',
+                                auth: { serviceCategory, serviceCode, serviceName, accountNumber, manualStatus: 'active' },
+                                clientId: cId,
+                                isRenewal: true,
+                            });
+                        } catch (err) { showToast(err.message, 'error'); }
+                    }}
+                />
             )}
             {modal?.type === 'bulkImport' && (
                 <BulkImportModal onImport={handleBulkImport} onClose={() => setModal(null)} />

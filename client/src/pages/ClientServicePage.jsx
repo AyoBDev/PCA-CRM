@@ -61,7 +61,7 @@ export default function ClientServicePage() {
         .filter(a => (a.serviceCode || a.serviceCategory || 'Other') === serviceCode)
         .sort((a, b) => new Date(b.authorizationStartDate || 0) - new Date(a.authorizationStartDate || 0));
 
-    const currentAuth = allAuths.find(a => !a.archivedAt && a.status !== 'Expired');
+    const currentAuth = allAuths.find(a => !a.archivedAt && a.status !== 'Expired' && a.manualStatus === 'active');
     const historyAuths = allAuths.filter(a => a !== currentAuth);
 
     // Modal handlers
