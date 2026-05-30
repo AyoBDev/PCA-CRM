@@ -7,11 +7,11 @@ import { formatWeek } from '../utils/dates';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 
-// Timesheet constants
 const DAY_SHORT = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const ADL_ACTIVITIES = ['Bathing', 'Dressing', 'Grooming', 'Continence', 'Toileting', 'Ambulation/Mobility', 'Cane, Walker W/Chair', 'Transfer', 'Exer./Passive Range of Motion'];
 const IADL_ACTIVITIES = ['Light Housekeeping', 'Medication Reminders', 'Laundry'];
 const NUTRITION_ACTIVITIES = ['Shopping', 'Meal Preparation B.L.D.', 'Eating/Feeding'];
+const RESPITE_ACTIVITIES = ['Light Housekeeping', 'Medication Reminders', 'Laundry', 'Shopping', 'Meal Preparation B.L.D.', 'Eating/Feeding', 'Companion'];
 
 function roundTo15(timeStr) {
     if (!timeStr) return '';
@@ -52,23 +52,164 @@ function parseEnabledServices(client) {
     return ['PAS', 'Homemaker'];
 }
 
-function ActivityRow({ label, entries, section, activityKey, updateEntry, disabled }) {
+function ProgramSection({ title, subtitle, icon, colorClass, activities, section, entries, updateEntry, disabled, dailyHoursFn, onAddShift, onRemoveShift, sectionDisabled }) {
+    const SHIFT_COLORS = ['', 'tsv2-row--shift2', 'tsv2-row--shift3'];
+
+    const totalHours = entries.reduce((s, e) => s + dailyHoursFn(e), 0);
+    const totalUnits = Math.round(totalHours * 4);
+
+    let maxBlocks = 0;
+    for (const e of entries) {
+        try {
+            const blocks = JSON.parse(e[`${section}TimeBlocks`] || '[]');
+            if (blocks.length > maxBlocks) maxBlocks = blocks.length;
+        } catch {}
+    }
+
     return (
-        <div className="sdr-activity-row">
-            <div className="sdr-activity-label">{label}</div>
-            {entries.map((entry, idx) => {
-                const activities = JSON.parse(entry[`${section}Activities`] || '{}');
-                const checked = !!activities[activityKey];
+        <div className={`tsv2-section ${sectionDisabled ? 'tsv2-section--disabled' : ''}`}>
+            <div className="tsv2-section-header">
+                <div className={`tsv2-section-icon tsv2-section-icon--${colorClass}`}>{icon}</div>
+                <span className="tsv2-section-name">{title}</span>
+                <span className="tsv2-section-subtitle">({subtitle})</span>
+            </div>
+
+            {activities.map((act) => (
+                <div key={act} className="tsv2-row">
+                    <div className="tsv2-row__label">{act}</div>
+                    {entries.map((entry, idx) => {
+                        const acts = JSON.parse(entry[`${section}Activities`] || '{}');
+                        const checked = !!acts[act];
+                        return (
+                            <div key={idx} className="tsv2-row__cell">
+                                <input type="checkbox" checked={checked} disabled={disabled}
+                                    onChange={() => {
+                                        const next = { ...acts, [act]: !checked };
+                                        updateEntry(idx, `${section}Activities`, JSON.stringify(next));
+                                    }} />
+                            </div>
+                        );
+                    })}
+                    <div className="tsv2-row__totals" />
+                </div>
+            ))}
+
+            {/* PCA Initials */}
+            <div className="tsv2-row tsv2-row--initials">
+                <div className="tsv2-row__label"><strong>PCA Initials</strong></div>
+                {entries.map((e, i) => (
+                    <div key={i} className="tsv2-row__cell">
+                        <input type="text" className="tsv2-initials-input" value={e[`${section}PcaInitials`] || ''} disabled={disabled} maxLength={4}
+                            onChange={(ev) => updateEntry(i, `${section}PcaInitials`, ev.target.value.toUpperCase())} />
+                    </div>
+                ))}
+                <div className="tsv2-row__totals" />
+            </div>
+
+            {/* Client Initials */}
+            <div className="tsv2-row tsv2-row--initials">
+                <div className="tsv2-row__label"><strong>Client Initials</strong></div>
+                {entries.map((e, i) => (
+                    <div key={i} className="tsv2-row__cell">
+                        <input type="text" className="tsv2-initials-input" value={e[`${section}ClientInitials`] || ''} disabled={disabled} maxLength={4}
+                            onChange={(ev) => updateEntry(i, `${section}ClientInitials`, ev.target.value.toUpperCase())} />
+                    </div>
+                ))}
+                <div className="tsv2-row__totals" />
+            </div>
+
+            {/* Shift 1 In */}
+            <div className="tsv2-row tsv2-row--time">
+                <div className="tsv2-row__label">Shift 1 — In</div>
+                {entries.map((e, i) => (
+                    <div key={i} className="tsv2-row__cell">
+                        <input type="time" className="tsv2-time-input" value={e[`${section}TimeIn`] || ''} disabled={disabled}
+                            onChange={(ev) => updateEntry(i, `${section}TimeIn`, ev.target.value)} />
+                    </div>
+                ))}
+                <div className="tsv2-row__totals">
+                    <div className="tsv2-section-totals__label">Hours</div>
+                    <div className={`tsv2-section-totals__hours tsv2-section-totals__hours--${colorClass}`}>{totalHours.toFixed(2)}</div>
+                </div>
+            </div>
+
+            {/* Shift 1 Out */}
+            <div className="tsv2-row tsv2-row--time">
+                <div className="tsv2-row__label">Shift 1 — Out</div>
+                {entries.map((e, i) => (
+                    <div key={i} className="tsv2-row__cell">
+                        <input type="time" className="tsv2-time-input" value={e[`${section}TimeOut`] || ''} disabled={disabled}
+                            onChange={(ev) => updateEntry(i, `${section}TimeOut`, ev.target.value)} />
+                    </div>
+                ))}
+                <div className="tsv2-row__totals">
+                    <div className="tsv2-section-totals__label">Units</div>
+                    <div className="tsv2-section-totals__units">{totalUnits}</div>
+                </div>
+            </div>
+
+            {/* Extra shifts */}
+            {Array.from({ length: maxBlocks }).map((_, b) => {
+                const colorCls = SHIFT_COLORS[b] || SHIFT_COLORS[SHIFT_COLORS.length - 1];
                 return (
-                    <div key={idx} className="sdr-activity-cell">
-                        <input type="checkbox" checked={checked} disabled={disabled}
-                            onChange={() => {
-                                const next = { ...activities, [activityKey]: !checked };
-                                updateEntry(idx, `${section}Activities`, JSON.stringify(next));
-                            }} />
+                    <div key={b}>
+                        <div className={`tsv2-row tsv2-row--time ${colorCls}`}>
+                            <div className="tsv2-row__label">
+                                Shift {b + 2} — In
+                                {!disabled && b === maxBlocks - 1 && (
+                                    <button type="button" className="tsv2-remove-shift-btn" onClick={() => onRemoveShift(section, b)}>×</button>
+                                )}
+                            </div>
+                            {entries.map((e, i) => {
+                                const blocks = (() => { try { return JSON.parse(e[`${section}TimeBlocks`] || '[]'); } catch { return []; } })();
+                                return (
+                                    <div key={i} className="tsv2-row__cell">
+                                        <input type="time" className="tsv2-time-input" value={blocks[b]?.in || ''} disabled={disabled}
+                                            onChange={(ev) => {
+                                                const updated = [...blocks];
+                                                if (!updated[b]) updated[b] = { in: '', out: '' };
+                                                updated[b] = { ...updated[b], in: ev.target.value };
+                                                updateEntry(i, `${section}TimeBlocks`, JSON.stringify(updated));
+                                            }} />
+                                    </div>
+                                );
+                            })}
+                            <div className="tsv2-row__totals" />
+                        </div>
+                        <div className={`tsv2-row tsv2-row--time ${colorCls}`}>
+                            <div className="tsv2-row__label">Shift {b + 2} — Out</div>
+                            {entries.map((e, i) => {
+                                const blocks = (() => { try { return JSON.parse(e[`${section}TimeBlocks`] || '[]'); } catch { return []; } })();
+                                return (
+                                    <div key={i} className="tsv2-row__cell">
+                                        <input type="time" className="tsv2-time-input" value={blocks[b]?.out || ''} disabled={disabled}
+                                            onChange={(ev) => {
+                                                const updated = [...blocks];
+                                                if (!updated[b]) updated[b] = { in: '', out: '' };
+                                                updated[b] = { ...updated[b], out: ev.target.value };
+                                                updateEntry(i, `${section}TimeBlocks`, JSON.stringify(updated));
+                                            }} />
+                                    </div>
+                                );
+                            })}
+                            <div className="tsv2-row__totals" />
+                        </div>
                     </div>
                 );
             })}
+
+            {/* Add Shift row */}
+            {!disabled && (
+                <div className="tsv2-row tsv2-row--add-shift">
+                    <div className="tsv2-row__label" />
+                    {entries.map((_, i) => (
+                        <div key={i} className="tsv2-row__cell">
+                            <button type="button" className="tsv2-add-shift-btn" onClick={() => onAddShift(section)}>+ Add Shift</button>
+                        </div>
+                    ))}
+                    <div className="tsv2-row__totals" />
+                </div>
+            )}
         </div>
     );
 }
@@ -87,18 +228,16 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
     const [completionDate, setCompletionDate] = useState('');
     const [saving, setSaving] = useState(false);
     const [shareLinkModal, setShareLinkModal] = useState(null);
-    const [iadlTab, setIadlTab] = useState('iadl'); // 'iadl' = Homemaker, 'respite' = Respite
     const [enabledServices, setEnabledServices] = useState(['PAS', 'Homemaker']);
+    const [notes, setNotes] = useState('');
 
     const submitted = ts?.status === 'submitted';
     const accepted = ts?.status === 'accepted';
-    // Accepted = locked for everyone. Submitted = admins can edit, PCAs cannot.
     const readOnly = accepted || (submitted && !isAdmin);
 
     const pasEnabled = enabledServices.includes('PAS');
     const hmEnabled = enabledServices.includes('Homemaker');
     const respiteEnabled = enabledServices.includes('Respite');
-    const iadlAnyEnabled = hmEnabled || respiteEnabled;
 
     const toggleService = async (svc) => {
         if (!isAdmin || !ts?.client?.id) return;
@@ -111,15 +250,9 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
             showToast(`${svc} ${next.includes(svc) ? 'enabled' : 'disabled'}`);
         } catch (err) {
             showToast(err.message, 'error');
-            setEnabledServices(enabledServices); // revert
+            setEnabledServices(enabledServices);
         }
     };
-
-    // Auto-select correct IADL tab based on enabled services
-    useEffect(() => {
-        if (iadlTab === 'iadl' && !hmEnabled && respiteEnabled) setIadlTab('respite');
-        else if (iadlTab === 'respite' && !respiteEnabled && hmEnabled) setIadlTab('iadl');
-    }, [hmEnabled, respiteEnabled, iadlTab]);
 
     useEffect(() => {
         if (timesheetId) {
@@ -139,6 +272,22 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
 
     const updateEntry = (idx, field, value) => {
         setEntries((prev) => { const next = [...prev]; next[idx] = { ...next[idx], [field]: value }; return next; });
+    };
+
+    const handleAddShift = (section) => {
+        setEntries(prev => prev.map(e => {
+            const blocks = (() => { try { return JSON.parse(e[`${section}TimeBlocks`] || '[]'); } catch { return []; } })();
+            blocks.push({ in: '', out: '' });
+            return { ...e, [`${section}TimeBlocks`]: JSON.stringify(blocks) };
+        }));
+    };
+
+    const handleRemoveShift = (section, blockIdx) => {
+        setEntries(prev => prev.map(e => {
+            const blocks = (() => { try { return JSON.parse(e[`${section}TimeBlocks`] || '[]'); } catch { return []; } })();
+            blocks.splice(blockIdx, 1);
+            return { ...e, [`${section}TimeBlocks`]: JSON.stringify(blocks) };
+        }));
     };
 
     const adlDailyHours = (e) => totalHoursWithBlocks(e, 'adl');
@@ -212,275 +361,333 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
 
     if (!ts) return <div style={{ padding: 40, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>Loading…</div>;
 
-    const weekLabel = formatWeek(ts.weekStart.split('T')[0]);
+    const weekStart = ts.weekStart.split('T')[0];
+    const weekLabel = formatWeek(weekStart);
+    const weekDates = entries.map(e => {
+        if (!e.dateOfService) return '';
+        return new Date(e.dateOfService + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    });
 
-    const renderSection = (headerNode, activities, nutritionActivities, section, dailyHoursFn, sectionDisabled = false) => {
-        const cellDisabled = readOnly || sectionDisabled;
-        return (
-        <div className={`sdr-section ${sectionDisabled ? 'sdr-section--disabled' : ''}`}>
-            <div className="sdr-section-title">{headerNode}</div>
-            <div className="sdr-day-header-row">
-                <div className="sdr-activity-label" />
-                {entries.map((e, i) => (
-                    <div key={i} className="sdr-day-header">
-                        <div className="sdr-day-name">{DAY_SHORT[e.dayOfWeek]}</div>
-                        <div className="sdr-day-date">{e.dateOfService ? new Date(e.dateOfService + 'T00:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }) : ''}</div>
-                    </div>
-                ))}
-            </div>
-            {activities.map((act) => (
-                <ActivityRow key={act} label={act} entries={entries} section={section} activityKey={act} updateEntry={updateEntry} disabled={cellDisabled} />
-            ))}
-            {nutritionActivities && <>
-                <div className="sdr-subsection-label">NUTRITION</div>
-                {nutritionActivities.map((act) => (
-                    <ActivityRow key={act} label={act} entries={entries} section={section} activityKey={act} updateEntry={updateEntry} disabled={cellDisabled} />
-                ))}
-            </>}
-            <div className="sdr-activity-row sdr-initials-row">
-                <div className="sdr-activity-label"><strong>PCA Initials</strong></div>
-                {entries.map((e, i) => (
-                    <div key={i} className="sdr-activity-cell">
-                        <input type="text" className="sdr-initials-input" value={e[`${section}PcaInitials`] || ''} onChange={(ev) => updateEntry(i, `${section}PcaInitials`, ev.target.value.toUpperCase())} disabled={cellDisabled} maxLength={4} />
-                    </div>
-                ))}
-            </div>
-            <div className="sdr-activity-row sdr-initials-row">
-                <div className="sdr-activity-label"><strong>Client Initials</strong></div>
-                {entries.map((e, i) => (
-                    <div key={i} className="sdr-activity-cell">
-                        <input type="text" className="sdr-initials-input" value={e[`${section}ClientInitials`] || ''} onChange={(ev) => updateEntry(i, `${section}ClientInitials`, ev.target.value.toUpperCase())} disabled={cellDisabled} maxLength={4} />
-                    </div>
-                ))}
-            </div>
-            <div className="sdr-activity-row sdr-time-row">
-                <div className="sdr-activity-label">Shift 1 — In</div>
-                {entries.map((e, i) => (<div key={i} className="sdr-activity-cell"><input type="time" className="sdr-time-input" value={e[`${section}TimeIn`] || ''} onChange={(ev) => updateEntry(i, `${section}TimeIn`, ev.target.value)} disabled={cellDisabled} /></div>))}
-            </div>
-            <div className="sdr-activity-row sdr-time-row">
-                <div className="sdr-activity-label">Shift 1 — Out</div>
-                {entries.map((e, i) => (<div key={i} className="sdr-activity-cell"><input type="time" className="sdr-time-input" value={e[`${section}TimeOut`] || ''} onChange={(ev) => updateEntry(i, `${section}TimeOut`, ev.target.value)} disabled={cellDisabled} /></div>))}
-            </div>
-            {(() => {
-                let maxBlocks = 0;
-                for (const e of entries) {
-                    try {
-                        const blocks = JSON.parse(e[`${section}TimeBlocks`] || '[]');
-                        if (blocks.length > maxBlocks) maxBlocks = blocks.length;
-                    } catch {}
-                }
-                const rows = [];
-                for (let b = 0; b < maxBlocks; b++) {
-                    rows.push(
-                        <div key={`block-in-${b}`} className="sdr-activity-row sdr-time-row sdr-shift--s2">
-                            <div className="sdr-activity-label">Shift {b + 2} — In</div>
-                            {entries.map((e, i) => {
-                                const blocks = (() => { try { return JSON.parse(e[`${section}TimeBlocks`] || '[]'); } catch { return []; } })();
-                                return (
-                                    <div key={i} className="sdr-activity-cell">
-                                        <input type="time" className="sdr-time-input" value={blocks[b]?.in || ''} disabled={cellDisabled}
-                                            onChange={(ev) => {
-                                                const updated = [...blocks];
-                                                if (!updated[b]) updated[b] = { in: '', out: '' };
-                                                updated[b] = { ...updated[b], in: ev.target.value };
-                                                updateEntry(i, `${section}TimeBlocks`, JSON.stringify(updated));
-                                            }} />
-                                    </div>
-                                );
-                            })}
-                        </div>,
-                        <div key={`block-out-${b}`} className="sdr-activity-row sdr-time-row sdr-shift--s2">
-                            <div className="sdr-activity-label">Shift {b + 2} — Out</div>
-                            {entries.map((e, i) => {
-                                const blocks = (() => { try { return JSON.parse(e[`${section}TimeBlocks`] || '[]'); } catch { return []; } })();
-                                return (
-                                    <div key={i} className="sdr-activity-cell">
-                                        <input type="time" className="sdr-time-input" value={blocks[b]?.out || ''} disabled={cellDisabled}
-                                            onChange={(ev) => {
-                                                const updated = [...blocks];
-                                                if (!updated[b]) updated[b] = { in: '', out: '' };
-                                                updated[b] = { ...updated[b], out: ev.target.value };
-                                                updateEntry(i, `${section}TimeBlocks`, JSON.stringify(updated));
-                                            }} />
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    );
-                }
-                return rows;
-            })()}
-            <div className="sdr-activity-row sdr-total-row">
-                <div className="sdr-activity-label"><strong>Daily Totals</strong></div>
-                {entries.map((e, i) => {
-                    const hrs = dailyHoursFn(e);
-                    return <div key={i} className="sdr-activity-cell sdr-hours-cell">{hrs > 0 ? hrs.toFixed(2) : '—'}</div>;
-                })}
-            </div>
-        </div>
-        );
-    };
-
-    // IADL inline tab: which sub-service is currently being edited
-    const iadlSection = iadlTab === 'respite' ? 'respite' : 'iadl';
-    const iadlHoursFn = iadlTab === 'respite' ? respiteDailyHours : iadlDailyHours;
-
-    const pasHeader = (
-        <>
-            <span>Activities of Daily Living — ADL's</span>
-            <span className={`sdr-section-tag ${pasEnabled ? 'sdr-section-tag--active' : 'sdr-section-tag--disabled'}`}>PAS</span>
-        </>
-    );
-
-    const iadlHeader = (
-        <>
-            <span>IADL's Instrumental Activities of Daily Living</span>
-            <button
-                type="button"
-                className={`sdr-section-tag ${hmEnabled ? (iadlTab === 'iadl' ? 'sdr-section-tag--active' : 'sdr-section-tag--available') : 'sdr-section-tag--disabled'}`}
-                disabled={!hmEnabled}
-                onClick={() => hmEnabled && setIadlTab('iadl')}
-                title={hmEnabled ? 'Log Homemaker time' : 'Not approved for this client'}
-            >HOMEMAKER (HM)</button>
-            <button
-                type="button"
-                className={`sdr-section-tag ${respiteEnabled ? (iadlTab === 'respite' ? 'sdr-section-tag--active' : 'sdr-section-tag--available') : 'sdr-section-tag--disabled'}`}
-                disabled={!respiteEnabled}
-                onClick={() => respiteEnabled && setIadlTab('respite')}
-                title={respiteEnabled ? 'Log Respite time' : 'Not approved for this client'}
-            >RESPITE (RP)</button>
-        </>
-    );
+    const weekRange = entries.length >= 7
+        ? `${new Date(entries[0].dateOfService + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(entries[6].dateOfService + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+        : weekLabel;
 
     return (
         <>
-            <div className="content-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <button className="btn btn--ghost btn--icon" onClick={onBack} title="Back">←</button>
-                    <div>
-                        <h1 className="content-header__title" style={{ margin: 0 }}>PCA Service Delivery Record</h1>
-                        <p style={{ margin: 0, fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>{weekLabel}</p>
+            <div className="tsv2-page">
+                {/* Breadcrumb */}
+                <div className="tsv2-breadcrumb">
+                    <a href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>Timesheets</a>
+                    <span>&rsaquo;</span>
+                    <span>View Timesheet</span>
+                </div>
+
+                {/* Header */}
+                <div className="tsv2-header">
+                    <h1>Timesheet Details</h1>
+                    <div className="tsv2-header-actions">
+                        <button className="btn btn--outline btn--sm" onClick={onBack}>← Back to Board</button>
+                        <button className="btn btn--outline btn--sm" onClick={async () => {
+                            try {
+                                const blob = await api.exportTimesheetPdf(ts.id);
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url; a.download = `timesheet-${ts.id}.pdf`; a.click();
+                                URL.revokeObjectURL(url);
+                            } catch (err) { showToast(err.message, 'error'); }
+                        }}>🖨 Print / PDF</button>
                     </div>
                 </div>
-                <div className="content-header__actions">
-                    {submitted && (
-                        <span className="ts-badge ts-badge--submitted">Submitted {ts.submittedAt ? new Date(ts.submittedAt).toLocaleString() : ''}</span>
-                    )}
-                    {accepted && (
-                        <span className="ts-badge ts-badge--accepted">Accepted {ts.acceptedAt ? new Date(ts.acceptedAt).toLocaleString() : ''}</span>
-                    )}
-                    <button className="btn btn--outline btn--sm" onClick={async () => {
-                        try {
-                            const blob = await api.exportTimesheetPdf(ts.id);
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = `timesheet-${ts.id}.pdf`;
-                            a.click();
-                            URL.revokeObjectURL(url);
-                        } catch (err) { showToast(err.message, 'error'); }
-                    }}>{Icons.download || '↓'} Export PDF</button>
-                    {!submitted && !accepted && (
-                        <>
-                            <button className="btn btn--outline btn--sm" onClick={handleShareLinks}>{Icons.share} Share</button>
-                            <button className="btn btn--outline btn--sm" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Draft'}</button>
-                            <button className="btn btn--primary btn--sm" onClick={handleSubmit}>Submit</button>
-                        </>
-                    )}
-                    {submitted && isAdmin && (
-                        <button className="btn btn--outline btn--sm" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</button>
-                    )}
-                </div>
-            </div>
 
-            <div className="page-content sdr-form">
-                <div className="sdr-client-info">
-                    <div className="sdr-info-field"><span className="sdr-info-label">Client:</span> <span className="sdr-info-value">{ts.client?.clientName}</span></div>
-                    <div className="sdr-info-field"><span className="sdr-info-label">Phone:</span> <span className="sdr-info-value">{ts.clientPhone || '—'}</span></div>
-                    <div className="sdr-info-field"><span className="sdr-info-label">Client ID:</span> <span className="sdr-info-value">{ts.clientIdNumber || '—'}</span></div>
-                    <div className="sdr-info-field"><span className="sdr-info-label">PCA:</span> <span className="sdr-info-value">{ts.pcaName}</span></div>
-                    <div className="sdr-info-field"><span className="sdr-info-label">Status:</span> <span className={`ts-badge ts-badge--${ts.status}`}>{ts.status}</span></div>
+                {/* Info Cards */}
+                <div className="tsv2-info-cards">
+                    <div className="tsv2-info-card">
+                        <div className="tsv2-info-card__icon">👤</div>
+                        <div>
+                            <div className="tsv2-info-card__label">Client / Recipient</div>
+                            <div className="tsv2-info-card__value">{ts.client?.clientName}</div>
+                        </div>
+                    </div>
+                    <div className="tsv2-info-card">
+                        <div className="tsv2-info-card__icon">👤</div>
+                        <div>
+                            <div className="tsv2-info-card__label">Caregiver / PCA</div>
+                            <div className="tsv2-info-card__value">{ts.pcaName}</div>
+                        </div>
+                    </div>
+                    <div className="tsv2-info-card">
+                        <div className="tsv2-info-card__icon">📅</div>
+                        <div>
+                            <div className="tsv2-info-card__label">Week</div>
+                            <div className="tsv2-info-card__value">{weekRange}</div>
+                            <div className="tsv2-info-card__sub">(Sun – Sat)</div>
+                        </div>
+                    </div>
+                    <div className="tsv2-info-card">
+                        <div className="tsv2-info-card__icon">📅</div>
+                        <div>
+                            <div className="tsv2-info-card__label">Date Submitted</div>
+                            <div className="tsv2-info-card__value">{ts.submittedAt ? new Date(ts.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</div>
+                            <div className="tsv2-info-card__sub">{ts.submittedAt ? new Date(ts.submittedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''}</div>
+                        </div>
+                    </div>
+                    <div className="tsv2-info-card">
+                        <div>
+                            <div className="tsv2-info-card__label">Status</div>
+                            <div className="tsv2-info-card__value"><span className={`ts-badge ts-badge--${ts.status}`}>{ts.status}</span></div>
+                        </div>
+                    </div>
                 </div>
 
+                {/* Program Cards (admin toggle) */}
                 {isAdmin && (
-                    <div className="sdr-services-toggle">
-                        <span className="sdr-services-toggle__label">Enabled Services:</span>
-                        {['PAS', 'Homemaker', 'Respite'].map((svc) => (
-                            <label key={svc} className="sdr-services-toggle__item">
-                                <input
-                                    type="checkbox"
-                                    checked={enabledServices.includes(svc)}
-                                    onChange={() => toggleService(svc)}
-                                />
-                                {svc}
-                            </label>
-                        ))}
+                    <div className="tsv2-programs">
+                        <div className="tsv2-programs__title">Service Types (Programs)</div>
+                        <div className="tsv2-programs__subtitle">Select the programs provided for this client.</div>
+                        <div className="tsv2-programs__grid">
+                            <div className={`tsv2-program-card ${pasEnabled ? 'tsv2-program-card--active-blue' : ''}`} onClick={() => toggleService('PAS')}>
+                                <div className="tsv2-program-card__checkbox">{pasEnabled && '✓'}</div>
+                                <div>
+                                    <div className="tsv2-program-card__name">PAS</div>
+                                    <div className="tsv2-program-card__desc">Personal Assistance Services</div>
+                                    <div className="tsv2-program-card__desc">{ADL_ACTIVITIES.join(', ')}</div>
+                                </div>
+                            </div>
+                            <div className={`tsv2-program-card ${hmEnabled ? 'tsv2-program-card--active-green' : ''}`} onClick={() => toggleService('Homemaker')}>
+                                <div className="tsv2-program-card__checkbox">{hmEnabled && '✓'}</div>
+                                <div>
+                                    <div className="tsv2-program-card__name">Homemaker</div>
+                                    <div className="tsv2-program-card__desc">IADL Services</div>
+                                    <div className="tsv2-program-card__desc">{[...IADL_ACTIVITIES, ...NUTRITION_ACTIVITIES].join(', ')}</div>
+                                </div>
+                            </div>
+                            <div className={`tsv2-program-card ${respiteEnabled ? 'tsv2-program-card--active-orange' : ''}`} onClick={() => toggleService('Respite')}>
+                                <div className="tsv2-program-card__checkbox">{respiteEnabled && '✓'}</div>
+                                <div>
+                                    <div className="tsv2-program-card__name">Respite</div>
+                                    <div className="tsv2-program-card__desc">Respite Services</div>
+                                    <div className="tsv2-program-card__desc">{RESPITE_ACTIVITIES.join(', ')}</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
 
-                {renderSection(pasHeader, ADL_ACTIVITIES, null, 'adl', adlDailyHours, !pasEnabled)}
+                {/* Grid Header */}
+                <div className="tsv2-grid-header">
+                    <div className="tsv2-grid-header__label">SERVICE / TASKS</div>
+                    {entries.map((e, i) => (
+                        <div key={i} className="tsv2-grid-header__day">
+                            <div className="tsv2-grid-header__day-name">{DAY_SHORT[e.dayOfWeek]}</div>
+                            <div className="tsv2-grid-header__day-date">{weekDates[i]}</div>
+                        </div>
+                    ))}
+                    <div className="tsv2-grid-header__totals">TOTALS</div>
+                </div>
 
-                {renderSection(
-                    iadlHeader,
-                    IADL_ACTIVITIES,
-                    NUTRITION_ACTIVITIES,
-                    iadlSection,
-                    iadlHoursFn,
-                    iadlTab === 'respite' ? !respiteEnabled : !hmEnabled
+                {/* PAS Section */}
+                <ProgramSection
+                    title="PAS"
+                    subtitle="Personal Assistance Services"
+                    icon="⚕"
+                    colorClass="blue"
+                    activities={ADL_ACTIVITIES}
+                    section="adl"
+                    entries={entries}
+                    updateEntry={updateEntry}
+                    disabled={readOnly || !pasEnabled}
+                    sectionDisabled={!pasEnabled}
+                    dailyHoursFn={adlDailyHours}
+                    onAddShift={handleAddShift}
+                    onRemoveShift={handleRemoveShift}
+                />
+
+                {/* Homemaker Section */}
+                <ProgramSection
+                    title="Homemaker"
+                    subtitle="IADL Services"
+                    icon="🏠"
+                    colorClass="green"
+                    activities={[...IADL_ACTIVITIES, ...NUTRITION_ACTIVITIES]}
+                    section="iadl"
+                    entries={entries}
+                    updateEntry={updateEntry}
+                    disabled={readOnly || !hmEnabled}
+                    sectionDisabled={!hmEnabled}
+                    dailyHoursFn={iadlDailyHours}
+                    onAddShift={handleAddShift}
+                    onRemoveShift={handleRemoveShift}
+                />
+
+                {/* Respite Section */}
+                <ProgramSection
+                    title="Respite"
+                    subtitle="Respite Services"
+                    icon="🔄"
+                    colorClass="orange"
+                    activities={RESPITE_ACTIVITIES}
+                    section="respite"
+                    entries={entries}
+                    updateEntry={updateEntry}
+                    disabled={readOnly || !respiteEnabled}
+                    sectionDisabled={!respiteEnabled}
+                    dailyHoursFn={respiteDailyHours}
+                    onAddShift={handleAddShift}
+                    onRemoveShift={handleRemoveShift}
+                />
+
+                {/* Daily Totals Bar */}
+                <div className="tsv2-daily-totals">
+                    <div className="tsv2-daily-totals__label">DAILY TOTAL (All Programs)</div>
+                    {entries.map((e, i) => {
+                        const dayTotal = adlDailyHours(e) + iadlDailyHours(e) + respiteDailyHours(e);
+                        const dayUnits = Math.round(dayTotal * 4);
+                        return (
+                            <div key={i} className="tsv2-daily-totals__cell">
+                                <div className="tsv2-daily-totals__hours">{dayTotal > 0 ? dayTotal.toFixed(2) : '—'}</div>
+                                <div className="tsv2-daily-totals__units">{dayTotal > 0 ? `${dayUnits} Units` : ''}</div>
+                            </div>
+                        );
+                    })}
+                    <div className="tsv2-daily-totals__grand">
+                        <div className="tsv2-daily-totals__hours">{totalAll.toFixed(2)}</div>
+                        <div className="tsv2-daily-totals__units">{Math.round(totalAll * 4)} Units</div>
+                    </div>
+                </div>
+
+                {/* Weekly Totals + Notes */}
+                <div className="tsv2-weekly">
+                    <div>
+                        <div className="tsv2-weekly__title">Weekly Totals By Program</div>
+                        <table className="tsv2-weekly-table">
+                            <thead>
+                                <tr>
+                                    <th>Program (Service Type)</th>
+                                    <th>Total Hours</th>
+                                    <th>Total Units</th>
+                                    <th>Authorized Hours (Weekly)</th>
+                                    <th>Remaining Hours</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {pasEnabled && (
+                                    <tr>
+                                        <td><span className="tsv2-program-dot tsv2-program-dot--blue" />PAS (Personal Assistance Services)</td>
+                                        <td>{totalPas.toFixed(2)}</td>
+                                        <td>{Math.round(totalPas * 4)}</td>
+                                        <td>—</td>
+                                        <td>—</td>
+                                    </tr>
+                                )}
+                                {hmEnabled && (
+                                    <tr>
+                                        <td><span className="tsv2-program-dot tsv2-program-dot--green" />Homemaker (IADL Services)</td>
+                                        <td>{totalHm.toFixed(2)}</td>
+                                        <td>{Math.round(totalHm * 4)}</td>
+                                        <td>—</td>
+                                        <td>—</td>
+                                    </tr>
+                                )}
+                                {respiteEnabled && (
+                                    <tr>
+                                        <td><span className="tsv2-program-dot tsv2-program-dot--orange" />Respite (Respite Services)</td>
+                                        <td>{totalRespite.toFixed(2)}</td>
+                                        <td>{Math.round(totalRespite * 4)}</td>
+                                        <td>—</td>
+                                        <td>—</td>
+                                    </tr>
+                                )}
+                                <tr>
+                                    <td><strong>TOTAL</strong></td>
+                                    <td><strong>{totalAll.toFixed(2)}</strong></td>
+                                    <td><strong>{Math.round(totalAll * 4)}</strong></td>
+                                    <td><strong>—</strong></td>
+                                    <td><strong>—</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div>
+                        <div className="tsv2-weekly__title">Notes</div>
+                        <textarea className="tsv2-notes-textarea" placeholder="Add any notes here..." value={notes} onChange={(e) => setNotes(e.target.value)} disabled={readOnly} />
+                    </div>
+                </div>
+
+                {/* Signatures */}
+                <div className="tsv2-signatures">
+                    <div>
+                        <div className="tsv2-sig-section__title">Recipient / Client</div>
+                        <div className="tsv2-sig-field">
+                            <label>Name:</label>
+                            <input type="text" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} disabled={readOnly} placeholder="Full name" />
+                        </div>
+                        <SignaturePad label="Signature:" value={recipientSig} onChange={setRecipientSig} disabled={readOnly} />
+                        <div className="tsv2-sig-field">
+                            <label>Date:</label>
+                            <input type="date" value={completionDate} onChange={(e) => setCompletionDate(e.target.value)} disabled={readOnly} />
+                        </div>
+                    </div>
+                    <div>
+                        <div className="tsv2-sig-section__title">Employee / PCA</div>
+                        <div className="tsv2-sig-field">
+                            <label>Name:</label>
+                            <input type="text" value={pcaFullName} onChange={(e) => setPcaFullName(e.target.value)} disabled={readOnly} placeholder="Full name" />
+                        </div>
+                        <SignaturePad label="Signature:" value={pcaSig} onChange={setPcaSig} disabled={readOnly} />
+                        <div className="tsv2-sig-field">
+                            <label>Date:</label>
+                            <input type="date" value={completionDate} onChange={(e) => setCompletionDate(e.target.value)} disabled={readOnly} />
+                        </div>
+                    </div>
+                    <div>
+                        <div className="tsv2-sig-section__title">Office Use Only</div>
+                        {submitted && isAdmin && (
+                            <>
+                                <div className="tsv2-office-actions">
+                                    <button className="btn--accept" onClick={handleAcceptTimesheet}>✓ Accept</button>
+                                    <button className="btn--reject" onClick={handleRejectTimesheet}>✕ Reject</button>
+                                    <button className="btn--sendback" onClick={handleRevertToDraft}>↩ Send Back for Corrections</button>
+                                </div>
+                                <div className="tsv2-office-comment">Comments (required if rejected or sent back)</div>
+                                <textarea className="tsv2-office-textarea" placeholder="Add comments here..." />
+                            </>
+                        )}
+                        {accepted && isAdmin && (
+                            <>
+                                <p style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>Accepted{ts.acceptedAt ? ` on ${new Date(ts.acceptedAt).toLocaleDateString()}` : ''}</p>
+                                <button className="btn btn--outline btn--sm" onClick={handleRevertToDraft}>Revert to Draft</button>
+                            </>
+                        )}
+                        {!submitted && !accepted && (
+                            <p style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>No actions available until timesheet is submitted.</p>
+                        )}
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="tsv2-footer">
+                    <div>
+                        <span className="tsv2-footer__stat">⏱ Total Time: {totalAll.toFixed(2)} Hours</span>
+                        &nbsp;&nbsp;
+                        <span className="tsv2-footer__stat">📊 Total Units: {Math.round(totalAll * 4)}</span>
+                    </div>
+                    <div>Week starts on Sunday and ends on Saturday</div>
+                </div>
+
+                {/* Action buttons for draft */}
+                {!submitted && !accepted && (
+                    <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', padding: '16px 0' }}>
+                        <button className="btn btn--outline btn--sm" onClick={handleShareLinks}>{Icons.share} Share</button>
+                        <button className="btn btn--outline btn--sm" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Draft'}</button>
+                        <button className="btn btn--primary btn--sm" onClick={handleSubmit}>Submit</button>
+                    </div>
                 )}
-
-                <div className="sdr-totals-bar">
-                    <div className="sdr-total-item"><span>Total Hours in This Time Sheet</span><strong>{totalAll.toFixed(2)}</strong></div>
-                    {pasEnabled && <div className="sdr-total-item"><span>Total Hours for PAS</span><strong>{totalPas.toFixed(2)}</strong></div>}
-                    {hmEnabled && <div className="sdr-total-item"><span>Total Hours for Homemaker</span><strong>{totalHm.toFixed(2)}</strong></div>}
-                    {respiteEnabled && <div className="sdr-total-item"><span>Total Hours for Respite</span><strong>{totalRespite.toFixed(2)}</strong></div>}
-                </div>
-
-                <div className="sdr-section">
-                    <div className="sdr-section-title">Acknowledgement and Required Signatures</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 16 }}>
-                        <div className="form-group"><label>Recipient Name (First, MI, Last)</label><input type="text" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} disabled={readOnly} placeholder="Jane A. Doe" /></div>
-                        <div className="form-group"><label>Date</label><input type="date" value={completionDate} onChange={(e) => setCompletionDate(e.target.value)} disabled={readOnly} /></div>
+                {submitted && isAdmin && (
+                    <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', padding: '16px 0' }}>
+                        <button className="btn btn--outline btn--sm" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</button>
                     </div>
-                    <div className="ts-signatures">
-                        <SignaturePad label="Recipient / Responsible Party Signature" value={recipientSig} onChange={setRecipientSig} disabled={readOnly} />
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 16, padding: '0 16px' }}>
-                        <div className="form-group"><label>PCA Name (First, MI, Last)</label><input type="text" value={pcaFullName} onChange={(e) => setPcaFullName(e.target.value)} disabled={readOnly} placeholder="Maria A. Garcia" /></div>
-                        <div className="form-group"><label>Date</label><input type="date" value={completionDate} onChange={(e) => setCompletionDate(e.target.value)} disabled={readOnly} /></div>
-                    </div>
-                    <div className="ts-signatures">
-                        <SignaturePad label="PCA Signature" value={pcaSig} onChange={setPcaSig} disabled={readOnly} />
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 0, padding: '0 16px' }}>
-                        <div className="form-group"><label>Supervisor Name</label><input type="text" value={ts.supervisorName || 'Sona Hakobyan'} disabled style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }} /></div>
-                    </div>
-                    <div className="ts-signatures" style={{ paddingBottom: 16 }}>
-                        <SignaturePad label="Supervisor Signature" value={supervisorSig} onChange={setSupervisorSig} disabled={readOnly} />
-                    </div>
-                </div>
+                )}
             </div>
-
-            {submitted && isAdmin && (
-                <div className="ts-review-actions">
-                    <h3 className="ts-review-actions__title">Admin Review</h3>
-                    <p className="ts-review-actions__desc">Review this timesheet and take action:</p>
-                    <div className="ts-review-actions__buttons">
-                        <button className="btn btn--success" onClick={handleAcceptTimesheet}>Accept</button>
-                        <button className="btn btn--warning" onClick={handleRejectTimesheet}>Reject</button>
-                        <button className="btn btn--outline" onClick={handleRevertToDraft}>Send Back for Corrections</button>
-                    </div>
-                </div>
-            )}
-
-            {accepted && isAdmin && (
-                <div className="ts-review-actions ts-review-actions--accepted">
-                    <p className="ts-review-actions__desc">This timesheet has been accepted{ts.acceptedAt ? ` on ${new Date(ts.acceptedAt).toLocaleDateString()}` : ''}.</p>
-                    <div className="ts-review-actions__buttons">
-                        <button className="btn btn--outline" onClick={handleRevertToDraft}>Revert to Draft</button>
-                    </div>
-                </div>
-            )}
 
             {shareLinkModal && (
                 <Modal onClose={() => setShareLinkModal(null)}>
