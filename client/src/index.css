@@ -3392,10 +3392,10 @@ button.sdr-section-tag:hover:not(:disabled) {
 
 /* Info cards row */
 .tsv2-info-cards {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
   gap: 16px;
   margin-bottom: 24px;
-  flex-wrap: wrap;
 }
 
 .tsv2-info-card {
@@ -3406,7 +3406,6 @@ button.sdr-section-tag:hover:not(:disabled) {
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius);
   background: hsl(var(--card));
-  min-width: 160px;
 }
 
 .tsv2-info-card__icon {
@@ -4051,6 +4050,47 @@ button.sdr-section-tag:hover:not(:disabled) {
   align-items: center;
   gap: 4px;
   font-weight: 500;
+}
+
+/* Icon utility */
+.tsv2-icon-svg {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+}
+
+.tsv2-icon-svg svg {
+  width: 100%;
+  height: 100%;
+}
+
+.tsv2-info-card__icon .tsv2-icon-svg {
+  width: 18px;
+  height: 18px;
+}
+
+.tsv2-section-icon .tsv2-icon-svg {
+  width: 14px;
+  height: 14px;
+}
+
+.tsv2-btn-icon {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  vertical-align: middle;
+  margin-right: 2px;
+}
+
+.tsv2-btn-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Disabled admin buttons */
+.tsv2-office-actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* Signature pads */

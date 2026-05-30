@@ -69,7 +69,7 @@ function ProgramSection({ title, subtitle, icon, colorClass, activities, section
     return (
         <div className={`tsv2-section ${sectionDisabled ? 'tsv2-section--disabled' : ''}`}>
             <div className="tsv2-section-header">
-                <div className={`tsv2-section-icon tsv2-section-icon--${colorClass}`}>{icon}</div>
+                <div className={`tsv2-section-icon tsv2-section-icon--${colorClass}`}><span className="tsv2-icon-svg">{icon}</span></div>
                 <span className="tsv2-section-name">{title}</span>
                 <span className="tsv2-section-subtitle">({subtitle})</span>
             </div>
@@ -386,7 +386,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                 <div className="tsv2-header">
                     <h1>Timesheet Details</h1>
                     <div className="tsv2-header-actions">
-                        <button className="btn btn--outline btn--sm" onClick={onBack}>← Back to Board</button>
+                        <button className="btn btn--outline btn--sm" onClick={onBack}><span className="tsv2-btn-icon">{Icons.chevronLeft}</span> Back to Board</button>
                         <button className="btn btn--outline btn--sm" onClick={async () => {
                             try {
                                 const blob = await api.exportTimesheetPdf(ts.id);
@@ -395,28 +395,28 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                                 a.href = url; a.download = `timesheet-${ts.id}.pdf`; a.click();
                                 URL.revokeObjectURL(url);
                             } catch (err) { showToast(err.message, 'error'); }
-                        }}>🖨 Print / PDF</button>
+                        }}><span className="tsv2-btn-icon">{Icons.fileText}</span> Print / PDF</button>
                     </div>
                 </div>
 
                 {/* Info Cards */}
                 <div className="tsv2-info-cards">
                     <div className="tsv2-info-card">
-                        <div className="tsv2-info-card__icon">👤</div>
+                        <div className="tsv2-info-card__icon"><span className="tsv2-icon-svg">{Icons.user}</span></div>
                         <div>
                             <div className="tsv2-info-card__label">Client / Recipient</div>
                             <div className="tsv2-info-card__value">{ts.client?.clientName}</div>
                         </div>
                     </div>
                     <div className="tsv2-info-card">
-                        <div className="tsv2-info-card__icon">👤</div>
+                        <div className="tsv2-info-card__icon"><span className="tsv2-icon-svg">{Icons.user}</span></div>
                         <div>
                             <div className="tsv2-info-card__label">Caregiver / PCA</div>
                             <div className="tsv2-info-card__value">{ts.pcaName}</div>
                         </div>
                     </div>
                     <div className="tsv2-info-card">
-                        <div className="tsv2-info-card__icon">📅</div>
+                        <div className="tsv2-info-card__icon"><span className="tsv2-icon-svg">{Icons.calendar}</span></div>
                         <div>
                             <div className="tsv2-info-card__label">Week</div>
                             <div className="tsv2-info-card__value">{weekRange}</div>
@@ -424,7 +424,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                         </div>
                     </div>
                     <div className="tsv2-info-card">
-                        <div className="tsv2-info-card__icon">📅</div>
+                        <div className="tsv2-info-card__icon"><span className="tsv2-icon-svg">{Icons.calendar}</span></div>
                         <div>
                             <div className="tsv2-info-card__label">Date Submitted</div>
                             <div className="tsv2-info-card__value">{ts.submittedAt ? new Date(ts.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</div>
@@ -489,7 +489,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                 <ProgramSection
                     title="PAS"
                     subtitle="Personal Assistance Services"
-                    icon="⚕"
+                    icon={Icons.heart}
                     colorClass="blue"
                     activities={ADL_ACTIVITIES}
                     section="adl"
@@ -506,7 +506,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                 <ProgramSection
                     title="Homemaker"
                     subtitle="IADL Services"
-                    icon="🏠"
+                    icon={Icons.building}
                     colorClass="green"
                     activities={[...IADL_ACTIVITIES, ...NUTRITION_ACTIVITIES]}
                     section="iadl"
@@ -523,7 +523,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                 <ProgramSection
                     title="Respite"
                     subtitle="Respite Services"
-                    icon="🔄"
+                    icon={Icons.clock}
                     colorClass="orange"
                     activities={RESPITE_ACTIVITIES}
                     section="respite"
@@ -641,25 +641,16 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                     </div>
                     <div>
                         <div className="tsv2-sig-section__title">Office Use Only</div>
-                        {submitted && isAdmin && (
+                        {isAdmin && (
                             <>
                                 <div className="tsv2-office-actions">
-                                    <button className="btn--accept" onClick={handleAcceptTimesheet}>✓ Accept</button>
-                                    <button className="btn--reject" onClick={handleRejectTimesheet}>✕ Reject</button>
-                                    <button className="btn--sendback" onClick={handleRevertToDraft}>↩ Send Back for Corrections</button>
+                                    <button className="btn--accept" onClick={handleAcceptTimesheet} disabled={!submitted}><span className="tsv2-btn-icon">{Icons.checkCircle}</span> Accept</button>
+                                    <button className="btn--reject" onClick={handleRejectTimesheet} disabled={!submitted}><span className="tsv2-btn-icon">{Icons.alertCircle}</span> Reject</button>
+                                    <button className="btn--sendback" onClick={handleRevertToDraft} disabled={!submitted && !accepted}><span className="tsv2-btn-icon">{Icons.rotateCcw}</span> Send Back for Corrections</button>
                                 </div>
                                 <div className="tsv2-office-comment">Comments (required if rejected or sent back)</div>
                                 <textarea className="tsv2-office-textarea" placeholder="Add comments here..." />
                             </>
-                        )}
-                        {accepted && isAdmin && (
-                            <>
-                                <p style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>Accepted{ts.acceptedAt ? ` on ${new Date(ts.acceptedAt).toLocaleDateString()}` : ''}</p>
-                                <button className="btn btn--outline btn--sm" onClick={handleRevertToDraft}>Revert to Draft</button>
-                            </>
-                        )}
-                        {!submitted && !accepted && (
-                            <p style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>No actions available until timesheet is submitted.</p>
                         )}
                     </div>
                 </div>
@@ -667,9 +658,9 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                 {/* Footer */}
                 <div className="tsv2-footer">
                     <div>
-                        <span className="tsv2-footer__stat">⏱ Total Time: {totalAll.toFixed(2)} Hours</span>
+                        <span className="tsv2-footer__stat"><span className="tsv2-icon-svg">{Icons.clock}</span> Total Time: {totalAll.toFixed(2)} Hours</span>
                         &nbsp;&nbsp;
-                        <span className="tsv2-footer__stat">📊 Total Units: {Math.round(totalAll * 4)}</span>
+                        <span className="tsv2-footer__stat"><span className="tsv2-icon-svg">{Icons.trendingUp}</span> Total Units: {Math.round(totalAll * 4)}</span>
                     </div>
                     <div>Week starts on Sunday and ends on Saturday</div>
                 </div>
