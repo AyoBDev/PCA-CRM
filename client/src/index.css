@@ -3346,7 +3346,7 @@ button.sdr-section-tag:hover:not(:disabled) {
 .tsv2-page {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 0 24px 40px;
+  padding: 24px 24px 40px;
 }
 
 /* Header */

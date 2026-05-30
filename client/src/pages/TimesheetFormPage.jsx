@@ -382,8 +382,12 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                         <h1>Timesheet Details</h1>
                     </div>
                     <div className="tsv2-header-actions">
-                        <button className="btn btn--outline btn--sm" onClick={() => {
-                            window.open(`/api/timesheets/${ts.id}/pdf`, '_blank');
+                        <button className="btn btn--outline btn--sm" onClick={async () => {
+                            try {
+                                const blob = await api.exportTimesheetPdf(ts.id);
+                                const url = URL.createObjectURL(blob);
+                                window.open(url, '_blank');
+                            } catch (err) { showToast(err.message, 'error'); }
                         }}><span className="tsv2-btn-icon">{Icons.fileText}</span> Print / PDF</button>
                     </div>
                 </div>
