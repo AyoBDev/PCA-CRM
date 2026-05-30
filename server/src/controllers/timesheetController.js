@@ -386,222 +386,239 @@ async function exportTimesheetPdf(req, res, next) {
         });
         if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
 
-        const doc = new PDFDocument({ size: 'LETTER', layout: 'landscape', margins: { top: 16, bottom: 16, left: 18, right: 18 } });
+        const doc = new PDFDocument({ size: 'LETTER', layout: 'landscape', margins: { top: 14, bottom: 14, left: 14, right: 14 } });
 
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="timesheet-${ts.id}.pdf"`);
         doc.pipe(res);
 
-        const mL = 18, mR = 18;
-        const pageW = doc.page.width - mL - mR;
-        const pageBottom = doc.page.height - 16;
+        const mL = 14;
+        const pageW = doc.page.width - 28;
+        const pageBottom = doc.page.height - 14;
         const dayNames = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
-        const labelW = 120;
-        const dayW = (pageW - labelW) / 7;
+        const labelW = 110;
+        const totalsW = 50;
+        const dayW = (pageW - labelW - totalsW) / 7;
         let gridY;
 
-        // ── Draw a single grid row with full borders ──
-        const drawRow = (label, values, opts = {}) => {
-            const { bold, bg, height, sectionHeader, fontSize } = { bold: false, bg: null, height: 11, sectionHeader: false, fontSize: 5.5, ...opts };
+        const weekStart = new Date(ts.weekStart);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        const fmtD = (d) => d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit', timeZone: 'UTC' });
 
-            // Page overflow — add new page and re-draw day header
+        // ── Header box ──
+        const headerH = 32;
+        doc.save().rect(mL, mL, pageW, headerH).lineWidth(1).strokeColor('#1e3a5f').stroke().restore();
+        doc.fontSize(10).font('Helvetica-Bold').fillColor('#1e3a5f').text('NV BEST PCA', mL + 6, mL + 4);
+        doc.fontSize(5.5).font('Helvetica').fillColor('#666').text('PCA Service Delivery Record', mL + 6, mL + 16);
+
+        const infoX = 160;
+        const infoY = mL + 6;
+        doc.fontSize(6).font('Helvetica').fillColor('#333');
+        doc.font('Helvetica-Bold').text('Client:', infoX, infoY, { continued: true }).font('Helvetica').text(` ${ts.client?.clientName || ''}`);
+        doc.font('Helvetica-Bold').text('Medicaid ID:', infoX, infoY + 9, { continued: true }).font('Helvetica').text(` ${ts.client?.medicaidId || ''}`);
+        doc.font('Helvetica-Bold').text('PCA:', infoX + 200, infoY, { continued: true }).font('Helvetica').text(` ${ts.pcaName || ''}`);
+        doc.font('Helvetica-Bold').text('Week:', infoX + 200, infoY + 9, { continued: true }).font('Helvetica').text(` ${fmtD(weekStart)} - ${fmtD(weekEnd)}`);
+
+        const statusX = pageW - 60;
+        const statusLabel = ts.status === 'accepted' ? 'Accepted' : ts.status === 'submitted' ? 'Submitted' : ts.status === 'rejected' ? 'Rejected' : 'Draft';
+        const statusColor = ts.status === 'accepted' ? '#16a34a' : ts.status === 'rejected' ? '#dc2626' : '#1e3a5f';
+        doc.fontSize(7).font('Helvetica-Bold').fillColor(statusColor).text(statusLabel, statusX, infoY + 4);
+
+        gridY = mL + headerH + 4;
+
+        // ── Draw a compact grid row ──
+        const drawRow = (label, values, opts = {}) => {
+            const { bold, bg, textColor, height, sectionHeader, fontSize, totalsVal } = {
+                bold: false, bg: null, textColor: '#000', height: 9, sectionHeader: false, fontSize: 5, totalsVal: '', ...opts
+            };
+
             if (gridY + height > pageBottom) {
                 doc.addPage();
-                gridY = 16;
-                drawRow('', dayNames.map((d, i) => {
-                    const e = ts.entries[i];
-                    const dateStr = e?.dateOfService ? new Date(e.dateOfService + 'T00:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }) : '';
-                    return `${d} ${dateStr}`;
-                }), { bold: true, bg: '#d9d9d9', height: 14 });
+                gridY = 14;
             }
 
-            // Background fill
             if (bg) {
                 doc.save().rect(mL, gridY, pageW, height).fill(bg).restore();
             }
+            doc.save().rect(mL, gridY, pageW, height).lineWidth(0.3).stroke('#ccc').restore();
 
-            // Outer border for the row
-            doc.save().rect(mL, gridY, pageW, height).lineWidth(0.5).stroke('#888').restore();
-
-            // Vertical column dividers
-            doc.save().lineWidth(0.3).strokeColor('#888');
-            // Label column divider
+            doc.save().lineWidth(0.2).strokeColor('#ccc');
             doc.moveTo(mL + labelW, gridY).lineTo(mL + labelW, gridY + height).stroke();
-            // Day column dividers
             for (let i = 1; i < 7; i++) {
                 const x = mL + labelW + (i * dayW);
                 doc.moveTo(x, gridY).lineTo(x, gridY + height).stroke();
             }
+            doc.moveTo(mL + labelW + 7 * dayW, gridY).lineTo(mL + labelW + 7 * dayW, gridY + height).stroke();
             doc.restore();
 
-            // Text
-            const textY = gridY + (height - (fontSize * 1.2)) / 2;
-            doc.fontSize(fontSize).font(bold ? 'Helvetica-Bold' : 'Helvetica').fillColor('#000');
+            const textY = gridY + (height - fontSize) / 2;
+            doc.fontSize(fontSize).font(bold ? 'Helvetica-Bold' : 'Helvetica').fillColor(textColor);
 
             if (sectionHeader) {
                 doc.text(label, mL + 4, textY, { width: pageW - 8 });
             } else {
-                doc.text(label, mL + 3, textY, { width: labelW - 6, lineBreak: false });
+                doc.text(label, mL + 2, textY, { width: labelW - 4, lineBreak: false });
                 for (let i = 0; i < 7; i++) {
                     const val = values[i] || '';
                     const x = mL + labelW + (i * dayW);
                     doc.text(String(val), x + 1, textY, { width: dayW - 2, align: 'center', lineBreak: false });
+                }
+                if (totalsVal) {
+                    const tx = mL + labelW + 7 * dayW;
+                    doc.font('Helvetica-Bold').text(String(totalsVal), tx + 1, textY, { width: totalsW - 4, align: 'center', lineBreak: false });
                 }
             }
 
             gridY += height;
         };
 
-        // ── Helper: draw time rows for a section (including extra shifts) ──
-        const drawTimeRows = (section, entries) => {
-            // Find max shift count
+        // ── Day column header ──
+        drawRow('SERVICE / TASKS', dayNames.map((d, i) => {
+            const e = ts.entries[i];
+            const dateStr = e?.dateOfService ? new Date(e.dateOfService + 'T00:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }) : '';
+            return `${d} ${dateStr}`;
+        }), { bold: true, bg: '#1e3a5f', textColor: '#fff', height: 11, totalsVal: 'TOTALS' });
+
+        // ── Helper: compute section total hours ──
+        const sectionTotal = (section) => {
+            return ts.entries.reduce((sum, e) => sum + (e[`${section}Hours`] || 0), 0);
+        };
+
+        // ── Helper: draw time rows (merged In/Out on one line per shift) ──
+        const drawShiftRows = (section) => {
             let maxShifts = 1;
-            for (const e of entries) {
+            for (const e of ts.entries) {
                 const blocks = parseBlocks(e[`${section}TimeBlocks`]);
                 if (blocks.length + 1 > maxShifts) maxShifts = blocks.length + 1;
             }
 
             for (let s = 0; s < maxShifts; s++) {
-                const shiftLabel = maxShifts > 1 ? ` (Shift ${s + 1})` : '';
-                if (s === 0) {
-                    drawRow(`Time In${shiftLabel}`, entries.map(e => hhmm12(e[`${section}TimeIn`])), { bg: '#f5f5f5' });
-                    drawRow(`Time Out${shiftLabel}`, entries.map(e => hhmm12(e[`${section}TimeOut`])));
-                } else {
-                    const blockIdx = s - 1;
-                    drawRow(`Time In${shiftLabel}`, entries.map(e => {
+                const shiftLabel = `Shift ${s + 1} (In / Out)`;
+                const vals = ts.entries.map(e => {
+                    let timeIn, timeOut;
+                    if (s === 0) {
+                        timeIn = hhmm12(e[`${section}TimeIn`]);
+                        timeOut = hhmm12(e[`${section}TimeOut`]);
+                    } else {
                         const blocks = parseBlocks(e[`${section}TimeBlocks`]);
-                        return hhmm12(blocks[blockIdx]?.in);
-                    }), { bg: '#f5f5f5' });
-                    drawRow(`Time Out${shiftLabel}`, entries.map(e => {
-                        const blocks = parseBlocks(e[`${section}TimeBlocks`]);
-                        return hhmm12(blocks[blockIdx]?.out);
-                    }));
-                }
+                        timeIn = hhmm12(blocks[s - 1]?.in);
+                        timeOut = hhmm12(blocks[s - 1]?.out);
+                    }
+                    if (!timeIn && !timeOut) return '';
+                    return `${timeIn || '-'} / ${timeOut || '-'}`;
+                });
+                drawRow(shiftLabel, vals, { fontSize: 4.5, bg: '#fafafa' });
             }
-
-            drawRow('Hours', entries.map(e => e[`${section}Hours`] > 0 ? e[`${section}Hours`].toFixed(2) : ''), { bold: true, bg: '#e8e8e8' });
-            drawRow('PCA Initials', entries.map(e => e[`${section}PcaInitials`] || ''));
-            drawRow('Client Initials', entries.map(e => e[`${section}ClientInitials`] || ''));
         };
 
-        // ── Title ──
-        doc.fontSize(11).font('Helvetica-Bold').text('NV BEST PCA', { align: 'center' });
-        doc.fontSize(7).font('Helvetica').text('PCA Service Delivery Record', { align: 'center' });
-        doc.moveDown(0.2);
-
-        // ── Info line ──
-        const weekStart = new Date(ts.weekStart);
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekEnd.getDate() + 6);
-        const fmtD = (d) => d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit', timeZone: 'UTC' });
-
-        doc.fontSize(7).font('Helvetica');
-        const infoY = doc.y;
-        doc.text(`Client: ${ts.client?.clientName || ''}`, mL, infoY);
-        doc.text(`Medicaid ID: ${ts.client?.medicaidId || ''}`, 200, infoY);
-        doc.text(`PCA: ${ts.pcaName || ''}`, 400, infoY);
-        doc.text(`Week: ${fmtD(weekStart)} – ${fmtD(weekEnd)}`, 570, infoY);
-        doc.moveDown(0.3);
-        gridY = doc.y;
-
-        // ── Day headers ──
-        drawRow('', dayNames.map((d, i) => {
-            const e = ts.entries[i];
-            const dateStr = e?.dateOfService ? new Date(e.dateOfService + 'T00:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }) : '';
-            return `${d} ${dateStr}`;
-        }), { bold: true, bg: '#d9d9d9', height: 14 });
-
-        // ── ADL / PAS Section ──
-        drawRow("Activities of Daily Living — ADL's (PAS)", [], { bold: true, bg: '#dbeafe', height: 12, sectionHeader: true });
+        // ── PAS Section ──
+        const pasTotal = sectionTotal('adl');
+        drawRow('PAS (Personal Assistance Services)', [], { bold: true, bg: '#dbeafe', height: 10, sectionHeader: true });
         for (const act of ADL_ACTIVITIES) {
             const vals = ts.entries.map(e => {
                 const activities = JSON.parse(e.adlActivities || '{}');
-                return activities[act] ? '\u2713' : '';
+                return activities[act] ? '✓' : '';
             });
             drawRow(act, vals);
         }
-        drawTimeRows('adl', ts.entries);
+        drawRow('PCA Initials', ts.entries.map(e => e.adlPcaInitials || ''), { bg: '#f8f8f8' });
+        drawRow('Client Initials', ts.entries.map(e => e.adlClientInitials || ''));
+        drawShiftRows('adl');
+        drawRow('Hours', ts.entries.map(e => e.adlHours > 0 ? e.adlHours.toFixed(1) : ''), { bold: true, bg: '#eff6ff', totalsVal: pasTotal > 0 ? pasTotal.toFixed(2) : '' });
 
-        // ── IADL / Homemaker Section ──
-        drawRow("IADL's — Instrumental Activities of Daily Living (Homemaker)", [], { bold: true, bg: '#dbeafe', height: 12, sectionHeader: true });
+        // ── Homemaker Section ──
+        const hmTotal = sectionTotal('iadl');
+        drawRow('Homemaker (IADL Services)', [], { bold: true, bg: '#dcfce7', height: 10, sectionHeader: true });
         for (const act of IADL_ACTIVITIES) {
             const vals = ts.entries.map(e => {
                 const activities = JSON.parse(e.iadlActivities || '{}');
-                return activities[act] ? '\u2713' : '';
+                return activities[act] ? '✓' : '';
             });
             drawRow(act, vals);
         }
-        drawTimeRows('iadl', ts.entries);
+        drawRow('PCA Initials', ts.entries.map(e => e.iadlPcaInitials || ''), { bg: '#f8f8f8' });
+        drawRow('Client Initials', ts.entries.map(e => e.iadlClientInitials || ''));
+        drawShiftRows('iadl');
+        drawRow('Hours', ts.entries.map(e => e.iadlHours > 0 ? e.iadlHours.toFixed(1) : ''), { bold: true, bg: '#f0fdf4', totalsVal: hmTotal > 0 ? hmTotal.toFixed(2) : '' });
 
-        // ── Respite Section (only if data exists) ──
-        const hasRespite = ts.entries.some(e => {
-            if (e.respiteHours > 0) return true;
+        // ── Respite Section ──
+        const respTotal = sectionTotal('respite');
+        const hasRespite = respTotal > 0 || ts.entries.some(e => {
             try { const a = JSON.parse(e.respiteActivities || '{}'); return Object.values(a).some(Boolean); } catch { return false; }
         });
         if (hasRespite) {
-            drawRow("Respite — Instrumental Activities of Daily Living", [], { bold: true, bg: '#dbeafe', height: 12, sectionHeader: true });
+            drawRow('Respite (Respite Services)', [], { bold: true, bg: '#fff7ed', height: 10, sectionHeader: true });
             for (const act of RESPITE_ACTIVITIES) {
                 const vals = ts.entries.map(e => {
                     const activities = JSON.parse(e.respiteActivities || '{}');
-                    return activities[act] ? '\u2713' : '';
+                    return activities[act] ? '✓' : '';
                 });
                 drawRow(act, vals);
             }
-            drawTimeRows('respite', ts.entries);
+            drawRow('PCA Initials', ts.entries.map(e => e.respitePcaInitials || ''), { bg: '#f8f8f8' });
+            drawRow('Client Initials', ts.entries.map(e => e.respiteClientInitials || ''));
+            drawShiftRows('respite');
+            drawRow('Hours', ts.entries.map(e => e.respiteHours > 0 ? e.respiteHours.toFixed(1) : ''), { bold: true, bg: '#fff7ed', totalsVal: respTotal > 0 ? respTotal.toFixed(2) : '' });
         }
 
-        // ── Totals bar ──
-        gridY += 2;
-        if (gridY + 14 > pageBottom) { doc.addPage(); gridY = 16; }
-        doc.save().rect(mL, gridY, pageW, 14).fill('#f0f0f0').rect(mL, gridY, pageW, 14).lineWidth(0.5).stroke('#888').restore();
-        doc.fontSize(6.5).font('Helvetica-Bold').fillColor('#000');
-        const totalRespiteHours = ts.totalRespiteHours || 0;
-        doc.text(
-            `Total PAS: ${ts.totalPasHours.toFixed(2)}    Total HM: ${ts.totalHmHours.toFixed(2)}    Total Respite: ${totalRespiteHours.toFixed(2)}    TOTAL HOURS: ${ts.totalHours.toFixed(2)}`,
-            mL + 4, gridY + 3, { width: pageW - 8 }
-        );
-        gridY += 18;
+        // ── Daily Totals bar ──
+        gridY += 1;
+        const dailyTotals = ts.entries.map(e => {
+            const h = (e.adlHours || 0) + (e.iadlHours || 0) + (e.respiteHours || 0);
+            return h > 0 ? h.toFixed(1) : '';
+        });
+        const weekTotal = (ts.totalHours || 0).toFixed(2);
+        drawRow('DAILY TOTAL (All Programs)', dailyTotals, { bold: true, bg: '#1e3a5f', textColor: '#fff', height: 11, totalsVal: weekTotal });
 
         // ── Signatures ──
-        if (gridY + 60 > pageBottom) { doc.addPage(); gridY = 16; }
+        gridY += 6;
+        if (gridY + 40 > pageBottom) { doc.addPage(); gridY = 14; }
 
-        doc.fontSize(7).font('Helvetica').fillColor('#000');
-        const sigH = 28;
-        const sigW = 160;
-        const sigGap = (pageW - sigW * 3) / 4;
+        const sigW = (pageW - 30) / 3;
+        const sigH = 22;
+        const sigCol1 = mL;
+        const sigCol2 = mL + sigW + 15;
+        const sigCol3 = mL + 2 * (sigW + 15);
 
-        const sigCol1 = mL + sigGap;
-        const sigCol2 = sigCol1 + sigW + sigGap;
-        const sigCol3 = sigCol2 + sigW + sigGap;
+        doc.fontSize(6).font('Helvetica-Bold').fillColor('#333');
+        doc.text('PCA / EMPLOYEE', sigCol1, gridY);
+        doc.text('RECIPIENT / CLIENT', sigCol2, gridY);
+        doc.text('SUPERVISOR', sigCol3, gridY);
+        gridY += 8;
 
-        // Labels
-        doc.font('Helvetica-Bold').text('PCA Name:', sigCol1, gridY, { continued: true }).font('Helvetica').text(` ${ts.pcaFullName || ''}`);
-        doc.font('Helvetica-Bold').text('Recipient:', sigCol2, gridY, { continued: true }).font('Helvetica').text(` ${ts.recipientName || ''}`);
-        doc.font('Helvetica-Bold').text('Supervisor:', sigCol3, gridY, { continued: true }).font('Helvetica').text(` ${ts.supervisorName || 'Sona Hakobyan'}`);
-        gridY += 10;
+        doc.fontSize(5.5).font('Helvetica').fillColor('#000');
+        doc.text(ts.pcaFullName || ts.pcaName || '', sigCol1, gridY);
+        doc.text(ts.recipientName || ts.client?.clientName || '', sigCol2, gridY);
+        doc.text(ts.supervisorName || 'Sona Hakobyan', sigCol3, gridY);
+        gridY += 8;
 
-        // Signature images
         if (ts.pcaSignature) {
-            try { doc.image(ts.pcaSignature, sigCol1, gridY, { width: sigW, height: sigH }); } catch { /* skip */ }
+            try { doc.image(ts.pcaSignature, sigCol1, gridY, { width: sigW - 10, height: sigH }); } catch { /* skip */ }
         }
-        doc.save().moveTo(sigCol1, gridY + sigH).lineTo(sigCol1 + sigW, gridY + sigH).lineWidth(0.5).stroke('#333').restore();
-        doc.fontSize(6).text('PCA Signature', sigCol1, gridY + sigH + 2, { width: sigW, align: 'center' });
-
         if (ts.recipientSignature) {
-            try { doc.image(ts.recipientSignature, sigCol2, gridY, { width: sigW, height: sigH }); } catch { /* skip */ }
+            try { doc.image(ts.recipientSignature, sigCol2, gridY, { width: sigW - 10, height: sigH }); } catch { /* skip */ }
         }
-        doc.save().moveTo(sigCol2, gridY + sigH).lineTo(sigCol2 + sigW, gridY + sigH).lineWidth(0.5).stroke('#333').restore();
-        doc.fontSize(6).text('Recipient / Responsible Party', sigCol2, gridY + sigH + 2, { width: sigW, align: 'center' });
-
         if (ts.supervisorSignature) {
-            try { doc.image(ts.supervisorSignature, sigCol3, gridY, { width: sigW, height: sigH }); } catch { /* skip */ }
+            try { doc.image(ts.supervisorSignature, sigCol3, gridY, { width: sigW - 10, height: sigH }); } catch { /* skip */ }
         }
-        doc.save().moveTo(sigCol3, gridY + sigH).lineTo(sigCol3 + sigW, gridY + sigH).lineWidth(0.5).stroke('#333').restore();
-        doc.fontSize(6).text('Supervisor Signature', sigCol3, gridY + sigH + 2, { width: sigW, align: 'center' });
+
+        gridY += sigH + 2;
+        doc.save().lineWidth(0.5).strokeColor('#333');
+        doc.moveTo(sigCol1, gridY).lineTo(sigCol1 + sigW - 10, gridY).stroke();
+        doc.moveTo(sigCol2, gridY).lineTo(sigCol2 + sigW - 10, gridY).stroke();
+        doc.moveTo(sigCol3, gridY).lineTo(sigCol3 + sigW - 10, gridY).stroke();
+        doc.restore();
+
+        gridY += 3;
+        doc.fontSize(5).fillColor('#666');
+        doc.text('Signature', sigCol1, gridY);
+        doc.text('Signature', sigCol2, gridY);
+        doc.text('Signature', sigCol3, gridY);
 
         if (ts.completionDate) {
-            doc.fontSize(7).text(`Date: ${ts.completionDate}`, mL, gridY + sigH + 16);
+            doc.fontSize(5).fillColor('#333').text(`Date: ${ts.completionDate}`, sigCol1, gridY + 8);
         }
 
         doc.end();
