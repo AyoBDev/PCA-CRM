@@ -375,18 +375,13 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
     return (
         <>
             <div className="tsv2-page">
-                {/* Breadcrumb */}
-                <div className="tsv2-breadcrumb">
-                    <a href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>Timesheets</a>
-                    <span>&rsaquo;</span>
-                    <span>View Timesheet</span>
-                </div>
-
                 {/* Header */}
                 <div className="tsv2-header">
-                    <h1>Timesheet Details</h1>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <button className="btn btn--ghost btn--icon" onClick={onBack} title="Back">&larr;</button>
+                        <h1>Timesheet Details</h1>
+                    </div>
                     <div className="tsv2-header-actions">
-                        <button className="btn btn--outline btn--sm" onClick={onBack}><span className="tsv2-btn-icon">{Icons.chevronLeft}</span> Back to Board</button>
                         <button className="btn btn--outline btn--sm" onClick={async () => {
                             try {
                                 const blob = await api.exportTimesheetPdf(ts.id);
