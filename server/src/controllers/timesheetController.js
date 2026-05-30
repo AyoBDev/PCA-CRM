@@ -389,7 +389,7 @@ async function exportTimesheetPdf(req, res, next) {
         const doc = new PDFDocument({ size: 'LETTER', layout: 'landscape', margins: { top: 14, bottom: 14, left: 14, right: 14 } });
 
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="timesheet-${ts.id}.pdf"`);
+        res.setHeader('Content-Disposition', `inline; filename="timesheet-${ts.id}.pdf"`);
         doc.pipe(res);
 
         const mL = 14;
@@ -431,7 +431,7 @@ async function exportTimesheetPdf(req, res, next) {
         // ── Draw a compact grid row ──
         const drawRow = (label, values, opts = {}) => {
             const { bold, bg, textColor, height, sectionHeader, fontSize, totalsVal } = {
-                bold: false, bg: null, textColor: '#000', height: 9, sectionHeader: false, fontSize: 5, totalsVal: '', ...opts
+                bold: false, bg: null, textColor: '#000', height: 10, sectionHeader: false, fontSize: 6, totalsVal: '', ...opts
             };
 
             if (gridY + height > pageBottom) {
@@ -519,7 +519,7 @@ async function exportTimesheetPdf(req, res, next) {
         for (const act of ADL_ACTIVITIES) {
             const vals = ts.entries.map(e => {
                 const activities = JSON.parse(e.adlActivities || '{}');
-                return activities[act] ? '✓' : '';
+                return activities[act] ? 'X' : '';
             });
             drawRow(act, vals);
         }
@@ -534,7 +534,7 @@ async function exportTimesheetPdf(req, res, next) {
         for (const act of IADL_ACTIVITIES) {
             const vals = ts.entries.map(e => {
                 const activities = JSON.parse(e.iadlActivities || '{}');
-                return activities[act] ? '✓' : '';
+                return activities[act] ? 'X' : '';
             });
             drawRow(act, vals);
         }
@@ -553,7 +553,7 @@ async function exportTimesheetPdf(req, res, next) {
             for (const act of RESPITE_ACTIVITIES) {
                 const vals = ts.entries.map(e => {
                     const activities = JSON.parse(e.respiteActivities || '{}');
-                    return activities[act] ? '✓' : '';
+                    return activities[act] ? 'X' : '';
                 });
                 drawRow(act, vals);
             }
