@@ -567,12 +567,8 @@ async function exportTimesheetPdf(req, res, next) {
             const hh = 14;
             gridLines(gridY, hh);
 
-            const iconR = 5.5;
-            doc.save().circle(mL + 14, gridY + hh / 2, iconR).fill(color === blue ? '#dbeafe' : color === green ? '#dcfce7' : '#fff7ed').restore();
-            doc.save().circle(mL + 14, gridY + hh / 2, iconR).lineWidth(0.4).stroke(color).restore();
-
             doc.fontSize(9).font('Helvetica-Bold').fillColor(color);
-            doc.text(name, mL + 24, gridY + 2.5, { continued: true });
+            doc.text(name, mL + 8, gridY + 2.5, { continued: true });
             doc.fontSize(6).font('Helvetica').fillColor('#777');
             doc.text(`  (${subtitle})`);
             gridY += hh;
@@ -640,7 +636,7 @@ async function exportTimesheetPdf(req, res, next) {
         }
 
         // ═══ DAILY TOTALS BAR ═══
-        const barH = 24;
+        const barH = 30;
         doc.save().rect(mL, gridY, pageW, barH).fill(navy).restore();
 
         // Label column dividers (subtle white)
@@ -651,8 +647,8 @@ async function exportTimesheetPdf(req, res, next) {
         doc.restore();
 
         doc.fontSize(7).font('Helvetica-Bold').fillColor('#fff');
-        doc.text('DAILY TOTAL', mL + 8, gridY + 4);
-        doc.fontSize(5.5).font('Helvetica').text('(All Programs)', mL + 8, gridY + 14);
+        doc.text('DAILY TOTAL', mL + 8, gridY + 7);
+        doc.fontSize(5.5).font('Helvetica').text('(All Programs)', mL + 8, gridY + 18);
 
         for (let i = 0; i < 7; i++) {
             const e = ts.entries[i];
@@ -660,19 +656,19 @@ async function exportTimesheetPdf(req, res, next) {
             const du = Math.round(dh * 4);
             const x = mL + labelW + i * dayW;
             if (dh > 0) {
-                doc.fontSize(9).font('Helvetica-Bold').fillColor('#fff').text(dh.toFixed(2), x, gridY + 3, { width: dayW, align: 'center' });
-                doc.fontSize(5.5).font('Helvetica').text(`${du} Units`, x, gridY + 15, { width: dayW, align: 'center' });
+                doc.fontSize(9).font('Helvetica-Bold').fillColor('#fff').text(dh.toFixed(2), x, gridY + 5, { width: dayW, align: 'center' });
+                doc.fontSize(5.5).font('Helvetica').text(`${du} Units`, x, gridY + 18, { width: dayW, align: 'center' });
             } else {
-                doc.fontSize(7).font('Helvetica').fillColor('rgba(255,255,255,0.4)').text('—', x, gridY + 8, { width: dayW, align: 'center' });
+                doc.fontSize(7).font('Helvetica').fillColor('rgba(255,255,255,0.4)').text('—', x, gridY + 10, { width: dayW, align: 'center' });
             }
         }
 
         // Week total badge
         const wtx = mL + labelW + 7 * dayW;
         doc.save().rect(wtx, gridY, totalsW, barH).fill(green).restore();
-        doc.fontSize(5).font('Helvetica-Bold').fillColor('#fff').text('WEEK TOTAL', wtx + 2, gridY + 2, { width: totalsW - 4, align: 'center' });
-        doc.fontSize(9).text(`${(ts.totalHours || 0).toFixed(2)} Hours`, wtx + 2, gridY + 9, { width: totalsW - 4, align: 'center' });
-        doc.fontSize(6.5).text(`${Math.round((ts.totalHours || 0) * 4)} Units`, wtx + 2, gridY + 19, { width: totalsW - 4, align: 'center' });
+        doc.fontSize(5.5).font('Helvetica-Bold').fillColor('#fff').text('WEEK TOTAL', wtx + 2, gridY + 4, { width: totalsW - 4, align: 'center' });
+        doc.fontSize(9).text(`${(ts.totalHours || 0).toFixed(2)} Hours`, wtx + 2, gridY + 12, { width: totalsW - 4, align: 'center' });
+        doc.fontSize(6.5).text(`${Math.round((ts.totalHours || 0) * 4)} Units`, wtx + 2, gridY + 22, { width: totalsW - 4, align: 'center' });
 
         gridY += barH + 8;
 
