@@ -405,398 +405,325 @@ async function exportTimesheetPdf(req, res, next) {
         });
         if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
 
-        const doc = new PDFDocument({ size: 'LETTER', layout: 'landscape', margins: { top: 12, bottom: 12, left: 12, right: 12 } });
+        const doc = new PDFDocument({ size: 'LETTER', layout: 'landscape', margins: { top: 14, bottom: 14, left: 14, right: 14 } });
 
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `inline; filename="timesheet-${ts.id}.pdf"`);
         doc.pipe(res);
 
-        const mL = 12;
-        const pageW = doc.page.width - 24;
-        const pageH = doc.page.height - 24;
-        const dayNames = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+        const mL = 14;
+        const pageW = doc.page.width - 28;
+        const pageBottom = doc.page.height - 14;
 
-        const labelW = 200;
-        const totalsW = 70;
+        const labelW = 190;
+        const totalsW = 72;
         const dayW = (pageW - labelW - totalsW) / 7;
-        let gridY;
+        let gridY = mL;
 
         const weekStart = new Date(ts.weekStart);
         const weekEnd = new Date(weekStart);
         weekEnd.setDate(weekEnd.getDate() + 6);
-        const fmtDate = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
-        const fmtDateShort = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+        const fmtMDY = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+        const fmtMD = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 
         const navy = '#1e3a5f';
         const blue = '#1e40af';
         const green = '#16a34a';
         const orange = '#ea580c';
 
-        // ── Header ──
-        const headerH = 44;
-        doc.save().rect(mL, mL, pageW, headerH).lineWidth(1.5).strokeColor(navy).stroke().restore();
+        // ═══ HEADER ═══
+        const headerH = 42;
+        doc.save().rect(mL, gridY, pageW, headerH).lineWidth(1.5).strokeColor(navy).stroke().restore();
 
-        // Logo area (left section)
-        const logoSectionW = 220;
-        doc.save().moveTo(mL + logoSectionW, mL).lineTo(mL + logoSectionW, mL + headerH).lineWidth(0.5).strokeColor(navy).stroke().restore();
-        doc.fontSize(14).font('Helvetica-Bold').fillColor(navy).text('NV BEST PCA', mL + 40, mL + 8);
-        doc.fontSize(7).font('Helvetica').fillColor('#555').text('PCA Service Delivery Record', mL + 40, mL + 24);
+        // Logo section
+        const logoW = 200;
+        doc.save().moveTo(mL + logoW, gridY).lineTo(mL + logoW, gridY + headerH).lineWidth(0.5).strokeColor(navy).stroke().restore();
+        doc.fontSize(13).font('Helvetica-Bold').fillColor(navy).text('NV BEST PCA', mL + 8, gridY + 7);
+        doc.fontSize(6.5).font('Helvetica').fillColor('#555').text('PCA Service Delivery Record', mL + 8, gridY + 23);
 
-        // Info cells
-        const infoCellW = (pageW - logoSectionW) / 4;
+        // Info cells (4 equal sections to the right of logo)
+        const infoW = (pageW - logoW) / 4;
         for (let i = 1; i < 4; i++) {
-            const x = mL + logoSectionW + infoCellW * i;
-            doc.save().moveTo(x, mL).lineTo(x, mL + headerH).lineWidth(0.5).strokeColor(navy).stroke().restore();
+            doc.save().moveTo(mL + logoW + infoW * i, gridY).lineTo(mL + logoW + infoW * i, gridY + headerH).lineWidth(0.5).strokeColor(navy).stroke().restore();
         }
 
-        const cell1X = mL + logoSectionW + 8;
-        const cell2X = mL + logoSectionW + infoCellW + 8;
-        const cell3X = mL + logoSectionW + infoCellW * 2 + 8;
-        const cell4X = mL + logoSectionW + infoCellW * 3 + 8;
+        // Cell 1: Client + Medicaid
+        const c1 = mL + logoW + 6;
+        doc.fontSize(6).font('Helvetica').fillColor('#666').text('Client:', c1, gridY + 5);
+        doc.fontSize(8).font('Helvetica-Bold').fillColor('#000').text(ts.client?.clientName || '', c1 + 28, gridY + 4);
+        doc.fontSize(6).font('Helvetica').fillColor('#666').text('Medicaid ID:', c1, gridY + 20);
+        doc.fontSize(8).font('Helvetica-Bold').fillColor('#000').text(ts.client?.medicaidId || '', c1 + 50, gridY + 19);
 
-        doc.fontSize(6).fillColor('#666').font('Helvetica');
-        doc.text('Client:', cell1X, mL + 6);
-        doc.text('Medicaid ID:', cell1X, mL + 22);
-        doc.text('Caregiver / PCA:', cell2X, mL + 6);
-        doc.text('Week:', cell2X, mL + 22);
-        doc.text('Date Submitted:', cell3X, mL + 6);
-        doc.text('Status:', cell4X, mL + 6);
+        // Cell 2: PCA + Week
+        const c2 = mL + logoW + infoW + 6;
+        doc.fontSize(6).font('Helvetica').fillColor('#666').text('Caregiver / PCA:', c2, gridY + 5);
+        doc.fontSize(8).font('Helvetica-Bold').fillColor('#000').text(ts.pcaName || '', c2 + 65, gridY + 4);
+        doc.fontSize(6).font('Helvetica').fillColor('#666').text('Week:', c2, gridY + 20);
+        doc.fontSize(7).font('Helvetica-Bold').fillColor('#000').text(`${fmtMD(weekStart)} – ${fmtMDY(weekEnd)}`, c2 + 24, gridY + 19);
+        doc.fontSize(5.5).font('Helvetica').fillColor('#888').text('(Sun – Sat)', c2 + 24, gridY + 30);
 
-        doc.fontSize(8).fillColor('#000').font('Helvetica-Bold');
-        doc.text(ts.client?.clientName || '', cell1X + 30, mL + 5);
-        doc.text(ts.client?.medicaidId || '', cell1X + 55, mL + 21);
-        doc.text(ts.pcaName || '', cell2X + 70, mL + 5);
-
-        const weekRangeStr = `${fmtDateShort(weekStart)} – ${fmtDate(weekEnd)}`;
-        doc.fontSize(7).text(weekRangeStr, cell2X + 25, mL + 21);
-        doc.fontSize(6).font('Helvetica').fillColor('#666').text('(Sun – Sat)', cell2X + 25, mL + 31);
-
+        // Cell 3: Date Submitted
+        const c3 = mL + logoW + infoW * 2 + 6;
+        doc.fontSize(6).font('Helvetica').fillColor('#666').text('Date Submitted:', c3, gridY + 5);
         if (ts.submittedAt) {
-            const subDate = new Date(ts.submittedAt);
-            doc.fontSize(7).font('Helvetica-Bold').fillColor('#000').text(
-                subDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' +
-                subDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-                cell3X, mL + 16
+            const sd = new Date(ts.submittedAt);
+            doc.fontSize(7.5).font('Helvetica-Bold').fillColor('#000').text(
+                sd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                c3, gridY + 16
+            );
+            doc.fontSize(6).font('Helvetica').fillColor('#555').text(
+                sd.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+                c3, gridY + 28
             );
         }
 
-        // Status badge
+        // Cell 4: Status
+        const c4 = mL + logoW + infoW * 3 + 6;
+        doc.fontSize(6).font('Helvetica').fillColor('#666').text('Status:', c4, gridY + 5);
         const statusLabel = ts.status === 'accepted' ? 'Accepted' : ts.status === 'submitted' ? 'Submitted' : ts.status === 'rejected' ? 'Rejected' : 'Draft';
-        const statusColor = ts.status === 'accepted' ? green : ts.status === 'submitted' ? green : ts.status === 'rejected' ? '#dc2626' : navy;
-        doc.fontSize(7).font('Helvetica-Bold').fillColor(statusColor).text(statusLabel, cell4X + 4, mL + 20);
+        const statusColor = (ts.status === 'accepted' || ts.status === 'submitted') ? green : ts.status === 'rejected' ? '#dc2626' : navy;
+        doc.fontSize(8).font('Helvetica-Bold').fillColor(statusColor).text(statusLabel, c4 + 10, gridY + 19);
 
-        gridY = mL + headerH + 4;
+        gridY += headerH + 3;
 
-        // ── Column header bar ──
-        const colHeaderH = 24;
-        doc.save().rect(mL, gridY, pageW, colHeaderH).fill(navy).restore();
-        doc.save().rect(mL, gridY, pageW, colHeaderH).lineWidth(0.5).stroke(navy).restore();
+        // ═══ COLUMN HEADER BAR ═══
+        const colH = 22;
+        doc.save().rect(mL, gridY, pageW, colH).fill(navy).restore();
 
-        const colTextY = gridY + 4;
-        doc.fontSize(6.5).font('Helvetica-Bold').fillColor('#fff');
-        doc.text('SERVICE TYPES (PROGRAMS) / ACTIVITIES', mL + 6, colTextY + 4, { width: labelW - 12 });
+        doc.fontSize(6).font('Helvetica-Bold').fillColor('#fff');
+        doc.text('SERVICE TYPES (PROGRAMS) / ACTIVITIES', mL + 6, gridY + 8, { width: labelW - 12 });
 
         for (let i = 0; i < 7; i++) {
             const e = ts.entries[i];
             const x = mL + labelW + i * dayW;
+            const dayName = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][e?.dayOfWeek ?? i];
             const dateStr = e?.dateOfService ? new Date(e.dateOfService + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-            doc.fontSize(7).font('Helvetica-Bold').text(dayNames[i], x, colTextY + 2, { width: dayW, align: 'center' });
-            doc.fontSize(6).font('Helvetica').text(dateStr, x, colTextY + 11, { width: dayW, align: 'center' });
+            doc.fontSize(7).font('Helvetica-Bold').text(dayName, x, gridY + 4, { width: dayW, align: 'center' });
+            doc.fontSize(5.5).font('Helvetica').text(dateStr, x, gridY + 13, { width: dayW, align: 'center' });
         }
-        doc.fontSize(7).font('Helvetica-Bold').text('TOTALS', mL + labelW + 7 * dayW, colTextY + 5, { width: totalsW, align: 'center' });
+        doc.fontSize(6.5).font('Helvetica-Bold').text('TOTALS', mL + labelW + 7 * dayW, gridY + 8, { width: totalsW, align: 'center' });
 
-        // Vertical lines in header
-        doc.save().lineWidth(0.3).strokeColor('rgba(255,255,255,0.3)');
-        doc.moveTo(mL + labelW, gridY).lineTo(mL + labelW, gridY + colHeaderH).stroke();
-        for (let i = 1; i < 7; i++) {
-            doc.moveTo(mL + labelW + i * dayW, gridY).lineTo(mL + labelW + i * dayW, gridY + colHeaderH).stroke();
-        }
-        doc.moveTo(mL + labelW + 7 * dayW, gridY).lineTo(mL + labelW + 7 * dayW, gridY + colHeaderH).stroke();
-        doc.restore();
+        gridY += colH;
 
-        gridY += colHeaderH;
+        // ═══ ROW HELPERS ═══
+        const RH = 12;
 
-        // ── Row drawing helper ──
-        const ROW_H = 13;
-        const drawRow = (label, values, opts = {}) => {
-            const { bold, bg, textColor, height, fontSize, labelColor, emDash } = {
-                bold: false, bg: null, textColor: '#333', height: ROW_H, fontSize: 7, labelColor: '#333', emDash: false, ...opts
-            };
-
-            if (bg) {
-                doc.save().rect(mL, gridY, pageW, height).fill(bg).restore();
-            }
-
-            // Grid lines
-            doc.save().lineWidth(0.2).strokeColor('#ddd');
-            doc.moveTo(mL, gridY + height).lineTo(mL + pageW, gridY + height).stroke();
-            doc.moveTo(mL + labelW, gridY).lineTo(mL + labelW, gridY + height).stroke();
-            for (let i = 1; i < 7; i++) {
-                doc.moveTo(mL + labelW + i * dayW, gridY).lineTo(mL + labelW + i * dayW, gridY + height).stroke();
-            }
-            doc.moveTo(mL + labelW + 7 * dayW, gridY).lineTo(mL + labelW + 7 * dayW, gridY + height).stroke();
+        const gridLines = (y, h) => {
+            doc.save().lineWidth(0.15).strokeColor('#ddd');
+            doc.moveTo(mL, y + h).lineTo(mL + pageW, y + h).stroke();
+            doc.moveTo(mL + labelW, y).lineTo(mL + labelW, y + h).stroke();
+            for (let i = 1; i < 7; i++) doc.moveTo(mL + labelW + i * dayW, y).lineTo(mL + labelW + i * dayW, y + h).stroke();
+            doc.moveTo(mL + labelW + 7 * dayW, y).lineTo(mL + labelW + 7 * dayW, y + h).stroke();
             doc.restore();
+        };
 
-            const textY = gridY + (height - fontSize * 1.1) / 2;
+        const drawTextRow = (label, values, opts = {}) => {
+            const { bold, bg, textColor, labelColor, fontSize, emDash, height } = {
+                bold: false, bg: null, textColor: '#333', labelColor: '#333', fontSize: 6.5, emDash: false, height: RH, ...opts
+            };
+            if (bg) doc.save().rect(mL, gridY, pageW, height).fill(bg).restore();
+            gridLines(gridY, height);
+
+            const ty = gridY + (height - fontSize) / 2;
             doc.fontSize(fontSize).font(bold ? 'Helvetica-Bold' : 'Helvetica').fillColor(labelColor);
-            doc.text(label, mL + 6, textY, { width: labelW - 12, lineBreak: false });
+            doc.text(label, mL + 6, ty, { width: labelW - 12, lineBreak: false });
 
-            doc.fillColor(textColor);
+            doc.fillColor(textColor).font(bold ? 'Helvetica-Bold' : 'Helvetica');
             for (let i = 0; i < 7; i++) {
-                let val = values[i] || '';
-                if (emDash && !val) val = '—';
-                const x = mL + labelW + i * dayW;
-                doc.fontSize(fontSize).font(bold ? 'Helvetica-Bold' : 'Helvetica');
-                doc.text(String(val), x, textY, { width: dayW, align: 'center', lineBreak: false });
+                let v = values[i] || '';
+                if (emDash && !v) v = '—';
+                doc.text(String(v), mL + labelW + i * dayW, ty, { width: dayW, align: 'center', lineBreak: false });
             }
-
             gridY += height;
         };
 
-        // ── Checkbox helper (draws a square, filled if checked) ──
-        const drawCheckboxRow = (label, checkedArr, checkColor) => {
-            const height = ROW_H;
-            doc.save().lineWidth(0.2).strokeColor('#ddd');
-            doc.moveTo(mL, gridY + height).lineTo(mL + pageW, gridY + height).stroke();
-            doc.moveTo(mL + labelW, gridY).lineTo(mL + labelW, gridY + height).stroke();
-            for (let i = 1; i < 7; i++) {
-                doc.moveTo(mL + labelW + i * dayW, gridY).lineTo(mL + labelW + i * dayW, gridY + height).stroke();
-            }
-            doc.moveTo(mL + labelW + 7 * dayW, gridY).lineTo(mL + labelW + 7 * dayW, gridY + height).stroke();
-            doc.restore();
+        const drawCheckRow = (label, checked, color) => {
+            gridLines(gridY, RH);
+            const ty = gridY + (RH - 6.5) / 2;
+            doc.fontSize(6.5).font('Helvetica').fillColor('#333');
+            doc.text(label, mL + 28, ty, { width: labelW - 34, lineBreak: false });
 
-            const textY = gridY + (height - 7) / 2;
-            doc.fontSize(7).font('Helvetica').fillColor('#333');
-            doc.text(label, mL + 30, textY, { width: labelW - 36, lineBreak: false });
-
-            const boxSize = 7;
-            const boxY = gridY + (height - boxSize) / 2;
+            const bs = 8;
+            const by = gridY + (RH - bs) / 2;
             for (let i = 0; i < 7; i++) {
-                const cx = mL + labelW + i * dayW + (dayW - boxSize) / 2;
-                if (checkedArr[i]) {
-                    doc.save().rect(cx, boxY, boxSize, boxSize).fill(checkColor).restore();
-                    doc.save().rect(cx, boxY, boxSize, boxSize).lineWidth(0.3).stroke(checkColor).restore();
-                    // White checkmark
-                    doc.save().strokeColor('#fff').lineWidth(1);
-                    doc.moveTo(cx + 1.5, boxY + 3.5).lineTo(cx + 3, boxY + 5.5).lineTo(cx + 5.5, boxY + 1.5).stroke();
+                const cx = mL + labelW + i * dayW + (dayW - bs) / 2;
+                if (checked[i]) {
+                    doc.save().roundedRect(cx, by, bs, bs, 1.5).fill(color).restore();
+                    doc.save().strokeColor('#fff').lineWidth(1.2);
+                    doc.moveTo(cx + 2, by + 4.2).lineTo(cx + 3.5, by + 6).lineTo(cx + 6.2, by + 2.2).stroke();
                     doc.restore();
                 } else {
-                    doc.save().rect(cx, boxY, boxSize, boxSize).lineWidth(0.5).stroke('#999').restore();
+                    doc.save().roundedRect(cx, by, bs, bs, 1.5).lineWidth(0.6).stroke('#bbb').restore();
                 }
             }
-
-            gridY += height;
+            gridY += RH;
         };
 
-        // ── Section totals column helper ──
-        const drawSectionTotals = (hours, units, color) => {
-            const totH = 36;
-            const tx = mL + labelW + 7 * dayW;
-            const ty = gridY - totH;
-            // Draw the totals in the right column area (already positioned)
-            doc.save();
-            doc.rect(tx, gridY, totalsW, 0); // placeholder
-            doc.restore();
-        };
+        // ═══ PROGRAM SECTION ═══
+        const drawSection = (name, subtitle, activities, section, color) => {
+            const startY = gridY;
 
-        // ── Draw section with totals ──
-        const drawProgramSection = (sectionName, subtitle, activities, section, color, sectionBg) => {
-            const sectionStartY = gridY;
+            // Section header
+            const hh = 14;
+            gridLines(gridY, hh);
 
-            // Section header row
-            const headerRowH = ROW_H + 2;
-            doc.save().lineWidth(0.2).strokeColor('#ddd');
-            doc.moveTo(mL, gridY + headerRowH).lineTo(mL + pageW, gridY + headerRowH).stroke();
-            doc.restore();
+            const iconR = 5.5;
+            doc.save().circle(mL + 14, gridY + hh / 2, iconR).fill(color === blue ? '#dbeafe' : color === green ? '#dcfce7' : '#fff7ed').restore();
+            doc.save().circle(mL + 14, gridY + hh / 2, iconR).lineWidth(0.4).stroke(color).restore();
 
-            // Section icon circle
-            const iconR = 7;
-            const iconCx = mL + 14;
-            const iconCy = gridY + headerRowH / 2;
-            doc.save().circle(iconCx, iconCy, iconR).fill(color === blue ? '#dbeafe' : color === green ? '#dcfce7' : '#fff7ed').restore();
-            doc.save().circle(iconCx, iconCy, iconR).lineWidth(0.5).stroke(color).restore();
+            doc.fontSize(9).font('Helvetica-Bold').fillColor(color);
+            doc.text(name, mL + 24, gridY + 2.5, { continued: true });
+            doc.fontSize(6).font('Helvetica').fillColor('#777');
+            doc.text(`  (${subtitle})`);
+            gridY += hh;
 
-            // Section name
-            const nameY = gridY + (headerRowH - 9) / 2;
-            doc.fontSize(10).font('Helvetica-Bold').fillColor(color);
-            doc.text(sectionName, mL + 26, nameY - 1, { continued: true, lineBreak: false });
-            doc.fontSize(6.5).font('Helvetica').fillColor('#666');
-            doc.text(`  (${subtitle})`, { lineBreak: false });
-
-            gridY += headerRowH;
-
-            // Activity checkbox rows
+            // Activity rows
             for (const act of activities) {
-                const checkedArr = ts.entries.map(e => {
-                    const acts = JSON.parse(e[`${section}Activities`] || '{}');
-                    return !!acts[act];
+                const checked = ts.entries.map(e => {
+                    const a = JSON.parse(e[`${section}Activities`] || '{}');
+                    return !!a[act];
                 });
-                drawCheckboxRow(act, checkedArr, color);
+                drawCheckRow(act, checked, color);
             }
 
-            // PCA Initials
-            drawRow('PCA Initials', ts.entries.map(e => e[`${section}PcaInitials`] || ''), { bold: true, emDash: true });
-            // Client Initials
-            drawRow('Client Initials', ts.entries.map(e => e[`${section}ClientInitials`] || ''), { bold: true, emDash: true });
+            // Initials
+            drawTextRow('PCA Initials', ts.entries.map(e => e[`${section}PcaInitials`] || ''), { bold: true, emDash: true });
+            drawTextRow('Client Initials', ts.entries.map(e => e[`${section}ClientInitials`] || ''), { bold: true, emDash: true });
 
-            // Shift rows (Time In / Out combined)
+            // Shift rows
             let maxShifts = 1;
             for (const e of ts.entries) {
-                const blocks = parseBlocks(e[`${section}TimeBlocks`]);
-                if (blocks.length + 1 > maxShifts) maxShifts = blocks.length + 1;
+                const bl = parseBlocks(e[`${section}TimeBlocks`]);
+                if (bl.length + 1 > maxShifts) maxShifts = bl.length + 1;
             }
             for (let s = 0; s < maxShifts; s++) {
-                const shiftLabel = `Shift ${s + 1} (Time In / Out)`;
                 const vals = ts.entries.map(e => {
                     let ti, to;
-                    if (s === 0) {
-                        ti = hhmm12(e[`${section}TimeIn`]);
-                        to = hhmm12(e[`${section}TimeOut`]);
-                    } else {
-                        const blocks = parseBlocks(e[`${section}TimeBlocks`]);
-                        ti = hhmm12(blocks[s - 1]?.in);
-                        to = hhmm12(blocks[s - 1]?.out);
-                    }
+                    if (s === 0) { ti = hhmm12(e[`${section}TimeIn`]); to = hhmm12(e[`${section}TimeOut`]); }
+                    else { const bl = parseBlocks(e[`${section}TimeBlocks`]); ti = hhmm12(bl[s-1]?.in); to = hhmm12(bl[s-1]?.out); }
                     if (!ti && !to) return '';
                     return `${ti} - ${to}`;
                 });
-                drawRow(shiftLabel, vals, { fontSize: 6, emDash: true });
+                drawTextRow(`Shift ${s+1} (Time In / Out)`, vals, { fontSize: 5.5, emDash: true });
             }
 
-            // + Add Shift row
-            drawRow('+ Add Shift', ts.entries.map(() => ''), { fontSize: 6, labelColor: blue, emDash: true });
+            // + Add Shift
+            drawTextRow('+ Add Shift', ts.entries.map(() => ''), { fontSize: 5.5, labelColor: blue, emDash: true });
 
-            const sectionEndY = gridY;
+            const endY = gridY;
 
-            // Draw TOTALS column content for this section
-            const totalHours = ts.entries.reduce((sum, e) => sum + (e[`${section}Hours`] || 0), 0);
-            const totalUnits = Math.round(totalHours * 4);
+            // TOTALS in right column
+            const totalH = ts.entries.reduce((s, e) => s + (e[`${section}Hours`] || 0), 0);
+            const totalU = Math.round(totalH * 4);
             const tx = mL + labelW + 7 * dayW;
-            const totMidY = sectionStartY + (sectionEndY - sectionStartY) / 2;
+            const midY = startY + (endY - startY) / 2;
 
-            // Hours label + value
-            doc.fontSize(6).font('Helvetica-Bold').fillColor(color);
-            doc.text('Hours', tx + 8, totMidY - 14, { width: totalsW - 16 });
-            doc.fontSize(14).text(totalHours.toFixed(2), tx + 4, totMidY - 5, { width: totalsW - 8, align: 'center' });
+            doc.fontSize(5.5).font('Helvetica-Bold').fillColor(color).text('Hours', tx + totalsW - 20, midY - 16, { width: 18, align: 'right' });
+            doc.fontSize(16).font('Helvetica-Bold').fillColor(color).text(totalH.toFixed(2), tx + 2, midY - 8, { width: totalsW - 4, align: 'center' });
+            doc.fontSize(5.5).font('Helvetica-Bold').fillColor('#555').text('Units', tx + totalsW - 20, midY + 10, { width: 18, align: 'right' });
+            doc.fontSize(13).font('Helvetica-Bold').fillColor('#333').text(String(totalU), tx + 2, midY + 17, { width: totalsW - 4, align: 'center' });
 
-            // Units label + value
-            doc.fontSize(6).fillColor('#333');
-            doc.text('Units', tx + 8, totMidY + 12, { width: totalsW - 16 });
-            doc.fontSize(11).font('Helvetica-Bold').text(String(totalUnits), tx + 4, totMidY + 20, { width: totalsW - 8, align: 'center' });
-
-            // Section divider (white space)
-            gridY += 2;
+            // Section bottom border
+            doc.save().moveTo(mL, gridY).lineTo(mL + pageW, gridY).lineWidth(1.5).strokeColor('#fff').stroke().restore();
+            gridY += 1;
         };
 
-        // ── Render sections ──
-        drawProgramSection('PAS', 'Personal Assistance Services', ADL_ACTIVITIES, 'adl', blue, '#dbeafe');
-        drawProgramSection('Homemaker', 'IADL Services', IADL_ACTIVITIES, 'iadl', green, '#dcfce7');
+        // ═══ RENDER SECTIONS ═══
+        drawSection('PAS', 'Personal Assistance Services', ADL_ACTIVITIES, 'adl', blue);
+        drawSection('Homemaker', 'IADL Services', IADL_ACTIVITIES, 'iadl', green);
 
         const hasRespite = (ts.totalRespiteHours || 0) > 0 || ts.entries.some(e => {
-            try { const a = JSON.parse(e.respiteActivities || '{}'); return Object.values(a).some(Boolean); } catch { return false; }
+            try { return Object.values(JSON.parse(e.respiteActivities || '{}')).some(Boolean); } catch { return false; }
         });
         if (hasRespite) {
-            drawProgramSection('Respite', 'Respite Services', RESPITE_ACTIVITIES, 'respite', orange, '#fff7ed');
+            drawSection('Respite', 'Respite Services', RESPITE_ACTIVITIES, 'respite', orange);
         }
 
-        // ── Daily Totals bar ──
-        const dailyBarH = 22;
-        doc.save().rect(mL, gridY, pageW, dailyBarH).fill(navy).restore();
+        // ═══ DAILY TOTALS BAR ═══
+        const barH = 24;
+        doc.save().rect(mL, gridY, pageW, barH).fill(navy).restore();
 
-        doc.save().lineWidth(0.3).strokeColor('rgba(255,255,255,0.3)');
-        doc.moveTo(mL + labelW, gridY).lineTo(mL + labelW, gridY + dailyBarH).stroke();
-        for (let i = 1; i < 7; i++) {
-            doc.moveTo(mL + labelW + i * dayW, gridY).lineTo(mL + labelW + i * dayW, gridY + dailyBarH).stroke();
-        }
-        doc.moveTo(mL + labelW + 7 * dayW, gridY).lineTo(mL + labelW + 7 * dayW, gridY + dailyBarH).stroke();
+        // Label column dividers (subtle white)
+        doc.save().lineWidth(0.3).strokeColor('rgba(255,255,255,0.25)');
+        doc.moveTo(mL + labelW, gridY).lineTo(mL + labelW, gridY + barH).stroke();
+        for (let i = 1; i < 7; i++) doc.moveTo(mL + labelW + i * dayW, gridY).lineTo(mL + labelW + i * dayW, gridY + barH).stroke();
+        doc.moveTo(mL + labelW + 7 * dayW, gridY).lineTo(mL + labelW + 7 * dayW, gridY + barH).stroke();
         doc.restore();
 
-        // Label
         doc.fontSize(7).font('Helvetica-Bold').fillColor('#fff');
-        doc.text('DAILY TOTAL', mL + 8, gridY + 4, { width: labelW - 16 });
-        doc.fontSize(5.5).text('(All Programs)', mL + 8, gridY + 13, { width: labelW - 16 });
+        doc.text('DAILY TOTAL', mL + 8, gridY + 4);
+        doc.fontSize(5.5).font('Helvetica').text('(All Programs)', mL + 8, gridY + 14);
 
-        // Daily values
         for (let i = 0; i < 7; i++) {
             const e = ts.entries[i];
-            const dayH = (e?.adlHours || 0) + (e?.iadlHours || 0) + (e?.respiteHours || 0);
-            const dayU = Math.round(dayH * 4);
+            const dh = (e?.adlHours || 0) + (e?.iadlHours || 0) + (e?.respiteHours || 0);
+            const du = Math.round(dh * 4);
             const x = mL + labelW + i * dayW;
-            if (dayH > 0) {
-                doc.fontSize(8).font('Helvetica-Bold').fillColor('#fff');
-                doc.text(dayH.toFixed(2), x, gridY + 3, { width: dayW, align: 'center' });
-                doc.fontSize(6).font('Helvetica').text(`${dayU} Units`, x, gridY + 13, { width: dayW, align: 'center' });
+            if (dh > 0) {
+                doc.fontSize(9).font('Helvetica-Bold').fillColor('#fff').text(dh.toFixed(2), x, gridY + 3, { width: dayW, align: 'center' });
+                doc.fontSize(5.5).font('Helvetica').text(`${du} Units`, x, gridY + 15, { width: dayW, align: 'center' });
             } else {
-                doc.fontSize(7).font('Helvetica').fillColor('rgba(255,255,255,0.5)');
-                doc.text('—', x, gridY + 6, { width: dayW, align: 'center' });
+                doc.fontSize(7).font('Helvetica').fillColor('rgba(255,255,255,0.4)').text('—', x, gridY + 8, { width: dayW, align: 'center' });
             }
         }
 
-        // Week total (right column)
-        const wtX = mL + labelW + 7 * dayW;
-        doc.save().rect(wtX, gridY, totalsW, dailyBarH).fill('#16a34a').restore();
-        doc.fontSize(5.5).font('Helvetica-Bold').fillColor('#fff');
-        doc.text('WEEK TOTAL', wtX + 4, gridY + 2, { width: totalsW - 8, align: 'center' });
-        doc.fontSize(8).text(`${(ts.totalHours || 0).toFixed(2)} Hours`, wtX + 4, gridY + 9, { width: totalsW - 8, align: 'center' });
-        doc.fontSize(6).text(`${Math.round((ts.totalHours || 0) * 4)} Units`, wtX + 4, gridY + 18, { width: totalsW - 8, align: 'center' });
+        // Week total badge
+        const wtx = mL + labelW + 7 * dayW;
+        doc.save().rect(wtx, gridY, totalsW, barH).fill(green).restore();
+        doc.fontSize(5).font('Helvetica-Bold').fillColor('#fff').text('WEEK TOTAL', wtx + 2, gridY + 2, { width: totalsW - 4, align: 'center' });
+        doc.fontSize(9).text(`${(ts.totalHours || 0).toFixed(2)} Hours`, wtx + 2, gridY + 9, { width: totalsW - 4, align: 'center' });
+        doc.fontSize(6.5).text(`${Math.round((ts.totalHours || 0) * 4)} Units`, wtx + 2, gridY + 19, { width: totalsW - 4, align: 'center' });
 
-        gridY += dailyBarH + 6;
+        gridY += barH + 8;
 
-        // ── Signature section ──
-        if (gridY + 55 > pageH + 12) { doc.addPage(); gridY = 12; }
+        // ═══ SIGNATURE SECTION ═══
+        if (gridY + 60 > pageBottom) { doc.addPage(); gridY = 14; }
 
-        const sigBoxH = 52;
-        doc.save().rect(mL, gridY, pageW, sigBoxH).lineWidth(0.5).stroke('#ccc').restore();
+        const sigH = 58;
+        doc.save().rect(mL, gridY, pageW, sigH).lineWidth(0.7).stroke('#ccc').restore();
 
         const sigColW = pageW / 4;
         for (let i = 1; i < 4; i++) {
-            doc.save().moveTo(mL + sigColW * i, gridY).lineTo(mL + sigColW * i, gridY + sigBoxH).lineWidth(0.5).stroke('#ccc').restore();
+            doc.save().moveTo(mL + sigColW * i, gridY).lineTo(mL + sigColW * i, gridY + sigH).lineWidth(0.5).stroke('#ddd').restore();
         }
 
-        const sigPad = 6;
-        const sig1X = mL + sigPad;
-        const sig2X = mL + sigColW + sigPad;
-        const sig3X = mL + sigColW * 2 + sigPad;
-        const sig4X = mL + sigColW * 3 + sigPad;
-        const sigContentW = sigColW - sigPad * 2;
+        const pad = 8;
+        const sw = sigColW - pad * 2;
+        const cols = [mL + pad, mL + sigColW + pad, mL + sigColW * 2 + pad, mL + sigColW * 3 + pad];
 
-        // Column 1: Caregiver / PCA
-        doc.fontSize(6.5).font('Helvetica-Bold').fillColor('#333');
-        doc.text('Caregiver / PCA (Employee)', sig1X, gridY + 4, { width: sigContentW });
-        if (ts.pcaSignature) {
-            try { doc.image(ts.pcaSignature, sig1X, gridY + 14, { width: sigContentW * 0.7, height: 20 }); } catch {}
-        }
-        doc.save().moveTo(sig1X, gridY + 36).lineTo(sig1X + sigContentW, gridY + 36).lineWidth(0.5).stroke('#333').restore();
-        doc.fontSize(6).font('Helvetica').fillColor('#555');
-        doc.text(`Date: ${ts.completionDate || ''}`, sig1X, gridY + 40);
+        // Labels
+        doc.fontSize(7).font('Helvetica-Bold').fillColor('#333');
+        doc.text('Caregiver / PCA (Employee)', cols[0], gridY + 4);
+        doc.text('Client / Recipient', cols[1], gridY + 4);
+        doc.text('Supervisor', cols[2], gridY + 4);
+        doc.text('OFFICE USE ONLY', cols[3], gridY + 4);
 
-        // Column 2: Client / Recipient
-        doc.fontSize(6.5).font('Helvetica-Bold').fillColor('#333');
-        doc.text('Client / Recipient', sig2X, gridY + 4, { width: sigContentW });
-        if (ts.recipientSignature) {
-            try { doc.image(ts.recipientSignature, sig2X, gridY + 14, { width: sigContentW * 0.7, height: 20 }); } catch {}
-        }
-        doc.save().moveTo(sig2X, gridY + 36).lineTo(sig2X + sigContentW, gridY + 36).lineWidth(0.5).stroke('#333').restore();
-        doc.fontSize(6).font('Helvetica').fillColor('#555');
-        doc.text(`Date: ${ts.completionDate || ''}`, sig2X, gridY + 40);
+        // Signatures
+        const sigImgY = gridY + 14;
+        const sigImgH = 22;
+        if (ts.pcaSignature) { try { doc.image(ts.pcaSignature, cols[0], sigImgY, { width: sw * 0.75, height: sigImgH }); } catch {} }
+        if (ts.recipientSignature) { try { doc.image(ts.recipientSignature, cols[1], sigImgY, { width: sw * 0.75, height: sigImgH }); } catch {} }
+        if (ts.supervisorSignature) { try { doc.image(ts.supervisorSignature, cols[2], sigImgY, { width: sw * 0.75, height: sigImgH }); } catch {} }
 
-        // Column 3: Supervisor
-        doc.fontSize(6.5).font('Helvetica-Bold').fillColor('#333');
-        doc.text('Supervisor', sig3X, gridY + 4, { width: sigContentW });
-        if (ts.supervisorSignature) {
-            try { doc.image(ts.supervisorSignature, sig3X, gridY + 14, { width: sigContentW * 0.7, height: 20 }); } catch {}
-        }
-        doc.save().moveTo(sig3X, gridY + 36).lineTo(sig3X + sigContentW, gridY + 36).lineWidth(0.5).stroke('#333').restore();
-        doc.fontSize(6).font('Helvetica').fillColor('#555');
-        doc.text(`Date: ${ts.completionDate || ''}`, sig3X, gridY + 40);
+        // Signature lines
+        const lineY = gridY + 38;
+        doc.save().lineWidth(0.5).strokeColor('#555');
+        doc.moveTo(cols[0], lineY).lineTo(cols[0] + sw, lineY).stroke();
+        doc.moveTo(cols[1], lineY).lineTo(cols[1] + sw, lineY).stroke();
+        doc.moveTo(cols[2], lineY).lineTo(cols[2] + sw, lineY).stroke();
+        doc.restore();
 
-        // Column 4: Office Use Only
-        doc.fontSize(6.5).font('Helvetica-Bold').fillColor('#333');
-        doc.text('OFFICE USE ONLY', sig4X, gridY + 4, { width: sigContentW });
+        // Dates
+        const dateY = gridY + 42;
         doc.fontSize(6).font('Helvetica').fillColor('#555');
-        doc.text('Accepted By: ___________________________', sig4X, gridY + 18, { width: sigContentW });
-        doc.text('Date: _______________', sig4X + sigContentW * 0.6, gridY + 18, { width: sigContentW * 0.4 });
-        doc.text('Comments: ________________________________________', sig4X, gridY + 32, { width: sigContentW });
+        doc.text(`Date:  ${ts.completionDate || '___/___/______'}`, cols[0], dateY);
+        doc.text(`Date:  ${ts.completionDate || '___/___/______'}`, cols[1], dateY);
+        doc.text(`Date:  ${ts.completionDate || '___/___/______'}`, cols[2], dateY);
+
+        // Office Use Only
+        doc.fontSize(6).font('Helvetica').fillColor('#555');
+        doc.text('Accepted By: ______________________________     Date: ______________', cols[3], gridY + 20);
+        doc.text('Comments: _______________________________________________________________', cols[3], gridY + 38);
 
         doc.end();
     } catch (err) { next(err); }
