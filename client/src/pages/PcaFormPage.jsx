@@ -8,7 +8,7 @@ import { formatWeek } from '../utils/dates';
 const DAY_SHORT = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const ADL_ACTIVITIES = ['Bathing', 'Dressing', 'Grooming', 'Continence', 'Toileting', 'Ambulation/Mobility', 'Transfer'];
 const IADL_ACTIVITIES = ['Light Housekeeping', 'Medication Reminders', 'Laundry', 'Shopping', 'Meal Preparation B.L.D.', 'Eating/Feeding'];
-const RESPITE_ACTIVITIES = ['Companionship', 'Safety Supervision'];
+const RESPITE_ACTIVITIES = ['Light Housekeeping', 'Medication Reminders', 'Laundry', 'Shopping', 'Meal Preparation B.L.D.', 'Eating/Feeding', 'Companion'];
 
 function roundTo15(timeStr) {
     if (!timeStr) return '';
@@ -56,12 +56,10 @@ function getSunday(date) {
     return dt.toISOString().slice(0, 10);
 }
 
-function SectionBlock({ header, activities, section, entries, updateEntry, dailyHoursFn, disabled, sectionDisabled, onAddShift, onRemoveShift, fieldErrors = {}, colorClass = '' }) {
+function SectionBlock({ header, activities, section, entries, updateEntry, dailyHoursFn, disabled, sectionDisabled, onAddShift, onRemoveShift, respiteEnabled, isIadlSection, fieldErrors = {} }) {
     const SHIFT_COLORS = ['', 'sdr-shift--s2', 'sdr-shift--s3', 'sdr-shift--s4', 'sdr-shift--s5'];
-    const totalHrs = entries.reduce((s, e) => s + dailyHoursFn(e), 0);
-    const totalUnits = Math.round(totalHrs * 4);
     return (
-        <div className={`sdr-section ${sectionDisabled ? 'sdr-section--disabled' : ''} ${colorClass}`}>
+        <div className={`sdr-section ${sectionDisabled ? 'sdr-section--disabled' : ''}`}>
             <div className="sdr-section-title">{header}</div>
             <div className="sdr-day-header-row">
                 <div className="sdr-activity-label" />
@@ -90,6 +88,24 @@ function SectionBlock({ header, activities, section, entries, updateEntry, daily
                     })}
                 </div>
             ))}
+            {isIadlSection && respiteEnabled && (
+                <div className="sdr-activity-row sdr-activity-row--respite">
+                    <div className="sdr-activity-label"><strong>Respite</strong></div>
+                    {entries.map((entry, idx) => {
+                        const acts = JSON.parse(entry.respiteActivities || '{}');
+                        const checked = !!acts['Respite'];
+                        return (
+                            <div key={idx} className="sdr-activity-cell">
+                                <input type="checkbox" checked={checked} disabled={disabled}
+                                    onChange={() => {
+                                        const next = { ...acts, Respite: !checked };
+                                        updateEntry(idx, 'respiteActivities', JSON.stringify(next));
+                                    }} />
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
             <div className="sdr-activity-row sdr-initials-row">
                 <div className="sdr-activity-label"><strong>PCA Initials</strong> <span className="sdr-required">*</span></div>
                 {entries.map((e, i) => (
@@ -184,21 +200,15 @@ function SectionBlock({ header, activities, section, entries, updateEntry, daily
                 }
                 return rows;
             })()}
-            {/* Add Shift buttons per day + section totals */}
+            {/* Add Shift button */}
             {!disabled && (
-                <div className="sdr-activity-row sdr-shift-totals-row">
-                    <div className="sdr-activity-label" />
-                    {entries.map((_, i) => (
-                        <div key={i} className="sdr-activity-cell">
-                            <button type="button" className="sdr-add-shift-btn" onClick={() => onAddShift(section)}>
-                                + Add Shift
-                            </button>
-                        </div>
-                    ))}
-                    <div className="sdr-section-summary">
-                        <div className="sdr-section-summary__hours"><span>Hours</span><strong>{totalHrs.toFixed(2)}</strong></div>
-                        <div className="sdr-section-summary__units"><span>Units</span><strong>{totalUnits}</strong></div>
+                <div className="sdr-activity-row">
+                    <div className="sdr-activity-label">
+                        <button type="button" className="sdr-add-shift-btn" onClick={() => onAddShift(section)}>
+                            + Add Shift
+                        </button>
                     </div>
+                    {entries.map((_, i) => <div key={i} className="sdr-activity-cell" />)}
                 </div>
             )}
             <div className="sdr-activity-row sdr-total-row">
@@ -224,6 +234,7 @@ export default function PcaFormPage() {
     const [recipientSig, setRecipientSig] = useState('');
     const [saving, setSaving] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [iadlTab, setIadlTab] = useState('iadl');
     const [toast, setToast] = useState('');
     const [selectedWeekStart, setSelectedWeekStart] = useState('');
     const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -249,6 +260,8 @@ export default function PcaFormPage() {
                 setRecipientSig(resp.timesheet.recipientSignature || '');
                 const ws = resp.timesheet.weekStart?.split('T')[0] || '';
                 setSelectedWeekStart(ws);
+                const enabled = resp.client?.enabledServices || [];
+                if (!enabled.includes('Homemaker') && enabled.includes('Respite')) setIadlTab('respite');
             })
             .catch((err) => setError(err.message))
             .finally(() => setLoading(false));
@@ -260,6 +273,7 @@ export default function PcaFormPage() {
     const pasEnabled = enabledServices.includes('PAS');
     const hmEnabled = enabledServices.includes('Homemaker');
     const respiteEnabled = enabledServices.includes('Respite');
+    const iadlAnyEnabled = hmEnabled || respiteEnabled;
     const submitted = data?.timesheet?.status === 'submitted';
     const authLimits = data?.authLimits || {};
 
@@ -443,6 +457,8 @@ export default function PcaFormPage() {
     if (!data) return null;
 
     const weekLabel = formatWeek(selectedWeekStart || data.timesheet.weekStart.split('T')[0]);
+    const iadlSection = iadlTab === 'respite' ? 'respite' : 'iadl';
+    const iadlHoursFn = iadlTab === 'respite' ? respiteHrs : iadlHrs;
 
     const pasHeader = (
         <>
@@ -451,19 +467,23 @@ export default function PcaFormPage() {
         </>
     );
 
-    const homemakerHeader = (
+    const iadlHeader = (
         <>
-            <span className="sdr-section-icon sdr-section-icon--hm">&#9632;</span>
-            <span>Homemaker</span>
-            <span className="sdr-section-subtitle">(IADL Services)</span>
-        </>
-    );
-
-    const respiteHeader = (
-        <>
-            <span className="sdr-section-icon sdr-section-icon--respite">&#9201;</span>
-            <span>Respite</span>
-            <span className="sdr-section-subtitle">(Respite Services)</span>
+            <span>IADL's Instrumental Activities of Daily Living</span>
+            <button
+                type="button"
+                className={`sdr-section-tag ${hmEnabled ? (iadlTab === 'iadl' ? 'sdr-section-tag--active' : 'sdr-section-tag--available') : 'sdr-section-tag--disabled'}`}
+                disabled={!hmEnabled || submitted}
+                onClick={() => hmEnabled && setIadlTab('iadl')}
+                title={hmEnabled ? 'Log Homemaker time' : 'Not approved for this client'}
+            >HOMEMAKER (HM)</button>
+            <button
+                type="button"
+                className={`sdr-section-tag ${respiteEnabled ? (iadlTab === 'respite' ? 'sdr-section-tag--active' : 'sdr-section-tag--available') : 'sdr-section-tag--disabled'}`}
+                disabled={!respiteEnabled || submitted}
+                onClick={() => respiteEnabled && setIadlTab('respite')}
+                title={respiteEnabled ? 'Log Respite time' : 'Not approved for this client'}
+            >RESPITE (RP)</button>
         </>
     );
 
@@ -540,41 +560,25 @@ export default function PcaFormPage() {
                             onAddShift={handleAddShift}
                             onRemoveShift={handleRemoveShift}
                             fieldErrors={fieldErrors}
-                            colorClass="sdr-section--pas"
                         />
 
-                        {hmEnabled && (
-                            <SectionBlock
-                                header={homemakerHeader}
-                                activities={IADL_ACTIVITIES}
-                                section="iadl"
-                                entries={entries}
-                                updateEntry={updateEntry}
-                                dailyHoursFn={iadlHrs}
-                                disabled={submitted || !hmEnabled}
-                                sectionDisabled={!hmEnabled}
-                                onAddShift={handleAddShift}
-                                onRemoveShift={handleRemoveShift}
-                                fieldErrors={fieldErrors}
-                                colorClass="sdr-section--hm"
-                            />
-                        )}
-
-                        {respiteEnabled && (
-                            <SectionBlock
-                                header={respiteHeader}
-                                activities={RESPITE_ACTIVITIES}
-                                section="respite"
-                                entries={entries}
-                                updateEntry={updateEntry}
-                                dailyHoursFn={respiteHrs}
-                                disabled={submitted || !respiteEnabled}
-                                sectionDisabled={!respiteEnabled}
-                                onAddShift={handleAddShift}
-                                onRemoveShift={handleRemoveShift}
-                                fieldErrors={fieldErrors}
-                                colorClass="sdr-section--respite"
-                            />
+                        <SectionBlock
+                            header={iadlHeader}
+                            activities={iadlTab === 'respite' ? RESPITE_ACTIVITIES : IADL_ACTIVITIES}
+                            section={iadlSection}
+                            entries={entries}
+                            updateEntry={updateEntry}
+                            dailyHoursFn={iadlHoursFn}
+                            disabled={submitted || !iadlAnyEnabled || (iadlTab === 'iadl' && !hmEnabled) || (iadlTab === 'respite' && !respiteEnabled)}
+                            sectionDisabled={!iadlAnyEnabled}
+                            onAddShift={handleAddShift}
+                            onRemoveShift={handleRemoveShift}
+                            respiteEnabled={respiteEnabled}
+                            isIadlSection
+                            fieldErrors={fieldErrors}
+                        />
+                        {iadlAnyEnabled && hmEnabled && respiteEnabled && (
+                            <p className="pca-form-hint">Tip: switch between <strong>HOMEMAKER</strong> and <strong>RESPITE</strong> using the tags in the blue bar above. Only one can be logged per day in a given time block.</p>
                         )}
 
                         <div className="sdr-totals-bar">

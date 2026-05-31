@@ -11,7 +11,10 @@ const IADL_ACTIVITIES = [
     'Light Housekeeping', 'Medication Reminders', 'Laundry',
     'Shopping', 'Meal Preparation B.L.D.', 'Eating/Feeding',
 ];
-const RESPITE_ACTIVITIES = ['Companionship', 'Safety Supervision'];
+const RESPITE_ACTIVITIES = [
+    'Light Housekeeping', 'Medication Reminders', 'Laundry',
+    'Shopping', 'Meal Preparation B.L.D.', 'Eating/Feeding', 'Companion',
+];
 
 // ── 15-minute rounding ──────────────────────────
 function roundTo15(timeStr) {
