@@ -3430,7 +3430,7 @@ button.sdr-section-tag:hover:not(:disabled) {
 
 .tsv2-info-card__value {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   color: hsl(var(--foreground));
 }
 
@@ -3449,8 +3449,8 @@ button.sdr-section-tag:hover:not(:disabled) {
 }
 
 .tsv2-programs__title {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin-bottom: 4px;
@@ -3533,10 +3533,21 @@ button.sdr-section-tag:hover:not(:disabled) {
   font-weight: 700;
 }
 
+.tsv2-program-card__name--blue { color: #1e40af; }
+.tsv2-program-card__name--green { color: #16a34a; }
+.tsv2-program-card__name--orange { color: #ea580c; }
+
 .tsv2-program-card__desc {
   font-size: 11px;
   color: hsl(var(--muted-foreground));
   margin-top: 2px;
+}
+
+.tsv2-program-card__activities {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  margin-top: 4px;
+  line-height: 1.4;
 }
 
 /* Grid column header */
@@ -3583,9 +3594,13 @@ button.sdr-section-tag:hover:not(:disabled) {
 /* Program section within the grid */
 .tsv2-section {
   border: 1px solid hsl(var(--border));
-  border-top: none;
+  border-top: 3px solid white;
   background: hsl(var(--card));
   margin-bottom: 0;
+}
+
+.tsv2-section:first-of-type {
+  border-top: none;
 }
 
 .tsv2-section:last-of-type {
@@ -3637,6 +3652,10 @@ button.sdr-section-tag:hover:not(:disabled) {
   font-weight: 700;
 }
 
+.tsv2-section-name--blue { color: #1e40af; }
+.tsv2-section-name--green { color: #16a34a; }
+.tsv2-section-name--orange { color: #ea580c; }
+
 .tsv2-section-subtitle {
   font-size: 11px;
   color: hsl(var(--muted-foreground));
@@ -3659,6 +3678,7 @@ button.sdr-section-tag:hover:not(:disabled) {
 
 .tsv2-row__label {
   font-size: 12px;
+  font-weight: 600;
   padding: 4px 8px;
   white-space: nowrap;
   overflow: hidden;
@@ -3824,8 +3844,8 @@ button.sdr-section-tag:hover:not(:disabled) {
   display: grid;
   grid-template-columns: 180px repeat(7, 1fr) 90px;
   padding: 0 8px;
-  background: #dc2626;
-  color: white;
+  background: hsl(210 60% 95%);
+  color: #1e3a5f;
   min-height: 52px;
   align-items: center;
   border-radius: 0 0 var(--radius) var(--radius);
@@ -3914,6 +3934,9 @@ button.sdr-section-tag:hover:not(:disabled) {
 .tsv2-weekly-table .tsv2-program-dot--blue { background: #1e40af; }
 .tsv2-weekly-table .tsv2-program-dot--green { background: #16a34a; }
 .tsv2-weekly-table .tsv2-program-dot--orange { background: #ea580c; }
+
+.tsv2-remaining--ok { color: #16a34a; font-weight: 600; }
+.tsv2-remaining--over { color: #dc2626; font-weight: 600; }
 
 .tsv2-notes-textarea {
   width: 100%;
@@ -4039,17 +4062,32 @@ button.sdr-section-tag:hover:not(:disabled) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 0;
-  font-size: 12px;
+  padding: 14px 20px;
+  font-size: 13px;
+  color: #1e40af;
+  font-weight: 700;
+  background: hsl(210 60% 95%);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+}
+
+.tsv2-footer__left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.tsv2-footer__right {
   color: hsl(var(--muted-foreground));
-  border-top: 1px solid hsl(var(--border));
+  font-weight: 400;
+  font-size: 12px;
 }
 
 .tsv2-footer__stat {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-weight: 500;
+  font-weight: 700;
 }
 
 /* Icon utility */
@@ -4085,6 +4123,53 @@ button.sdr-section-tag:hover:not(:disabled) {
 .tsv2-btn-icon svg {
   width: 100%;
   height: 100%;
+}
+
+/* Status badge */
+.tsv2-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1.5px solid;
+}
+
+.tsv2-status-badge--submitted {
+  color: #16a34a;
+  border-color: #16a34a;
+  background: hsl(140 60% 97%);
+}
+
+.tsv2-status-badge--accepted {
+  color: #16a34a;
+  border-color: #16a34a;
+  background: hsl(140 60% 95%);
+}
+
+.tsv2-status-badge--draft {
+  color: hsl(var(--muted-foreground));
+  border-color: hsl(var(--border));
+  background: hsl(var(--muted));
+}
+
+.tsv2-status-badge--rejected {
+  color: #dc2626;
+  border-color: #dc2626;
+  background: hsl(0 80% 97%);
+}
+
+.tsv2-status-badge .tsv2-icon-svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Office use disabled buttons */
+.tsv2-office-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Disabled admin buttons */

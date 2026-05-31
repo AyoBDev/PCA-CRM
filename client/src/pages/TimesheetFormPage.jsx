@@ -8,10 +8,9 @@ import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 
 const DAY_SHORT = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-const ADL_ACTIVITIES = ['Bathing', 'Dressing', 'Grooming', 'Continence', 'Toileting', 'Ambulation/Mobility', 'Cane, Walker W/Chair', 'Transfer', 'Exer./Passive Range of Motion'];
-const IADL_ACTIVITIES = ['Light Housekeeping', 'Medication Reminders', 'Laundry'];
-const NUTRITION_ACTIVITIES = ['Shopping', 'Meal Preparation B.L.D.', 'Eating/Feeding'];
-const RESPITE_ACTIVITIES = ['Light Housekeeping', 'Medication Reminders', 'Laundry', 'Shopping', 'Meal Preparation B.L.D.', 'Eating/Feeding', 'Companion'];
+const ADL_ACTIVITIES = ['Bathing', 'Dressing', 'Grooming', 'Continence', 'Toileting', 'Ambulation/Mobility', 'Transfer', 'Eating/Feeding'];
+const IADL_ACTIVITIES = ['Light Housekeeping', 'Medication Reminders', 'Laundry', 'Shopping', 'Meal Preparation B.L.D.', 'Eating/Feeding', 'Other'];
+const RESPITE_ACTIVITIES = ['Companionship', 'Safety Supervision'];
 
 function roundTo15(timeStr) {
     if (!timeStr) return '';
@@ -70,7 +69,7 @@ function ProgramSection({ title, subtitle, icon, colorClass, activities, section
         <div className={`tsv2-section ${sectionDisabled ? 'tsv2-section--disabled' : ''}`}>
             <div className="tsv2-section-header">
                 <div className={`tsv2-section-icon tsv2-section-icon--${colorClass}`}><span className="tsv2-icon-svg">{icon}</span></div>
-                <span className="tsv2-section-name">{title}</span>
+                <span className={`tsv2-section-name tsv2-section-name--${colorClass}`}>{title}</span>
                 <span className="tsv2-section-subtitle">({subtitle})</span>
             </div>
 
@@ -298,6 +297,20 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
     const totalRespite = entries.reduce((s, e) => s + respiteDailyHours(e), 0);
     const totalAll = totalPas + totalHm + totalRespite;
 
+    const authLimits = ts?.authLimits || {};
+    const authPasHours = authLimits.PAS ? (authLimits.PAS / 4).toFixed(2) : '—';
+    const authHmHours = authLimits.Homemaker ? (authLimits.Homemaker / 4).toFixed(2) : '—';
+    const authRespiteHours = authLimits.Respite ? (authLimits.Respite / 4).toFixed(2) : '—';
+    const authTotalHours = (authLimits.PAS || authLimits.Homemaker || authLimits.Respite)
+        ? (((authLimits.PAS || 0) + (authLimits.Homemaker || 0) + (authLimits.Respite || 0)) / 4).toFixed(2)
+        : '—';
+    const remainPas = authLimits.PAS ? ((authLimits.PAS / 4) - totalPas).toFixed(2) : '—';
+    const remainHm = authLimits.Homemaker ? ((authLimits.Homemaker / 4) - totalHm).toFixed(2) : '—';
+    const remainRespite = authLimits.Respite ? ((authLimits.Respite / 4) - totalRespite).toFixed(2) : '—';
+    const remainTotal = (authLimits.PAS || authLimits.Homemaker || authLimits.Respite)
+        ? (((authLimits.PAS || 0) + (authLimits.Homemaker || 0) + (authLimits.Respite || 0)) / 4 - totalAll).toFixed(2)
+        : '—';
+
     const handleSave = async () => {
         setSaving(true);
         try {
@@ -382,6 +395,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                         <h1>Timesheet Details</h1>
                     </div>
                     <div className="tsv2-header-actions">
+                        <button className="btn btn--outline btn--sm" onClick={onBack}><span className="tsv2-btn-icon">{Icons.chevronLeft}</span> Back to Board</button>
                         <button className="btn btn--outline btn--sm" onClick={async () => {
                             try {
                                 const blob = await api.exportTimesheetPdf(ts.id);
@@ -427,7 +441,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                     <div className="tsv2-info-card">
                         <div>
                             <div className="tsv2-info-card__label">Status</div>
-                            <div className="tsv2-info-card__value"><span className={`ts-badge ts-badge--${ts.status}`}>{ts.status}</span></div>
+                            <div className="tsv2-info-card__value"><span className={`tsv2-status-badge tsv2-status-badge--${ts.status}`}><span className="tsv2-icon-svg">{Icons.checkCircle}</span> {ts.status.charAt(0).toUpperCase() + ts.status.slice(1)}</span></div>
                         </div>
                     </div>
                 </div>
@@ -441,25 +455,25 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                             <div className={`tsv2-program-card ${pasEnabled ? 'tsv2-program-card--active-blue' : ''}`} onClick={() => toggleService('PAS')}>
                                 <div className="tsv2-program-card__checkbox">{pasEnabled && '✓'}</div>
                                 <div>
-                                    <div className="tsv2-program-card__name">PAS</div>
+                                    <div className="tsv2-program-card__name tsv2-program-card__name--blue">PAS</div>
                                     <div className="tsv2-program-card__desc">Personal Assistance Services</div>
-                                    <div className="tsv2-program-card__desc">{ADL_ACTIVITIES.join(', ')}</div>
+                                    <div className="tsv2-program-card__activities">{ADL_ACTIVITIES.join(', ')}</div>
                                 </div>
                             </div>
                             <div className={`tsv2-program-card ${hmEnabled ? 'tsv2-program-card--active-green' : ''}`} onClick={() => toggleService('Homemaker')}>
                                 <div className="tsv2-program-card__checkbox">{hmEnabled && '✓'}</div>
                                 <div>
-                                    <div className="tsv2-program-card__name">Homemaker</div>
+                                    <div className="tsv2-program-card__name tsv2-program-card__name--green">Homemaker</div>
                                     <div className="tsv2-program-card__desc">IADL Services</div>
-                                    <div className="tsv2-program-card__desc">{[...IADL_ACTIVITIES, ...NUTRITION_ACTIVITIES].join(', ')}</div>
+                                    <div className="tsv2-program-card__activities">{IADL_ACTIVITIES.join(', ')}</div>
                                 </div>
                             </div>
                             <div className={`tsv2-program-card ${respiteEnabled ? 'tsv2-program-card--active-orange' : ''}`} onClick={() => toggleService('Respite')}>
                                 <div className="tsv2-program-card__checkbox">{respiteEnabled && '✓'}</div>
                                 <div>
-                                    <div className="tsv2-program-card__name">Respite</div>
+                                    <div className="tsv2-program-card__name tsv2-program-card__name--orange">Respite</div>
                                     <div className="tsv2-program-card__desc">Respite Services</div>
-                                    <div className="tsv2-program-card__desc">{RESPITE_ACTIVITIES.join(', ')}</div>
+                                    <div className="tsv2-program-card__activities">{RESPITE_ACTIVITIES.join(', ')}</div>
                                 </div>
                             </div>
                         </div>
@@ -501,7 +515,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                     subtitle="IADL Services"
                     icon={Icons.building}
                     colorClass="green"
-                    activities={[...IADL_ACTIVITIES, ...NUTRITION_ACTIVITIES]}
+                    activities={IADL_ACTIVITIES}
                     section="iadl"
                     entries={entries}
                     updateEntry={updateEntry}
@@ -568,8 +582,8 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                                         <td><span className="tsv2-program-dot tsv2-program-dot--blue" />PAS (Personal Assistance Services)</td>
                                         <td>{totalPas.toFixed(2)}</td>
                                         <td>{Math.round(totalPas * 4)}</td>
-                                        <td>—</td>
-                                        <td>—</td>
+                                        <td>{authPasHours}</td>
+                                        <td className={remainPas !== '—' && parseFloat(remainPas) >= 0 ? 'tsv2-remaining--ok' : 'tsv2-remaining--over'}>{remainPas}</td>
                                     </tr>
                                 )}
                                 {hmEnabled && (
@@ -577,8 +591,8 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                                         <td><span className="tsv2-program-dot tsv2-program-dot--green" />Homemaker (IADL Services)</td>
                                         <td>{totalHm.toFixed(2)}</td>
                                         <td>{Math.round(totalHm * 4)}</td>
-                                        <td>—</td>
-                                        <td>—</td>
+                                        <td>{authHmHours}</td>
+                                        <td className={remainHm !== '—' && parseFloat(remainHm) >= 0 ? 'tsv2-remaining--ok' : 'tsv2-remaining--over'}>{remainHm}</td>
                                     </tr>
                                 )}
                                 {respiteEnabled && (
@@ -586,16 +600,16 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                                         <td><span className="tsv2-program-dot tsv2-program-dot--orange" />Respite (Respite Services)</td>
                                         <td>{totalRespite.toFixed(2)}</td>
                                         <td>{Math.round(totalRespite * 4)}</td>
-                                        <td>—</td>
-                                        <td>—</td>
+                                        <td>{authRespiteHours}</td>
+                                        <td className={remainRespite !== '—' && parseFloat(remainRespite) >= 0 ? 'tsv2-remaining--ok' : 'tsv2-remaining--over'}>{remainRespite}</td>
                                     </tr>
                                 )}
                                 <tr>
                                     <td><strong>TOTAL</strong></td>
                                     <td><strong>{totalAll.toFixed(2)}</strong></td>
                                     <td><strong>{Math.round(totalAll * 4)}</strong></td>
-                                    <td><strong>—</strong></td>
-                                    <td><strong>—</strong></td>
+                                    <td><strong>{authTotalHours}</strong></td>
+                                    <td className={remainTotal !== '—' && parseFloat(remainTotal) >= 0 ? 'tsv2-remaining--ok' : 'tsv2-remaining--over'}><strong>{remainTotal}</strong></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -650,12 +664,11 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
 
                 {/* Footer */}
                 <div className="tsv2-footer">
-                    <div>
+                    <div className="tsv2-footer__left">
                         <span className="tsv2-footer__stat"><span className="tsv2-icon-svg">{Icons.clock}</span> Total Time: {totalAll.toFixed(2)} Hours</span>
-                        &nbsp;&nbsp;
                         <span className="tsv2-footer__stat"><span className="tsv2-icon-svg">{Icons.trendingUp}</span> Total Units: {Math.round(totalAll * 4)}</span>
                     </div>
-                    <div>Week starts on Sunday and ends on Saturday</div>
+                    <div className="tsv2-footer__right">Week starts on Sunday and ends on Saturday</div>
                 </div>
 
                 {/* Action buttons for draft */}
@@ -668,7 +681,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                 )}
                 {submitted && isAdmin && (
                     <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', padding: '16px 0' }}>
-                        <button className="btn btn--outline btn--sm" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</button>
+                        <button className="btn btn--primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</button>
                     </div>
                 )}
             </div>

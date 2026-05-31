@@ -126,7 +126,27 @@ async function getTimesheet(req, res, next) {
             include: { client: true, entries: { orderBy: { dayOfWeek: 'asc' } } },
         });
         if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
-        res.json(ts);
+
+        let authLimits = null;
+        if (ts.clientId) {
+            const auths = await prisma.authorization.findMany({
+                where: { clientId: ts.clientId },
+                select: { serviceCode: true, serviceName: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true },
+            });
+            const wsDate = new Date(ts.weekStart);
+            const weDate = new Date(wsDate);
+            weDate.setUTCDate(weDate.getUTCDate() + 6);
+            const activeAuths = filterAuthsByWeek(auths, wsDate, weDate);
+            const limits = {};
+            for (const a of activeAuths) {
+                const svc = deriveTimesheetService(a);
+                if (!svc) continue;
+                limits[svc] = (limits[svc] || 0) + (a.authorizedUnits || 0);
+            }
+            if (Object.keys(limits).length > 0) authLimits = limits;
+        }
+
+        res.json({ ...ts, authLimits });
     } catch (err) { next(err); }
 }
 
