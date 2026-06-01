@@ -353,13 +353,13 @@ router.delete('/activities/:id', requireRole('admin'), deleteActivity);
 router.get('/audit-logs',                     requireRole('admin'), getAuditLogs);
 router.get('/audit-logs/:entityType/:entityId', requireRole('admin'), getEntityAuditLogs);
 
-// Tasks (admin only)
-router.get('/tasks/summary', requireRole('admin'), getTaskSummary);
-router.get('/tasks', requireRole('admin'), listTasks);
+// Tasks
+router.get('/tasks/summary', requireRole('admin', 'user', 'pca'), getTaskSummary);
+router.get('/tasks', requireRole('admin', 'user', 'pca'), listTasks);
 router.patch('/tasks/bulk-update', requireRole('admin'), bulkUpdateTasks);
-router.get('/tasks/:id', requireRole('admin'), getTask);
+router.get('/tasks/:id', requireRole('admin', 'user', 'pca'), getTask);
 router.post('/tasks', requireRole('admin'), createTask);
-router.patch('/tasks/:id', requireRole('admin'), updateTask);
+router.patch('/tasks/:id', requireRole('admin', 'user', 'pca'), updateTask);
 router.delete('/tasks/:id', requireRole('admin'), deleteTask);
 
 // Workflow Triggers (admin only)

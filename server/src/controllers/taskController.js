@@ -1,6 +1,16 @@
 const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 
+function assignmentFilter(user) {
+    if (user.role === 'admin') return {};
+    return {
+        OR: [
+            { assignedToUserId: user.id },
+            { assignedToRole: user.role },
+        ],
+    };
+}
+
 async function listTasks(req, res, next) {
     try {
         const { status, urgency, assignedToUserId, assignedToRole, entityType, entityId, dueBefore, dueAfter, page = 1 } = req.query;
@@ -8,6 +18,9 @@ async function listTasks(req, res, next) {
         const skip = (Number(page) - 1) * limit;
 
         const where = {};
+        const scope = assignmentFilter(req.user);
+        if (scope.OR) where.AND = [{ OR: scope.OR }];
+
         if (status) where.status = status;
         if (urgency) where.urgency = urgency;
         if (assignedToUserId) where.assignedToUserId = Number(assignedToUserId);
@@ -47,6 +60,13 @@ async function getTask(req, res, next) {
             },
         });
         if (!task) return res.status(404).json({ error: 'Task not found' });
+
+        if (req.user.role !== 'admin') {
+            if (task.assignedToUserId !== req.user.id && task.assignedToRole !== req.user.role) {
+                return res.status(403).json({ error: 'Access denied' });
+            }
+        }
+
         res.json(task);
     } catch (err) {
         next(err);
@@ -99,24 +119,40 @@ async function updateTask(req, res, next) {
         const existing = await prisma.task.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Task not found' });
 
-        const { title, description, notes, status, urgency, dueDate, assignedToUserId, assignedToRole } = req.body;
-        const data = {};
-        if (title !== undefined) data.title = title;
-        if (description !== undefined) data.description = description;
-        if (notes !== undefined) data.notes = notes;
-        if (urgency !== undefined) data.urgency = urgency;
-        if (dueDate !== undefined) data.dueDate = dueDate ? new Date(dueDate) : null;
-        if (assignedToUserId !== undefined) data.assignedToUserId = assignedToUserId ? Number(assignedToUserId) : null;
-        if (assignedToRole !== undefined) data.assignedToRole = assignedToRole || null;
+        if (req.user.role !== 'admin') {
+            if (existing.assignedToUserId !== req.user.id && existing.assignedToRole !== req.user.role) {
+                return res.status(403).json({ error: 'Access denied' });
+            }
+        }
 
-        if (status !== undefined) {
-            data.status = status;
-            if (status === 'completed' && existing.status !== 'completed') {
-                data.completedAt = new Date();
+        const data = {};
+        if (req.user.role === 'admin') {
+            const { title, description, notes, status, urgency, dueDate, assignedToUserId, assignedToRole } = req.body;
+            if (title !== undefined) data.title = title;
+            if (description !== undefined) data.description = description;
+            if (notes !== undefined) data.notes = notes;
+            if (urgency !== undefined) data.urgency = urgency;
+            if (dueDate !== undefined) data.dueDate = dueDate ? new Date(dueDate) : null;
+            if (assignedToUserId !== undefined) data.assignedToUserId = assignedToUserId ? Number(assignedToUserId) : null;
+            if (assignedToRole !== undefined) data.assignedToRole = assignedToRole || null;
+            if (status !== undefined) data.status = status;
+        } else {
+            const { notes, status } = req.body;
+            if (notes !== undefined) data.notes = notes;
+            if (status !== undefined) {
+                const allowed = { open: ['in_progress', 'completed'], in_progress: ['completed'] };
+                if (!allowed[existing.status]?.includes(status)) {
+                    return res.status(400).json({ error: `Cannot change status from ${existing.status} to ${status}` });
+                }
+                data.status = status;
             }
-            if (status !== 'completed') {
-                data.completedAt = null;
-            }
+        }
+
+        if (data.status === 'completed' && existing.status !== 'completed') {
+            data.completedAt = new Date();
+        }
+        if (data.status && data.status !== 'completed') {
+            data.completedAt = null;
         }
 
         const task = await prisma.task.update({
@@ -130,7 +166,7 @@ async function updateTask(req, res, next) {
             userId: req.user.id,
             userName: req.user.name,
             userRole: req.user.role,
-            action: status === 'completed' ? 'COMPLETE' : status === 'cancelled' ? 'CANCEL' : 'UPDATE',
+            action: data.status === 'completed' ? 'COMPLETE' : data.status === 'cancelled' ? 'CANCEL' : 'UPDATE',
             entityType: 'Task',
             entityId: task.id,
             entityName: task.title,
@@ -223,22 +259,26 @@ async function getTaskSummary(req, res, next) {
         const weekEnd = new Date(todayStart);
         weekEnd.setDate(weekEnd.getDate() + 7);
 
+        const baseWhere = { status: { in: ['open', 'in_progress'] } };
+        const scope = assignmentFilter(req.user);
+        if (scope.OR) baseWhere.AND = [{ OR: scope.OR }];
+
         const [overdue, dueToday, dueThisWeek, totalOpen, byUrgency] = await Promise.all([
             prisma.task.count({
-                where: { status: { in: ['open', 'in_progress'] }, dueDate: { lt: todayStart } },
+                where: { ...baseWhere, dueDate: { lt: todayStart } },
             }),
             prisma.task.count({
-                where: { status: { in: ['open', 'in_progress'] }, dueDate: { gte: todayStart, lt: todayEnd } },
+                where: { ...baseWhere, dueDate: { gte: todayStart, lt: todayEnd } },
             }),
             prisma.task.count({
-                where: { status: { in: ['open', 'in_progress'] }, dueDate: { gte: todayStart, lt: weekEnd } },
+                where: { ...baseWhere, dueDate: { gte: todayStart, lt: weekEnd } },
             }),
             prisma.task.count({
-                where: { status: { in: ['open', 'in_progress'] } },
+                where: baseWhere,
             }),
             prisma.task.groupBy({
                 by: ['urgency'],
-                where: { status: { in: ['open', 'in_progress'] } },
+                where: baseWhere,
                 _count: true,
             }),
         ]);
