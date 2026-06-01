@@ -13,6 +13,7 @@ export default function DashboardPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [backingUp, setBackingUp] = useState(false);
+    const [drawerOpen, setDrawerOpen] = useState(false);
 
     useEffect(() => {
         api.getDashboardStats()
@@ -21,6 +22,15 @@ export default function DashboardPage() {
             .finally(() => setLoading(false));
         api.getTaskSummary().then(setTaskSummary).catch(() => {});
     }, []);
+
+    useEffect(() => {
+        if (drawerOpen) {
+            document.body.style.overflow = 'hidden';
+            const onKey = (e) => { if (e.key === 'Escape') setDrawerOpen(false); };
+            document.addEventListener('keydown', onKey);
+            return () => { document.body.style.overflow = ''; document.removeEventListener('keydown', onKey); };
+        }
+    }, [drawerOpen]);
 
     if (loading) return <div className="page-loading text-muted">Loading…</div>;
 
@@ -56,12 +66,10 @@ export default function DashboardPage() {
                     </div>
                 </div>
                 <div className="page-hero__right">
-                    {attentionItems.length > 0 && (
-                        <button className="btn btn--ghost btn--icon notification-bell" onClick={() => document.getElementById('notifications-section')?.scrollIntoView({ behavior: 'smooth' })}>
-                            {Icons.bell}
-                            <span className="notification-bell__badge">{attentionItems.length}</span>
-                        </button>
-                    )}
+                    <button className="btn btn--ghost btn--icon notification-bell" onClick={() => setDrawerOpen(true)}>
+                        {Icons.bell}
+                        {attentionItems.length > 0 && <span className="notification-bell__badge">{attentionItems.length}</span>}
+                    </button>
                     {isAdmin && <button className="btn btn--outline" disabled={backingUp} onClick={async () => { setBackingUp(true); try { await api.downloadBackup(); } catch (e) { alert(e.message); } setBackingUp(false); }}>{Icons.download} {backingUp ? 'Exporting...' : 'Backup'}</button>}
                     {isAdmin && <ActivityButton />}
                 </div>
@@ -103,7 +111,7 @@ export default function DashboardPage() {
                 </div>
 
                 {attentionItems.length > 0 && (
-                    <div className="attention-section" id="notifications-section">
+                    <div className="attention-section">
                         <div className="attention-section__header">
                             {Icons.bell}
                             <span>Notifications</span>
@@ -120,6 +128,36 @@ export default function DashboardPage() {
                     </div>
                 )}
             </div>
+
+            {drawerOpen && (
+                <div className="activity-drawer-backdrop" onClick={() => setDrawerOpen(false)}>
+                    <aside className="activity-drawer" onClick={(e) => e.stopPropagation()}>
+                        <div className="activity-drawer__header">
+                            <h3 className="activity-drawer__title">Notifications</h3>
+                            <button className="activity-drawer__close" onClick={() => setDrawerOpen(false)} title="Close">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div className="activity-drawer__body">
+                            {attentionItems.length === 0 ? (
+                                <div className="activity-drawer__empty">No notifications right now</div>
+                            ) : (
+                                <div className="notif-drawer__list">
+                                    {attentionItems.map((item, i) => (
+                                        <button key={i} className={`notif-drawer__item notif-drawer__item--${item.severity}`} onClick={() => { setDrawerOpen(false); item.action(); }}>
+                                            <span className="notif-drawer__icon">{item.icon}</span>
+                                            <span className="notif-drawer__label">{item.label}</span>
+                                            <span className="notif-drawer__arrow">{Icons.chevronRight}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </aside>
+                </div>
+            )}
         </>
     );
 }

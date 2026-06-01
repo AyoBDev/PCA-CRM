@@ -530,6 +530,36 @@ body {
   line-height: 1;
 }
 
+/* ─── Notification Drawer Items ─── */
+.notif-drawer__list {
+  display: flex;
+  flex-direction: column;
+}
+.notif-drawer__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font-size: 13px;
+  color: hsl(var(--foreground));
+  transition: background 0.15s ease;
+  border-bottom: 1px solid hsl(var(--border));
+}
+.notif-drawer__item:last-child { border-bottom: none; }
+.notif-drawer__item:hover { background: hsl(var(--accent)); }
+.notif-drawer__icon { display: flex; flex-shrink: 0; }
+.notif-drawer__icon svg { width: 16px; height: 16px; }
+.notif-drawer__item--destructive .notif-drawer__icon { color: hsl(var(--destructive)); }
+.notif-drawer__item--warning .notif-drawer__icon { color: hsl(var(--warning)); }
+.notif-drawer__label { flex: 1; line-height: 1.4; }
+.notif-drawer__arrow { display: flex; flex-shrink: 0; }
+.notif-drawer__arrow svg { width: 14px; height: 14px; color: hsl(var(--muted-foreground)); }
+
 /* ─── Page Content ─── */
 .page-content {
   padding: 24px;
