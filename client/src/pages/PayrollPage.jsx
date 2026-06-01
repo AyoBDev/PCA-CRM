@@ -992,7 +992,7 @@ function PayrollPage() {
                     <p style={{ color: 'hsl(240 3.8% 46.1%)', fontStyle: 'italic' }}>No payroll runs yet. Upload an XLSX to get started.</p>
                 ) : (
                     <div className="table-scroll">
-                        <table className="data-table data-table--sheet">
+                        <table className="data-table data-table--sheet data-table--dark-header">
                             <thead>
                                 <tr>
                                     <th scope="col">Run Name</th>

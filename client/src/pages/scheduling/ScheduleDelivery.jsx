@@ -136,7 +136,7 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                             Review and finalize schedules, then send to each employee. Employees can accept, reject, or request changes.
                         </p>
                         <div className="table-scroll">
-                        <table className="data-table data-table--sheet">
+                        <table className="data-table data-table--sheet data-table--dark-header">
                             <thead>
                                 <tr>
                                     <th scope="col">Employee</th>

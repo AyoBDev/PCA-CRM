@@ -1073,7 +1073,7 @@ function ScheduleTab({ shifts, loading, navigate }) {
                 </div>
                 <div className="cp-card__body" style={{ padding: 0 }}>
                     {upcoming.length > 0 ? (
-                        <table className="data-table data-table--sheet" style={{ borderRadius: 0 }}>
+                        <table className="data-table data-table--sheet data-table--dark-header" style={{ borderRadius: 0 }}>
                             <thead>
                                 <tr>
                                     <th>Date</th>
@@ -1110,7 +1110,7 @@ function ScheduleTab({ shifts, loading, navigate }) {
                         </h3>
                     </div>
                     <div className="cp-card__body" style={{ padding: 0 }}>
-                        <table className="data-table data-table--sheet" style={{ borderRadius: 0 }}>
+                        <table className="data-table data-table--sheet data-table--dark-header" style={{ borderRadius: 0 }}>
                             <thead>
                                 <tr>
                                     <th>Date</th>

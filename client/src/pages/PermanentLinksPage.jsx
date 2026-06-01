@@ -91,7 +91,7 @@ export default function PermanentLinksPage() {
                 ) : (
                     <div className="sheet-card">
                       <div className="table-scroll">
-                        <table className="data-table data-table--sheet">
+                        <table className="data-table data-table--sheet data-table--dark-header">
                             <thead>
                                 <tr><th scope="col">PCA Name</th><th scope="col">Client</th><th scope="col">Link</th><th scope="col">Status</th><th scope="col">Created</th><th scope="col" style={{ width: 160 }}>Actions</th></tr>
                             </thead>

@@ -385,7 +385,7 @@ export default function TimesheetsListPage() {
                     <>
                         <div className="sheet-card">
                           <div className="table-scroll">
-                            <table className="data-table data-table--sheet">
+                            <table className="data-table data-table--sheet data-table--dark-header">
                                 <thead><tr>
                                     {!showArchived && (
                                         <th scope="col" style={{ width: 36 }}>

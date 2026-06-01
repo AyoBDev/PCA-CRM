@@ -749,7 +749,7 @@ export default function ClientsPage() {
                     ) : (
                         <>
                             <div className="table-scroll">
-                                <table className="data-table data-table--sheet">
+                                <table className="data-table data-table--sheet data-table--dark-header">
                                     <thead>
                                         <tr>
                                             <th scope="col" style={{ width: 36 }}>
