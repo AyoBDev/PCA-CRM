@@ -483,7 +483,7 @@ body {
   background: hsl(var(--secondary));
   border-bottom: 1px solid hsl(var(--border));
 }
-.attention-section__header svg { width: 14px; height: 14px; color: hsl(var(--warning)); }
+.attention-section__header svg { width: 14px; height: 14px; color: hsl(var(--primary)); }
 .attention-section__items { display: flex; flex-direction: column; }
 .attention-item {
   display: flex;
@@ -507,6 +507,28 @@ body {
 .attention-item--warning .attention-item__icon { color: hsl(var(--warning)); }
 .attention-item__label { flex: 1; }
 .attention-item__arrow svg { width: 14px; height: 14px; color: hsl(var(--muted-foreground)); }
+
+/* ─── Notification Bell ─── */
+.notification-bell {
+  position: relative;
+}
+.notification-bell__badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: hsl(var(--destructive));
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
 
 /* ─── Page Content ─── */
 .page-content {
