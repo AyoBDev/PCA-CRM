@@ -55,60 +55,60 @@ export default function TaskModal({ task, users, onClose, onSaved }) {
     };
 
     return (
-        <Modal title={isEdit ? 'Edit Task' : 'New Task'} onClose={onClose}>
-            <form onSubmit={handleSubmit} className="modal-form">
-                <label className="form-field">
-                    <span>Title *</span>
-                    <input type="text" value={form.title} onChange={(e) => handleChange('title', e.target.value)} autoFocus />
-                </label>
+        <Modal onClose={onClose}>
+            <h2 className="modal__title">{isEdit ? 'Edit Task' : 'New Task'}</h2>
+            <p className="modal__desc">{isEdit ? 'Update task details and assignment.' : 'Create a new task with assignment and due date.'}</p>
+            <form onSubmit={handleSubmit}>
+                <div className="form-group">
+                    <label>Title *</label>
+                    <input type="text" value={form.title} onChange={(e) => handleChange('title', e.target.value)} placeholder="Enter task title" autoFocus />
+                </div>
 
-                <label className="form-field">
-                    <span>Description</span>
-                    <textarea rows={2} value={form.description} onChange={(e) => handleChange('description', e.target.value)} />
-                </label>
+                <div className="form-group">
+                    <label>Description</label>
+                    <textarea rows={2} value={form.description} onChange={(e) => handleChange('description', e.target.value)} placeholder="Optional description" />
+                </div>
 
-                <div className="form-row">
-                    <label className="form-field">
-                        <span>Urgency</span>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="form-group">
+                        <label>Urgency</label>
                         <select value={form.urgency} onChange={(e) => handleChange('urgency', e.target.value)}>
                             <option value="low">Low</option>
                             <option value="medium">Medium</option>
                             <option value="high">High</option>
                         </select>
-                    </label>
-
-                    <label className="form-field">
-                        <span>Due Date</span>
+                    </div>
+                    <div className="form-group">
+                        <label>Due Date</label>
                         <input type="date" value={form.dueDate} onChange={(e) => handleChange('dueDate', e.target.value)} />
-                    </label>
+                    </div>
                 </div>
 
-                <div className="form-row">
-                    <label className="form-field">
-                        <span>Assign to User</span>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="form-group">
+                        <label>Assign to User</label>
                         <select value={form.assignedToUserId} onChange={(e) => handleChange('assignedToUserId', e.target.value)}>
                             <option value="">— None —</option>
                             {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
                         </select>
-                    </label>
-
-                    <label className="form-field">
-                        <span>Or Assign to Role</span>
+                    </div>
+                    <div className="form-group">
+                        <label>Or Assign to Role</label>
                         <select value={form.assignedToRole} onChange={(e) => handleChange('assignedToRole', e.target.value)}>
                             <option value="">— None —</option>
                             <option value="admin">Admin</option>
                             <option value="pca">PCA</option>
                         </select>
-                    </label>
+                    </div>
                 </div>
 
-                <label className="form-field">
-                    <span>Notes</span>
-                    <textarea rows={2} value={form.notes} onChange={(e) => handleChange('notes', e.target.value)} />
-                </label>
+                <div className="form-group">
+                    <label>Notes</label>
+                    <textarea rows={2} value={form.notes} onChange={(e) => handleChange('notes', e.target.value)} placeholder="Internal notes" />
+                </div>
 
-                <div className="modal-actions">
-                    <button type="button" className="btn" onClick={onClose}>Cancel</button>
+                <div className="form-actions">
+                    <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
                     <button type="submit" className="btn btn--primary" disabled={saving}>
                         {saving ? 'Saving...' : isEdit ? 'Update Task' : 'Create Task'}
                     </button>
