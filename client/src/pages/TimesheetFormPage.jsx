@@ -647,6 +647,18 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                         </div>
                     </div>
                     <div>
+                        <div className="tsv2-sig-section__title">Supervisor</div>
+                        <div className="tsv2-sig-field">
+                            <label>Name:</label>
+                            <input type="text" value={ts?.supervisorName || ''} disabled={readOnly} placeholder="Supervisor name" />
+                        </div>
+                        <SignaturePad label="Signature:" value={supervisorSig} onChange={setSupervisorSig} disabled={readOnly} />
+                        <div className="tsv2-sig-field">
+                            <label>Date:</label>
+                            <input type="date" value={ts?.supervisorDate || completionDate} disabled={readOnly} />
+                        </div>
+                    </div>
+                    <div>
                         <div className="tsv2-sig-section__title">Office Use Only</div>
                         {isAdmin && (
                             <>
