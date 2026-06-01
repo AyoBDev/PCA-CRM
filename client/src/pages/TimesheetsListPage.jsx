@@ -39,7 +39,7 @@ export default function TimesheetsListPage() {
     const [clients, setClients] = useState([]);
     const [allTimesheets, setAllTimesheets] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [statusFilter, setStatusFilter] = useState('');
+    const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [pcaFilter, setPcaFilter] = useState('');
@@ -74,7 +74,8 @@ export default function TimesheetsListPage() {
 
     const timesheets = useMemo(() => {
         let filtered = allTimesheets;
-        if (statusFilter) filtered = filtered.filter(t => t.status === statusFilter);
+        if (statusFilter === 'overdue') filtered = filtered.filter(t => t.isOverdue);
+        else if (statusFilter) filtered = filtered.filter(t => t.status === statusFilter);
         if (pcaFilter) filtered = filtered.filter(t => t.pcaName === pcaFilter);
         if (clientFilter) filtered = filtered.filter(t => t.clientId === Number(clientFilter));
         if (dateFrom) {
@@ -96,9 +97,10 @@ export default function TimesheetsListPage() {
     }, [allTimesheets, statusFilter, pcaFilter, clientFilter, dateFrom, dateTo, serviceFilter]);
 
     const statusCounts = useMemo(() => {
-        const counts = { total: allTimesheets.length, draft: 0, submitted: 0, accepted: 0 };
+        const counts = { total: allTimesheets.length, draft: 0, submitted: 0, accepted: 0, overdue: 0 };
         for (const t of allTimesheets) {
             if (counts[t.status] !== undefined) counts[t.status]++;
+            if (t.isOverdue) counts.overdue++;
         }
         return counts;
     }, [allTimesheets]);
@@ -309,6 +311,7 @@ export default function TimesheetsListPage() {
                                     <option value="draft">Draft</option>
                                     <option value="submitted">Submitted</option>
                                     <option value="accepted">Accepted</option>
+                                    <option value="overdue">Overdue</option>
                                 </select>
                             </div>
                             <div className="ts-filter-bar__actions">
@@ -344,6 +347,13 @@ export default function TimesheetsListPage() {
                                 <div className="ts-summary-card__content">
                                     <span className="ts-summary-card__label">Accepted</span>
                                     <span className="ts-summary-card__value">{statusCounts.accepted}</span>
+                                </div>
+                            </div>
+                            <div className="ts-summary-card">
+                                <div className="ts-summary-card__icon ts-summary-card__icon--overdue">{Icons.alertCircle}</div>
+                                <div className="ts-summary-card__content">
+                                    <span className="ts-summary-card__label">Overdue</span>
+                                    <span className="ts-summary-card__value">{statusCounts.overdue}</span>
                                 </div>
                             </div>
                         </div>
@@ -408,7 +418,7 @@ export default function TimesheetsListPage() {
                                             <td>{ts.totalPasHours.toFixed(2)}</td>
                                             <td>{ts.totalHmHours.toFixed(2)}</td>
                                             <td>{(ts.totalRespiteHours || 0).toFixed(2)}</td>
-                                            <td><span className={`ts-badge ts-badge--${ts.status}`}>{ts.status}</span></td>
+                                            <td><span className={`ts-badge ${ts.isOverdue ? 'ts-badge--overdue' : `ts-badge--${ts.status}`}`}>{ts.isOverdue ? 'Overdue' : ts.status}</span></td>
                                             <td style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
                                                 {ts.submittedAt ? new Date(ts.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
                                             </td>

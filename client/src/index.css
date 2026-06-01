@@ -2548,6 +2548,12 @@ body {
   color: hsl(210 100% 35%);
 }
 
+.ts-badge--overdue {
+  background: hsl(0 80% 95%);
+  color: hsl(0 72% 40%);
+  font-weight: 600;
+}
+
 .ts-badge--critical {
   background: hsl(0 84% 95%);
   color: hsl(0 84% 40%);
@@ -2699,6 +2705,11 @@ body {
 .ts-summary-card__icon--accepted {
   background: hsl(210 100% 92%);
   color: hsl(210 100% 40%);
+}
+
+.ts-summary-card__icon--overdue {
+  background: hsl(0 80% 95%);
+  color: hsl(0 72% 40%);
 }
 
 .ts-summary-card__content {
