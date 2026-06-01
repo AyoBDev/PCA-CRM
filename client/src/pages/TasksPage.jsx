@@ -27,6 +27,7 @@ export default function TasksPage() {
     const [showSettings, setShowSettings] = useState(false);
     const [triggers, setTriggers] = useState([]);
     const [summary, setSummary] = useState({ overdue: 0, dueToday: 0, dueThisWeek: 0, openTotal: 0 });
+    const [menuOpenId, setMenuOpenId] = useState(null);
 
     const fetchTasks = useCallback(async () => {
         setLoading(true);
@@ -63,6 +64,13 @@ export default function TasksPage() {
             listWorkflowTriggers().then(setTriggers).catch(() => {});
         }
     }, [showSettings]);
+
+    useEffect(() => {
+        if (!menuOpenId) return;
+        const close = () => setMenuOpenId(null);
+        document.addEventListener('click', close);
+        return () => document.removeEventListener('click', close);
+    }, [menuOpenId]);
 
     const handleStatusChange = async (task, newStatus) => {
         try {
@@ -234,7 +242,7 @@ export default function TasksPage() {
                                             <th scope="col">Urgency</th>
                                             <th scope="col">Assigned To</th>
                                             <th scope="col">Due Date</th>
-                                            <th scope="col" style={{ width: 160 }}>Actions</th>
+                                            <th scope="col" style={{ width: 60 }}></th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -261,15 +269,35 @@ export default function TasksPage() {
                                                 <td>{task.assignedToUser?.name || task.assignedToRole || '—'}</td>
                                                 <td className={isOverdue(task) ? 'text--danger' : ''} style={{ fontSize: 13 }}>{fmtDate(task.dueDate)}</td>
                                                 <td onClick={(e) => e.stopPropagation()}>
-                                                    <div className="row-actions">
-                                                        {task.status === 'open' && (
-                                                            <button className="btn btn--outline btn--xs" onClick={() => handleStatusChange(task, 'in_progress')}>Start</button>
-                                                        )}
-                                                        {(task.status === 'open' || task.status === 'in_progress') && (
-                                                            <>
-                                                                <button className="btn btn--ghost btn--icon" onClick={() => handleStatusChange(task, 'completed')} title="Mark complete">{Icons.checkCircle}</button>
-                                                                <button className="btn btn--danger-ghost btn--icon" onClick={() => handleDelete(task)} title="Cancel task">{Icons.x}</button>
-                                                            </>
+                                                    <div className="cl-row-menu" style={{ position: 'relative' }}>
+                                                        <button
+                                                            className="btn btn--ghost btn--icon"
+                                                            onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === task.id ? null : task.id); }}
+                                                            title="Actions"
+                                                        >
+                                                            {Icons.moreVertical}
+                                                        </button>
+                                                        {menuOpenId === task.id && (
+                                                            <div className="cl-row-menu__dropdown">
+                                                                <button className="cl-row-menu__item" onClick={() => { setEditingTask(task); setModalOpen(true); setMenuOpenId(null); }}>
+                                                                    {Icons.edit} Edit
+                                                                </button>
+                                                                {task.status === 'open' && (
+                                                                    <button className="cl-row-menu__item" onClick={() => { handleStatusChange(task, 'in_progress'); setMenuOpenId(null); }}>
+                                                                        {Icons.chevronRight} Start
+                                                                    </button>
+                                                                )}
+                                                                {(task.status === 'open' || task.status === 'in_progress') && (
+                                                                    <button className="cl-row-menu__item" onClick={() => { handleStatusChange(task, 'completed'); setMenuOpenId(null); }}>
+                                                                        {Icons.checkCircle} Complete
+                                                                    </button>
+                                                                )}
+                                                                {(task.status === 'open' || task.status === 'in_progress') && (
+                                                                    <button className="cl-row-menu__item cl-row-menu__item--danger" onClick={() => { handleDelete(task); setMenuOpenId(null); }}>
+                                                                        {Icons.x} Cancel
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                         )}
                                                     </div>
                                                 </td>

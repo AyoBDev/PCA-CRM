@@ -10406,6 +10406,12 @@ button.sdr-section-tag:hover:not(:disabled) {
   width: 14px;
   height: 14px;
 }
+.cl-row-menu__item--danger {
+  color: hsl(var(--destructive));
+}
+.cl-row-menu__item--danger:hover {
+  background: hsl(var(--danger-bg));
+}
 
 /* ═══ Auth Note (Master Sheet) ═══ */
 .auth-note-icon {
