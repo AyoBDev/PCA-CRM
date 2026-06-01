@@ -152,6 +152,12 @@ async function restoreAuthorization(req, res, next) {
             data: { archivedAt: null },
         });
 
+        if ((restored.manualStatus || 'active') === 'active') {
+            await deactivatePreviousAuths(restored.clientId, restored.serviceCode, restored.id, {
+                userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            });
+        }
+
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'RESTORE', entityType: 'Authorization', entityId: id, entityName: auth.serviceCode });
         res.json(enrichAuthorization(restored));
     } catch (err) {
@@ -210,6 +216,12 @@ async function updateAuthManualStatus(req, res, next) {
             where: { id },
             data: { manualStatus },
         });
+
+        if (manualStatus === 'active') {
+            await deactivatePreviousAuths(oldAuth.clientId, auth.serviceCode, auth.id, {
+                userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            });
+        }
 
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: id, entityName: auth.serviceCode, changes: [{ field: 'manualStatus', oldValue: oldAuth.manualStatus, newValue: manualStatus }] });
         res.json(enrichAuthorization(auth));
