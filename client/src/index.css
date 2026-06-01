@@ -2803,7 +2803,7 @@ body {
 .pcaf-topbar {
   display: flex;
   align-items: center;
-  gap: 24px;
+  justify-content: space-between;
   max-width: 1200px;
   margin: 0 auto;
   padding: 10px 16px 12px;
@@ -2891,7 +2891,6 @@ body {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-left: auto;
 }
 
 .pcaf-detail {
