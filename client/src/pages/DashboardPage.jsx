@@ -40,6 +40,7 @@ export default function DashboardPage() {
     if (stats.unconfirmedCount > 0) attentionItems.push({ icon: Icons.alertTriangle, label: `${stats.unconfirmedCount} unconfirmed schedule${stats.unconfirmedCount > 1 ? 's' : ''}`, severity: 'warning', action: () => navigate('/scheduling') });
     if (renewalCount > 0) attentionItems.push({ icon: Icons.clock, label: `${renewalCount} client${renewalCount > 1 ? 's' : ''} with authorization renewal due`, severity: 'warning', action: () => navigate('/authorizations') });
     if (stats.timesheetDraft > 0) attentionItems.push({ icon: Icons.fileText, label: `${stats.timesheetDraft} draft timesheet${stats.timesheetDraft > 1 ? 's' : ''} awaiting completion`, severity: 'warning', action: () => navigate('/timesheets') });
+    if (stats.overdueTimesheets?.count > 0) attentionItems.push({ icon: Icons.clock, label: `${stats.overdueTimesheets.count} timesheet${stats.overdueTimesheets.count > 1 ? 's' : ''} overdue`, severity: 'destructive', action: () => navigate('/timesheets?status=overdue') });
 
     return (
         <>
