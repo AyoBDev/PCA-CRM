@@ -8993,12 +8993,12 @@ button.sdr-section-tag:hover:not(:disabled) {
 .cp-tabs {
   display: flex;
   gap: 0;
-  border-bottom: 2px solid hsl(var(--border));
+  border-bottom: none;
   margin-bottom: 0;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  background: hsl(var(--muted) / 0.5);
+  background: linear-gradient(180deg, hsl(230 35% 22%) 0%, hsl(230 35% 16%) 100%);
   border-radius: var(--radius) var(--radius) 0 0;
   padding: 0 8px;
 }
@@ -9012,20 +9012,20 @@ button.sdr-section-tag:hover:not(:disabled) {
   padding: 10px 16px;
   font-size: 13px;
   font-weight: 600;
-  color: hsl(var(--muted-foreground));
+  color: hsl(0 0% 75%);
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
+  margin-bottom: 0;
   cursor: pointer;
   white-space: nowrap;
   transition: color 0.15s, border-color 0.15s;
 }
 .cp-tab:hover {
-  color: hsl(var(--foreground));
+  color: hsl(0 0% 95%);
 }
 .cp-tab--active {
-  color: hsl(var(--primary));
+  color: hsl(0 0% 100%);
   border-bottom-color: hsl(var(--primary));
   font-weight: 600;
 }
@@ -9039,13 +9039,13 @@ button.sdr-section-tag:hover:not(:disabled) {
   border-radius: 9px;
   font-size: 10px;
   font-weight: 700;
-  background: hsl(var(--muted));
-  color: hsl(var(--muted-foreground));
+  background: hsl(0 0% 100% / 0.15);
+  color: hsl(0 0% 90%);
   line-height: 1;
 }
 .cp-tab__badge--danger {
-  background: hsl(0 84% 95%);
-  color: hsl(0 72% 45%);
+  background: hsl(0 70% 50% / 0.3);
+  color: hsl(0 100% 85%);
 }
 
 /* ═══ Tab Content ═══ */
