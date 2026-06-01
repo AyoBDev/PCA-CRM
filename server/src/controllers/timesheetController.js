@@ -1,6 +1,7 @@
 const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 const { filterAuthsByWeek } = require('../services/authorizationService');
+const { isOverdue } = require('../lib/timesheetUtils');
 
 // ── Activity definitions (match the paper form) ──────
 const ADL_ACTIVITIES = [
@@ -95,7 +96,7 @@ async function listTimesheets(req, res, next) {
 
         const enriched = timesheets.map(ts => {
             if (!ts.clientId || !authsByClientId[ts.clientId]) {
-                return { ...ts, authLimits: null };
+                return { ...ts, authLimits: null, isOverdue: isOverdue(ts) };
             }
             // Filter auths to those active during this timesheet's week
             const wsDate = new Date(ts.weekStart);
@@ -109,7 +110,7 @@ async function listTimesheets(req, res, next) {
                 if (!svc) continue;
                 limits[svc] = (limits[svc] || 0) + (a.authorizedUnits || 0);
             }
-            return { ...ts, authLimits: Object.keys(limits).length > 0 ? limits : null };
+            return { ...ts, authLimits: Object.keys(limits).length > 0 ? limits : null, isOverdue: isOverdue(ts) };
         });
 
         res.json(enriched);
