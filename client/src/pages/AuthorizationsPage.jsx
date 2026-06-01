@@ -1398,7 +1398,7 @@ export default function AuthorizationsPage() {
 
                     <div className="drawer-section">
                         <h3 className="drawer-section__title">Authorizations</h3>
-                        {(drawerClient.authorizations || []).length === 0 ? (
+                        {(drawerClient.authorizations || []).filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt).length === 0 ? (
                             <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', fontStyle: 'italic' }}>No authorizations yet.</p>
                         ) : (
                             <table className="data-table data-table--compact">
@@ -1409,7 +1409,7 @@ export default function AuthorizationsPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {(drawerClient.authorizations || []).map(auth => (
+                                    {(drawerClient.authorizations || []).filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt).map(auth => (
                                         <tr key={auth.id}>
                                             <td>{auth.serviceCategory || '—'}</td>
                                             <td>{auth.serviceCode}</td>
