@@ -284,57 +284,54 @@ export default function TasksPage() {
                 )}
 
                 {showSettings && (
-                    <div style={{ marginTop: '2rem' }}>
+                    <div className="wf-triggers">
                         <div className="sheet-card">
                             <div className="sheet-card__header">
                                 <h3 className="sheet-card__title">{Icons.settings} Workflow Triggers</h3>
                             </div>
-                            <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.875rem', padding: '0 20px 16px' }}>
+                            <div className="wf-triggers__desc">
                                 Configure automatic task creation rules. Tasks are generated hourly when conditions are met.
-                            </p>
-                            <div className="table-scroll">
-                                <table className="data-table data-table--sheet data-table--dark-header">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col">Name</th>
-                                            <th scope="col">Type</th>
-                                            <th scope="col">Enabled</th>
-                                            <th scope="col">Threshold</th>
-                                            <th scope="col">Urgency</th>
-                                            <th scope="col">Assign To</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {triggers.map((trigger) => (
-                                            <tr key={trigger.id}>
-                                                <td style={{ fontWeight: 500 }}>{trigger.name}</td>
-                                                <td><span className="ts-badge ts-badge--submitted">{trigger.type}</span></td>
-                                                <td>
-                                                    <input type="checkbox" checked={trigger.enabled} onChange={(e) => handleTriggerUpdate(trigger.id, 'enabled', e.target.checked)} />
-                                                </td>
-                                                <td>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                        <input type="number" className="input--sm" value={trigger.thresholdDays} onChange={(e) => handleTriggerUpdate(trigger.id, 'thresholdDays', Number(e.target.value))} style={{ width: '60px' }} />
-                                                        <span style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>days</span>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <select value={trigger.urgency} onChange={(e) => handleTriggerUpdate(trigger.id, 'urgency', e.target.value)} style={{ fontSize: 13 }}>
-                                                        <option value="low">Low</option>
-                                                        <option value="medium">Medium</option>
-                                                        <option value="high">High</option>
-                                                    </select>
-                                                </td>
-                                                <td>
-                                                    <select value={trigger.assignToUserId || ''} onChange={(e) => handleTriggerUpdate(trigger.id, 'assignToUserId', e.target.value ? Number(e.target.value) : null)} style={{ fontSize: 13 }}>
-                                                        <option value="">Role: {trigger.assignToRole || 'None'}</option>
-                                                        {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                                                    </select>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                            </div>
+                            <div className="wf-triggers__list">
+                                {triggers.map((trigger) => (
+                                    <div key={trigger.id} className={`wf-trigger-card${!trigger.enabled ? ' wf-trigger-card--disabled' : ''}`}>
+                                        <div className="wf-trigger-card__header">
+                                            <div className="wf-trigger-card__info">
+                                                <span className="wf-trigger-card__name">{trigger.name}</span>
+                                                <span className="ts-badge ts-badge--submitted">{trigger.type.replace(/_/g, ' ')}</span>
+                                            </div>
+                                            <label className="wf-toggle">
+                                                <input type="checkbox" checked={trigger.enabled} onChange={(e) => handleTriggerUpdate(trigger.id, 'enabled', e.target.checked)} />
+                                                <span className="wf-toggle__track"><span className="wf-toggle__thumb" /></span>
+                                                <span className="wf-toggle__label">{trigger.enabled ? 'Enabled' : 'Disabled'}</span>
+                                            </label>
+                                        </div>
+                                        <div className="wf-trigger-card__fields">
+                                            <div className="form-group">
+                                                <label>Threshold</label>
+                                                <div className="wf-trigger-card__threshold">
+                                                    <input type="number" value={trigger.thresholdDays} onChange={(e) => handleTriggerUpdate(trigger.id, 'thresholdDays', Number(e.target.value))} min="1" />
+                                                    <span>days before</span>
+                                                </div>
+                                            </div>
+                                            <div className="form-group">
+                                                <label>Urgency</label>
+                                                <select value={trigger.urgency} onChange={(e) => handleTriggerUpdate(trigger.id, 'urgency', e.target.value)}>
+                                                    <option value="low">Low</option>
+                                                    <option value="medium">Medium</option>
+                                                    <option value="high">High</option>
+                                                </select>
+                                            </div>
+                                            <div className="form-group">
+                                                <label>Assign To</label>
+                                                <select value={trigger.assignToUserId || ''} onChange={(e) => handleTriggerUpdate(trigger.id, 'assignToUserId', e.target.value ? Number(e.target.value) : null)}>
+                                                    <option value="">Role: {trigger.assignToRole || 'None'}</option>
+                                                    {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     </div>
