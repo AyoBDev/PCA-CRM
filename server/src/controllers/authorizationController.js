@@ -13,6 +13,34 @@ function validateBody(body) {
     return errors;
 }
 
+async function deactivatePreviousAuths(clientId, serviceCode, excludeId, auditContext) {
+    const existing = await prisma.authorization.findMany({
+        where: {
+            clientId,
+            serviceCode,
+            manualStatus: 'active',
+            archivedAt: null,
+            id: { not: excludeId },
+        },
+    });
+    if (existing.length === 0) return;
+    await prisma.authorization.updateMany({
+        where: { id: { in: existing.map(a => a.id) } },
+        data: { manualStatus: 'inactive' },
+    });
+    for (const auth of existing) {
+        audit.logAction({
+            ...auditContext,
+            action: 'UPDATE',
+            entityType: 'Authorization',
+            entityId: auth.id,
+            entityName: auth.serviceCode,
+            changes: [{ field: 'manualStatus', oldValue: 'active', newValue: 'inactive' }],
+            metadata: { reason: 'superseded_by_new_auth' },
+        });
+    }
+}
+
 // POST /api/clients/:clientId/authorizations
 async function createAuthorization(req, res, next) {
     try {
@@ -42,6 +70,9 @@ async function createAuthorization(req, res, next) {
         });
 
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Authorization', entityId: auth.id, entityName: `${client.clientName} - ${auth.serviceCode}` });
+        await deactivatePreviousAuths(clientId, req.body.serviceCode, auth.id, {
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+        });
         res.status(201).json(enrichAuthorization(auth));
     } catch (err) {
         next(err);
