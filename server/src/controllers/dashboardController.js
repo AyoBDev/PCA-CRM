@@ -1,6 +1,7 @@
 const prisma = require('../lib/prisma');
 const { enrichClient } = require('../services/authorizationService');
 const { getWeekRange } = require('../services/schedulingService');
+const { isOverdue } = require('../lib/timesheetUtils');
 
 async function getDashboardStats(req, res) {
     const today = new Date().toISOString().split('T')[0];
@@ -51,6 +52,17 @@ async function getDashboardStats(req, res) {
         }),
     ]);
 
+    const overdueRaw = await prisma.timesheet.findMany({
+        where: { status: 'draft', archivedAt: null },
+        select: { id: true, pcaName: true, weekStart: true, status: true, client: { select: { clientName: true } } },
+    });
+    const overdueTimesheets = overdueRaw.filter(isOverdue).map(ts => ({
+        timesheetId: ts.id,
+        clientName: ts.client.clientName,
+        pcaName: ts.pcaName,
+        weekStart: ts.weekStart,
+    }));
+
     const weekHours = weekShifts.reduce((sum, s) => sum + s.hours, 0);
     const weekUnits = weekShifts.reduce((sum, s) => sum + s.units, 0);
 
@@ -90,6 +102,7 @@ async function getDashboardStats(req, res) {
         timesheetDraft,
         timesheetSubmitted,
         recentPayrollRuns: payrollRuns,
+        overdueTimesheets: { count: overdueTimesheets.length, items: overdueTimesheets },
     });
 }
 
