@@ -11,30 +11,40 @@ export default function TasksWidget() {
         getTaskSummary().then(setSummary).catch(() => {});
     }, []);
 
-    if (!summary || summary.totalOpen === 0) return null;
+    if (!summary || summary.openTotal === 0) return null;
 
     return (
-        <div className="dashboard-card tasks-widget">
-            <div className="dashboard-card__header">
-                <h3>{Icons.checkSquare} Tasks</h3>
-                <button className="link-btn" onClick={() => navigate('/tasks')}>View All</button>
+        <div className="attention-section">
+            <div className="attention-section__header">
+                {Icons.checkSquare}
+                <span>Tasks</span>
             </div>
-            <div className="tasks-widget__counts">
+            <div className="attention-section__items">
                 {summary.overdue > 0 && (
-                    <button className="tasks-widget__count tasks-widget__count--danger" onClick={() => navigate('/tasks?status=open&overdue=true')}>
-                        <span className="tasks-widget__number">{summary.overdue}</span>
-                        <span className="tasks-widget__label">Overdue</span>
+                    <button className="attention-item attention-item--destructive" onClick={() => navigate('/tasks')}>
+                        <span className="attention-item__icon">{Icons.alertCircle}</span>
+                        <span className="attention-item__label">{summary.overdue} overdue task{summary.overdue > 1 ? 's' : ''}</span>
+                        <span className="attention-item__arrow">{Icons.chevronRight}</span>
                     </button>
                 )}
                 {summary.dueToday > 0 && (
-                    <button className="tasks-widget__count tasks-widget__count--warning" onClick={() => navigate('/tasks?status=open')}>
-                        <span className="tasks-widget__number">{summary.dueToday}</span>
-                        <span className="tasks-widget__label">Due Today</span>
+                    <button className="attention-item attention-item--warning" onClick={() => navigate('/tasks')}>
+                        <span className="attention-item__icon">{Icons.clock}</span>
+                        <span className="attention-item__label">{summary.dueToday} task{summary.dueToday > 1 ? 's' : ''} due today</span>
+                        <span className="attention-item__arrow">{Icons.chevronRight}</span>
                     </button>
                 )}
-                <button className="tasks-widget__count" onClick={() => navigate('/tasks')}>
-                    <span className="tasks-widget__number">{summary.totalOpen}</span>
-                    <span className="tasks-widget__label">Total Open</span>
+                {summary.dueThisWeek > 0 && (
+                    <button className="attention-item" onClick={() => navigate('/tasks')}>
+                        <span className="attention-item__icon">{Icons.calendar}</span>
+                        <span className="attention-item__label">{summary.dueThisWeek} task{summary.dueThisWeek > 1 ? 's' : ''} due this week</span>
+                        <span className="attention-item__arrow">{Icons.chevronRight}</span>
+                    </button>
+                )}
+                <button className="attention-item" onClick={() => navigate('/tasks')}>
+                    <span className="attention-item__icon">{Icons.checkSquare}</span>
+                    <span className="attention-item__label">{summary.openTotal} open task{summary.openTotal > 1 ? 's' : ''} total</span>
+                    <span className="attention-item__arrow">{Icons.chevronRight}</span>
                 </button>
             </div>
         </div>

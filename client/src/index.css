@@ -10524,19 +10524,6 @@ tr:hover .auth-note-icon--empty {
 /* ── Tasks ── */
 .text--danger { color: hsl(0 72% 51%); font-weight: 500; }
 
-.tasks-widget__counts { display: flex; gap: 1rem; margin-top: 0.5rem; }
-.tasks-widget__count {
-    display: flex; flex-direction: column; align-items: center;
-    padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid hsl(var(--border));
-    background: none; cursor: pointer; transition: background 0.15s;
-}
-.tasks-widget__count:hover { background: hsl(var(--muted)); }
-.tasks-widget__count--danger { border-color: hsl(0 72% 85%); }
-.tasks-widget__count--danger .tasks-widget__number { color: hsl(0 72% 51%); }
-.tasks-widget__count--warning { border-color: hsl(48 96% 75%); }
-.tasks-widget__count--warning .tasks-widget__number { color: hsl(48 96% 40%); }
-.tasks-widget__number { font-size: 1.5rem; font-weight: 700; line-height: 1; }
-.tasks-widget__label { font-size: 0.75rem; color: hsl(var(--muted-foreground)); margin-top: 0.25rem; }
 
 .btn--xs { font-size: 0.7rem; padding: 0.2rem 0.5rem; }
 .btn--success { background: hsl(142 71% 45%); color: white; }
