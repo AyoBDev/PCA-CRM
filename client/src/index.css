@@ -2803,8 +2803,8 @@ body {
 .pcaf-topbar {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  padding: 12px 24px 14px;
+  gap: 24px;
+  padding: 10px 24px 12px;
   border-bottom: 1px solid hsl(var(--border));
 }
 
@@ -2876,7 +2876,7 @@ body {
 /* Top bar details */
 .pcaf-topbar__details {
   display: flex;
-  gap: 32px;
+  gap: 24px;
 }
 
 .pcaf-topbar__detail-group {
