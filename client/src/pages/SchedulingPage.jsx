@@ -1274,6 +1274,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                 startTime: s.startTime || '09:00',
                 endTime: s.endTime || '13:00',
                 accountNumber: s.accountNumber || '',
+                sandataClientId: s.sandataClientId || '',
             };
         }
         return map;
@@ -1293,7 +1294,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
         setEdits(prev => {
             const next = { ...prev };
             for (const s of selectedShifts) {
-                next[s.id] = { ...next[s.id], serviceCode: sourceEdit.serviceCode, startTime: sourceEdit.startTime, endTime: sourceEdit.endTime, accountNumber: sourceEdit.accountNumber };
+                next[s.id] = { ...next[s.id], serviceCode: sourceEdit.serviceCode, startTime: sourceEdit.startTime, endTime: sourceEdit.endTime, accountNumber: sourceEdit.accountNumber, sandataClientId: sourceEdit.sandataClientId };
             }
             return next;
         });
@@ -1317,7 +1318,8 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
         return e.serviceCode !== (s.serviceCode || '') ||
             e.startTime !== (s.startTime || '') ||
             e.endTime !== (s.endTime || '') ||
-            e.accountNumber !== (s.accountNumber || '');
+            e.accountNumber !== (s.accountNumber || '') ||
+            e.sandataClientId !== (s.sandataClientId || '');
     });
 
     const hasRecurringShifts = selectedShifts.some(s => s.recurringGroupId);
@@ -1332,6 +1334,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
             if (edit.startTime !== (s.startTime || '')) updates.startTime = edit.startTime;
             if (edit.endTime !== (s.endTime || '')) updates.endTime = edit.endTime;
             if (edit.accountNumber !== (s.accountNumber || '')) updates.accountNumber = edit.accountNumber;
+            if (edit.sandataClientId !== (s.sandataClientId || '')) updates.sandataClientId = edit.sandataClientId;
             if (Object.keys(updates).length > 0) perShiftUpdates[s.id] = updates;
         }
         if (Object.keys(perShiftUpdates).length === 0) return;
@@ -1535,6 +1538,10 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                             <option value="">—</option>
                                                             {VALID_ACCOUNT_NUMBERS.map(n => <option key={n} value={n}>{n}</option>)}
                                                         </select>
+                                                    </div>
+                                                    <div className="sched-day-row__field">
+                                                        <label className="sched-day-row__field-label">Client ID</label>
+                                                        <input value={edit.sandataClientId} onChange={e => updateShiftField(shift.id, 'sandataClientId', e.target.value)} className="sched-day-row__input" placeholder="—" />
                                                     </div>
                                                     {si === 0 && shiftsByDay.length > 1 && (
                                                         <button type="button" className="sched-day-row__apply" title="Apply this day's settings to all days" onClick={() => applyDayToAll(dateStr)}>

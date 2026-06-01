@@ -7501,7 +7501,7 @@ button.sdr-section-tag:hover:not(:disabled) {
     color: hsl(217 91% 50%);
 }
 .sched-day-row__shift-label {
-    grid-column: 1 / -1;
+    width: 100%;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -7531,17 +7531,18 @@ button.sdr-section-tag:hover:not(:disabled) {
     color: white;
 }
 .sched-day-row__fields {
-    display: grid;
-    grid-template-columns: minmax(100px, 1.3fr) minmax(90px, 1fr) minmax(90px, 1fr) minmax(80px, 0.9fr) minmax(90px, 1fr);
-    align-items: end;
-    gap: 8px;
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
     padding: 0 14px 12px 42px;
+    flex-wrap: wrap;
 }
 .sched-day-row__field {
     display: flex;
     flex-direction: column;
     gap: 3px;
-    min-width: 0;
+    flex: 1;
+    min-width: 80px;
 }
 .sched-day-row__field-label {
     font-size: 10px;
@@ -7566,8 +7567,6 @@ button.sdr-section-tag:hover:not(:disabled) {
     box-shadow: 0 0 0 2px hsl(217 91% 50% / 0.15);
 }
 .sched-day-row__apply {
-    grid-column: 1 / -1;
-    justify-self: end;
     font-size: 11px;
     padding: 6px 12px;
     border: 1px solid hsl(217 91% 80%);
@@ -7578,6 +7577,7 @@ button.sdr-section-tag:hover:not(:disabled) {
     white-space: nowrap;
     font-weight: 500;
     transition: background 0.15s ease;
+    align-self: flex-end;
 }
 .sched-day-row__apply:hover {
     background: hsl(217 91% 95%);
