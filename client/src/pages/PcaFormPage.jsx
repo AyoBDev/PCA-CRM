@@ -56,7 +56,7 @@ function getSunday(date) {
     return dt.toISOString().slice(0, 10);
 }
 
-function ProgramSection({ title, colorClass, activities, section, entries, updateEntry, dailyHoursFn, disabled, sectionDisabled, onAddShift, onRemoveShift, fieldErrors = {} }) {
+function ProgramSection({ title, icon, colorClass, activities, section, entries, updateEntry, dailyHoursFn, disabled, sectionDisabled, onAddShift, onRemoveShift, fieldErrors = {} }) {
     const SHIFT_COLORS = ['', 'pcaf-shift--s2', 'pcaf-shift--s3', 'pcaf-shift--s4'];
 
     const totalHours = entries.reduce((s, e) => s + dailyHoursFn(e), 0);
@@ -73,7 +73,9 @@ function ProgramSection({ title, colorClass, activities, section, entries, updat
     return (
         <div className={`pcaf-program ${sectionDisabled ? 'pcaf-program--disabled' : ''}`}>
             <div className={`pcaf-program__header pcaf-program__header--${colorClass}`}>
-                <span className="pcaf-program__title">{title}</span>
+                <span className="pcaf-program__icon">{icon}</span>
+                <span className="pcaf-program__name">{title}</span>
+                <span className="pcaf-program__subtitle">{colorClass === 'pas' ? '(PERSONAL ASSISTANCE SERVICES)' : colorClass === 'hm' ? '(IADL SERVICES)' : '(COMPANION CARE SERVICES)'}</span>
             </div>
 
             <div className="pcaf-grid">
@@ -112,7 +114,7 @@ function ProgramSection({ title, colorClass, activities, section, entries, updat
 
                 {/* PCA Initials */}
                 <div className="pcaf-grid__row pcaf-grid__row--initials">
-                    <div className="pcaf-grid__label-col"><strong>PCA Initials</strong></div>
+                    <div className="pcaf-grid__label-col"><strong>PCA Initials *</strong></div>
                     {entries.map((e, i) => (
                         <div key={i} className="pcaf-grid__cell">
                             <input type="text" className={`pcaf-initials-input ${fieldErrors[`${i}-${section}-pcaInitials`] ? 'pcaf-field-error' : ''}`} value={e[`${section}PcaInitials`] || ''} disabled={disabled} maxLength={4}
@@ -124,7 +126,7 @@ function ProgramSection({ title, colorClass, activities, section, entries, updat
 
                 {/* Client Initials */}
                 <div className="pcaf-grid__row pcaf-grid__row--initials">
-                    <div className="pcaf-grid__label-col"><strong>Client Initials</strong></div>
+                    <div className="pcaf-grid__label-col"><strong>Client Initials *</strong></div>
                     {entries.map((e, i) => (
                         <div key={i} className="pcaf-grid__cell">
                             <input type="text" className={`pcaf-initials-input ${fieldErrors[`${i}-${section}-clientInitials`] ? 'pcaf-field-error' : ''}`} value={e[`${section}ClientInitials`] || ''} disabled={disabled} maxLength={4}
@@ -136,7 +138,7 @@ function ProgramSection({ title, colorClass, activities, section, entries, updat
 
                 {/* Shift 1: primary time */}
                 <div className="pcaf-grid__row pcaf-grid__row--time">
-                    <div className="pcaf-grid__label-col">Shift 1 - In</div>
+                    <div className="pcaf-grid__label-col">Shift 1 &mdash; In *</div>
                     {entries.map((e, i) => (
                         <div key={i} className="pcaf-grid__cell">
                             <input type="time" className={`pcaf-time-input ${fieldErrors[`${i}-${section}-timeIn`] ? 'pcaf-field-error' : ''}`} value={e[`${section}TimeIn`] || ''} disabled={disabled}
@@ -146,7 +148,7 @@ function ProgramSection({ title, colorClass, activities, section, entries, updat
                     <div className="pcaf-grid__total-col" />
                 </div>
                 <div className="pcaf-grid__row pcaf-grid__row--time">
-                    <div className="pcaf-grid__label-col">Shift 1 - Out</div>
+                    <div className="pcaf-grid__label-col">Shift 1 &mdash; Out *</div>
                     {entries.map((e, i) => (
                         <div key={i} className="pcaf-grid__cell">
                             <input type="time" className={`pcaf-time-input ${fieldErrors[`${i}-${section}-timeOut`] ? 'pcaf-field-error' : ''}`} value={e[`${section}TimeOut`] || ''} disabled={disabled}
@@ -164,7 +166,7 @@ function ProgramSection({ title, colorClass, activities, section, entries, updat
                         rows.push(
                             <div key={`block-in-${b}`} className={`pcaf-grid__row pcaf-grid__row--time ${colorCls}`}>
                                 <div className="pcaf-grid__label-col">
-                                    Shift {b + 2} - In
+                                    Shift {b + 2} &mdash; In
                                     {!disabled && b === maxBlocks - 1 && (
                                         <button type="button" className="pcaf-remove-shift" title="Remove shift" onClick={() => onRemoveShift(section, b)}>x</button>
                                     )}
@@ -186,7 +188,7 @@ function ProgramSection({ title, colorClass, activities, section, entries, updat
                                 <div className="pcaf-grid__total-col" />
                             </div>,
                             <div key={`block-out-${b}`} className={`pcaf-grid__row pcaf-grid__row--time ${colorCls}`}>
-                                <div className="pcaf-grid__label-col">Shift {b + 2} - Out</div>
+                                <div className="pcaf-grid__label-col">Shift {b + 2} &mdash; Out</div>
                                 {entries.map((e, i) => {
                                     const blocks = (() => { try { return JSON.parse(e[`${section}TimeBlocks`] || '[]'); } catch { return []; } })();
                                     return (
@@ -220,15 +222,17 @@ function ProgramSection({ title, colorClass, activities, section, entries, updat
                 )}
 
                 {/* Daily totals row */}
-                <div className={`pcaf-grid__row pcaf-grid__row--totals pcaf-grid__row--totals-${colorClass}`}>
-                    <div className="pcaf-grid__label-col"><strong>Daily Total</strong></div>
+                <div className="pcaf-grid__row pcaf-grid__row--totals">
+                    <div className="pcaf-grid__label-col"><strong>Daily Totals</strong></div>
                     {entries.map((e, i) => {
                         const hrs = dailyHoursFn(e);
-                        return <div key={i} className="pcaf-grid__cell pcaf-hours-cell">{hrs > 0 ? hrs.toFixed(2) : '--'}</div>;
+                        return <div key={i} className="pcaf-grid__cell pcaf-hours-cell">{hrs > 0 ? hrs.toFixed(2) : '—'}</div>;
                     })}
-                    <div className="pcaf-grid__total-col pcaf-hours-cell">
-                        <strong>{totalHours.toFixed(2)}</strong>
-                        <span className="pcaf-units-label">{totalUnits} units</span>
+                    <div className={`pcaf-grid__total-col pcaf-section-total pcaf-section-total--${colorClass}`}>
+                        <span className="pcaf-section-total__label">HOURS</span>
+                        <span className="pcaf-section-total__hrs">{totalHours.toFixed(2)}</span>
+                        <span className="pcaf-section-total__label">UNITS</span>
+                        <span className="pcaf-section-total__units">{totalUnits}</span>
                     </div>
                 </div>
             </div>
@@ -464,68 +468,79 @@ export default function PcaFormPage() {
 
     const weekLabel = formatWeek(selectedWeekStart || data.timesheet.weekStart.split('T')[0]);
 
+    const totalAuth = (authLimits.PAS?.hours || 0) + (authLimits.Homemaker?.hours || 0) + (authLimits.Respite?.hours || 0);
+    const totalAuthUnits = (authLimits.PAS?.units || 0) + (authLimits.Homemaker?.units || 0) + (authLimits.Respite?.units || 0);
+
     return (
         <div className="pcaf-page">
             {/* Title */}
-            <div className="pcaf-title-bar">
-                <h1 className="pcaf-title">PCA SERVICE DELIVERY RECORD</h1>
-            </div>
+            <h1 className="pcaf-title">PCA SERVICE DELIVERY RECORD</h1>
 
-            {/* Week Picker */}
-            <div className="pcaf-week-row">
-                <button type="button" className="pcaf-week-arrow" onClick={() => navigateWeek(-1)}>&lsaquo;</button>
-                <div className="pcaf-week-display">
-                    <label className="pcaf-week-label">Week of Sunday:</label>
-                    <input type="date" className="pcaf-week-input" value={selectedWeekStart} onChange={(e) => handleWeekChange(e.target.value)} />
+            {/* Top bar: week picker left, client details center-right, status far right */}
+            <div className="pcaf-topbar">
+                <div className="pcaf-topbar__left">
+                    <div className="pcaf-week-picker">
+                        <svg className="pcaf-cal-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                        <span className="pcaf-week-picker__label">Week of Sunday:</span>
+                        <input type="date" className="pcaf-week-input" value={selectedWeekStart} onChange={(e) => handleWeekChange(e.target.value)} />
+                        <button type="button" className="pcaf-week-arrow" onClick={() => navigateWeek(1)}>&rsaquo;</button>
+                    </div>
+                    <div className="pcaf-week-range">{weekLabel}</div>
                 </div>
-                <button type="button" className="pcaf-week-arrow" onClick={() => navigateWeek(1)}>&rsaquo;</button>
-                <span className="pcaf-week-range">{weekLabel}</span>
-            </div>
-
-            {/* Client Info Row */}
-            <div className="pcaf-info-row">
-                <div className="pcaf-info-item">
-                    <span className="pcaf-info-label">Client</span>
-                    <span className="pcaf-info-value">{data.client.clientName}</span>
+                <div className="pcaf-topbar__center">
+                    <div className="pcaf-detail">
+                        <span className="pcaf-detail__label">Client:</span>
+                        <span className="pcaf-detail__value">{data.client.clientName}</span>
+                    </div>
+                    <div className="pcaf-detail">
+                        <span className="pcaf-detail__label">Medicaid ID:</span>
+                        <span className="pcaf-detail__value">{data.client.medicaidId || '—'}</span>
+                    </div>
+                    <div className="pcaf-detail">
+                        <span className="pcaf-detail__label">PCA (Caregiver):</span>
+                        <span className="pcaf-detail__value">{data.pcaName}</span>
+                    </div>
+                    <div className="pcaf-detail">
+                        <span className="pcaf-detail__label">Date Submitted:</span>
+                        <span className="pcaf-detail__value">{data.timesheet.submittedAt ? new Date(data.timesheet.submittedAt).toLocaleDateString() : 'Not Submitted'}</span>
+                    </div>
                 </div>
-                <div className="pcaf-info-item">
-                    <span className="pcaf-info-label">Medicaid ID</span>
-                    <span className="pcaf-info-value">{data.client.medicaidId || '--'}</span>
-                </div>
-                <div className="pcaf-info-item">
-                    <span className="pcaf-info-label">PCA Caregiver</span>
-                    <span className="pcaf-info-value">{data.pcaName}</span>
-                </div>
-                <div className="pcaf-info-item">
-                    <span className="pcaf-info-label">Status</span>
+                <div className="pcaf-topbar__right">
+                    <span className="pcaf-detail__label">Status:</span>
                     <span className={`pcaf-status-badge pcaf-status-badge--${submitted ? 'submitted' : 'draft'}`}>
                         {submitted ? 'Submitted' : 'In Progress'}
                     </span>
                 </div>
             </div>
 
-            {/* Authorized Hours Bar */}
+            {/* Authorized Hours Card */}
             {Object.keys(authLimits).length > 0 && (
-                <div className="pcaf-auth-bar">
-                    <span className="pcaf-auth-title">Authorized Hours</span>
-                    {authLimits.PAS && (
-                        <span className={`pcaf-auth-badge pcaf-auth-badge--pas${Math.round(totalPas * 4) > authLimits.PAS.units ? ' pcaf-auth-badge--exceeded' : ''}`}>
-                            PAS: {authLimits.PAS.hours} hrs
-                        </span>
-                    )}
-                    {authLimits.Homemaker && (
-                        <span className={`pcaf-auth-badge pcaf-auth-badge--hm${Math.round(totalHm * 4) > authLimits.Homemaker.units ? ' pcaf-auth-badge--exceeded' : ''}`}>
-                            Homemaker: {authLimits.Homemaker.hours} hrs
-                        </span>
-                    )}
-                    {authLimits.Respite && (
-                        <span className={`pcaf-auth-badge pcaf-auth-badge--respite${Math.round(totalRespite * 4) > authLimits.Respite.units ? ' pcaf-auth-badge--exceeded' : ''}`}>
-                            Respite: {authLimits.Respite.hours} hrs
-                        </span>
-                    )}
-                    <span className="pcaf-auth-badge pcaf-auth-badge--total">
-                        Total: {(authLimits.PAS?.hours || 0) + (authLimits.Homemaker?.hours || 0) + (authLimits.Respite?.hours || 0)} hrs
-                    </span>
+                <div className="pcaf-auth-card">
+                    <div className="pcaf-auth-card__left">
+                        <span className="pcaf-auth-card__title">AUTHORIZED HOURS</span>
+                        <span className="pcaf-auth-card__sub">(WEEKLY)</span>
+                    </div>
+                    <div className="pcaf-auth-card__badges">
+                        {authLimits.PAS && (
+                            <span className="pcaf-auth-pill pcaf-auth-pill--pas">
+                                PAS: {authLimits.PAS.hours} hrs ({authLimits.PAS.units} units)
+                            </span>
+                        )}
+                        {authLimits.Homemaker && (
+                            <span className="pcaf-auth-pill pcaf-auth-pill--hm">
+                                Homemaker: {authLimits.Homemaker.hours} hrs ({authLimits.Homemaker.units} units)
+                            </span>
+                        )}
+                        {authLimits.Respite && (
+                            <span className="pcaf-auth-pill pcaf-auth-pill--respite">
+                                Respite: {authLimits.Respite.hours} hrs ({authLimits.Respite.units} units)
+                            </span>
+                        )}
+                    </div>
+                    <div className="pcaf-auth-card__right">
+                        <span className="pcaf-auth-card__total-label">TOTAL AUTHORIZED</span>
+                        <span className="pcaf-auth-card__total-value">{totalAuth} hrs ({totalAuthUnits} units)</span>
+                    </div>
                 </div>
             )}
 
@@ -547,7 +562,8 @@ export default function PcaFormPage() {
                         {/* PAS Section */}
                         {pasEnabled && (
                             <ProgramSection
-                                title="PAS (PERSONAL ASSISTANCE SERVICES)"
+                                title="PAS"
+                                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
                                 colorClass="pas"
                                 activities={ADL_ACTIVITIES}
                                 section="adl"
@@ -565,7 +581,8 @@ export default function PcaFormPage() {
                         {/* Homemaker Section */}
                         {hmEnabled && (
                             <ProgramSection
-                                title="HOMEMAKER (IADL SERVICES)"
+                                title="HOMEMAKER"
+                                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>}
                                 colorClass="hm"
                                 activities={IADL_ACTIVITIES}
                                 section="iadl"
@@ -583,7 +600,8 @@ export default function PcaFormPage() {
                         {/* Respite Section */}
                         {respiteEnabled && (
                             <ProgramSection
-                                title="RESPITE (COMPANION CARE SERVICES)"
+                                title="RESPITE"
+                                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>}
                                 colorClass="respite"
                                 activities={RESPITE_ACTIVITIES}
                                 section="respite"
@@ -600,37 +618,46 @@ export default function PcaFormPage() {
 
                         {/* Weekly Total Bar */}
                         <div className="pcaf-weekly-total">
-                            <div className="pcaf-weekly-total__header">WEEKLY TOTAL</div>
-                            <div className="pcaf-weekly-total__body">
-                                <div className="pcaf-weekly-total__item">
-                                    <span className="pcaf-weekly-total__label">Total All Programs</span>
-                                    <span className="pcaf-weekly-total__value">{totalAll.toFixed(2)} hrs / {Math.round(totalAll * 4)} units</span>
-                                </div>
-                                {pasEnabled && (
-                                    <div className={`pcaf-weekly-total__item pcaf-weekly-total__item--pas${authLimits.PAS && Math.round(totalPas * 4) > authLimits.PAS.units ? ' pcaf-weekly-total__item--exceeded' : ''}`}>
-                                        <span className="pcaf-weekly-total__label">PAS</span>
-                                        <span className="pcaf-weekly-total__value">{totalPas.toFixed(2)} hrs / {Math.round(totalPas * 4)} units{authLimits.PAS ? ` of ${authLimits.PAS.units}` : ''}</span>
-                                    </div>
-                                )}
-                                {hmEnabled && (
-                                    <div className={`pcaf-weekly-total__item pcaf-weekly-total__item--hm${authLimits.Homemaker && Math.round(totalHm * 4) > authLimits.Homemaker.units ? ' pcaf-weekly-total__item--exceeded' : ''}`}>
-                                        <span className="pcaf-weekly-total__label">Homemaker</span>
-                                        <span className="pcaf-weekly-total__value">{totalHm.toFixed(2)} hrs / {Math.round(totalHm * 4)} units{authLimits.Homemaker ? ` of ${authLimits.Homemaker.units}` : ''}</span>
-                                    </div>
-                                )}
-                                {respiteEnabled && (
-                                    <div className={`pcaf-weekly-total__item pcaf-weekly-total__item--respite${authLimits.Respite && Math.round(totalRespite * 4) > authLimits.Respite.units ? ' pcaf-weekly-total__item--exceeded' : ''}`}>
-                                        <span className="pcaf-weekly-total__label">Respite</span>
-                                        <span className="pcaf-weekly-total__value">{totalRespite.toFixed(2)} hrs / {Math.round(totalRespite * 4)} units{authLimits.Respite ? ` of ${authLimits.Respite.units}` : ''}</span>
-                                    </div>
-                                )}
+                            <div className="pcaf-weekly-total__icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
                             </div>
+                            <div className="pcaf-weekly-total__title">
+                                <strong>WEEKLY TOTAL</strong>
+                                <span>(All Programs)</span>
+                            </div>
+                            <div className="pcaf-weekly-total__col">
+                                <span className="pcaf-weekly-total__col-label">TOTAL HOURS</span>
+                                <span className="pcaf-weekly-total__col-value">{totalAll.toFixed(2)} hrs</span>
+                            </div>
+                            <div className="pcaf-weekly-total__col">
+                                <span className="pcaf-weekly-total__col-label">TOTAL UNITS</span>
+                                <span className="pcaf-weekly-total__col-value">{Math.round(totalAll * 4)} units</span>
+                            </div>
+                            {pasEnabled && (
+                                <div className="pcaf-weekly-total__col">
+                                    <span className="pcaf-weekly-total__col-label">PAS HOURS / UNITS</span>
+                                    <span className="pcaf-weekly-total__col-value">{totalPas.toFixed(2)} hrs / {Math.round(totalPas * 4)} units</span>
+                                </div>
+                            )}
+                            {hmEnabled && (
+                                <div className="pcaf-weekly-total__col">
+                                    <span className="pcaf-weekly-total__col-label">HOMEMAKER HOURS / UNITS</span>
+                                    <span className="pcaf-weekly-total__col-value">{totalHm.toFixed(2)} hrs / {Math.round(totalHm * 4)} units</span>
+                                </div>
+                            )}
+                            {respiteEnabled && (
+                                <div className="pcaf-weekly-total__col">
+                                    <span className="pcaf-weekly-total__col-label">RESPITE HOURS / UNITS</span>
+                                    <span className="pcaf-weekly-total__col-value">{totalRespite.toFixed(2)} hrs / {Math.round(totalRespite * 4)} units</span>
+                                </div>
+                            )}
                         </div>
 
                         {/* Tip */}
-                        {!submitted && hmEnabled && respiteEnabled && (
-                            <p className="pcaf-tip">Homemaker and Respite times cannot overlap on the same day. Each section tracks its own shifts independently.</p>
-                        )}
+                        <div className="pcaf-tip">
+                            <svg className="pcaf-tip__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                            <span>Tip: You can only log one program per day. Use the sections above to select the program and record your activities.</span>
+                        </div>
 
                         {/* Signature Section */}
                         <div className="pcaf-signatures">
@@ -638,19 +665,21 @@ export default function PcaFormPage() {
                             <div className="pcaf-signatures__body">
                                 <div className="pcaf-signatures__grid">
                                     <div className={`pcaf-signatures__field ${fieldErrors.pcaFullName ? 'pcaf-name-error' : ''}`}>
-                                        <label>PCA Name (First, MI, Last)</label>
+                                        <label>PCA (Caregiver) Name *</label>
                                         <input type="text" value={pcaFullName} onChange={(e) => { setPcaFullName(e.target.value); setHasUnsavedChanges(true); }} disabled={submitted} placeholder="Jane A. Doe" />
                                     </div>
                                     <div className={`pcaf-signatures__field ${fieldErrors.recipientName ? 'pcaf-name-error' : ''}`}>
-                                        <label>Recipient Name (First, MI, Last)</label>
+                                        <label>Recipient (Client) Name *</label>
                                         <input type="text" value={recipientName} onChange={(e) => { setRecipientName(e.target.value); setHasUnsavedChanges(true); }} disabled={submitted} placeholder="John B. Client" />
                                     </div>
                                 </div>
-                                <div className={`pcaf-signatures__pad ${fieldErrors.pcaSig ? 'pcaf-sig-error' : ''}`}>
-                                    <SignaturePad label="PCA Signature *" value={pcaSig} onChange={(v) => { setPcaSig(v); setHasUnsavedChanges(true); }} disabled={submitted} />
-                                </div>
-                                <div className={`pcaf-signatures__pad ${fieldErrors.recipientSig ? 'pcaf-sig-error' : ''}`}>
-                                    <SignaturePad label="Recipient / Responsible Party Signature *" value={recipientSig} onChange={(v) => { setRecipientSig(v); setHasUnsavedChanges(true); }} disabled={submitted} />
+                                <div className="pcaf-signatures__sig-grid">
+                                    <div className={`pcaf-signatures__pad ${fieldErrors.pcaSig ? 'pcaf-sig-error' : ''}`}>
+                                        <SignaturePad label="PCA (Caregiver) Signature *" value={pcaSig} onChange={(v) => { setPcaSig(v); setHasUnsavedChanges(true); }} disabled={submitted} />
+                                    </div>
+                                    <div className={`pcaf-signatures__pad ${fieldErrors.recipientSig ? 'pcaf-sig-error' : ''}`}>
+                                        <SignaturePad label="Recipient (Client) Signature *" value={recipientSig} onChange={(v) => { setRecipientSig(v); setHasUnsavedChanges(true); }} disabled={submitted} />
+                                    </div>
                                 </div>
                             </div>
                         </div>
