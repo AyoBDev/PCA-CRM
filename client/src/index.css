@@ -2804,7 +2804,9 @@ body {
   display: flex;
   align-items: center;
   gap: 24px;
-  padding: 10px 24px 12px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 10px 16px 12px;
   border-bottom: 1px solid hsl(var(--border));
 }
 
