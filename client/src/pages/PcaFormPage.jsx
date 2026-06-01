@@ -6,9 +6,9 @@ import SignaturePad from '../components/common/SignaturePad';
 import { formatWeek } from '../utils/dates';
 
 const DAY_SHORT = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-const ADL_ACTIVITIES = ['Bathing', 'Dressing', 'Grooming', 'Continence', 'Toileting', 'Ambulation/Mobility', 'Transfer'];
-const IADL_ACTIVITIES = ['Light Housekeeping', 'Medication Reminders', 'Laundry', 'Shopping', 'Meal Preparation B.L.D.', 'Eating/Feeding'];
-const RESPITE_ACTIVITIES = ['Light Housekeeping', 'Medication Reminders', 'Laundry', 'Shopping', 'Meal Preparation B.L.D.', 'Eating/Feeding', 'Companion'];
+const ADL_ACTIVITIES = ['Bathing', 'Dressing', 'Grooming', 'Continence', 'Toileting', 'Ambulation/Mobility', 'Transfer', 'Eating/Feeding'];
+const IADL_ACTIVITIES = ['Light Housekeeping', 'Medication Reminders', 'Laundry', 'Shopping', 'Meal Preparation B.L.D.', 'Eating/Feeding', 'Other'];
+const RESPITE_ACTIVITIES = ['Companionship', 'Safety Supervision', 'Community Activities', 'Other Approved Respite Tasks'];
 
 function roundTo15(timeStr) {
     if (!timeStr) return '';
@@ -56,167 +56,181 @@ function getSunday(date) {
     return dt.toISOString().slice(0, 10);
 }
 
-function SectionBlock({ header, activities, section, entries, updateEntry, dailyHoursFn, disabled, sectionDisabled, onAddShift, onRemoveShift, respiteEnabled, isIadlSection, fieldErrors = {} }) {
-    const SHIFT_COLORS = ['', 'sdr-shift--s2', 'sdr-shift--s3', 'sdr-shift--s4', 'sdr-shift--s5'];
+function ProgramSection({ title, colorClass, activities, section, entries, updateEntry, dailyHoursFn, disabled, sectionDisabled, onAddShift, onRemoveShift, fieldErrors = {} }) {
+    const SHIFT_COLORS = ['', 'pcaf-shift--s2', 'pcaf-shift--s3', 'pcaf-shift--s4'];
+
+    const totalHours = entries.reduce((s, e) => s + dailyHoursFn(e), 0);
+    const totalUnits = Math.round(totalHours * 4);
+
+    let maxBlocks = 0;
+    for (const e of entries) {
+        try {
+            const blocks = JSON.parse(e[`${section}TimeBlocks`] || '[]');
+            if (blocks.length > maxBlocks) maxBlocks = blocks.length;
+        } catch {}
+    }
+
     return (
-        <div className={`sdr-section ${sectionDisabled ? 'sdr-section--disabled' : ''}`}>
-            <div className="sdr-section-title">{header}</div>
-            <div className="sdr-day-header-row">
-                <div className="sdr-activity-label" />
-                {entries.map((e, i) => (
-                    <div key={i} className="sdr-day-header">
-                        <div className="sdr-day-name">{DAY_SHORT[e.dayOfWeek]}</div>
-                        <div className="sdr-day-date">{e.dateOfService ? new Date(e.dateOfService + 'T00:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }) : ''}</div>
-                    </div>
-                ))}
+        <div className={`pcaf-program ${sectionDisabled ? 'pcaf-program--disabled' : ''}`}>
+            <div className={`pcaf-program__header pcaf-program__header--${colorClass}`}>
+                <span className="pcaf-program__title">{title}</span>
             </div>
-            {activities.map((act) => (
-                <div key={act} className="sdr-activity-row">
-                    <div className="sdr-activity-label">{act}</div>
-                    {entries.map((entry, idx) => {
-                        const acts = JSON.parse(entry[`${section}Activities`] || '{}');
-                        const checked = !!acts[act];
-                        return (
-                            <div key={idx} className="sdr-activity-cell">
-                                <input type="checkbox" checked={checked} disabled={disabled}
-                                    onChange={() => {
-                                        const next = { ...acts, [act]: !checked };
-                                        updateEntry(idx, `${section}Activities`, JSON.stringify(next));
-                                    }} />
-                            </div>
-                        );
-                    })}
-                </div>
-            ))}
-            {isIadlSection && respiteEnabled && (
-                <div className="sdr-activity-row sdr-activity-row--respite">
-                    <div className="sdr-activity-label"><strong>Respite</strong></div>
-                    {entries.map((entry, idx) => {
-                        const acts = JSON.parse(entry.respiteActivities || '{}');
-                        const checked = !!acts['Respite'];
-                        return (
-                            <div key={idx} className="sdr-activity-cell">
-                                <input type="checkbox" checked={checked} disabled={disabled}
-                                    onChange={() => {
-                                        const next = { ...acts, Respite: !checked };
-                                        updateEntry(idx, 'respiteActivities', JSON.stringify(next));
-                                    }} />
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-            <div className="sdr-activity-row sdr-initials-row">
-                <div className="sdr-activity-label"><strong>PCA Initials</strong> <span className="sdr-required">*</span></div>
-                {entries.map((e, i) => (
-                    <div key={i} className="sdr-activity-cell">
-                        <input type="text" className={`sdr-initials-input ${fieldErrors[`${i}-${section}-pcaInitials`] ? 'sdr-field-error' : ''}`} value={e[`${section}PcaInitials`] || ''} disabled={disabled} maxLength={4}
-                            onChange={(ev) => updateEntry(i, `${section}PcaInitials`, ev.target.value.toUpperCase())} />
-                    </div>
-                ))}
-            </div>
-            <div className="sdr-activity-row sdr-initials-row">
-                <div className="sdr-activity-label"><strong>Client Initials</strong> <span className="sdr-required">*</span></div>
-                {entries.map((e, i) => (
-                    <div key={i} className="sdr-activity-cell">
-                        <input type="text" className={`sdr-initials-input ${fieldErrors[`${i}-${section}-clientInitials`] ? 'sdr-field-error' : ''}`} value={e[`${section}ClientInitials`] || ''} disabled={disabled} maxLength={4}
-                            onChange={(ev) => updateEntry(i, `${section}ClientInitials`, ev.target.value.toUpperCase())} />
-                    </div>
-                ))}
-            </div>
-            {/* Shift 1: primary time in/out */}
-            <div className="sdr-activity-row sdr-time-row">
-                <div className="sdr-activity-label">Shift 1 — In <span className="sdr-required">*</span></div>
-                {entries.map((e, i) => (
-                    <div key={i} className="sdr-activity-cell">
-                        <input type="time" className={`sdr-time-input ${fieldErrors[`${i}-${section}-timeIn`] ? 'sdr-field-error' : ''}`} value={e[`${section}TimeIn`] || ''} disabled={disabled}
-                            onChange={(ev) => updateEntry(i, `${section}TimeIn`, ev.target.value)} />
-                    </div>
-                ))}
-            </div>
-            <div className="sdr-activity-row sdr-time-row">
-                <div className="sdr-activity-label">Shift 1 — Out <span className="sdr-required">*</span></div>
-                {entries.map((e, i) => (
-                    <div key={i} className="sdr-activity-cell">
-                        <input type="time" className={`sdr-time-input ${fieldErrors[`${i}-${section}-timeOut`] ? 'sdr-field-error' : ''}`} value={e[`${section}TimeOut`] || ''} disabled={disabled}
-                            onChange={(ev) => updateEntry(i, `${section}TimeOut`, ev.target.value)} />
-                    </div>
-                ))}
-            </div>
-            {/* Extra shifts from timeBlocks — color-coded */}
-            {(() => {
-                let maxBlocks = 0;
-                for (const e of entries) {
-                    try {
-                        const blocks = JSON.parse(e[`${section}TimeBlocks`] || '[]');
-                        if (blocks.length > maxBlocks) maxBlocks = blocks.length;
-                    } catch {}
-                }
-                const rows = [];
-                for (let b = 0; b < maxBlocks; b++) {
-                    const colorClass = SHIFT_COLORS[b] || SHIFT_COLORS[SHIFT_COLORS.length - 1];
-                    rows.push(
-                        <div key={`block-in-${b}`} className={`sdr-activity-row sdr-time-row ${colorClass}`}>
-                            <div className="sdr-activity-label">
-                                Shift {b + 2} — In
-                                {!disabled && b === maxBlocks - 1 && (
-                                    <button type="button" className="sdr-remove-shift-btn" title="Remove this shift"
-                                        onClick={() => onRemoveShift(section, b)}>×</button>
-                                )}
-                            </div>
-                            {entries.map((e, i) => {
-                                const blocks = (() => { try { return JSON.parse(e[`${section}TimeBlocks`] || '[]'); } catch { return []; } })();
-                                return (
-                                    <div key={i} className="sdr-activity-cell">
-                                        <input type="time" className="sdr-time-input" value={blocks[b]?.in || ''} disabled={disabled}
-                                            onChange={(ev) => {
-                                                const updated = [...blocks];
-                                                if (!updated[b]) updated[b] = { in: '', out: '' };
-                                                updated[b] = { ...updated[b], in: ev.target.value };
-                                                updateEntry(i, `${section}TimeBlocks`, JSON.stringify(updated));
-                                            }} />
-                                    </div>
-                                );
-                            })}
-                        </div>,
-                        <div key={`block-out-${b}`} className={`sdr-activity-row sdr-time-row ${colorClass}`}>
-                            <div className="sdr-activity-label">Shift {b + 2} — Out</div>
-                            {entries.map((e, i) => {
-                                const blocks = (() => { try { return JSON.parse(e[`${section}TimeBlocks`] || '[]'); } catch { return []; } })();
-                                return (
-                                    <div key={i} className="sdr-activity-cell">
-                                        <input type="time" className="sdr-time-input" value={blocks[b]?.out || ''} disabled={disabled}
-                                            onChange={(ev) => {
-                                                const updated = [...blocks];
-                                                if (!updated[b]) updated[b] = { in: '', out: '' };
-                                                updated[b] = { ...updated[b], out: ev.target.value };
-                                                updateEntry(i, `${section}TimeBlocks`, JSON.stringify(updated));
-                                            }} />
-                                    </div>
-                                );
-                            })}
+
+            <div className="pcaf-grid">
+                {/* Column headers */}
+                <div className="pcaf-grid__head">
+                    <div className="pcaf-grid__label-col">ACTIVITIES</div>
+                    {entries.map((e, i) => (
+                        <div key={i} className="pcaf-grid__day-col">
+                            <div className="pcaf-grid__day-name">{DAY_SHORT[e.dayOfWeek]}</div>
+                            <div className="pcaf-grid__day-date">{e.dateOfService ? new Date(e.dateOfService + 'T00:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }) : ''}</div>
                         </div>
-                    );
-                }
-                return rows;
-            })()}
-            {/* Add Shift button */}
-            {!disabled && (
-                <div className="sdr-activity-row">
-                    <div className="sdr-activity-label">
-                        <button type="button" className="sdr-add-shift-btn" onClick={() => onAddShift(section)}>
-                            + Add Shift
-                        </button>
-                    </div>
-                    {entries.map((_, i) => <div key={i} className="sdr-activity-cell" />)}
+                    ))}
+                    <div className="pcaf-grid__total-col">TOTAL</div>
                 </div>
-            )}
-            <div className="sdr-activity-row sdr-total-row">
-                <div className="sdr-activity-label"><strong>Daily Totals</strong></div>
-                {entries.map((e, i) => {
-                    const hrs = dailyHoursFn(e);
-                    return <div key={i} className="sdr-activity-cell sdr-hours-cell">{hrs > 0 ? hrs.toFixed(2) : '—'}</div>;
-                })}
+
+                {/* Activity rows */}
+                {activities.map((act) => (
+                    <div key={act} className="pcaf-grid__row">
+                        <div className="pcaf-grid__label-col">{act}</div>
+                        {entries.map((entry, idx) => {
+                            const acts = JSON.parse(entry[`${section}Activities`] || '{}');
+                            const checked = !!acts[act];
+                            return (
+                                <div key={idx} className="pcaf-grid__cell">
+                                    <input type="checkbox" checked={checked} disabled={disabled}
+                                        onChange={() => {
+                                            const next = { ...acts, [act]: !checked };
+                                            updateEntry(idx, `${section}Activities`, JSON.stringify(next));
+                                        }} />
+                                </div>
+                            );
+                        })}
+                        <div className="pcaf-grid__total-col" />
+                    </div>
+                ))}
+
+                {/* PCA Initials */}
+                <div className="pcaf-grid__row pcaf-grid__row--initials">
+                    <div className="pcaf-grid__label-col"><strong>PCA Initials</strong></div>
+                    {entries.map((e, i) => (
+                        <div key={i} className="pcaf-grid__cell">
+                            <input type="text" className={`pcaf-initials-input ${fieldErrors[`${i}-${section}-pcaInitials`] ? 'pcaf-field-error' : ''}`} value={e[`${section}PcaInitials`] || ''} disabled={disabled} maxLength={4}
+                                onChange={(ev) => updateEntry(i, `${section}PcaInitials`, ev.target.value.toUpperCase())} />
+                        </div>
+                    ))}
+                    <div className="pcaf-grid__total-col" />
+                </div>
+
+                {/* Client Initials */}
+                <div className="pcaf-grid__row pcaf-grid__row--initials">
+                    <div className="pcaf-grid__label-col"><strong>Client Initials</strong></div>
+                    {entries.map((e, i) => (
+                        <div key={i} className="pcaf-grid__cell">
+                            <input type="text" className={`pcaf-initials-input ${fieldErrors[`${i}-${section}-clientInitials`] ? 'pcaf-field-error' : ''}`} value={e[`${section}ClientInitials`] || ''} disabled={disabled} maxLength={4}
+                                onChange={(ev) => updateEntry(i, `${section}ClientInitials`, ev.target.value.toUpperCase())} />
+                        </div>
+                    ))}
+                    <div className="pcaf-grid__total-col" />
+                </div>
+
+                {/* Shift 1: primary time */}
+                <div className="pcaf-grid__row pcaf-grid__row--time">
+                    <div className="pcaf-grid__label-col">Shift 1 - In</div>
+                    {entries.map((e, i) => (
+                        <div key={i} className="pcaf-grid__cell">
+                            <input type="time" className={`pcaf-time-input ${fieldErrors[`${i}-${section}-timeIn`] ? 'pcaf-field-error' : ''}`} value={e[`${section}TimeIn`] || ''} disabled={disabled}
+                                onChange={(ev) => updateEntry(i, `${section}TimeIn`, ev.target.value)} />
+                        </div>
+                    ))}
+                    <div className="pcaf-grid__total-col" />
+                </div>
+                <div className="pcaf-grid__row pcaf-grid__row--time">
+                    <div className="pcaf-grid__label-col">Shift 1 - Out</div>
+                    {entries.map((e, i) => (
+                        <div key={i} className="pcaf-grid__cell">
+                            <input type="time" className={`pcaf-time-input ${fieldErrors[`${i}-${section}-timeOut`] ? 'pcaf-field-error' : ''}`} value={e[`${section}TimeOut`] || ''} disabled={disabled}
+                                onChange={(ev) => updateEntry(i, `${section}TimeOut`, ev.target.value)} />
+                        </div>
+                    ))}
+                    <div className="pcaf-grid__total-col" />
+                </div>
+
+                {/* Extra shifts */}
+                {(() => {
+                    const rows = [];
+                    for (let b = 0; b < maxBlocks; b++) {
+                        const colorCls = SHIFT_COLORS[b + 1] || SHIFT_COLORS[SHIFT_COLORS.length - 1];
+                        rows.push(
+                            <div key={`block-in-${b}`} className={`pcaf-grid__row pcaf-grid__row--time ${colorCls}`}>
+                                <div className="pcaf-grid__label-col">
+                                    Shift {b + 2} - In
+                                    {!disabled && b === maxBlocks - 1 && (
+                                        <button type="button" className="pcaf-remove-shift" title="Remove shift" onClick={() => onRemoveShift(section, b)}>x</button>
+                                    )}
+                                </div>
+                                {entries.map((e, i) => {
+                                    const blocks = (() => { try { return JSON.parse(e[`${section}TimeBlocks`] || '[]'); } catch { return []; } })();
+                                    return (
+                                        <div key={i} className="pcaf-grid__cell">
+                                            <input type="time" className="pcaf-time-input" value={blocks[b]?.in || ''} disabled={disabled}
+                                                onChange={(ev) => {
+                                                    const updated = [...blocks];
+                                                    if (!updated[b]) updated[b] = { in: '', out: '' };
+                                                    updated[b] = { ...updated[b], in: ev.target.value };
+                                                    updateEntry(i, `${section}TimeBlocks`, JSON.stringify(updated));
+                                                }} />
+                                        </div>
+                                    );
+                                })}
+                                <div className="pcaf-grid__total-col" />
+                            </div>,
+                            <div key={`block-out-${b}`} className={`pcaf-grid__row pcaf-grid__row--time ${colorCls}`}>
+                                <div className="pcaf-grid__label-col">Shift {b + 2} - Out</div>
+                                {entries.map((e, i) => {
+                                    const blocks = (() => { try { return JSON.parse(e[`${section}TimeBlocks`] || '[]'); } catch { return []; } })();
+                                    return (
+                                        <div key={i} className="pcaf-grid__cell">
+                                            <input type="time" className="pcaf-time-input" value={blocks[b]?.out || ''} disabled={disabled}
+                                                onChange={(ev) => {
+                                                    const updated = [...blocks];
+                                                    if (!updated[b]) updated[b] = { in: '', out: '' };
+                                                    updated[b] = { ...updated[b], out: ev.target.value };
+                                                    updateEntry(i, `${section}TimeBlocks`, JSON.stringify(updated));
+                                                }} />
+                                        </div>
+                                    );
+                                })}
+                                <div className="pcaf-grid__total-col" />
+                            </div>
+                        );
+                    }
+                    return rows;
+                })()}
+
+                {/* Add Shift button */}
+                {!disabled && (
+                    <div className="pcaf-grid__row">
+                        <div className="pcaf-grid__label-col">
+                            <button type="button" className="pcaf-add-shift" onClick={() => onAddShift(section)}>+ Add Shift</button>
+                        </div>
+                        {entries.map((_, i) => <div key={i} className="pcaf-grid__cell" />)}
+                        <div className="pcaf-grid__total-col" />
+                    </div>
+                )}
+
+                {/* Daily totals row */}
+                <div className={`pcaf-grid__row pcaf-grid__row--totals pcaf-grid__row--totals-${colorClass}`}>
+                    <div className="pcaf-grid__label-col"><strong>Daily Total</strong></div>
+                    {entries.map((e, i) => {
+                        const hrs = dailyHoursFn(e);
+                        return <div key={i} className="pcaf-grid__cell pcaf-hours-cell">{hrs > 0 ? hrs.toFixed(2) : '--'}</div>;
+                    })}
+                    <div className="pcaf-grid__total-col pcaf-hours-cell">
+                        <strong>{totalHours.toFixed(2)}</strong>
+                        <span className="pcaf-units-label">{totalUnits} units</span>
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -234,7 +248,6 @@ export default function PcaFormPage() {
     const [recipientSig, setRecipientSig] = useState('');
     const [saving, setSaving] = useState(false);
     const [submitting, setSubmitting] = useState(false);
-    const [iadlTab, setIadlTab] = useState('iadl');
     const [toast, setToast] = useState('');
     const [selectedWeekStart, setSelectedWeekStart] = useState('');
     const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -260,8 +273,6 @@ export default function PcaFormPage() {
                 setRecipientSig(resp.timesheet.recipientSignature || '');
                 const ws = resp.timesheet.weekStart?.split('T')[0] || '';
                 setSelectedWeekStart(ws);
-                const enabled = resp.client?.enabledServices || [];
-                if (!enabled.includes('Homemaker') && enabled.includes('Respite')) setIadlTab('respite');
             })
             .catch((err) => setError(err.message))
             .finally(() => setLoading(false));
@@ -273,7 +284,6 @@ export default function PcaFormPage() {
     const pasEnabled = enabledServices.includes('PAS');
     const hmEnabled = enabledServices.includes('Homemaker');
     const respiteEnabled = enabledServices.includes('Respite');
-    const iadlAnyEnabled = hmEnabled || respiteEnabled;
     const submitted = data?.timesheet?.status === 'submitted';
     const authLimits = data?.authLimits || {};
 
@@ -308,7 +318,6 @@ export default function PcaFormPage() {
     const totalRespite = entries.reduce((s, e) => s + respiteHrs(e), 0);
     const totalAll = totalPas + totalHm + totalRespite;
 
-    // Week navigation
     const handleWeekChange = (sundayDate) => {
         const snapped = getSunday(sundayDate);
         setSelectedWeekStart(snapped);
@@ -322,9 +331,8 @@ export default function PcaFormPage() {
         handleWeekChange(dt.toISOString().slice(0, 10));
     };
 
-    // Validation for submit gating
     const validationError = useMemo(() => {
-        if (!data) return 'Loading…';
+        if (!data) return 'Loading...';
         if (!pcaFullName.trim()) return 'Enter PCA full name';
         if (!pcaSig) return 'PCA signature required';
         if (!recipientName.trim()) return 'Enter recipient name';
@@ -351,7 +359,6 @@ export default function PcaFormPage() {
                 if (aS < bE && bS < aE) return `Day ${DAY_SHORT[e.dayOfWeek]}: Homemaker and Respite times overlap`;
             }
         }
-        // Authorization limit checks
         if (authLimits.PAS && Math.round(totalPas * 4) > authLimits.PAS.units) {
             return `PAS hours (${totalPas.toFixed(2)} hrs) exceed authorized limit of ${authLimits.PAS.hours} hrs`;
         }
@@ -432,7 +439,7 @@ export default function PcaFormPage() {
         if (validationError) {
             showToast(validationError);
             setTimeout(() => {
-                const el = document.querySelector('.sdr-field-error, .sdr-name-error, .sdr-sig-error');
+                const el = document.querySelector('.pcaf-field-error, .pcaf-name-error, .pcaf-sig-error');
                 if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }, 50);
             return;
@@ -451,186 +458,215 @@ export default function PcaFormPage() {
         setSubmitting(false);
     };
 
-    // Initial load — no data yet, show simple loading screen
-    if (!data && loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading…</div>;
+    if (!data && loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading...</div>;
     if (!data && error) return <div style={{ padding: 40, textAlign: 'center', color: 'hsl(var(--destructive))' }}>{error}</div>;
     if (!data) return null;
 
     const weekLabel = formatWeek(selectedWeekStart || data.timesheet.weekStart.split('T')[0]);
-    const iadlSection = iadlTab === 'respite' ? 'respite' : 'iadl';
-    const iadlHoursFn = iadlTab === 'respite' ? respiteHrs : iadlHrs;
-
-    const pasHeader = (
-        <>
-            <span>Activities of Daily Living — ADL's</span>
-            <span className={`sdr-section-tag ${pasEnabled ? 'sdr-section-tag--active' : 'sdr-section-tag--disabled'}`}>PAS</span>
-        </>
-    );
-
-    const iadlHeader = (
-        <>
-            <span>IADL's Instrumental Activities of Daily Living</span>
-            <button
-                type="button"
-                className={`sdr-section-tag ${hmEnabled ? (iadlTab === 'iadl' ? 'sdr-section-tag--active' : 'sdr-section-tag--available') : 'sdr-section-tag--disabled'}`}
-                disabled={!hmEnabled || submitted}
-                onClick={() => hmEnabled && setIadlTab('iadl')}
-                title={hmEnabled ? 'Log Homemaker time' : 'Not approved for this client'}
-            >HOMEMAKER (HM)</button>
-            <button
-                type="button"
-                className={`sdr-section-tag ${respiteEnabled ? (iadlTab === 'respite' ? 'sdr-section-tag--active' : 'sdr-section-tag--available') : 'sdr-section-tag--disabled'}`}
-                disabled={!respiteEnabled || submitted}
-                onClick={() => respiteEnabled && setIadlTab('respite')}
-                title={respiteEnabled ? 'Log Respite time' : 'Not approved for this client'}
-            >RESPITE (RP)</button>
-        </>
-    );
 
     return (
-        <div className="pca-form-page">
-            <div className="pca-form-header">
-                <h1>PCA Service Delivery Record</h1>
-                {/* Week selector */}
-                <div className="pca-form-week-nav">
-                    <button type="button" className="pca-form-week-nav__btn" onClick={() => navigateWeek(-1)} title="Previous week">&lsaquo;</button>
-                    <div className="pca-form-week-nav__label">
-                        <label className="pca-form-week-nav__input-label">Week of Sunday:</label>
-                        <input
-                            type="date"
-                            className="pca-form-week-nav__input"
-                            value={selectedWeekStart}
-                            onChange={(e) => handleWeekChange(e.target.value)}
-                        />
-                    </div>
-                    <button type="button" className="pca-form-week-nav__btn" onClick={() => navigateWeek(1)} title="Next week">&rsaquo;</button>
-                </div>
-                <p className="pca-form-week">{weekLabel}</p>
-                <div className="pca-form-meta">
-                    <span><strong>Client:</strong> {data.client.clientName}</span>
-                    <span><strong>PCA:</strong> {data.pcaName}</span>
-                    {submitted && <span className="ts-badge ts-badge--submitted">Submitted</span>}
-                </div>
-                {Object.keys(authLimits).length > 0 && (
-                    <div className="pca-form-auth-limits">
-                        <strong>Authorized Hours:</strong>
-                        {authLimits.PAS && (
-                            <span className={`pca-form-auth-chip${Math.round(totalPas * 4) > authLimits.PAS.units ? ' pca-form-auth-chip--exceeded' : ''}`}>
-                                PAS: {authLimits.PAS.hours} hrs ({authLimits.PAS.units} units)
-                            </span>
-                        )}
-                        {authLimits.Homemaker && (
-                            <span className={`pca-form-auth-chip${Math.round(totalHm * 4) > authLimits.Homemaker.units ? ' pca-form-auth-chip--exceeded' : ''}`}>
-                                Homemaker: {authLimits.Homemaker.hours} hrs ({authLimits.Homemaker.units} units)
-                            </span>
-                        )}
-                        {authLimits.Respite && (
-                            <span className={`pca-form-auth-chip${Math.round(totalRespite * 4) > authLimits.Respite.units ? ' pca-form-auth-chip--exceeded' : ''}`}>
-                                Respite: {authLimits.Respite.hours} hrs ({authLimits.Respite.units} units)
-                            </span>
-                        )}
-                    </div>
-                )}
+        <div className="pcaf-page">
+            {/* Title */}
+            <div className="pcaf-title-bar">
+                <h1 className="pcaf-title">PCA SERVICE DELIVERY RECORD</h1>
             </div>
 
-            {!submitted && hasUnsavedChanges && (
-                <div style={{ position: 'sticky', top: 0, zIndex: 50, maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
-                    <div style={{ padding: '10px 16px', background: '#fef3cd', border: '1px solid #ffc107', borderRadius: 8, fontSize: 13, color: '#664d03', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 500 }}>
-                        <span style={{ fontSize: 18 }}>&#9888;</span> You have unsaved changes. Click <strong>Save Progress</strong> to keep your work.
-                    </div>
+            {/* Week Picker */}
+            <div className="pcaf-week-row">
+                <button type="button" className="pcaf-week-arrow" onClick={() => navigateWeek(-1)}>&lsaquo;</button>
+                <div className="pcaf-week-display">
+                    <label className="pcaf-week-label">Week of Sunday:</label>
+                    <input type="date" className="pcaf-week-input" value={selectedWeekStart} onChange={(e) => handleWeekChange(e.target.value)} />
+                </div>
+                <button type="button" className="pcaf-week-arrow" onClick={() => navigateWeek(1)}>&rsaquo;</button>
+                <span className="pcaf-week-range">{weekLabel}</span>
+            </div>
+
+            {/* Client Info Row */}
+            <div className="pcaf-info-row">
+                <div className="pcaf-info-item">
+                    <span className="pcaf-info-label">Client</span>
+                    <span className="pcaf-info-value">{data.client.clientName}</span>
+                </div>
+                <div className="pcaf-info-item">
+                    <span className="pcaf-info-label">Medicaid ID</span>
+                    <span className="pcaf-info-value">{data.client.medicaidId || '--'}</span>
+                </div>
+                <div className="pcaf-info-item">
+                    <span className="pcaf-info-label">PCA Caregiver</span>
+                    <span className="pcaf-info-value">{data.pcaName}</span>
+                </div>
+                <div className="pcaf-info-item">
+                    <span className="pcaf-info-label">Status</span>
+                    <span className={`pcaf-status-badge pcaf-status-badge--${submitted ? 'submitted' : 'draft'}`}>
+                        {submitted ? 'Submitted' : 'In Progress'}
+                    </span>
+                </div>
+            </div>
+
+            {/* Authorized Hours Bar */}
+            {Object.keys(authLimits).length > 0 && (
+                <div className="pcaf-auth-bar">
+                    <span className="pcaf-auth-title">Authorized Hours</span>
+                    {authLimits.PAS && (
+                        <span className={`pcaf-auth-badge pcaf-auth-badge--pas${Math.round(totalPas * 4) > authLimits.PAS.units ? ' pcaf-auth-badge--exceeded' : ''}`}>
+                            PAS: {authLimits.PAS.hours} hrs
+                        </span>
+                    )}
+                    {authLimits.Homemaker && (
+                        <span className={`pcaf-auth-badge pcaf-auth-badge--hm${Math.round(totalHm * 4) > authLimits.Homemaker.units ? ' pcaf-auth-badge--exceeded' : ''}`}>
+                            Homemaker: {authLimits.Homemaker.hours} hrs
+                        </span>
+                    )}
+                    {authLimits.Respite && (
+                        <span className={`pcaf-auth-badge pcaf-auth-badge--respite${Math.round(totalRespite * 4) > authLimits.Respite.units ? ' pcaf-auth-badge--exceeded' : ''}`}>
+                            Respite: {authLimits.Respite.hours} hrs
+                        </span>
+                    )}
+                    <span className="pcaf-auth-badge pcaf-auth-badge--total">
+                        Total: {(authLimits.PAS?.hours || 0) + (authLimits.Homemaker?.hours || 0) + (authLimits.Respite?.hours || 0)} hrs
+                    </span>
                 </div>
             )}
 
-            <div className="sdr-form" style={{ maxWidth: 1200, margin: '0 auto', padding: 16 }}>
+            {/* Unsaved changes warning */}
+            {!submitted && hasUnsavedChanges && (
+                <div className="pcaf-unsaved-banner">
+                    You have unsaved changes. Click <strong>Save Progress</strong> to keep your work.
+                </div>
+            )}
+
+            {/* Main form content */}
+            <div className="pcaf-content">
                 {loading ? (
-                    <div style={{ padding: 40, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>Loading…</div>
+                    <div style={{ padding: 40, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>Loading...</div>
                 ) : error ? (
                     <div style={{ padding: 40, textAlign: 'center', color: 'hsl(var(--destructive))' }}>{error}</div>
                 ) : (
                     <>
-                        <SectionBlock
-                            header={pasHeader}
-                            activities={ADL_ACTIVITIES}
-                            section="adl"
-                            entries={entries}
-                            updateEntry={updateEntry}
-                            dailyHoursFn={adlHrs}
-                            disabled={submitted || !pasEnabled}
-                            sectionDisabled={!pasEnabled}
-                            onAddShift={handleAddShift}
-                            onRemoveShift={handleRemoveShift}
-                            fieldErrors={fieldErrors}
-                        />
-
-                        <SectionBlock
-                            header={iadlHeader}
-                            activities={iadlTab === 'respite' ? RESPITE_ACTIVITIES : IADL_ACTIVITIES}
-                            section={iadlSection}
-                            entries={entries}
-                            updateEntry={updateEntry}
-                            dailyHoursFn={iadlHoursFn}
-                            disabled={submitted || !iadlAnyEnabled || (iadlTab === 'iadl' && !hmEnabled) || (iadlTab === 'respite' && !respiteEnabled)}
-                            sectionDisabled={!iadlAnyEnabled}
-                            onAddShift={handleAddShift}
-                            onRemoveShift={handleRemoveShift}
-                            respiteEnabled={respiteEnabled}
-                            isIadlSection
-                            fieldErrors={fieldErrors}
-                        />
-                        {iadlAnyEnabled && hmEnabled && respiteEnabled && (
-                            <p className="pca-form-hint">Tip: switch between <strong>HOMEMAKER</strong> and <strong>RESPITE</strong> using the tags in the blue bar above. Only one can be logged per day in a given time block.</p>
+                        {/* PAS Section */}
+                        {pasEnabled && (
+                            <ProgramSection
+                                title="PAS (PERSONAL ASSISTANCE SERVICES)"
+                                colorClass="pas"
+                                activities={ADL_ACTIVITIES}
+                                section="adl"
+                                entries={entries}
+                                updateEntry={updateEntry}
+                                dailyHoursFn={adlHrs}
+                                disabled={submitted}
+                                sectionDisabled={false}
+                                onAddShift={handleAddShift}
+                                onRemoveShift={handleRemoveShift}
+                                fieldErrors={fieldErrors}
+                            />
                         )}
 
-                        <div className="sdr-totals-bar">
-                            <div className="sdr-total-item"><span>Total</span><strong>{totalAll.toFixed(2)} hrs / {Math.round(totalAll * 4)} units</strong></div>
-                            {pasEnabled && (
-                                <div className={`sdr-total-item${authLimits.PAS && Math.round(totalPas * 4) > authLimits.PAS.units ? ' sdr-total-item--exceeded' : ''}`}>
-                                    <span>PAS</span>
-                                    <strong>{totalPas.toFixed(2)} hrs / {Math.round(totalPas * 4)} units{authLimits.PAS ? ` of ${authLimits.PAS.units}` : ''}</strong>
-                                    {authLimits.PAS && Math.round(totalPas * 4) > authLimits.PAS.units && <span className="sdr-total-warning">Exceeds authorized limit</span>}
+                        {/* Homemaker Section */}
+                        {hmEnabled && (
+                            <ProgramSection
+                                title="HOMEMAKER (IADL SERVICES)"
+                                colorClass="hm"
+                                activities={IADL_ACTIVITIES}
+                                section="iadl"
+                                entries={entries}
+                                updateEntry={updateEntry}
+                                dailyHoursFn={iadlHrs}
+                                disabled={submitted}
+                                sectionDisabled={false}
+                                onAddShift={handleAddShift}
+                                onRemoveShift={handleRemoveShift}
+                                fieldErrors={fieldErrors}
+                            />
+                        )}
+
+                        {/* Respite Section */}
+                        {respiteEnabled && (
+                            <ProgramSection
+                                title="RESPITE (COMPANION CARE SERVICES)"
+                                colorClass="respite"
+                                activities={RESPITE_ACTIVITIES}
+                                section="respite"
+                                entries={entries}
+                                updateEntry={updateEntry}
+                                dailyHoursFn={respiteHrs}
+                                disabled={submitted}
+                                sectionDisabled={false}
+                                onAddShift={handleAddShift}
+                                onRemoveShift={handleRemoveShift}
+                                fieldErrors={fieldErrors}
+                            />
+                        )}
+
+                        {/* Weekly Total Bar */}
+                        <div className="pcaf-weekly-total">
+                            <div className="pcaf-weekly-total__header">WEEKLY TOTAL</div>
+                            <div className="pcaf-weekly-total__body">
+                                <div className="pcaf-weekly-total__item">
+                                    <span className="pcaf-weekly-total__label">Total All Programs</span>
+                                    <span className="pcaf-weekly-total__value">{totalAll.toFixed(2)} hrs / {Math.round(totalAll * 4)} units</span>
                                 </div>
-                            )}
-                            {hmEnabled && (
-                                <div className={`sdr-total-item${authLimits.Homemaker && Math.round(totalHm * 4) > authLimits.Homemaker.units ? ' sdr-total-item--exceeded' : ''}`}>
-                                    <span>Homemaker</span>
-                                    <strong>{totalHm.toFixed(2)} hrs / {Math.round(totalHm * 4)} units{authLimits.Homemaker ? ` of ${authLimits.Homemaker.units}` : ''}</strong>
-                                    {authLimits.Homemaker && Math.round(totalHm * 4) > authLimits.Homemaker.units && <span className="sdr-total-warning">Exceeds authorized limit</span>}
-                                </div>
-                            )}
-                            {respiteEnabled && (
-                                <div className={`sdr-total-item${authLimits.Respite && Math.round(totalRespite * 4) > authLimits.Respite.units ? ' sdr-total-item--exceeded' : ''}`}>
-                                    <span>Respite</span>
-                                    <strong>{totalRespite.toFixed(2)} hrs / {Math.round(totalRespite * 4)} units{authLimits.Respite ? ` of ${authLimits.Respite.units}` : ''}</strong>
-                                    {authLimits.Respite && Math.round(totalRespite * 4) > authLimits.Respite.units && <span className="sdr-total-warning">Exceeds authorized limit</span>}
-                                </div>
-                            )}
+                                {pasEnabled && (
+                                    <div className={`pcaf-weekly-total__item pcaf-weekly-total__item--pas${authLimits.PAS && Math.round(totalPas * 4) > authLimits.PAS.units ? ' pcaf-weekly-total__item--exceeded' : ''}`}>
+                                        <span className="pcaf-weekly-total__label">PAS</span>
+                                        <span className="pcaf-weekly-total__value">{totalPas.toFixed(2)} hrs / {Math.round(totalPas * 4)} units{authLimits.PAS ? ` of ${authLimits.PAS.units}` : ''}</span>
+                                    </div>
+                                )}
+                                {hmEnabled && (
+                                    <div className={`pcaf-weekly-total__item pcaf-weekly-total__item--hm${authLimits.Homemaker && Math.round(totalHm * 4) > authLimits.Homemaker.units ? ' pcaf-weekly-total__item--exceeded' : ''}`}>
+                                        <span className="pcaf-weekly-total__label">Homemaker</span>
+                                        <span className="pcaf-weekly-total__value">{totalHm.toFixed(2)} hrs / {Math.round(totalHm * 4)} units{authLimits.Homemaker ? ` of ${authLimits.Homemaker.units}` : ''}</span>
+                                    </div>
+                                )}
+                                {respiteEnabled && (
+                                    <div className={`pcaf-weekly-total__item pcaf-weekly-total__item--respite${authLimits.Respite && Math.round(totalRespite * 4) > authLimits.Respite.units ? ' pcaf-weekly-total__item--exceeded' : ''}`}>
+                                        <span className="pcaf-weekly-total__label">Respite</span>
+                                        <span className="pcaf-weekly-total__value">{totalRespite.toFixed(2)} hrs / {Math.round(totalRespite * 4)} units{authLimits.Respite ? ` of ${authLimits.Respite.units}` : ''}</span>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
-                        <div className="sdr-section">
-                            <div className="sdr-section-title">Acknowledgement and Required Signatures</div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 16, padding: '0 16px' }}>
-                                <div className={`form-group ${fieldErrors.pcaFullName ? 'sdr-name-error' : ''}`}><label>PCA Name (First, MI, Last) <span className="sdr-required">*</span></label><input type="text" value={pcaFullName} onChange={(e) => { setPcaFullName(e.target.value); setHasUnsavedChanges(true); }} disabled={submitted} placeholder="Jane A. Doe" /></div>
-                                <div className={`form-group ${fieldErrors.recipientName ? 'sdr-name-error' : ''}`}><label>Recipient Name (First, MI, Last) <span className="sdr-required">*</span></label><input type="text" value={recipientName} onChange={(e) => { setRecipientName(e.target.value); setHasUnsavedChanges(true); }} disabled={submitted} placeholder="John B. Client" /></div>
-                            </div>
-                            <div className={`ts-signatures ${fieldErrors.pcaSig ? 'sdr-sig-error' : ''}`}>
-                                <SignaturePad label="PCA Signature *" value={pcaSig} onChange={(v) => { setPcaSig(v); setHasUnsavedChanges(true); }} disabled={submitted} />
-                            </div>
-                            <div className={`ts-signatures ${fieldErrors.recipientSig ? 'sdr-sig-error' : ''}`} style={{ paddingBottom: 16 }}>
-                                <SignaturePad label="Recipient / Responsible Party Signature *" value={recipientSig} onChange={(v) => { setRecipientSig(v); setHasUnsavedChanges(true); }} disabled={submitted} />
+                        {/* Tip */}
+                        {!submitted && hmEnabled && respiteEnabled && (
+                            <p className="pcaf-tip">Homemaker and Respite times cannot overlap on the same day. Each section tracks its own shifts independently.</p>
+                        )}
+
+                        {/* Signature Section */}
+                        <div className="pcaf-signatures">
+                            <div className="pcaf-signatures__header">ACKNOWLEDGEMENT AND REQUIRED SIGNATURES</div>
+                            <div className="pcaf-signatures__body">
+                                <div className="pcaf-signatures__grid">
+                                    <div className={`pcaf-signatures__field ${fieldErrors.pcaFullName ? 'pcaf-name-error' : ''}`}>
+                                        <label>PCA Name (First, MI, Last)</label>
+                                        <input type="text" value={pcaFullName} onChange={(e) => { setPcaFullName(e.target.value); setHasUnsavedChanges(true); }} disabled={submitted} placeholder="Jane A. Doe" />
+                                    </div>
+                                    <div className={`pcaf-signatures__field ${fieldErrors.recipientName ? 'pcaf-name-error' : ''}`}>
+                                        <label>Recipient Name (First, MI, Last)</label>
+                                        <input type="text" value={recipientName} onChange={(e) => { setRecipientName(e.target.value); setHasUnsavedChanges(true); }} disabled={submitted} placeholder="John B. Client" />
+                                    </div>
+                                </div>
+                                <div className={`pcaf-signatures__pad ${fieldErrors.pcaSig ? 'pcaf-sig-error' : ''}`}>
+                                    <SignaturePad label="PCA Signature *" value={pcaSig} onChange={(v) => { setPcaSig(v); setHasUnsavedChanges(true); }} disabled={submitted} />
+                                </div>
+                                <div className={`pcaf-signatures__pad ${fieldErrors.recipientSig ? 'pcaf-sig-error' : ''}`}>
+                                    <SignaturePad label="Recipient / Responsible Party Signature *" value={recipientSig} onChange={(v) => { setRecipientSig(v); setHasUnsavedChanges(true); }} disabled={submitted} />
+                                </div>
                             </div>
                         </div>
 
+                        {/* Action Buttons */}
                         {!submitted && (
-                            <div className="pca-form-actions" style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', padding: 16 }}>
-                                <button className="btn btn--outline" onClick={handleSave} disabled={saving || submitting}>{saving ? 'Saving…' : 'Save Progress'}</button>
-                                <button className="btn btn--success" onClick={handleSubmit} disabled={submitting || saving}>{submitting ? 'Submitting…' : 'Submit Timesheet'}</button>
+                            <div className="pcaf-actions">
+                                <button className="pcaf-btn pcaf-btn--outline" onClick={handleSave} disabled={saving || submitting}>{saving ? 'Saving...' : 'Save Progress'}</button>
+                                <button className="pcaf-btn pcaf-btn--primary" onClick={handleSubmit} disabled={submitting || saving}>{submitting ? 'Submitting...' : 'Submit Timesheet'}</button>
                             </div>
                         )}
                     </>
                 )}
-
-                {toast && <div className="pca-form-toast" style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', padding: '12px 20px', background: 'hsl(var(--foreground))', color: 'hsl(var(--background))', borderRadius: 8, zIndex: 1000, fontSize: 13, fontWeight: 500 }}>{toast}</div>}
             </div>
+
+            {toast && <div className="pcaf-toast">{toast}</div>}
         </div>
     );
 }
