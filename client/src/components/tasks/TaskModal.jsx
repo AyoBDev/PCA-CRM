@@ -3,7 +3,7 @@ import { createTask, updateTask } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import Modal from '../common/Modal';
 
-export default function TaskModal({ task, users, onClose, onSaved }) {
+export default function TaskModal({ task, users, onClose, onSaved, readOnly }) {
     const { showToast } = useToast();
     const isEdit = !!task;
 
@@ -53,6 +53,87 @@ export default function TaskModal({ task, users, onClose, onSaved }) {
             setSaving(false);
         }
     };
+
+    const handleNotesUpdate = async () => {
+        if (!task) return;
+        setSaving(true);
+        try {
+            await updateTask(task.id, { notes: form.notes.trim() });
+            showToast('Notes updated');
+            onSaved();
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleStatusAction = async (newStatus) => {
+        if (!task) return;
+        setSaving(true);
+        try {
+            await updateTask(task.id, { status: newStatus });
+            showToast(`Task marked as ${newStatus === 'in_progress' ? 'In Progress' : 'Completed'}`);
+            onSaved();
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    if (readOnly && task) {
+        const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+        return (
+            <Modal onClose={onClose}>
+                <h2 className="modal__title">{task.title}</h2>
+                <p className="modal__desc">{task.description || 'No description'}</p>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                    <div className="form-group">
+                        <label>Status</label>
+                        <div style={{ fontSize: 13, padding: '8px 0' }}>{task.status.replace('_', ' ')}</div>
+                    </div>
+                    <div className="form-group">
+                        <label>Urgency</label>
+                        <div style={{ fontSize: 13, padding: '8px 0' }}>{task.urgency}</div>
+                    </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                    <div className="form-group">
+                        <label>Due Date</label>
+                        <div style={{ fontSize: 13, padding: '8px 0' }}>{fmtDate(task.dueDate)}</div>
+                    </div>
+                    <div className="form-group">
+                        <label>Assigned To</label>
+                        <div style={{ fontSize: 13, padding: '8px 0' }}>{task.assignedToUser?.name || task.assignedToRole || '—'}</div>
+                    </div>
+                </div>
+
+                <div className="form-group">
+                    <label>Notes</label>
+                    <textarea rows={3} value={form.notes} onChange={(e) => handleChange('notes', e.target.value)} placeholder="Add notes..." />
+                </div>
+
+                <div className="form-actions">
+                    {task.status === 'open' && (
+                        <button type="button" className="btn btn--outline" disabled={saving} onClick={() => handleStatusAction('in_progress')}>
+                            Start Task
+                        </button>
+                    )}
+                    {(task.status === 'open' || task.status === 'in_progress') && (
+                        <button type="button" className="btn btn--success" disabled={saving} onClick={() => handleStatusAction('completed')}>
+                            Mark Complete
+                        </button>
+                    )}
+                    <button type="button" className="btn btn--primary" disabled={saving} onClick={handleNotesUpdate}>
+                        {saving ? 'Saving...' : 'Save Notes'}
+                    </button>
+                </div>
+            </Modal>
+        );
+    }
 
     return (
         <Modal onClose={onClose}>

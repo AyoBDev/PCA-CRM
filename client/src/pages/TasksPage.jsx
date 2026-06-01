@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { listTasks, getTaskSummary, updateTask, deleteTask, bulkUpdateTasks, getUsers, listWorkflowTriggers, updateWorkflowTrigger } from '../api';
 import { useToast } from '../hooks/useToast';
+import { useAuth } from '../hooks/useAuth';
 import TaskModal from '../components/tasks/TaskModal';
 import Icons from '../components/common/Icons';
 import Pagination from '../components/common/Pagination';
@@ -14,6 +15,7 @@ const URGENCY_LABELS = { low: 'Low', medium: 'Medium', high: 'High' };
 
 export default function TasksPage() {
     const { showToast } = useToast();
+    const { isAdmin } = useAuth();
     const [tasks, setTasks] = useState([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
@@ -142,14 +144,16 @@ export default function TasksPage() {
                         <div className="page-hero__subtitle">Manage tasks and workflow automation</div>
                     </div>
                 </div>
-                <div className="page-hero__right">
-                    <button className="btn btn--outline" onClick={() => setShowSettings(!showSettings)}>
-                        {Icons.settings} {showSettings ? 'Hide Settings' : 'Settings'}
-                    </button>
-                    <button className="btn btn--primary" onClick={() => { setEditingTask(null); setModalOpen(true); }}>
-                        {Icons.plus} New Task
-                    </button>
-                </div>
+                {isAdmin && (
+                    <div className="page-hero__right">
+                        <button className="btn btn--outline" onClick={() => setShowSettings(!showSettings)}>
+                            {Icons.settings} {showSettings ? 'Hide Settings' : 'Settings'}
+                        </button>
+                        <button className="btn btn--primary" onClick={() => { setEditingTask(null); setModalOpen(true); }}>
+                            {Icons.plus} New Task
+                        </button>
+                    </div>
+                )}
             </div>
 
             <div className="page-content">
@@ -197,19 +201,21 @@ export default function TasksPage() {
                             {URGENCY_OPTIONS.map((u) => <option key={u} value={u}>{u === 'all' ? 'All Urgency' : URGENCY_LABELS[u]}</option>)}
                         </select>
                     </div>
-                    <div className="ts-filter-bar__field">
-                        <label>Assigned To</label>
-                        <select value={filters.assignedToUserId} onChange={(e) => setFilters((f) => ({ ...f, assignedToUserId: e.target.value }))}>
-                            <option value="">All Assignees</option>
-                            {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                        </select>
-                    </div>
+                    {isAdmin && (
+                        <div className="ts-filter-bar__field">
+                            <label>Assigned To</label>
+                            <select value={filters.assignedToUserId} onChange={(e) => setFilters((f) => ({ ...f, assignedToUserId: e.target.value }))}>
+                                <option value="">All Assignees</option>
+                                {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                            </select>
+                        </div>
+                    )}
                     <div className="ts-filter-bar__actions">
                         <button className="btn btn--outline btn--sm" onClick={() => setFilters({ status: 'open', urgency: 'all', assignedToUserId: '' })}>Reset</button>
                     </div>
                 </div>
 
-                {selectedIds.length > 0 && (
+                {isAdmin && selectedIds.length > 0 && (
                     <div className="bulk-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '10px 16px', marginBottom: '12px', background: 'hsl(var(--muted) / 0.5)', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }}>
                         <span style={{ fontSize: 13, fontWeight: 500 }}>{selectedIds.length} selected</span>
                         <button className="btn btn--primary btn--sm" onClick={() => handleBulkAction('completed')}>Mark Complete</button>
@@ -225,7 +231,7 @@ export default function TasksPage() {
                         <div className="empty-state__title">
                             {filters.status !== 'open' || filters.urgency !== 'all' || filters.assignedToUserId ? 'No tasks match your filters' : 'No open tasks'}
                         </div>
-                        <div className="empty-state__desc">Click "New Task" to create a task, or adjust your filters.</div>
+                        <div className="empty-state__desc">{isAdmin ? 'Click "New Task" to create a task, or adjust your filters.' : 'No tasks are assigned to you right now.'}</div>
                     </div>
                 ) : (
                     <>
@@ -234,9 +240,11 @@ export default function TasksPage() {
                                 <table className="data-table data-table--sheet data-table--dark-header">
                                     <thead>
                                         <tr>
-                                            <th scope="col" style={{ width: 36 }}>
-                                                <input type="checkbox" checked={selectedIds.length === tasks.length && tasks.length > 0} onChange={toggleSelectAll} />
-                                            </th>
+                                            {isAdmin && (
+                                                <th scope="col" style={{ width: 36 }}>
+                                                    <input type="checkbox" checked={selectedIds.length === tasks.length && tasks.length > 0} onChange={toggleSelectAll} />
+                                                </th>
+                                            )}
                                             <th scope="col">Title</th>
                                             <th scope="col">Status</th>
                                             <th scope="col">Urgency</th>
@@ -248,9 +256,11 @@ export default function TasksPage() {
                                     <tbody>
                                         {tasks.map((task) => (
                                             <tr key={task.id} className={isOverdue(task) ? 'row--critical' : ''}>
-                                                <td onClick={(e) => e.stopPropagation()}>
-                                                    <input type="checkbox" checked={selectedIds.includes(task.id)} onChange={() => toggleSelect(task.id)} />
-                                                </td>
+                                                {isAdmin && (
+                                                    <td onClick={(e) => e.stopPropagation()}>
+                                                        <input type="checkbox" checked={selectedIds.includes(task.id)} onChange={() => toggleSelect(task.id)} />
+                                                    </td>
+                                                )}
                                                 <td>
                                                     <button className="link-btn" style={{ fontWeight: 500 }} onClick={() => { setEditingTask(task); setModalOpen(true); }}>
                                                         {task.title}
@@ -279,9 +289,11 @@ export default function TasksPage() {
                                                         </button>
                                                         {menuOpenId === task.id && (
                                                             <div className="cl-row-menu__dropdown">
-                                                                <button className="cl-row-menu__item" onClick={() => { setEditingTask(task); setModalOpen(true); setMenuOpenId(null); }}>
-                                                                    {Icons.edit} Edit
-                                                                </button>
+                                                                {isAdmin && (
+                                                                    <button className="cl-row-menu__item" onClick={() => { setEditingTask(task); setModalOpen(true); setMenuOpenId(null); }}>
+                                                                        {Icons.edit} Edit
+                                                                    </button>
+                                                                )}
                                                                 {task.status === 'open' && (
                                                                     <button className="cl-row-menu__item" onClick={() => { handleStatusChange(task, 'in_progress'); setMenuOpenId(null); }}>
                                                                         {Icons.chevronRight} Start
@@ -292,9 +304,14 @@ export default function TasksPage() {
                                                                         {Icons.checkCircle} Complete
                                                                     </button>
                                                                 )}
-                                                                {(task.status === 'open' || task.status === 'in_progress') && (
+                                                                {isAdmin && (task.status === 'open' || task.status === 'in_progress') && (
                                                                     <button className="cl-row-menu__item cl-row-menu__item--danger" onClick={() => { handleDelete(task); setMenuOpenId(null); }}>
                                                                         {Icons.x} Cancel
+                                                                    </button>
+                                                                )}
+                                                                {!isAdmin && (
+                                                                    <button className="cl-row-menu__item" onClick={() => { setEditingTask(task); setModalOpen(true); setMenuOpenId(null); }}>
+                                                                        {Icons.fileText} View / Notes
                                                                     </button>
                                                                 )}
                                                             </div>
@@ -372,6 +389,7 @@ export default function TasksPage() {
                     users={users}
                     onClose={() => { setModalOpen(false); setEditingTask(null); }}
                     onSaved={handleSaved}
+                    readOnly={!isAdmin}
                 />
             )}
         </>
