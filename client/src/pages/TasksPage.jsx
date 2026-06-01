@@ -261,13 +261,13 @@ export default function TasksPage() {
                                                 <td>{task.assignedToUser?.name || task.assignedToRole || '—'}</td>
                                                 <td className={isOverdue(task) ? 'text--danger' : ''} style={{ fontSize: 13 }}>{fmtDate(task.dueDate)}</td>
                                                 <td onClick={(e) => e.stopPropagation()}>
-                                                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                                    <div className="row-actions">
                                                         {task.status === 'open' && (
                                                             <button className="btn btn--outline btn--xs" onClick={() => handleStatusChange(task, 'in_progress')}>Start</button>
                                                         )}
                                                         {(task.status === 'open' || task.status === 'in_progress') && (
                                                             <>
-                                                                <button className="btn btn--success btn--xs" onClick={() => handleStatusChange(task, 'completed')}>Done</button>
+                                                                <button className="btn btn--ghost btn--icon" onClick={() => handleStatusChange(task, 'completed')} title="Mark complete">{Icons.checkCircle}</button>
                                                                 <button className="btn btn--danger-ghost btn--icon" onClick={() => handleDelete(task)} title="Cancel task">{Icons.x}</button>
                                                             </>
                                                         )}
