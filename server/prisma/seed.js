@@ -41,6 +41,20 @@ async function main() {
         });
     }
     console.log('✅ Insurance types seeded');
+
+    // Seed default workflow triggers
+    const defaultTriggers = [
+        { name: 'Authorization Expiry Warning', type: 'auth_expiry', thresholdDays: 30, urgency: 'high' },
+        { name: 'Overdue Timesheet Follow-up', type: 'timesheet_overdue', thresholdDays: 1, urgency: 'medium' },
+        { name: 'Credential Expiry Warning', type: 'credential_expiry', thresholdDays: 14, urgency: 'high' },
+    ];
+    for (const trigger of defaultTriggers) {
+        const existing = await prisma.workflowTrigger.findFirst({ where: { type: trigger.type } });
+        if (!existing) {
+            await prisma.workflowTrigger.create({ data: trigger });
+        }
+    }
+    console.log('✅ Workflow triggers seeded');
 }
 
 main()

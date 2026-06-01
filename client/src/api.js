@@ -554,6 +554,34 @@ export const createClientActivity = (clientId, data) =>
 export const deleteClientActivity = (id) =>
     request(`/activities/${id}`, { method: 'DELETE' });
 
+// ── Tasks ──
+export const listTasks = (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/tasks${qs ? '?' + qs : ''}`);
+};
+
+export const getTask = (id) => request(`/tasks/${id}`);
+
+export const getTaskSummary = () => request('/tasks/summary');
+
+export const createTask = (data) =>
+    request('/tasks', { method: 'POST', body: JSON.stringify(data) });
+
+export const updateTask = (id, data) =>
+    request(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+
+export const deleteTask = (id) =>
+    request(`/tasks/${id}`, { method: 'DELETE' });
+
+export const bulkUpdateTasks = (ids, status) =>
+    request('/tasks/bulk-update', { method: 'PATCH', body: JSON.stringify({ ids, status }) });
+
+// ── Workflow Triggers ──
+export const listWorkflowTriggers = () => request('/workflow-triggers');
+
+export const updateWorkflowTrigger = (id, data) =>
+    request(`/workflow-triggers/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+
 // ── Backup ──
 export async function downloadBackup() {
     const headers = {};

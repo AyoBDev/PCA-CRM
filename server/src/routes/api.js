@@ -141,6 +141,8 @@ const {
 const { uploadDocument, downloadDocument, deleteDocument } = require('../controllers/documentController');
 const { uploadAuthDocument, downloadAuthDocument, deleteAuthDocument } = require('../controllers/authDocumentController');
 const { listActivities, createActivity, deleteActivity } = require('../controllers/activityController');
+const { listTasks, getTask, createTask, updateTask, deleteTask, bulkUpdateTasks, getTaskSummary } = require('../controllers/taskController');
+const { listWorkflowTriggers, updateWorkflowTrigger } = require('../controllers/workflowTriggerController');
 const { authenticate, requireRole } = require('../middleware/authMiddleware');
 
 const router = express.Router();
@@ -350,5 +352,18 @@ router.delete('/activities/:id', requireRole('admin'), deleteActivity);
 // Audit Logs (admin only)
 router.get('/audit-logs',                     requireRole('admin'), getAuditLogs);
 router.get('/audit-logs/:entityType/:entityId', requireRole('admin'), getEntityAuditLogs);
+
+// Tasks (admin only)
+router.get('/tasks/summary', requireRole('admin'), getTaskSummary);
+router.get('/tasks', requireRole('admin'), listTasks);
+router.patch('/tasks/bulk-update', requireRole('admin'), bulkUpdateTasks);
+router.get('/tasks/:id', requireRole('admin'), getTask);
+router.post('/tasks', requireRole('admin'), createTask);
+router.patch('/tasks/:id', requireRole('admin'), updateTask);
+router.delete('/tasks/:id', requireRole('admin'), deleteTask);
+
+// Workflow Triggers (admin only)
+router.get('/workflow-triggers', requireRole('admin'), listWorkflowTriggers);
+router.patch('/workflow-triggers/:id', requireRole('admin'), updateWorkflowTrigger);
 
 module.exports = router;

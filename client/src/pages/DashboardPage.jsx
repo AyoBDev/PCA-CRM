@@ -4,6 +4,7 @@ import Icons from '../components/common/Icons';
 import * as api from '../api';
 import { useAuth } from '../hooks/useAuth';
 import { ActivityButton } from '../components/common/ActivityDrawer';
+import TasksWidget from '../components/tasks/TasksWidget';
 
 
 export default function DashboardPage() {
@@ -75,6 +76,8 @@ export default function DashboardPage() {
                         </div>
                     </div>
                 )}
+
+                <TasksWidget />
 
                 <div className="stats-grid">
                     <div className="card">

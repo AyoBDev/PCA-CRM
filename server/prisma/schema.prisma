@@ -22,6 +22,8 @@ model User {
   uploadedDocuments       ClientDocument[]
   activities              ClientActivity[]
   employee                Employee?
+  assignedTasks           Task[]            @relation("TaskAssignee")
+  triggerDefaults         WorkflowTrigger[] @relation("TriggerAssignee")
 
   @@map("users")
 }
@@ -559,4 +561,62 @@ model TimesheetReminder {
   timesheet   Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
 
   @@map("timesheet_reminders")
+}
+
+model Task {
+  id               Int       @id @default(autoincrement())
+  title            String
+  description      String    @default("") @map("description")
+  notes            String    @default("") @map("notes")
+  status           String    @default("open") @map("status")
+  urgency          String    @default("medium") @map("urgency")
+  dueDate          DateTime? @map("due_date")
+  assignedToUserId Int?      @map("assigned_to_user_id")
+  assignedToRole   String?   @map("assigned_to_role")
+  entityType       String?   @map("entity_type")
+  entityId         Int?      @map("entity_id")
+  triggerId        Int?      @map("trigger_id")
+  completedAt      DateTime? @map("completed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  assignedToUser User?            @relation("TaskAssignee", fields: [assignedToUserId], references: [id])
+  trigger        WorkflowTrigger? @relation(fields: [triggerId], references: [id])
+  reminders      TaskReminder[]
+
+  @@index([status])
+  @@index([assignedToUserId])
+  @@index([triggerId, entityType, entityId])
+  @@map("tasks")
+}
+
+model WorkflowTrigger {
+  id             Int      @id @default(autoincrement())
+  name           String
+  type           String
+  enabled        Boolean  @default(true)
+  thresholdDays  Int      @map("threshold_days")
+  urgency        String   @default("medium")
+  assignToRole   String?  @map("assign_to_role")
+  assignToUserId Int?     @map("assign_to_user_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  tasks        Task[]
+  assignToUser User? @relation("TriggerAssignee", fields: [assignToUserId], references: [id])
+
+  @@map("workflow_triggers")
+}
+
+model TaskReminder {
+  id      Int      @id @default(autoincrement())
+  taskId  Int      @map("task_id")
+  sentAt  DateTime @default(now()) @map("sent_at")
+  channel String
+  status  String
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@map("task_reminders")
 }

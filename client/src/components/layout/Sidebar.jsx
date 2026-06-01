@@ -11,6 +11,7 @@ const PATH_TO_PAGE = {
     '/timesheets': 'timesheets',
     '/permanent-links': 'permanentLinks',
     '/scheduling': 'scheduling',
+    '/tasks': 'tasks',
     '/payroll': 'payroll',
     '/employees': 'employees',
     '/insurance-types': 'insuranceTypes',
@@ -90,6 +91,11 @@ export default function Sidebar({ onMobileClose }) {
                 {isStaff && (
                     <button className={`sidebar__nav-item ${activePage === 'scheduling' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/scheduling')} title="Scheduling">
                         {Icons.calendar} Scheduling
+                    </button>
+                )}
+                {isStaff && (
+                    <button className={`sidebar__nav-item ${activePage === 'tasks' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/tasks')} title="Tasks">
+                        {Icons.checkSquare} Tasks
                     </button>
                 )}
                 {isStaff && (
