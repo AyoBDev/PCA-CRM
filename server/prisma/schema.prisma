@@ -351,6 +351,7 @@ model Timesheet {
   updatedAt           DateTime         @updatedAt @map("updated_at")
   signingTokens       SigningToken[]
   entries             TimesheetEntry[]
+  reminders           TimesheetReminder[]
   client              Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@unique([clientId, pcaName, weekStart])
@@ -545,4 +546,17 @@ model BulkEditBatch {
   @@index([userId])
   @@index([createdAt])
   @@map("bulk_edit_batches")
+}
+
+model TimesheetReminder {
+  id          Int       @id @default(autoincrement())
+  timesheetId Int       @map("timesheet_id")
+  employeeId  Int?      @map("employee_id")
+  sentAt      DateTime  @default(now()) @map("sent_at")
+  channel     String    @default("email")
+  status      String    @default("sent")
+
+  timesheet   Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+
+  @@map("timesheet_reminders")
 }
