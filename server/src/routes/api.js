@@ -56,6 +56,7 @@ const {
     bulkPermanentlyDeleteTimesheets,
     exportTimesheetPdf,
     updateTimesheetStatus,
+    sendTimesheetReminders,
 } = require('../controllers/timesheetController');
 const { createPermanentLink, listPermanentLinks, deletePermanentLink } = require('../controllers/permanentLinkController');
 const { getPcaForm, updatePcaForm } = require('../controllers/pcaFormController');
@@ -266,6 +267,7 @@ router.delete('/services/:id/permanent', requireRole('admin'), permanentlyDelete
 router.get('/timesheets/activities', getActivities);
 router.get('/timesheets', listTimesheets);
 router.delete('/timesheets/bulk-permanent', requireRole('admin'), bulkPermanentlyDeleteTimesheets);
+router.post('/timesheets/send-reminders', requireRole('admin'), sendTimesheetReminders);
 router.get('/timesheets/:id', getTimesheet);
 router.post('/timesheets', createTimesheet);
 router.put('/timesheets/:id/restore', restoreTimesheet);

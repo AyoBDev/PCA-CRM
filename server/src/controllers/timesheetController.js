@@ -771,4 +771,14 @@ async function bulkPermanentlyDeleteTimesheets(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listTimesheets, getTimesheet, getActivities, createTimesheet, updateTimesheet, submitTimesheet, deleteTimesheet, restoreTimesheet, permanentlyDeleteTimesheet, bulkPermanentlyDeleteTimesheets, exportTimesheetPdf, updateTimesheetStatus };
+async function sendTimesheetReminders(req, res) {
+    const { sendOverdueReminders } = require('../jobs/timesheetReminders');
+    try {
+        const result = await sendOverdueReminders();
+        res.json({ success: true, ...result });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+}
+
+module.exports = { listTimesheets, getTimesheet, getActivities, createTimesheet, updateTimesheet, submitTimesheet, deleteTimesheet, restoreTimesheet, permanentlyDeleteTimesheet, bulkPermanentlyDeleteTimesheets, exportTimesheetPdf, updateTimesheetStatus, sendTimesheetReminders };
