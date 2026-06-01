@@ -106,6 +106,12 @@ async function updateAuthorization(req, res, next) {
             },
         });
 
+        if (req.body.serviceCode !== oldAuth.serviceCode || (auth.manualStatus === 'active' && oldAuth.manualStatus !== 'active')) {
+            await deactivatePreviousAuths(auth.clientId, auth.serviceCode, auth.id, {
+                userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            });
+        }
+
         const changes = audit.diffFields(oldAuth, auth, ['serviceCode', 'serviceName', 'authorizationNumber', 'authorizedUnits', 'authorizedHours', 'authorizationStartDate', 'authorizationEndDate', 'notes', 'accountNumber', 'manualStatus']);
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: auth.id, entityName: auth.serviceCode, changes });
         res.json(enrichAuthorization(auth));
