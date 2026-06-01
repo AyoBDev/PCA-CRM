@@ -476,36 +476,30 @@ export default function PcaFormPage() {
             {/* Title */}
             <h1 className="pcaf-title">PCA SERVICE DELIVERY RECORD</h1>
 
-            {/* Top bar: week picker left, client details center-right, status far right */}
+            {/* Top bar */}
             <div className="pcaf-topbar">
-                <div className="pcaf-topbar__left">
-                    <div className="pcaf-week-picker">
-                        <svg className="pcaf-cal-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                        <span className="pcaf-week-picker__label">Week of Sunday:</span>
+                <div className="pcaf-topbar__week">
+                    <div className="pcaf-topbar__week-row">
+                        <span className="pcaf-topbar__cal-box">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                        </span>
+                        <span className="pcaf-topbar__week-label">Week of Sunday:</span>
                         <input type="date" className="pcaf-week-input" value={selectedWeekStart} onChange={(e) => handleWeekChange(e.target.value)} />
                         <button type="button" className="pcaf-week-arrow" onClick={() => navigateWeek(1)}>&rsaquo;</button>
                     </div>
-                    <div className="pcaf-week-range">{weekLabel}</div>
+                    <div className="pcaf-topbar__week-range">{weekLabel}</div>
                 </div>
-                <div className="pcaf-topbar__center">
-                    <div className="pcaf-detail">
-                        <span className="pcaf-detail__label">Client:</span>
-                        <span className="pcaf-detail__value">{data.client.clientName}</span>
+                <div className="pcaf-topbar__details">
+                    <div className="pcaf-topbar__detail-group">
+                        <div className="pcaf-detail"><span className="pcaf-detail__label">Client:</span><span className="pcaf-detail__value">{data.client.clientName}</span></div>
+                        <div className="pcaf-detail"><span className="pcaf-detail__label">Medicaid ID:</span><span className="pcaf-detail__value">{data.client.medicaidId || '—'}</span></div>
                     </div>
-                    <div className="pcaf-detail">
-                        <span className="pcaf-detail__label">Medicaid ID:</span>
-                        <span className="pcaf-detail__value">{data.client.medicaidId || '—'}</span>
-                    </div>
-                    <div className="pcaf-detail">
-                        <span className="pcaf-detail__label">PCA (Caregiver):</span>
-                        <span className="pcaf-detail__value">{data.pcaName}</span>
-                    </div>
-                    <div className="pcaf-detail">
-                        <span className="pcaf-detail__label">Date Submitted:</span>
-                        <span className="pcaf-detail__value">{data.timesheet.submittedAt ? new Date(data.timesheet.submittedAt).toLocaleDateString() : 'Not Submitted'}</span>
+                    <div className="pcaf-topbar__detail-group">
+                        <div className="pcaf-detail"><span className="pcaf-detail__label">PCA (Caregiver):</span><span className="pcaf-detail__value">{data.pcaName}</span></div>
+                        <div className="pcaf-detail"><span className="pcaf-detail__label">Date Submitted:</span><span className="pcaf-detail__value">{data.timesheet.submittedAt ? new Date(data.timesheet.submittedAt).toLocaleDateString() : 'Not Submitted'}</span></div>
                     </div>
                 </div>
-                <div className="pcaf-topbar__right">
+                <div className="pcaf-topbar__status">
                     <span className="pcaf-detail__label">Status:</span>
                     <span className={`pcaf-status-badge pcaf-status-badge--${submitted ? 'submitted' : 'draft'}`}>
                         {submitted ? 'Submitted' : 'In Progress'}
