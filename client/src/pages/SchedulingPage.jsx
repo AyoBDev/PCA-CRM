@@ -7,6 +7,8 @@ import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import { ActivityButton } from '../components/common/ActivityDrawer';
 import ScheduleDelivery from './scheduling/ScheduleDelivery';
+import MonthlyCalendarView from './scheduling/MonthlyCalendarView';
+import FutureShiftsView from './scheduling/FutureShiftsView';
 
 const VALID_ACCOUNT_NUMBERS = ['71040', '71119', '71120', '71635'];
 
@@ -1984,6 +1986,16 @@ export default function SchedulingPage() {
     const [bulkSaving, setBulkSaving] = useState(false);
     const [bulkBatches, setBulkBatches] = useState([]);
 
+    // Calendar view mode
+    const [viewMode, setViewMode] = useState('week');
+    const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
+    const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
+    const [monthShifts, setMonthShifts] = useState([]);
+    const [monthOverlaps, setMonthOverlaps] = useState([]);
+    const [loadingMonth, setLoadingMonth] = useState(false);
+    const [futureShifts, setFutureShifts] = useState([]);
+    const [loadingFuture, setLoadingFuture] = useState(false);
+
     // Build client color maps for visual distinction
     const allClientColorMap = useMemo(() => buildClientColorMap(allShifts), [allShifts]);
     const employeeClientColorMap = useMemo(() => buildClientColorMap(employeeShifts), [employeeShifts]);
@@ -2014,6 +2026,42 @@ export default function SchedulingPage() {
         } catch (err) { showToast(err.message, 'error'); }
         finally { setLoadingAll(false); }
     }, [weekStart, showToast]);
+
+    const fetchMonthShifts = useCallback(async () => {
+        setLoadingMonth(true);
+        try {
+            const startDate = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-01`;
+            const lastDay = new Date(viewYear, viewMonth + 1, 0).getDate();
+            const endDate = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+            const filters = { startDate, endDate };
+            if (selectedClientId) filters.clientId = selectedClientId;
+            if (selectedEmployeeId) filters.employeeId = selectedEmployeeId;
+            const data = await api.getShifts(null, filters);
+            setMonthShifts(data.shifts || []);
+            setMonthOverlaps(data.overlaps || []);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setLoadingMonth(false);
+        }
+    }, [viewYear, viewMonth, selectedClientId, selectedEmployeeId, showToast]);
+
+    const fetchFutureShifts = useCallback(async () => {
+        setLoadingFuture(true);
+        try {
+            const today = new Date();
+            const startDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            const end = new Date(today);
+            end.setMonth(end.getMonth() + 6);
+            const endDate = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+            const data = await api.getShifts(null, { startDate, endDate });
+            setFutureShifts(data.shifts || []);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setLoadingFuture(false);
+        }
+    }, [showToast]);
 
     const fetchClientSchedule = useCallback(async () => {
         if (!selectedClientId) {
@@ -2070,6 +2118,8 @@ export default function SchedulingPage() {
     useEffect(() => { fetchClientSchedule(); }, [fetchClientSchedule]);
     useEffect(() => { fetchEmployeeSchedule(); }, [fetchEmployeeSchedule]);
     useEffect(() => { if (modal?.type === 'bulkEdit') fetchBatches(); }, [modal, fetchBatches]);
+    useEffect(() => { if (viewMode === 'month') fetchMonthShifts(); }, [viewMode, fetchMonthShifts]);
+    useEffect(() => { if (viewMode === 'future') fetchFutureShifts(); }, [viewMode, fetchFutureShifts]);
 
 
     const handleSaveShift = async (data) => {
@@ -2229,6 +2279,22 @@ export default function SchedulingPage() {
         }
     };
 
+    const handleFutureBulkDelete = async (shiftIds) => {
+        try {
+            setBulkSaving(true);
+            const result = await api.bulkDeleteShifts(shiftIds);
+            fetchFutureShifts();
+            showUndoToast(`Archived ${result.archived} shift${result.archived !== 1 ? 's' : ''}`, async () => {
+                await api.bulkUndoShifts(result.batchId);
+                fetchFutureShifts();
+            });
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setBulkSaving(false);
+        }
+    };
+
     const selectShiftsByDay = (dayIdx) => {
         const ws = new Date(weekStart + 'T00:00:00');
         const d = new Date(ws);
@@ -2281,6 +2347,12 @@ export default function SchedulingPage() {
         return set;
     }, [allOverlaps]);
 
+    const monthOverlapIds = useMemo(() => {
+        const set = new Set();
+        for (const o of monthOverlaps) { set.add(o.shiftA); set.add(o.shiftB); }
+        return set;
+    }, [monthOverlaps]);
+
     const clientOverlapIds = useMemo(() => {
         const set = new Set();
         for (const o of clientOverlaps) { set.add(o.shiftA); set.add(o.shiftB); }
@@ -2305,6 +2377,11 @@ export default function SchedulingPage() {
                     </div>
                 </div>
                 <div className="page-hero__right">
+                    <div className="sched-view-switcher">
+                        <button className={`sched-view-switcher__btn ${viewMode === 'week' ? 'sched-view-switcher__btn--active' : ''}`} onClick={() => setViewMode('week')}>Week</button>
+                        <button className={`sched-view-switcher__btn ${viewMode === 'month' ? 'sched-view-switcher__btn--active' : ''}`} onClick={() => setViewMode('month')}>Month</button>
+                        <button className={`sched-view-switcher__btn ${viewMode === 'future' ? 'sched-view-switcher__btn--active' : ''}`} onClick={() => setViewMode('future')}>Future</button>
+                    </div>
                     {isAdmin && <ActivityButton entityType="Shift" />}
                     <button
                         className="btn btn--outline"
@@ -2523,7 +2600,7 @@ export default function SchedulingPage() {
                 </div>
 
 
-                {/* Weekly Schedule Overview (always global) */}
+                {viewMode === 'week' && (
                 <ScheduleCard
                     title="Weekly Schedule Overview"
                     icon={Icons.table}
@@ -2554,9 +2631,61 @@ export default function SchedulingPage() {
                         <WeeklyCalendarView shifts={allShifts} weekStart={weekStart} overlapIds={allOverlapIds} onEditShift={handleEditShift} onAddShift={handleAddShift} bulkEditMode={false} selectedShiftIds={selectedShiftIds} onToggleSelect={toggleShiftSelection} groupBy={summaryViewBy} />
                     )}
                 </ScheduleCard>
+                )}
+
+                {viewMode === 'month' && (
+                <ScheduleCard title="Monthly Schedule" icon={Icons.calendar} collapsible={false}>
+                    <div className="sched-month-nav">
+                        <button className="sched-month-nav__btn" onClick={() => {
+                            if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
+                            else setViewMonth(m => m - 1);
+                        }}>{Icons.chevronLeft}</button>
+                        <span className="sched-month-nav__label">
+                            {['January','February','March','April','May','June','July','August','September','October','November','December'][viewMonth]} {viewYear}
+                        </span>
+                        <button className="sched-month-nav__btn" onClick={() => {
+                            if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); }
+                            else setViewMonth(m => m + 1);
+                        }}>{Icons.chevronRight}</button>
+                    </div>
+                    {loadingMonth ? (
+                        <div style={{ textAlign: 'center', padding: 40, color: 'hsl(var(--muted-foreground))' }}>Loading month…</div>
+                    ) : (
+                        <MonthlyCalendarView
+                            shifts={monthShifts}
+                            month={viewMonth}
+                            year={viewYear}
+                            overlapIds={monthOverlapIds}
+                            onEditShift={handleEditShift}
+                            onDayClick={(dateStr) => {
+                                const d = new Date(dateStr + 'T12:00:00');
+                                d.setDate(d.getDate() - d.getDay());
+                                const y = d.getFullYear();
+                                const m = String(d.getMonth() + 1).padStart(2, '0');
+                                const day = String(d.getDate()).padStart(2, '0');
+                                setWeekStart(`${y}-${m}-${day}`);
+                                setViewMode('week');
+                            }}
+                        />
+                    )}
+                </ScheduleCard>
+                )}
+
+                {viewMode === 'future' && (
+                <ScheduleCard title="Future Shifts" icon={Icons.calendar} collapsible={false}>
+                    <FutureShiftsView
+                        shifts={futureShifts}
+                        clients={clients}
+                        employees={employees}
+                        onEditShift={handleEditShift}
+                        onBulkDelete={handleFutureBulkDelete}
+                        loading={loadingFuture}
+                    />
+                </ScheduleCard>
+                )}
 
                 {/* Schedule Delivery */}
-                <ScheduleDelivery weekStart={weekStart} shifts={allShifts} />
+                {viewMode === 'week' && <ScheduleDelivery weekStart={weekStart} shifts={allShifts} />}
 
                 {/* Service Legend */}
                 <div className="sched-legend">
