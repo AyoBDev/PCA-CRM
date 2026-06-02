@@ -69,8 +69,8 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
 
     // Shared fields — restore from draft if available (create mode only)
     const d = !isEdit && draft;
-    const [clientId, setClientId] = useState(d?.clientId || shift?.clientId || defaultClientId || '');
-    const [employeeId, setEmployeeId] = useState(d?.employeeId || shift?.employeeId || defaultEmployeeId || '');
+    const [clientId, setClientId] = useState(defaultClientId || d?.clientId || shift?.clientId || '');
+    const [employeeId, setEmployeeId] = useState(defaultEmployeeId || d?.employeeId || shift?.employeeId || '');
     const [notes, setNotes] = useState(d?.notes || shift?.notes || '');
     const [status, setStatus] = useState(shift?.status || 'scheduled');
     const [saving, setSaving] = useState(false);
@@ -80,9 +80,9 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
 
     // Employee search
     const [empSearch, setEmpSearch] = useState(() => {
+        if (defaultEmployeeId) { const e = employees.find(e => e.id === Number(defaultEmployeeId)); if (e) return e.name; }
         if (d?.empSearch) return d.empSearch;
         if (shift?.employeeId) { const e = employees.find(e => e.id === shift.employeeId); return e ? e.name : ''; }
-        if (defaultEmployeeId) { const e = employees.find(e => e.id === Number(defaultEmployeeId)); return e ? e.name : ''; }
         return '';
     });
     const [empDropdownOpen, setEmpDropdownOpen] = useState(false);
@@ -1211,12 +1211,12 @@ function BulkEditInline({ count, employees, clients, onSave, onDelete, saving, s
     );
 }
 
-function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDelete, onClose, saving, onUndo, bulkBatches }) {
+function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDelete, onClose, saving, onUndo, bulkBatches, defaultClientId, defaultEmployeeId }) {
     const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-    // Filter state — empty by default, user must pick
-    const [filterClientId, setFilterClientId] = useState('');
-    const [filterEmployeeId, setFilterEmployeeId] = useState('');
+    // Filter state — pre-filled from page context if available
+    const [filterClientId, setFilterClientId] = useState(defaultClientId || '');
+    const [filterEmployeeId, setFilterEmployeeId] = useState(defaultEmployeeId || '');
 
     // Filtered shifts — empty until user picks a client or employee
     const filteredShifts = useMemo(() => {
@@ -2819,6 +2819,8 @@ export default function SchedulingPage() {
                         } catch (err) { showToast(err.message, 'error'); }
                     }}
                     bulkBatches={bulkBatches}
+                    defaultClientId={viewMode === 'future' ? futureFilterContext.clientId : selectedClientId}
+                    defaultEmployeeId={viewMode === 'future' ? futureFilterContext.employeeId : selectedEmployeeId}
                 />
             )}
         </>
