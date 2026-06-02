@@ -234,17 +234,35 @@ async function autoNotify(employeeId, shiftDate, req) {
     }
 }
 
-// GET /api/shifts?weekStart=YYYY-MM-DD&clientId=&employeeId=
+// GET /api/shifts?weekStart=YYYY-MM-DD&clientId=&employeeId=&startDate=&endDate=
 async function listShifts(req, res, next) {
     try {
-        const { weekStart, clientId, employeeId } = req.query;
-        const range = getWeekRange(weekStart || undefined);
+        const { weekStart, startDate, endDate, clientId, employeeId } = req.query;
+
+        // Determine date range: startDate/endDate take priority over weekStart
+        let rangeStart, rangeEnd, skipUnitSummaries = false;
+        if (startDate && endDate) {
+            // Cap at 182 days (6 months) to prevent runaway queries
+            const start = new Date(startDate + 'T00:00:00.000Z');
+            const end = new Date(endDate + 'T23:59:59.999Z');
+            const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+            if (diffDays > 182) {
+                return res.status(400).json({ error: 'Date range cannot exceed 182 days (6 months)' });
+            }
+            rangeStart = startDate;
+            rangeEnd = endDate;
+            skipUnitSummaries = true;
+        } else {
+            const range = getWeekRange(weekStart || undefined);
+            rangeStart = range.weekStart;
+            rangeEnd = range.weekEnd;
+        }
 
         const where = {
             archivedAt: null,
             shiftDate: {
-                gte: new Date(range.weekStart + 'T00:00:00.000Z'),
-                lte: new Date(range.weekEnd + 'T23:59:59.999Z'),
+                gte: new Date(rangeStart + 'T00:00:00.000Z'),
+                lte: new Date(rangeEnd + 'T23:59:59.999Z'),
             },
         };
         if (clientId) where.clientId = Number(clientId);
@@ -259,29 +277,31 @@ async function listShifts(req, res, next) {
         const enriched = shifts.map(enrichShift);
         const overlaps = detectOverlaps(shifts);
 
-        // Unit summaries per client — filter auths to the viewed week
-        const clientIds = [...new Set(shifts.map(s => s.clientId))];
-        const auths = await prisma.authorization.findMany({
-            where: { clientId: { in: clientIds } },
-        });
-        const authsByClient = {};
-        for (const a of auths) {
-            if (!authsByClient[a.clientId]) authsByClient[a.clientId] = [];
-            authsByClient[a.clientId].push(a);
-        }
-        const unitSummaries = {};
-        for (const cid of clientIds) {
-            const clientShifts = shifts.filter(s => s.clientId === cid);
-            const activeAuths = filterAuthsByWeek(authsByClient[cid] || [], range.weekStart, range.weekEnd);
-            unitSummaries[cid] = computeUnitSummary(clientShifts, activeAuths);
+        // Unit summaries per client — skip for custom date ranges (non-weekly)
+        let unitSummaries = {};
+        if (!skipUnitSummaries) {
+            const clientIds = [...new Set(shifts.map(s => s.clientId))];
+            const auths = await prisma.authorization.findMany({
+                where: { clientId: { in: clientIds } },
+            });
+            const authsByClient = {};
+            for (const a of auths) {
+                if (!authsByClient[a.clientId]) authsByClient[a.clientId] = [];
+                authsByClient[a.clientId].push(a);
+            }
+            for (const cid of clientIds) {
+                const clientShifts = shifts.filter(s => s.clientId === cid);
+                const activeAuths = filterAuthsByWeek(authsByClient[cid] || [], rangeStart, rangeEnd);
+                unitSummaries[cid] = computeUnitSummary(clientShifts, activeAuths);
+            }
         }
 
         res.json({
             shifts: enriched,
             overlaps,
             unitSummaries,
-            weekStart: range.weekStart,
-            weekEnd: range.weekEnd,
+            weekStart: rangeStart,
+            weekEnd: rangeEnd,
         });
     } catch (err) { next(err); }
 }

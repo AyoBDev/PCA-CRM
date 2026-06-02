@@ -392,7 +392,12 @@ export const updatePayrollVisitNotes = (id, notes) =>
 // ── Scheduling ──
 export const getShifts = (weekStart, filters = {}) => {
     const params = new URLSearchParams();
-    if (weekStart) params.set('weekStart', weekStart);
+    if (filters.startDate && filters.endDate) {
+        params.set('startDate', filters.startDate);
+        params.set('endDate', filters.endDate);
+    } else if (weekStart) {
+        params.set('weekStart', weekStart);
+    }
     if (filters.clientId) params.set('clientId', filters.clientId);
     if (filters.employeeId) params.set('employeeId', filters.employeeId);
     return request(`/shifts?${params.toString()}`);
