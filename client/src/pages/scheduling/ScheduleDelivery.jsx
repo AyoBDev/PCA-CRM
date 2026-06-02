@@ -148,10 +148,11 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                             </p>
                             <input
                                 type="text"
+                                className="page-hero__search"
                                 placeholder="Search employee..."
                                 value={empSearch}
                                 onChange={e => setEmpSearch(e.target.value)}
-                                style={{ padding: '6px 12px', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)', fontSize: 13, width: 200 }}
+                                style={{ width: 200, margin: 0 }}
                             />
                         </div>
                         <div className="table-scroll">
