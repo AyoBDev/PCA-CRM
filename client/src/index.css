@@ -10745,4 +10745,255 @@ tr:hover .auth-note-icon--empty {
   }
 }
 
+/* ─── Monthly Calendar View ─── */
+.monthly-cal__container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.monthly-cal__toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.monthly-cal__search {
+    flex: 1;
+    padding: 7px 12px;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    font-size: 13px;
+    background: hsl(var(--card));
+}
+.monthly-cal__search:focus {
+    outline: none;
+    border-color: hsl(var(--ring));
+    box-shadow: 0 0 0 2px hsl(var(--ring) / 0.1);
+}
+.monthly-cal__filter {
+    padding: 7px 10px;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    font-size: 13px;
+    background: hsl(var(--card));
+}
+.monthly-cal__grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.monthly-cal__header-cell {
+    padding: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    text-align: center;
+    background: hsl(var(--muted));
+    border-bottom: 1px solid hsl(var(--border));
+    color: hsl(var(--muted-foreground));
+    letter-spacing: 0.05em;
+}
+.monthly-cal__day-cell {
+    min-height: 100px;
+    padding: 4px;
+    border-right: 1px solid hsl(var(--border));
+    border-bottom: 1px solid hsl(var(--border));
+    background: hsl(var(--card));
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+.monthly-cal__day-cell:nth-child(7n+7) {
+    border-right: none;
+}
+.monthly-cal__day-cell--outside {
+    opacity: 0.4;
+    background: hsl(var(--muted) / 0.3);
+}
+.monthly-cal__day-cell--today {
+    background: hsl(217 91% 97%);
+}
+.monthly-cal__day-number {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 4px;
+    cursor: pointer;
+    color: hsl(var(--foreground));
+    align-self: flex-start;
+}
+.monthly-cal__day-number:hover {
+    color: hsl(var(--primary));
+    text-decoration: underline;
+}
+.monthly-cal__day-cell--today .monthly-cal__day-number {
+    color: hsl(217 91% 50%);
+}
+.monthly-cal__shifts {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 2px;
+}
+.monthly-cal__shift-block {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    border: 1px solid;
+    font-size: 10px;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    overflow: hidden;
+}
+.monthly-cal__shift-block:hover {
+    opacity: 0.8;
+}
+.monthly-cal__shift-block--overlap {
+    border-color: hsl(0 84% 60%) !important;
+    box-shadow: 0 0 0 1px hsl(0 84% 60% / 0.3);
+}
+.monthly-cal__shift-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.monthly-cal__shift-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    font-size: 10px;
+}
+.monthly-cal__shift-time {
+    font-size: 9px;
+    color: hsl(var(--muted-foreground));
+    flex-shrink: 0;
+}
+.monthly-cal__more-btn {
+    font-size: 10px;
+    color: hsl(217 91% 50%);
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 1px 4px;
+    text-align: left;
+    font-weight: 500;
+}
+.monthly-cal__more-btn:hover {
+    text-decoration: underline;
+}
+
+/* ─── Future Shifts View ─── */
+.future-shifts {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.future-shifts__filters {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.future-shifts__filters .form-input,
+.future-shifts__filters select {
+    min-width: 180px;
+    padding: 7px 10px;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    font-size: 13px;
+}
+.future-shifts__bulk-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: hsl(var(--muted) / 0.5);
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 500;
+}
+.future-shifts__month {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.future-shifts__month-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.future-shifts__month-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+.future-shifts__loading {
+    text-align: center;
+    padding: 40px;
+    color: hsl(var(--muted-foreground));
+}
+
+/* ─── Scheduling View Switcher ─── */
+.sched-view-switcher {
+    display: inline-flex;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.sched-view-switcher__btn {
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    border: none;
+    background: hsl(var(--card));
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.sched-view-switcher__btn:not(:last-child) {
+    border-right: 1px solid hsl(var(--border));
+}
+.sched-view-switcher__btn--active {
+    background: hsl(217 91% 50%);
+    color: white;
+}
+.sched-view-switcher__btn:hover:not(.sched-view-switcher__btn--active) {
+    background: hsl(var(--muted));
+}
+
+/* ─── Month Navigation ─── */
+.sched-month-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.sched-month-nav__label {
+    font-size: 14px;
+    font-weight: 600;
+    min-width: 140px;
+    text-align: center;
+}
+.sched-month-nav__btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius);
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--card));
+    cursor: pointer;
+    color: hsl(var(--foreground));
+}
+.sched-month-nav__btn:hover {
+    background: hsl(var(--muted));
+}
+
 /* ─── Employee Certification Cards (reuses pa-service-card pattern) ─── */
