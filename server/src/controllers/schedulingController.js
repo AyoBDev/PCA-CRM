@@ -102,8 +102,8 @@ async function checkAuthorizationLimits(clientId, proposedShifts, excludeShiftId
 // Returns: { codes: Set, hasAuthorizations: boolean }
 async function getAuthorizedServiceCodes(clientId, shiftDates) {
     const allAuths = await prisma.authorization.findMany({
-        where: { clientId: Number(clientId) },
-        select: { serviceCode: true, serviceName: true, authorizationStartDate: true, authorizationEndDate: true },
+        where: { clientId: Number(clientId), manualStatus: 'active', archivedAt: null },
+        select: { serviceCode: true, serviceName: true, authorizationStartDate: true, authorizationEndDate: true, manualStatus: true, archivedAt: true },
     });
 
     // Client has no authorizations at all (e.g. Private Pay, CognitiveCare)

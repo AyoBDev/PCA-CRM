@@ -119,6 +119,8 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
         const now = new Date();
         const map = {};
         for (const auth of selectedClient.authorizations) {
+            if ((auth.manualStatus || 'active') !== 'active') continue;
+            if (auth.archivedAt) continue;
             if (auth.authorizationEndDate && new Date(auth.authorizationEndDate) < now) continue;
             const code = deriveCode(auth);
             if (!code) continue;
@@ -1370,6 +1372,8 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
         const now = new Date();
         const map = {};
         for (const auth of selectedClient.authorizations) {
+            if ((auth.manualStatus || 'active') !== 'active') continue;
+            if (auth.archivedAt) continue;
             if (auth.authorizationEndDate && new Date(auth.authorizationEndDate) < now) continue;
             let code = auth.serviceCode;
             if (!code || code === 'TIMESHEETS') {
