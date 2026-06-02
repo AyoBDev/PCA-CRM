@@ -8,6 +8,7 @@ import DrawerPanel from '../components/common/DrawerPanel';
 import ClientCreationWizard from '../components/ClientCreationWizard';
 import { fmtDate, daysClass } from '../utils/dates';
 import { statusLabel } from '../utils/status';
+import { getAccountForCategory, ACCOUNT_NUMBER_OPTIONS } from '../utils/accountMapping';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import { ActivityButton, EntityActivityButton } from '../components/common/ActivityDrawer';
@@ -201,8 +202,6 @@ function ClientFormModal({ client, onSave, onClose, insuranceTypeNames }) {
 }
 
 // ── Authorization Form Modal ──
-const ACCOUNT_NUMBER_OPTIONS = ['71040', '71120', '71119', '71635'];
-const DEFAULT_ACCOUNT_BY_CODE = { PCS: '71040', SDPC: '71119', S5130: '71120', S5150: '71635' };
 const SERVICE_CODE_COLORS = {
     PCS: '#22c55e',
     SDPC: '#8b5cf6',
@@ -219,7 +218,8 @@ function AuthFormModal({ auth, clientId, onSave, onClose, onRenewal, isRenewal }
     const [serviceName, setServiceName] = useState(auth?.serviceName || '');
     const [authorizedUnits, setAuthorizedUnits] = useState(isRenewal ? '' : (auth?.authorizedUnits || ''));
     const [authorizationNumber, setAuthorizationNumber] = useState(isRenewal ? '' : (auth?.authorizationNumber || ''));
-    const [accountNumber, setAccountNumber] = useState(auth?.accountNumber || DEFAULT_ACCOUNT_BY_CODE[auth?.serviceCode || 'PCS'] || '');
+    const [accountNumber, setAccountNumber] = useState(auth?.accountNumber || getAccountForCategory(auth?.serviceCategory) || '');
+    const [sandataClientId, setSandataClientId] = useState(auth?.sandataClientId || '');
     const [startDate, setStartDate] = useState(
         !isRenewal && auth?.authorizationStartDate ? new Date(auth.authorizationStartDate).toISOString().split('T')[0] : ''
     );
@@ -258,10 +258,11 @@ function AuthFormModal({ auth, clientId, onSave, onClose, onRenewal, isRenewal }
         }
     };
 
-    const handleServiceCodeChange = (newCode) => {
-        setServiceCode(newCode);
-        if (!accountNumber || Object.values(DEFAULT_ACCOUNT_BY_CODE).includes(accountNumber)) {
-            setAccountNumber(DEFAULT_ACCOUNT_BY_CODE[newCode] || '');
+    const handleServiceCategoryChange = (newCategory) => {
+        setServiceCategory(newCategory);
+        const defaultAcc = getAccountForCategory(newCategory);
+        if (defaultAcc && (!accountNumber || ACCOUNT_NUMBER_OPTIONS.includes(accountNumber))) {
+            setAccountNumber(defaultAcc);
         }
     };
 
@@ -288,6 +289,7 @@ function AuthFormModal({ auth, clientId, onSave, onClose, onRenewal, isRenewal }
             authorizationEndDate: endDate || null,
             notes,
             accountNumber,
+            sandataClientId,
             manualStatus,
             files,
         });
@@ -301,11 +303,11 @@ function AuthFormModal({ auth, clientId, onSave, onClose, onRenewal, isRenewal }
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-group">
                         <label>Service Category</label>
-                        <input type="text" value={serviceCategory} onChange={(e) => setServiceCategory(e.target.value)} placeholder="PCS, WAIVER 58…" />
+                        <input type="text" value={serviceCategory} onChange={(e) => handleServiceCategoryChange(e.target.value)} placeholder="PCS, WAIVER 58…" />
                     </div>
                     <div className="form-group">
                         <label>Service Code</label>
-                        <select value={serviceCode} onChange={(e) => handleServiceCodeChange(e.target.value)}>
+                        <select value={serviceCode} onChange={(e) => setServiceCode(e.target.value)}>
                             <option value="PCS">PCS</option>
                             <option value="SDPC">SDPC</option>
                             <option value="TIMESHEETS">TIMESHEETS</option>
@@ -331,9 +333,15 @@ function AuthFormModal({ auth, clientId, onSave, onClose, onRenewal, isRenewal }
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-group">
+                        <label>Sandata Client ID</label>
+                        <input type="text" value={sandataClientId} onChange={(e) => setSandataClientId(e.target.value)} placeholder="e.g. 1234567" />
+                    </div>
+                    <div className="form-group">
                         <label>Authorization Number</label>
                         <input type="text" value={authorizationNumber} onChange={(e) => setAuthorizationNumber(e.target.value)} placeholder="e.g. 45268348457" />
                     </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-group">
                         <label>Auth Units</label>
                         <input type="number" value={authorizedUnits} onChange={(e) => setAuthorizedUnits(e.target.value)} placeholder="0" />

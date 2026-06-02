@@ -2,15 +2,14 @@ import { useState, useCallback } from 'react';
 import Modal from './common/Modal';
 import * as api from '../api';
 import { useToast } from '../hooks/useToast';
-
-const ACCOUNT_NUMBER_OPTIONS = ['71040', '71120', '71119', '71635'];
-const DEFAULT_ACCOUNT_BY_CODE = { PCS: '71040', SDPC: '71119', S5130: '71120', S5150: '71635' };
+import { getAccountForCategory, ACCOUNT_NUMBER_OPTIONS } from '../utils/accountMapping';
 
 const EMPTY_AUTH = {
     serviceCategory: '',
     serviceCode: 'PCS',
     serviceName: '',
-    accountNumber: '71040',
+    accountNumber: '',
+    sandataClientId: '',
     authorizationNumber: '',
     authorizedUnits: '',
     startDate: '',
@@ -139,10 +138,11 @@ function StepClientInfo({ form, setForm, insuranceTypes, onDatePaste }) {
 function AuthCard({ index, auth, onChange, onRemove }) {
     const update = (field, value) => onChange(index, { ...auth, [field]: value });
 
-    const handleServiceCodeChange = (newCode) => {
-        const updates = { serviceCode: newCode };
-        if (!auth.accountNumber || Object.values(DEFAULT_ACCOUNT_BY_CODE).includes(auth.accountNumber)) {
-            updates.accountNumber = DEFAULT_ACCOUNT_BY_CODE[newCode] || '';
+    const handleServiceCategoryChange = (newCategory) => {
+        const updates = { serviceCategory: newCategory };
+        const defaultAcc = getAccountForCategory(newCategory);
+        if (defaultAcc && (!auth.accountNumber || ACCOUNT_NUMBER_OPTIONS.includes(auth.accountNumber))) {
+            updates.accountNumber = defaultAcc;
         }
         onChange(index, { ...auth, ...updates });
     };
@@ -158,11 +158,11 @@ function AuthCard({ index, auth, onChange, onRemove }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group">
                     <label>Service Category</label>
-                    <input type="text" value={auth.serviceCategory} onChange={(e) => update('serviceCategory', e.target.value)} placeholder="PCS, WAIVER 58…" />
+                    <input type="text" value={auth.serviceCategory} onChange={(e) => handleServiceCategoryChange(e.target.value)} placeholder="PCS, WAIVER 58…" />
                 </div>
                 <div className="form-group">
                     <label>Service Code <span style={{ color: '#dc2626' }}>*</span></label>
-                    <select value={auth.serviceCode} onChange={(e) => handleServiceCodeChange(e.target.value)}>
+                    <select value={auth.serviceCode} onChange={(e) => update('serviceCode', e.target.value)}>
                         <option value="PCS">PCS</option>
                         <option value="SDPC">SDPC</option>
                         <option value="TIMESHEETS">TIMESHEETS</option>
@@ -188,9 +188,15 @@ function AuthCard({ index, auth, onChange, onRemove }) {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group">
+                    <label>Sandata Client ID</label>
+                    <input type="text" value={auth.sandataClientId} onChange={(e) => update('sandataClientId', e.target.value)} placeholder="e.g. 1234567" />
+                </div>
+                <div className="form-group">
                     <label>Authorization Number</label>
                     <input type="text" value={auth.authorizationNumber} onChange={(e) => update('authorizationNumber', e.target.value)} placeholder="e.g. 45268348457" />
                 </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group">
                     <label>Auth Units <span style={{ color: '#dc2626' }}>*</span></label>
                     <input type="number" value={auth.authorizedUnits} onChange={(e) => update('authorizedUnits', e.target.value)} placeholder="0" />
@@ -458,6 +464,7 @@ export default function ClientCreationWizard({ onClose, onCreated, insuranceType
                         serviceName: auth.serviceName,
                         authorizationNumber: auth.authorizationNumber,
                         accountNumber: auth.accountNumber,
+                        sandataClientId: auth.sandataClientId,
                         authorizedUnits: parseInt(auth.authorizedUnits) || 0,
                         authorizationStartDate: auth.startDate || null,
                         authorizationEndDate: auth.endDate || null,

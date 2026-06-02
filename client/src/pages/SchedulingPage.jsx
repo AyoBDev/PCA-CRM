@@ -9,8 +9,7 @@ import { ActivityButton } from '../components/common/ActivityDrawer';
 import ScheduleDelivery from './scheduling/ScheduleDelivery';
 import MonthlyCalendarView from './scheduling/MonthlyCalendarView';
 import FutureShiftsView from './scheduling/FutureShiftsView';
-
-const VALID_ACCOUNT_NUMBERS = ['71040', '71119', '71120', '71635'];
+import { getAccountForCategory, ACCOUNT_NUMBER_OPTIONS } from '../utils/accountMapping';
 
 // Distinct colors for visually distinguishing multiple clients
 const CLIENT_COLORS = [
@@ -124,10 +123,16 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
             if (auth.authorizationEndDate && new Date(auth.authorizationEndDate) < now) continue;
             const code = deriveCode(auth);
             if (!code) continue;
-            if (!map[code]) map[code] = { units: 0, category: '' };
+            if (!map[code]) map[code] = { units: 0, category: '', accountNumber: '', sandataClientId: '' };
             map[code].units += auth.authorizedUnits || 0;
             if (auth.serviceCategory && !map[code].category) {
                 map[code].category = auth.serviceCategory;
+            }
+            if (auth.accountNumber && !map[code].accountNumber) {
+                map[code].accountNumber = auth.accountNumber;
+            }
+            if (auth.sandataClientId && !map[code].sandataClientId) {
+                map[code].sandataClientId = auth.sandataClientId;
             }
         }
         return map;
@@ -138,6 +143,22 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
         if (!keys.includes('TIMESHEETS')) keys.push('TIMESHEETS');
         return keys;
     }, [authorizedServiceMap]);
+
+    const handleServiceCodeChange = (newCode) => {
+        setServiceCode(newCode);
+        const authInfo = authorizedServiceMap[newCode];
+        if (authInfo) {
+            if (authInfo.accountNumber && (!accountNumber || ACCOUNT_NUMBER_OPTIONS.includes(accountNumber))) {
+                setAccountNumber(authInfo.accountNumber);
+            } else if (!accountNumber && authInfo.category) {
+                const catAccount = getAccountForCategory(authInfo.category);
+                if (catAccount) setAccountNumber(catAccount);
+            }
+            if (authInfo.sandataClientId && !sandataClientId) {
+                setSandataClientId(authInfo.sandataClientId);
+            }
+        }
+    };
 
     // Edit mode: single day fields
     const [serviceCode, setServiceCode] = useState(shift?.serviceCode || 'PCS');
@@ -526,7 +547,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                             <label htmlFor="shiftAccountNumber">Account Number</label>
                             <select id="shiftAccountNumber" value={accountNumber} onChange={e => setAccountNumber(e.target.value)}>
                                 <option value="">Select account…</option>
-                                {VALID_ACCOUNT_NUMBERS.map(n => <option key={n} value={n}>{n}</option>)}
+                                {ACCOUNT_NUMBER_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
                             </select>
                         </div>
                         <div className="form-group">
@@ -544,7 +565,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                                 <label htmlFor="shiftService">Service</label>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <span style={{ width: 12, height: 12, borderRadius: '50%', background: editColorInfo.color, flexShrink: 0 }} />
-                                    <select id="shiftService" value={serviceCode} onChange={e => setServiceCode(e.target.value)} style={{ flex: 1 }}>
+                                    <select id="shiftService" value={serviceCode} onChange={e => handleServiceCodeChange(e.target.value)} style={{ flex: 1 }}>
                                         {clientId && authorizedServices.length > 0
                                             ? authorizedServices.map(code => {
                                                 const info = SERVICE_COLORS[code] || { label: code };
@@ -687,7 +708,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                                                         <label className="sched-day-row__field-label">Account</label>
                                                         <select value={sh.accountNumber} onChange={e => updateDayShift(i, si, 'accountNumber', e.target.value)} className="sched-day-row__input">
                                                             <option value="">—</option>
-                                                            {VALID_ACCOUNT_NUMBERS.map(n => <option key={n} value={n}>{n}</option>)}
+                                                            {ACCOUNT_NUMBER_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
                                                         </select>
                                                     </div>
                                                     <div className="sched-day-row__field">
@@ -1288,7 +1309,29 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
     const [confirmDelete, setConfirmDelete] = useState(false);
 
     const updateShiftField = (shiftId, field, value) => {
-        setEdits(prev => ({ ...prev, [shiftId]: { ...prev[shiftId], [field]: value } }));
+        setEdits(prev => {
+            const next = { ...prev, [shiftId]: { ...prev[shiftId], [field]: value } };
+            if (field === 'serviceCode' && filterClientId) {
+                const client = clients.find(c => String(c.id) === String(filterClientId));
+                const now = new Date();
+                const auth = client?.authorizations?.find(a =>
+                    a.serviceCode === value &&
+                    (a.manualStatus || 'active') === 'active' &&
+                    !a.archivedAt &&
+                    (!a.authorizationEndDate || new Date(a.authorizationEndDate) >= now)
+                );
+                if (auth) {
+                    const current = next[shiftId];
+                    if (auth.accountNumber && (!current.accountNumber || ACCOUNT_NUMBER_OPTIONS.includes(current.accountNumber))) {
+                        next[shiftId] = { ...next[shiftId], accountNumber: auth.accountNumber };
+                    }
+                    if (auth.sandataClientId && !current.sandataClientId) {
+                        next[shiftId] = { ...next[shiftId], sandataClientId: auth.sandataClientId };
+                    }
+                }
+            }
+            return next;
+        });
     };
 
     const applyDayToAll = (sourceDateStr) => {
@@ -1542,7 +1585,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                         <label className="sched-day-row__field-label">Account</label>
                                                         <select value={edit.accountNumber} onChange={e => updateShiftField(shift.id, 'accountNumber', e.target.value)} className="sched-day-row__input">
                                                             <option value="">—</option>
-                                                            {VALID_ACCOUNT_NUMBERS.map(n => <option key={n} value={n}>{n}</option>)}
+                                                            {ACCOUNT_NUMBER_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
                                                         </select>
                                                     </div>
                                                     <div className="sched-day-row__field">

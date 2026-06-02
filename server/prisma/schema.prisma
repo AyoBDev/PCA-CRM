@@ -296,6 +296,7 @@ model Authorization {
   authorizationNumber     String                    @default("") @map("authorization_number")
   authorizedHours         Float                     @default(0) @map("authorized_hours")
   accountNumber           String                    @default("") @map("account_number")
+  sandataClientId         String                    @default("") @map("sandata_client_id")
   manualStatus            String                    @default("active") @map("manual_status")
   authorization_documents authorization_documents[]
   client                  Client                    @relation(fields: [clientId], references: [id], onDelete: Cascade)

@@ -1,15 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Icons from '../../components/common/Icons';
 import * as api from '../../api';
-
-const ACCOUNT_OPTIONS = ['71040', '71120', '71119', '71635'];
-
-const DEFAULT_ACCOUNT_BY_CODE = {
-    PCS: '71040',
-    SDPC: '71119',
-    S5130: '71120',
-    S5150: '71635',
-};
+import { ACCOUNT_NUMBER_OPTIONS } from '../../utils/accountMapping';
 
 const AUTH_COLORS = {
     PCS: { accent: '#22c55e', bg: 'hsl(142 76% 96%)', border: '#22c55e', label: 'PCA SERVICE AUTHORIZATION', icon: 'shieldCheck' },
@@ -153,7 +145,7 @@ export default function ProgramsAuthTab({
         const activeAuths = current.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt);
         const latestAuth = activeAuths[0] || current[0] || allAuths[0];
         const attachCount = latestAuth ? (latestAuth.documents || []).length : 0;
-        const currentAccountNumber = latestAuth?.accountNumber || DEFAULT_ACCOUNT_BY_CODE[code] || '';
+        const currentAccountNumber = latestAuth?.accountNumber || '';
 
         const isExpanded = expandedServiceCode === code;
 
@@ -176,7 +168,7 @@ export default function ProgramsAuthTab({
                             onChange={(e) => handleAccountNumberChange(code, e.target.value)}
                         >
                             <option value="">—</option>
-                            {ACCOUNT_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                            {ACCOUNT_NUMBER_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                         </select>
                     </div>
                 </div>

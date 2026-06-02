@@ -66,6 +66,7 @@ async function createAuthorization(req, res, next) {
                 authorizationEndDate: req.body.authorizationEndDate ? new Date(req.body.authorizationEndDate) : null,
                 notes: (req.body.notes || '').trim(),
                 accountNumber: (req.body.accountNumber || '').trim(),
+                sandataClientId: (req.body.sandataClientId || '').trim(),
             },
         });
 
@@ -102,6 +103,7 @@ async function updateAuthorization(req, res, next) {
                 authorizationEndDate: req.body.authorizationEndDate ? new Date(req.body.authorizationEndDate) : null,
                 notes: (req.body.notes || '').trim(),
                 accountNumber: (req.body.accountNumber || '').trim(),
+                sandataClientId: (req.body.sandataClientId || '').trim(),
                 ...(req.body.manualStatus && { manualStatus: req.body.manualStatus }),
             },
         });
@@ -112,7 +114,7 @@ async function updateAuthorization(req, res, next) {
             });
         }
 
-        const changes = audit.diffFields(oldAuth, auth, ['serviceCode', 'serviceName', 'authorizationNumber', 'authorizedUnits', 'authorizedHours', 'authorizationStartDate', 'authorizationEndDate', 'notes', 'accountNumber', 'manualStatus']);
+        const changes = audit.diffFields(oldAuth, auth, ['serviceCode', 'serviceName', 'authorizationNumber', 'authorizedUnits', 'authorizedHours', 'authorizationStartDate', 'authorizationEndDate', 'notes', 'accountNumber', 'sandataClientId', 'manualStatus']);
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: auth.id, entityName: auth.serviceCode, changes });
         res.json(enrichAuthorization(auth));
     } catch (err) {
