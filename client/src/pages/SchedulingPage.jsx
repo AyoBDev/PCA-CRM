@@ -2052,7 +2052,7 @@ export default function SchedulingPage() {
             const today = new Date();
             const startDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
             const end = new Date(today);
-            end.setMonth(end.getMonth() + 6);
+            end.setDate(end.getDate() + 180);
             const endDate = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
             const data = await api.getShifts(null, { startDate, endDate });
             setFutureShifts(data.shifts || []);
