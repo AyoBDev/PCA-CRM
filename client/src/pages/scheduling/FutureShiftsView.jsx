@@ -49,12 +49,14 @@ export default function FutureShiftsView({ shifts, clients, employees, onEditShi
     const groupedByMonth = useMemo(() => {
         const groups = {};
         filteredShifts.forEach(shift => {
-            const d = new Date(shift.date);
-            const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
+            const raw = shift.shiftDate;
+            const dateStr = typeof raw === 'string' && raw.includes('T') ? raw.split('T')[0] : String(raw);
+            const [y, m] = dateStr.split('-');
+            const key = `${y}-${m}`;
             if (!groups[key]) {
                 groups[key] = {
                     key,
-                    label: `${MONTHS[d.getMonth()]} ${d.getFullYear()}`,
+                    label: `${MONTHS[Number(m) - 1]} ${y}`,
                     shifts: []
                 };
             }
@@ -125,28 +127,29 @@ export default function FutureShiftsView({ shifts, clients, employees, onEditShi
     return (
         <div className="future-shifts">
             {/* Filter bar */}
-            <div className="future-shifts__filters" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap' }}>
-                <div style={{ minWidth: '200px' }}>
+            <div className="future-shifts__filters">
+                <div className="future-shifts__filter">
                     <SearchableSelect
                         options={clientOptions}
                         value={filterClient}
                         onChange={setFilterClient}
                         placeholder="All Clients"
+                        className="future-shifts__select-input"
                     />
                 </div>
-                <div style={{ minWidth: '200px' }}>
+                <div className="future-shifts__filter">
                     <SearchableSelect
                         options={employeeOptions}
                         value={filterEmployee}
                         onChange={setFilterEmployee}
                         placeholder="All Employees"
+                        className="future-shifts__select-input"
                     />
                 </div>
                 <select
-                    className="form-input"
+                    className="future-shifts__service-select"
                     value={filterService}
                     onChange={e => setFilterService(e.target.value)}
-                    style={{ minWidth: '160px' }}
                 >
                     <option value="">All Services</option>
                     {serviceOptions.map(code => (
@@ -259,12 +262,15 @@ export default function FutureShiftsView({ shifts, clients, employees, onEditShi
                                     </thead>
                                     <tbody>
                                         {group.shifts.map(shift => {
-                                            const d = new Date(shift.date);
-                                            const dayName = DAYS[d.getUTCDay()];
-                                            const dateStr = `${d.getUTCMonth() + 1}/${d.getUTCDate()}/${d.getUTCFullYear()}`;
+                                            const raw = shift.shiftDate;
+                                            const isoStr = typeof raw === 'string' && raw.includes('T') ? raw.split('T')[0] : String(raw);
+                                            const [y, m, day] = isoStr.split('-');
+                                            const d = new Date(Number(y), Number(m) - 1, Number(day));
+                                            const dayName = DAYS[d.getDay()];
+                                            const dateStr = `${MONTHS[Number(m) - 1].slice(0, 3)} ${Number(day)}`;
                                             const svc = SERVICE_COLORS[shift.serviceCode] || null;
                                             const timeStr = shift.startTime && shift.endTime
-                                                ? `${hhmm12(shift.startTime)} - ${hhmm12(shift.endTime)}`
+                                                ? `${hhmm12(shift.startTime)} – ${hhmm12(shift.endTime)}`
                                                 : '';
 
                                             return (
@@ -284,10 +290,10 @@ export default function FutureShiftsView({ shifts, clients, employees, onEditShi
                                                             style={{ color: 'hsl(217 91% 60%)', textDecoration: 'underline', padding: 0 }}
                                                             onClick={() => onEditShift(shift)}
                                                         >
-                                                            {shift.clientName || 'Unknown'}
+                                                            {shift.client?.clientName || 'Unknown'}
                                                         </button>
                                                     </td>
-                                                    <td>{shift.employeeName || 'Unassigned'}</td>
+                                                    <td>{shift.displayEmployeeName || 'Unassigned'}</td>
                                                     <td>
                                                         {svc ? (
                                                             <span style={{
@@ -308,7 +314,7 @@ export default function FutureShiftsView({ shifts, clients, employees, onEditShi
                                                         )}
                                                     </td>
                                                     <td>{timeStr}</td>
-                                                    <td>{shift.accountName || '—'}</td>
+                                                    <td>{shift.accountNumber || '—'}</td>
                                                     <td>
                                                         {shift.recurringGroupId ? (
                                                             <button

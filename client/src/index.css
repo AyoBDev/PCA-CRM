@@ -10897,15 +10897,32 @@ tr:hover .auth-note-icon--empty {
     display: flex;
     align-items: center;
     gap: 10px;
+    margin-bottom: 16px;
     flex-wrap: wrap;
 }
-.future-shifts__filters .form-input,
-.future-shifts__filters select {
-    min-width: 180px;
+.future-shifts__filter {
+    min-width: 200px;
+}
+.future-shifts__select-input {
+    width: 100%;
+    padding: 7px 12px;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    font-size: 13px;
+    background: hsl(var(--card));
+}
+.future-shifts__select-input:focus {
+    outline: none;
+    border-color: hsl(var(--ring));
+    box-shadow: 0 0 0 2px hsl(var(--ring) / 0.1);
+}
+.future-shifts__service-select {
+    min-width: 160px;
     padding: 7px 10px;
     border: 1px solid hsl(var(--border));
     border-radius: var(--radius);
     font-size: 13px;
+    background: hsl(var(--card));
 }
 .future-shifts__bulk-bar {
     display: flex;
