@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Icons from '../../components/common/Icons';
 import SearchableSelect from '../../components/common/SearchableSelect';
 import { hhmm12 } from '../../utils/time';
@@ -16,12 +16,16 @@ const SERVICE_COLORS = {
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-export default function FutureShiftsView({ shifts, clients, employees, onEditShift, onBulkDelete, loading }) {
+export default function FutureShiftsView({ shifts, clients, employees, onEditShift, onBulkDelete, loading, onFilterChange }) {
     const [filterClient, setFilterClient] = useState('');
     const [filterEmployee, setFilterEmployee] = useState('');
     const [filterService, setFilterService] = useState('');
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [confirmDelete, setConfirmDelete] = useState(false);
+
+    useEffect(() => {
+        if (onFilterChange) onFilterChange({ clientId: filterClient, employeeId: filterEmployee });
+    }, [filterClient, filterEmployee, onFilterChange]);
 
     const clientOptions = useMemo(() => [
         { value: '', label: 'All Clients' },

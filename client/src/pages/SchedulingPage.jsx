@@ -1995,6 +1995,7 @@ export default function SchedulingPage() {
     const [loadingMonth, setLoadingMonth] = useState(false);
     const [futureShifts, setFutureShifts] = useState([]);
     const [loadingFuture, setLoadingFuture] = useState(false);
+    const [futureFilterContext, setFutureFilterContext] = useState({ clientId: '', employeeId: '' });
 
     // Build client color maps for visual distinction
     const allClientColorMap = useMemo(() => buildClientColorMap(allShifts), [allShifts]);
@@ -2395,7 +2396,7 @@ export default function SchedulingPage() {
                             {Icons.trash} Delete All
                         </button>
                     )}
-                    <button className="btn btn--primary" onClick={() => setModal({ type: 'shift', shift: null })}>
+                    <button className="btn btn--primary" onClick={() => setModal({ type: 'shift', shift: null, defaultClientId: viewMode === 'future' ? futureFilterContext.clientId : selectedClientId, defaultEmployeeId: viewMode === 'future' ? futureFilterContext.employeeId : selectedEmployeeId })}>
                         {Icons.plus} Create Shift
                     </button>
                 </div>
@@ -2680,6 +2681,7 @@ export default function SchedulingPage() {
                         onEditShift={handleEditShift}
                         onBulkDelete={handleFutureBulkDelete}
                         loading={loadingFuture}
+                        onFilterChange={setFutureFilterContext}
                     />
                 </ScheduleCard>
                 )}
@@ -2704,8 +2706,8 @@ export default function SchedulingPage() {
                     shift={modal.shift}
                     defaultDate={modal.defaultDate}
                     defaultStartTime={modal.defaultStartTime}
-                    defaultClientId={selectedClientId || ''}
-                    defaultEmployeeId={selectedEmployeeId || ''}
+                    defaultClientId={modal.defaultClientId || selectedClientId || ''}
+                    defaultEmployeeId={modal.defaultEmployeeId || selectedEmployeeId || ''}
                     clients={clients}
                     employees={employees}
                     weekStart={weekStart}
