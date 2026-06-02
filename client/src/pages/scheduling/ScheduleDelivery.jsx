@@ -10,6 +10,7 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
     const [sentIds, setSentIds] = useState(new Set());
     const [confirmEmp, setConfirmEmp] = useState(null);
     const [responses, setResponses] = useState([]);
+    const [empSearch, setEmpSearch] = useState('');
     const { showToast } = useToast();
 
     useEffect(() => {
@@ -54,6 +55,15 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
         }
         return map;
     }, [responses]);
+
+    const filteredEmployees = useMemo(() => {
+        if (!empSearch.trim()) return employees;
+        const q = empSearch.trim().toLowerCase();
+        return employees.filter(e =>
+            e.name.toLowerCase().includes(q) ||
+            (e.email || '').toLowerCase().includes(q)
+        );
+    }, [employees, empSearch]);
 
     const handleSendSchedule = async (emp) => {
         if (!emp.email && !emp.phone) {
@@ -132,9 +142,18 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                     <p style={{ color: 'hsl(var(--muted-foreground))' }}>No shifts scheduled for this week.</p>
                 ) : (
                     <>
-                        <p style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', margin: '0 0 10px' }}>
-                            Review and finalize schedules, then send to each employee. Employees can accept, reject, or request changes.
-                        </p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                            <p style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', margin: 0, flex: 1 }}>
+                                Review and finalize schedules, then send to each employee.
+                            </p>
+                            <input
+                                type="text"
+                                placeholder="Search employee..."
+                                value={empSearch}
+                                onChange={e => setEmpSearch(e.target.value)}
+                                style={{ padding: '6px 12px', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)', fontSize: 13, width: 200 }}
+                            />
+                        </div>
                         <div className="table-scroll">
                         <table className="data-table data-table--sheet data-table--dark-header">
                             <thead>
@@ -147,7 +166,7 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                                 </tr>
                             </thead>
                             <tbody>
-                                {employees.map(emp => {
+                                {filteredEmployees.map(emp => {
                                     const hasContact = !!(emp.email || emp.phone);
                                     const isSending = sendingId === emp.id;
                                     const isSent = sentIds.has(emp.id);
