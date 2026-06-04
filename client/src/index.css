@@ -3926,6 +3926,168 @@ body {
   background: hsl(var(--muted) / 0.3);
 }
 
+/* ── PCA Form Mobile: Summary Tab ── */
+.pcaf-msummary {
+  padding: 12px;
+}
+
+.pcaf-msummary__days {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 16px;
+}
+
+.pcaf-msummary__day {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 0 12px;
+  padding: 12px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--card));
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.pcaf-msummary__day:active {
+  background: hsl(var(--muted));
+}
+
+.pcaf-msummary__day--error {
+  border-color: hsl(0 84% 60% / 0.5);
+  background: hsl(0 84% 60% / 0.03);
+}
+
+.pcaf-msummary__day-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.pcaf-msummary__day-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+}
+
+.pcaf-msummary__day-date {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+
+.pcaf-msummary__day-mid {
+  display: flex;
+  align-items: center;
+}
+
+.pcaf-msummary__acts {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+
+.pcaf-msummary__day-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pcaf-msummary__hours {
+  font-size: 13px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.pcaf-msummary__check {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+.pcaf-msummary__warn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: hsl(0 84% 60%);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pcaf-msummary__missing {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: hsl(0 84% 60%);
+  margin-top: 4px;
+}
+
+.pcaf-msummary__totals {
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.pcaf-msummary__total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid hsl(var(--border));
+  font-size: 13px;
+}
+
+.pcaf-msummary__total-row:last-child {
+  border-bottom: none;
+}
+
+.pcaf-msummary__total-row--pas strong { color: #1e40af; }
+.pcaf-msummary__total-row--hm strong { color: #16a34a; }
+.pcaf-msummary__total-row--respite strong { color: #ea580c; }
+
+.pcaf-msummary__signatures {
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 16px 12px;
+}
+
+.pcaf-msummary__sig-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin: 0 0 12px;
+  color: hsl(var(--foreground));
+}
+
+.pcaf-msummary__sig-field {
+  margin-bottom: 12px;
+}
+
+.pcaf-msummary__sig-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  margin-bottom: 4px;
+}
+
+.pcaf-msummary__sig-field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  font-size: 16px;
+  background: hsl(var(--background));
+}
+
+.pcaf-msummary__sig-pad {
+  margin-bottom: 16px;
+}
+
 /* ─── Legacy SDR classes (kept for backward compat) ─── */
 
 .sdr-client-info {
