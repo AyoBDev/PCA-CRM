@@ -311,7 +311,7 @@ export default function ClientsListPage() {
                                                     <div style={{ fontWeight: 500, lineHeight: 1.3 }}>{c.clientName}</div>
                                                 </div>
                                             </td>
-                                            <td style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 12 }}>{c.medicaidId || '—'}</td>
+                                            <td style={{ fontSize: 12 }}>{c.medicaidId || '—'}</td>
                                             <td style={{ fontSize: 12 }}>{c.gender || '—'}</td>
                                             <td style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{formatShortDate(c.dob)}</td>
                                             <td>
@@ -382,7 +382,7 @@ export default function ClientsListPage() {
                         <div>
                             <h2 className="modal__title" style={{ margin: 0 }}>{previewClient.clientName}</h2>
                             {previewClient.medicaidId && (
-                                <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', fontFamily: 'var(--font-mono, monospace)' }}>
+                                <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
                                     ID: {previewClient.medicaidId}
                                 </div>
                             )}
