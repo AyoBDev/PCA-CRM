@@ -4088,6 +4088,84 @@ body {
   margin-bottom: 16px;
 }
 
+/* ── PCA Form Mobile: Bottom Action Bar ── */
+.pcaf-mobile-actions {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  background: hsl(var(--card));
+  border-top: 1px solid hsl(var(--border));
+  box-shadow: 0 -2px 8px hsl(0 0% 0% / 0.08);
+  z-index: 100;
+}
+
+.pcaf-mobile-actions .pcaf-btn {
+  flex: 1;
+  text-align: center;
+  padding: 14px 12px;
+  font-size: 15px;
+}
+
+.pcaf-mobile-actions .pcaf-btn--outline {
+  position: relative;
+}
+
+.pcaf-mobile-actions__unsaved-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f59e0b;
+}
+
+/* Adjust toast position when bottom bar is present */
+.pcaf-page--mobile .pcaf-toast {
+  bottom: 80px;
+}
+
+/* Add bottom padding to page content to prevent overlap with fixed bar */
+.pcaf-page--mobile .pcaf-mcard,
+.pcaf-page--mobile .pcaf-msummary {
+  padding-bottom: 80px;
+}
+
+/* ── PCA Form Mobile: Topbar adjustments ── */
+.pcaf-topbar--mobile {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px 12px;
+  position: sticky;
+  top: 0;
+  z-index: 51;
+  background: hsl(var(--card));
+}
+
+.pcaf-topbar--mobile .pcaf-topbar__week-row {
+  justify-content: center;
+}
+
+.pcaf-topbar__mobile-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.pcaf-topbar__week-range-inline {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+
 /* ─── Legacy SDR classes (kept for backward compat) ─── */
 
 .sdr-client-info {
