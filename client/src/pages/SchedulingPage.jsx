@@ -10,6 +10,10 @@ import ScheduleDelivery from './scheduling/ScheduleDelivery';
 import MonthlyCalendarView from './scheduling/MonthlyCalendarView';
 import FutureShiftsView from './scheduling/FutureShiftsView';
 import { getAccountForCategory, ACCOUNT_NUMBER_OPTIONS } from '../utils/accountMapping';
+import UndoBanner from '../components/common/UndoBanner';
+import TrashDrawer from '../components/common/TrashDrawer';
+import DeleteConfirmModal from '../components/common/DeleteConfirmModal';
+import DateSelectionPanel from './scheduling/DateSelectionPanel';
 
 // Distinct colors for visually distinguishing multiple clients
 const CLIENT_COLORS = [
@@ -1308,6 +1312,11 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
     const [applyToFuture, setApplyToFuture] = useState(true);
     const [confirmDelete, setConfirmDelete] = useState(false);
 
+    // DateSelectionPanel state
+    const [showDateSelect, setShowDateSelect] = useState(false);
+    const [dateSelectedIds, setDateSelectedIds] = useState(new Set());
+    const [futureSeriesShifts, setFutureSeriesShifts] = useState([]);
+
     const updateShiftField = (shiftId, field, value) => {
         setEdits(prev => {
             const next = { ...prev, [shiftId]: { ...prev[shiftId], [field]: value } };
@@ -1347,6 +1356,33 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
         });
     };
 
+    const handleApplyToFutureToggle = (enabled) => {
+        setApplyToFuture(enabled);
+        if (!enabled) {
+            setShowDateSelect(false);
+            setFutureSeriesShifts([]);
+            setDateSelectedIds(new Set());
+            return;
+        }
+        const groupIds = [...new Set(
+            selectedShifts.filter(s => s.recurringGroupId).map(s => s.recurringGroupId)
+        )];
+        if (groupIds.length === 0) {
+            setShowDateSelect(false);
+            setFutureSeriesShifts([]);
+            return;
+        }
+        const today = new Date().toISOString().split('T')[0];
+        const future = allShifts.filter(s =>
+            groupIds.includes(s.recurringGroupId) &&
+            s.shiftDate && String(s.shiftDate).split('T')[0] > today &&
+            !selectedIds.has(s.id)
+        );
+        setFutureSeriesShifts(future);
+        setDateSelectedIds(new Set());
+        setShowDateSelect(true);
+    };
+
     const computeHrs = (sT, eT) => {
         if (!sT || !eT) return { hours: 0, units: 0 };
         const [sh, sm] = sT.split(':').map(Number);
@@ -1374,8 +1410,13 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
     const handleSubmit = (e) => {
         e.preventDefault();
         const perShiftUpdates = {};
-        for (const s of selectedShifts) {
-            const edit = edits[s.id];
+        // Include both selected shifts and date-selected future shifts
+        const allTargetIds = [...selectedIds, ...(showDateSelect ? dateSelectedIds : [])];
+        const allTargetShifts = allShifts.filter(s => allTargetIds.includes(s.id));
+
+        for (const s of allTargetShifts) {
+            const edit = edits[s.id] || edits[selectedShifts[0]?.id]; // Use first selected shift's edits for future shifts
+            if (!edit) continue;
             const updates = {};
             if (edit.serviceCode !== (s.serviceCode || '')) updates.serviceCode = edit.serviceCode;
             if (edit.startTime !== (s.startTime || '')) updates.startTime = edit.startTime;
@@ -1385,7 +1426,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
             if (Object.keys(updates).length > 0) perShiftUpdates[s.id] = updates;
         }
         if (Object.keys(perShiftUpdates).length === 0) return;
-        onSave(perShiftUpdates, applyToFuture);
+        onSave(perShiftUpdates, false); // Don't use applyToFuture anymore, we're passing explicit IDs
     };
 
     // Client/employee options for SearchableSelect
@@ -1618,14 +1659,14 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
 
                         <div className="sched-recurring">
                             <label className="sched-recurring__toggle">
-                                <input type="radio" name="bulkScope" checked={!applyToFuture} onChange={() => setApplyToFuture(false)} />
+                                <input type="radio" name="bulkScope" checked={!applyToFuture} onChange={() => handleApplyToFutureToggle(false)} />
                                 <span>Apply to current week only</span>
                             </label>
                             <label className="sched-recurring__toggle" style={{ marginTop: 6 }}>
-                                <input type="radio" name="bulkScope" checked={applyToFuture} onChange={() => setApplyToFuture(true)} />
+                                <input type="radio" name="bulkScope" checked={applyToFuture} onChange={() => handleApplyToFutureToggle(true)} />
                                 <span>Apply to all future recurring weeks</span>
                             </label>
-                            {applyToFuture && hasRecurringShifts && (
+                            {applyToFuture && hasRecurringShifts && !showDateSelect && (
                                 <div className="sched-recurring__preview">
                                     Changes will update all future shifts sharing the same recurring schedule.
                                 </div>
@@ -1634,6 +1675,13 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                 <div className="sched-recurring__preview" style={{ color: '#f59e0b' }}>
                                     No recurring group found — changes will apply to selected shifts only.
                                 </div>
+                            )}
+                            {showDateSelect && futureSeriesShifts.length > 0 && (
+                                <DateSelectionPanel
+                                    shifts={futureSeriesShifts}
+                                    selectedIds={dateSelectedIds}
+                                    onSelectionChange={setDateSelectedIds}
+                                />
                             )}
                         </div>
                     </>
@@ -2033,6 +2081,16 @@ export default function SchedulingPage() {
     const [bulkSaving, setBulkSaving] = useState(false);
     const [bulkBatches, setBulkBatches] = useState([]);
 
+    // Undo banners
+    const [undoBanners, setUndoBanners] = useState([]);
+
+    // Trash drawer
+    const [trashOpen, setTrashOpen] = useState(false);
+    const [archivedShifts, setArchivedShifts] = useState([]);
+
+    // Delete confirmation modal
+    const [deleteConfirm, setDeleteConfirm] = useState(null);
+
     // Calendar view mode
     const [viewMode, setViewMode] = useState('week');
     const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
@@ -2160,6 +2218,35 @@ export default function SchedulingPage() {
         } catch {}
     }, []);
 
+    const fetchArchivedShifts = useCallback(async () => {
+        try {
+            const data = await api.listArchivedShifts();
+            setArchivedShifts(data);
+        } catch {}
+    }, []);
+
+    const addUndoBanner = (message, batchId) => {
+        const id = Date.now();
+        setUndoBanners(prev => [...prev, { id, message, batchId }]);
+    };
+
+    const removeUndoBanner = (id) => {
+        setUndoBanners(prev => prev.filter(b => b.id !== id));
+    };
+
+    const showDeleteConfirm = (shiftIds, shifts) => {
+        const items = shifts.map(s => ({
+            id: s.id,
+            label: `${s.client?.clientName || 'Unknown'} — ${s.shiftDate ? new Date(s.shiftDate).toLocaleDateString() : '?'} (${s.startTime || '?'}–${s.endTime || '?'})`,
+        }));
+        const uniqueClients = [...new Set(shifts.map(s => s.client?.clientName).filter(Boolean))];
+        const uniqueEmployees = [...new Set(shifts.map(s => s.displayEmployeeName || s.employee?.name).filter(Boolean))];
+        const scopeWarning = (uniqueClients.length > 1 || uniqueEmployees.length > 1)
+            ? `This affects ${uniqueClients.length} client${uniqueClients.length !== 1 ? 's' : ''} and ${uniqueEmployees.length} employee${uniqueEmployees.length !== 1 ? 's' : ''}`
+            : null;
+        setDeleteConfirm({ shiftIds, items, scopeWarning });
+    };
+
     useEffect(() => { fetchClients(); }, [fetchClients]);
     useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
     useEffect(() => { fetchAllShifts(); }, [fetchAllShifts]);
@@ -2167,6 +2254,7 @@ export default function SchedulingPage() {
     useEffect(() => { fetchEmployeeSchedule(); }, [fetchEmployeeSchedule]);
     useEffect(() => { if (modal?.type === 'bulkEdit') fetchBatches(); }, [modal, fetchBatches]);
     useEffect(() => { if (viewMode === 'month') fetchMonthShifts(); }, [viewMode, fetchMonthShifts]);
+    useEffect(() => { if (trashOpen) fetchArchivedShifts(); }, [trashOpen, fetchArchivedShifts]);
     useEffect(() => { if (viewMode === 'future') fetchFutureShifts(); }, [viewMode, fetchFutureShifts]);
 
 
@@ -2268,11 +2356,7 @@ export default function SchedulingPage() {
             setModal(null);
             refetchAll();
             fetchBatches();
-            showUndoToast(`Updated ${result.count} shift${result.count !== 1 ? 's' : ''}`, async () => {
-                await api.bulkUndoShifts(result.batchId);
-                refetchAll();
-                fetchBatches();
-            });
+            addUndoBanner(`Updated ${result.count} shift${result.count !== 1 ? 's' : ''}`, result.batchId);
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
@@ -2293,11 +2377,24 @@ export default function SchedulingPage() {
             const msg = result.futureUpdated
                 ? `Updated ${result.count} shift${result.count !== 1 ? 's' : ''} + ${result.futureUpdated} future`
                 : `Updated ${result.count} shift${result.count !== 1 ? 's' : ''}`;
-            showUndoToast(msg, async () => {
-                await api.bulkUndoShifts(result.batchId);
-                refetchAll();
-                fetchBatches();
-            });
+            addUndoBanner(msg, result.batchId);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setBulkSaving(false);
+        }
+    };
+
+    const handleBulkDeleteByIds = async (shiftIds) => {
+        try {
+            setBulkSaving(true);
+            const result = await api.bulkDeleteShifts(shiftIds);
+            setSelectedShiftIds(new Set());
+            setBulkEditMode(false);
+            setModal(null);
+            refetchAll();
+            fetchBatches();
+            addUndoBanner(`Archived ${result.archived} shift${result.archived !== 1 ? 's' : ''}`, result.batchId);
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
@@ -2307,24 +2404,8 @@ export default function SchedulingPage() {
 
     const handleBulkDelete = async () => {
         if (selectedShiftIds.size === 0) return;
-        try {
-            setBulkSaving(true);
-            const result = await api.bulkDeleteShifts([...selectedShiftIds]);
-            setSelectedShiftIds(new Set());
-            setBulkEditMode(false);
-            setModal(null);
-            refetchAll();
-            fetchBatches();
-            showUndoToast(`Archived ${result.archived} shift${result.archived !== 1 ? 's' : ''}`, async () => {
-                await api.bulkUndoShifts(result.batchId);
-                refetchAll();
-                fetchBatches();
-            });
-        } catch (err) {
-            showToast(err.message, 'error');
-        } finally {
-            setBulkSaving(false);
-        }
+        const selected = allShifts.filter(s => selectedShiftIds.has(s.id));
+        showDeleteConfirm([...selectedShiftIds], selected);
     };
 
     const handleFutureBulkDelete = async (shiftIds) => {
@@ -2332,10 +2413,7 @@ export default function SchedulingPage() {
             setBulkSaving(true);
             const result = await api.bulkDeleteShifts(shiftIds);
             fetchFutureShifts();
-            showUndoToast(`Archived ${result.archived} shift${result.archived !== 1 ? 's' : ''}`, async () => {
-                await api.bulkUndoShifts(result.batchId);
-                fetchFutureShifts();
-            });
+            addUndoBanner(`Archived ${result.archived} shift${result.archived !== 1 ? 's' : ''}`, result.batchId);
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
@@ -2430,6 +2508,13 @@ export default function SchedulingPage() {
                         <button className={`sched-view-switcher__btn ${viewMode === 'month' ? 'sched-view-switcher__btn--active' : ''}`} onClick={() => setViewMode('month')}>Month</button>
                         <button className={`sched-view-switcher__btn ${viewMode === 'future' ? 'sched-view-switcher__btn--active' : ''}`} onClick={() => setViewMode('future')}>Future</button>
                     </div>
+                    <button
+                        className="btn btn--outline btn--sm"
+                        onClick={() => setTrashOpen(true)}
+                        title="View deleted shifts"
+                    >
+                        {Icons.trash}
+                    </button>
                     {isAdmin && <ActivityButton entityType="Shift" />}
                     <button
                         className="btn btn--outline"
@@ -2450,6 +2535,20 @@ export default function SchedulingPage() {
             </div>
 
             <div className="page-content">
+
+                {/* Undo Banners */}
+                {undoBanners.map(banner => (
+                    <UndoBanner
+                        key={banner.id}
+                        message={banner.message}
+                        onUndo={async () => {
+                            await api.bulkUndoShifts(banner.batchId);
+                            refetchAll();
+                            fetchBatches();
+                        }}
+                        onDismiss={() => removeUndoBanner(banner.id)}
+                    />
+                ))}
 
                 {/* Overlap Warnings */}
                 {allOverlaps.length > 0 && (
@@ -2868,6 +2967,49 @@ export default function SchedulingPage() {
                     bulkBatches={bulkBatches}
                     defaultClientId={viewMode === 'future' ? futureFilterContext.clientId : selectedClientId}
                     defaultEmployeeId={viewMode === 'future' ? futureFilterContext.employeeId : selectedEmployeeId}
+                />
+            )}
+
+            {/* TrashDrawer */}
+            {trashOpen && (
+                <TrashDrawer
+                    items={archivedShifts}
+                    batches={bulkBatches.filter(b => b.action === 'ARCHIVE' && !b.undoneAt)}
+                    onRestore={async (ids) => {
+                        await api.restoreShifts(ids);
+                        refetchAll();
+                        fetchArchivedShifts();
+                        fetchBatches();
+                        showToast(`Restored ${ids.length} shift${ids.length !== 1 ? 's' : ''}`);
+                    }}
+                    onRestoreBatch={async (batchId) => {
+                        await api.bulkUndoShifts(batchId);
+                        refetchAll();
+                        fetchArchivedShifts();
+                        fetchBatches();
+                        showToast('Batch restored');
+                    }}
+                    onPermanentDelete={async (ids) => {
+                        await api.permanentDeleteShifts(ids);
+                        fetchArchivedShifts();
+                        showToast(`Permanently deleted ${ids.length} shift${ids.length !== 1 ? 's' : ''}`);
+                    }}
+                    onClose={() => setTrashOpen(false)}
+                    entityLabel="shifts"
+                />
+            )}
+
+            {/* DeleteConfirmModal */}
+            {deleteConfirm && (
+                <DeleteConfirmModal
+                    title={`Delete ${deleteConfirm.items.length} shift${deleteConfirm.items.length !== 1 ? 's' : ''}?`}
+                    items={deleteConfirm.items}
+                    scopeWarning={deleteConfirm.scopeWarning}
+                    onConfirm={async () => {
+                        setDeleteConfirm(null);
+                        await handleBulkDeleteByIds(deleteConfirm.shiftIds);
+                    }}
+                    onClose={() => setDeleteConfirm(null)}
                 />
             )}
         </>
