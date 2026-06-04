@@ -11066,3 +11066,53 @@ tr:hover .auth-note-icon--empty {
 .undo-banner__dismiss:hover {
   opacity: 1;
 }
+
+/* ─── Delete Confirm Modal ─── */
+.dcm-scope-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  background: hsl(var(--warning-bg));
+  border: 1px solid hsl(var(--warning));
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+.dcm-scope-warning__icon {
+  color: hsl(var(--warning));
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.dcm-scope-warning__text {
+  flex: 1;
+  color: hsl(var(--foreground));
+  font-weight: 500;
+}
+.dcm-scope-warning__ack {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.dcm-item-list {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+}
+.dcm-item-list__row {
+  padding: 8px 12px;
+  font-size: 12px;
+  border-bottom: 1px solid hsl(var(--border));
+}
+.dcm-item-list__row:last-child {
+  border-bottom: none;
+}
+.dcm-item-list__row--more {
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
