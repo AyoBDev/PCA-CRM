@@ -41,16 +41,16 @@ const AUTH_COLORS = {
 const DEFAULT_AUTH_COLOR = { accent: '#64748b', bg: 'hsl(215 20% 96%)', label: 'Service Authorization' };
 
 const TABS = [
-    { key: 'profile', label: 'Profile & Insurance', icon: 'user' },
-    { key: 'programs', label: 'Programs & Authorizations', icon: 'shieldCheck' },
+    { key: 'profile', label: 'Profile', icon: 'user' },
+    { key: 'programs', label: 'Programs', icon: 'shieldCheck' },
     { key: 'documents', label: 'Documents', icon: 'folder' },
     { key: 'timesheets', label: 'Timesheets', icon: 'clock' },
-    { key: 'care-plan', label: 'Care Plan (ADL)', icon: 'heart' },
+    { key: 'care-plan', label: 'Care Plan', icon: 'heart' },
     { key: 'schedule', label: 'Schedule', icon: 'calendar' },
-    { key: 'supervisory-review', label: 'Supervisory Review', icon: 'checkSquare' },
-    { key: 'billing', label: 'Billing/Invoices', icon: 'dollarSign' },
-    { key: 'activity', label: 'Activity Log', icon: 'clipboard' },
-    { key: 'incidents', label: 'Incident Reports', icon: 'alertOctagon' },
+    { key: 'supervisory-review', label: 'Review', icon: 'checkSquare' },
+    { key: 'billing', label: 'Billing', icon: 'dollarSign' },
+    { key: 'activity', label: 'Activity', icon: 'clipboard' },
+    { key: 'incidents', label: 'Incidents', icon: 'alertOctagon' },
 ];
 
 function formatDate(d) {
