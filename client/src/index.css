@@ -9046,31 +9046,26 @@ button.sdr-section-tag:hover:not(:disabled) {
 /* ═══ Tab Navigation ═══ */
 .cp-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 0;
   border-bottom: none;
   margin-bottom: 0;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
   background: linear-gradient(180deg, hsl(230 35% 22%) 0%, hsl(230 35% 16%) 100%);
   border-radius: var(--radius) var(--radius) 0 0;
-  padding: 0 8px;
-}
-.cp-tabs::-webkit-scrollbar {
-  display: none;
+  padding: 4px 8px;
 }
 .cp-tab {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 10px 16px;
-  font-size: 13px;
+  gap: 5px;
+  padding: 7px 12px;
+  font-size: 12px;
   font-weight: 500;
   color: hsl(0 0% 75%);
   background: transparent;
   border: none;
   border-radius: 6px;
-  margin: 4px 2px;
+  margin: 2px 1px;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.15s, color 0.15s;
