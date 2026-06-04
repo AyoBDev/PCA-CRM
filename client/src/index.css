@@ -3736,6 +3736,44 @@ body {
   background: hsl(0 84% 60%);
 }
 
+/* ── PCA Form Mobile: Auth Bar ── */
+.pcaf-mauth {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  background: hsl(var(--muted) / 0.3);
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.pcaf-mauth__pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid;
+}
+
+.pcaf-mauth__pill--pas {
+  background: hsl(221 83% 97%);
+  color: #1e40af;
+  border-color: #1e40af;
+}
+
+.pcaf-mauth__pill--hm {
+  background: hsl(142 60% 96%);
+  color: #16a34a;
+  border-color: #16a34a;
+}
+
+.pcaf-mauth__pill--respite {
+  background: hsl(24 90% 96%);
+  color: #ea580c;
+  border-color: #ea580c;
+}
+
 /* ─── Legacy SDR classes (kept for backward compat) ─── */
 
 .sdr-client-info {
