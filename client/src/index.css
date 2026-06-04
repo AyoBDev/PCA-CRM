@@ -11200,3 +11200,75 @@ tr:hover .auth-note-icon--empty {
   font-size: 11px;
   color: hsl(var(--muted-foreground));
 }
+
+/* ─── Date Selection Panel ─── */
+.date-selection-panel {
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  margin: 12px 0;
+}
+.date-selection-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--muted) / 0.5);
+}
+.date-selection-panel__count {
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+.date-selection-panel__quick {
+  display: flex;
+  gap: 6px;
+}
+.date-selection-panel__list {
+  max-height: 280px;
+  overflow-y: auto;
+}
+.date-selection-panel__week {
+  border-bottom: 1px solid hsl(var(--border));
+}
+.date-selection-panel__week:last-child {
+  border-bottom: none;
+}
+.date-selection-panel__week-header {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: hsl(var(--muted-foreground));
+  padding: 8px 14px 4px;
+  background: hsl(var(--muted) / 0.3);
+}
+.date-selection-panel__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.date-selection-panel__row:hover {
+  background: hsl(var(--muted) / 0.5);
+}
+.date-selection-panel__date {
+  font-size: 12px;
+  font-weight: 500;
+  min-width: 90px;
+}
+.date-selection-panel__detail {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.date-selection-panel__time {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
