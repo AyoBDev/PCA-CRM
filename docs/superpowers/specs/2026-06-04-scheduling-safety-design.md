@@ -145,9 +145,9 @@ No bulk action affects dates the user didn't explicitly select. The default is a
 6. API receives explicit array of shift IDs (not "all future" flag)
 
 ### Backend Change
-- Remove or deprecate the `applyToFuture: true` flag in the bulk update API
-- Instead, the frontend always sends an explicit list of shift IDs
-- This makes the backend simpler and the frontend fully responsible for scope selection
+- The `applyToFuture: true` flag remains supported in the bulk update API for backward compatibility, but the frontend stops sending it
+- Instead, the frontend always sends an explicit list of shift IDs (resolved from the date selection panel)
+- This makes scope selection fully visible and explicit — the backend simply processes whatever IDs it receives
 
 ---
 
