@@ -291,6 +291,19 @@ export default function PcaFormPage() {
 
     useEffect(() => { loadForm(); }, [loadForm]);
 
+    useEffect(() => {
+        if (!isMobile || !selectedWeekStart) return;
+        const today = new Date();
+        const weekStart = new Date(selectedWeekStart + 'T00:00:00');
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        if (today >= weekStart && today <= weekEnd) {
+            setActiveDay(today.getDay());
+        } else {
+            setActiveDay(0);
+        }
+    }, [selectedWeekStart, isMobile]);
+
     const enabledServices = data?.client?.enabledServices || [];
     const pasEnabled = enabledServices.includes('PAS');
     const hmEnabled = enabledServices.includes('Homemaker');
@@ -472,6 +485,17 @@ export default function PcaFormPage() {
         if (validationError) {
             showToast(validationError);
             setTimeout(() => {
+                if (isMobile && validationError) {
+                    const match = validationError.match(/Day (SUN|MON|TUE|WED|THU|FRI|SAT)/);
+                    if (match) {
+                        const dayMap = { SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6 };
+                        setActiveDay(dayMap[match[1]]);
+                        return;
+                    }
+                    if (validationError.includes('name') || validationError.includes('signature')) {
+                        setActiveDay('all');
+                    }
+                }
                 const el = document.querySelector('.pcaf-field-error, .pcaf-name-error, .pcaf-sig-error');
                 if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }, 50);
