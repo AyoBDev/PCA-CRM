@@ -8,6 +8,8 @@ Prevent accidental mass deletions/edits in scheduling and across the app, provid
 
 Enhance the existing soft-delete (`archivedAt`) pattern. No new database fields needed — shifts and other entities are already soft-deleted. Add UI safety layers: persistent undo banner, per-page trash drawer, tiered confirmation dialogs, and date checkbox selection for bulk operations.
 
+**Design System:** All new components must follow the app's existing design system (`docs/superpowers/specs/2026-06-01-design-system-design.md`) — use hsl CSS custom property tokens, dark-header table pattern, `btn` class variants, `modal__title`/`modal__desc` patterns, `page-hero__search` for search inputs, and the existing drawer/panel patterns. No inline colors or custom one-off styles.
+
 ## Scope
 
 **In scope:**
