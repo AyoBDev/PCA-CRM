@@ -72,6 +72,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+*, *::before, *::after {
+  font-family: inherit;
+}
+
 /* ─── Layout: Sidebar + Content ─── */
 .app {
   display: flex;
@@ -9063,22 +9067,33 @@ button.sdr-section-tag:hover:not(:disabled) {
   gap: 6px;
   padding: 10px 16px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   color: hsl(0 0% 75%);
-  background: none;
+  background: transparent;
   border: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: 0;
+  border-radius: 6px;
+  margin: 4px 2px;
   cursor: pointer;
   white-space: nowrap;
-  transition: color 0.15s, border-color 0.15s;
+  transition: background 0.15s, color 0.15s;
+}
+.cp-tab__icon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.cp-tab__icon svg {
+  width: 100%;
+  height: 100%;
 }
 .cp-tab:hover {
-  color: hsl(0 0% 95%);
+  background: hsl(0 0% 100%);
+  color: hsl(0 0% 0%);
 }
 .cp-tab--active {
-  color: hsl(0 0% 100%);
-  border-bottom-color: hsl(var(--primary));
+  background: hsl(0 0% 100%);
+  color: hsl(0 0% 0%);
   font-weight: 600;
 }
 .cp-tab__badge {
@@ -9091,13 +9106,13 @@ button.sdr-section-tag:hover:not(:disabled) {
   border-radius: 9px;
   font-size: 10px;
   font-weight: 700;
-  background: hsl(0 0% 100% / 0.15);
-  color: hsl(0 0% 90%);
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
   line-height: 1;
 }
 .cp-tab__badge--danger {
-  background: hsl(0 70% 50% / 0.3);
-  color: hsl(0 100% 85%);
+  background: hsl(0 84% 60% / 0.15);
+  color: hsl(0 84% 40%);
 }
 
 /* ═══ Tab Content ═══ */

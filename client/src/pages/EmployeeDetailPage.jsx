@@ -9,11 +9,11 @@ import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 
 const TABS = [
-    { key: 'profile', label: 'Profile' },
-    { key: 'certifications', label: 'Certifications' },
-    { key: 'timesheets', label: 'Timesheets' },
-    { key: 'schedule', label: 'Schedule' },
-    { key: 'activity', label: 'Activity Log' },
+    { key: 'profile', label: 'Profile', icon: 'user' },
+    { key: 'certifications', label: 'Certifications', icon: 'shieldCheck' },
+    { key: 'timesheets', label: 'Timesheets', icon: 'clock' },
+    { key: 'schedule', label: 'Schedule', icon: 'calendar' },
+    { key: 'activity', label: 'Activity Log', icon: 'clipboard' },
 ];
 
 const CERT_FIELDS = [
@@ -409,6 +409,7 @@ export default function EmployeeDetailPage() {
                             className={`cp-tab ${activeTab === tab.key ? 'cp-tab--active' : ''}`}
                             onClick={() => setActiveTab(tab.key)}
                         >
+                            {tab.icon && <span className="cp-tab__icon">{Icons[tab.icon]}</span>}
                             {tab.label}
                             {tab.key === 'certifications' && certCounts.expired > 0 && (
                                 <span className="cp-tab__badge cp-tab__badge--danger">{certCounts.expired}</span>

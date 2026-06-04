@@ -41,16 +41,16 @@ const AUTH_COLORS = {
 const DEFAULT_AUTH_COLOR = { accent: '#64748b', bg: 'hsl(215 20% 96%)', label: 'Service Authorization' };
 
 const TABS = [
-    { key: 'profile', label: 'Profile & Insurance' },
-    { key: 'programs', label: 'Programs & Authorizations' },
-    { key: 'documents', label: 'Documents' },
-    { key: 'timesheets', label: 'Timesheets' },
-    { key: 'care-plan', label: 'Care Plan (ADL)' },
-    { key: 'schedule', label: 'Schedule' },
-    { key: 'supervisory-review', label: 'Supervisory Review' },
-    { key: 'billing', label: 'Billing/Invoices' },
-    { key: 'activity', label: 'Activity Log' },
-    { key: 'incidents', label: 'Incident Reports' },
+    { key: 'profile', label: 'Profile & Insurance', icon: 'user' },
+    { key: 'programs', label: 'Programs & Authorizations', icon: 'shieldCheck' },
+    { key: 'documents', label: 'Documents', icon: 'folder' },
+    { key: 'timesheets', label: 'Timesheets', icon: 'clock' },
+    { key: 'care-plan', label: 'Care Plan (ADL)', icon: 'heart' },
+    { key: 'schedule', label: 'Schedule', icon: 'calendar' },
+    { key: 'supervisory-review', label: 'Supervisory Review', icon: 'checkSquare' },
+    { key: 'billing', label: 'Billing/Invoices', icon: 'dollarSign' },
+    { key: 'activity', label: 'Activity Log', icon: 'clipboard' },
+    { key: 'incidents', label: 'Incident Reports', icon: 'alertOctagon' },
 ];
 
 function formatDate(d) {
@@ -792,6 +792,7 @@ export default function ClientDetailPage() {
                             className={`cp-tab ${activeTab === tab.key ? 'cp-tab--active' : ''}`}
                             onClick={() => setActiveTab(tab.key)}
                         >
+                            {tab.icon && <span className="cp-tab__icon">{Icons[tab.icon]}</span>}
                             {tab.label}
                             {tab.key === 'incidents' && openIncidents > 0 && (
                                 <span className="cp-tab__badge cp-tab__badge--danger">{openIncidents}</span>
