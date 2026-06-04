@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import Icons from './Icons';
 
 export default function UndoBanner({ message, onUndo, duration = 30, onDismiss }) {
     const [remaining, setRemaining] = useState(duration);
@@ -34,7 +35,7 @@ export default function UndoBanner({ message, onUndo, duration = 30, onDismiss }
                 <span className="undo-banner__countdown">{remaining}s</span>
             </div>
             <button className="undo-banner__dismiss" onClick={onDismiss} title="Dismiss">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                {Icons.x}
             </button>
         </div>
     );

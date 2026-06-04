@@ -11132,12 +11132,35 @@ tr:hover .auth-note-icon--empty {
   font-weight: 600;
   color: hsl(var(--foreground));
 }
+.trash-drawer__search {
+  width: 100%;
+  margin-bottom: 12px;
+}
 .trash-drawer__permanent-confirm {
   padding: 12px;
-  background: hsl(0 93% 97%);
+  background: hsl(var(--danger-bg));
   border: 1px solid hsl(var(--destructive));
   border-radius: var(--radius);
   margin-bottom: 12px;
+}
+.trash-drawer__permanent-warn {
+  font-size: 12px;
+  color: hsl(var(--destructive));
+  font-weight: 500;
+  margin: 0 0 8px;
+}
+.trash-drawer__permanent-input {
+  width: 100%;
+  margin-bottom: 8px;
+}
+.trash-drawer__permanent-actions {
+  display: flex;
+  gap: 8px;
+}
+.trash-drawer__empty {
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
+  padding: 16px 0;
 }
 .trash-drawer__section {
   margin-top: 16px;
