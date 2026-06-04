@@ -4,6 +4,11 @@ import * as api from '../api';
 import Icons from '../components/common/Icons';
 import SignaturePad from '../components/common/SignaturePad';
 import { formatWeek } from '../utils/dates';
+import { useIsMobile } from '../hooks/useIsMobile';
+import MobileDayTabs from '../components/pca-form/MobileDayTabs';
+import MobileDayCard from '../components/pca-form/MobileDayCard';
+import MobileSummaryTab from '../components/pca-form/MobileSummaryTab';
+import MobileAuthBar from '../components/pca-form/MobileAuthBar';
 
 const DAY_SHORT = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const ADL_ACTIVITIES = ['Bathing', 'Dressing', 'Grooming', 'Continence', 'Toileting', 'Ambulation/Mobility', 'Transfer', 'Eating/Feeding'];
@@ -256,6 +261,8 @@ export default function PcaFormPage() {
     const [selectedWeekStart, setSelectedWeekStart] = useState('');
     const [submitAttempted, setSubmitAttempted] = useState(false);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const isMobile = useIsMobile();
+    const [activeDay, setActiveDay] = useState(() => new Date().getDay());
 
     const showToast = useCallback((msg) => {
         setToast(msg);
@@ -291,6 +298,22 @@ export default function PcaFormPage() {
     const submitted = data?.timesheet?.status === 'submitted';
     const authLimits = data?.authLimits || {};
 
+    const enabledSectionKeys = useMemo(() => {
+        const keys = [];
+        if (pasEnabled) keys.push('adl');
+        if (hmEnabled) keys.push('iadl');
+        if (respiteEnabled) keys.push('respite');
+        return keys;
+    }, [pasEnabled, hmEnabled, respiteEnabled]);
+
+    const enabledSectionsForCard = useMemo(() => {
+        const sections = [];
+        if (pasEnabled) sections.push({ key: 'adl', title: 'PAS', colorClass: 'pas', activities: ADL_ACTIVITIES });
+        if (hmEnabled) sections.push({ key: 'iadl', title: 'HOMEMAKER', colorClass: 'hm', activities: IADL_ACTIVITIES });
+        if (respiteEnabled) sections.push({ key: 'respite', title: 'RESPITE', colorClass: 'respite', activities: RESPITE_ACTIVITIES });
+        return sections;
+    }, [pasEnabled, hmEnabled, respiteEnabled]);
+
     const updateEntry = (idx, field, value) => {
         setEntries((prev) => prev.map((e, i) => (i === idx ? { ...e, [field]: value } : e)));
         setHasUnsavedChanges(true);
@@ -321,6 +344,12 @@ export default function PcaFormPage() {
     const totalHm = entries.reduce((s, e) => s + iadlHrs(e), 0);
     const totalRespite = entries.reduce((s, e) => s + respiteHrs(e), 0);
     const totalAll = totalPas + totalHm + totalRespite;
+
+    const dailyHoursFns = useMemo(() => ({
+        adl: adlHrs,
+        iadl: iadlHrs,
+        respite: respiteHrs,
+    }), []);
 
     const handleWeekChange = (sundayDate) => {
         const snapped = getSunday(sundayDate);
@@ -468,48 +497,98 @@ export default function PcaFormPage() {
 
     const weekLabel = formatWeek(selectedWeekStart || data.timesheet.weekStart.split('T')[0]);
 
+    const mobileWeekLabel = selectedWeekStart
+        ? (() => {
+            const s = new Date(selectedWeekStart + 'T00:00:00');
+            const e = new Date(s); e.setDate(s.getDate() + 6);
+            const fmt = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            return `${fmt(s)} – ${fmt(e)}`;
+        })()
+        : '';
+
     const totalAuth = (authLimits.PAS?.hours || 0) + (authLimits.Homemaker?.hours || 0) + (authLimits.Respite?.hours || 0);
     const totalAuthUnits = (authLimits.PAS?.units || 0) + (authLimits.Homemaker?.units || 0) + (authLimits.Respite?.units || 0);
 
     return (
-        <div className="pcaf-page">
-            {/* Title */}
-            <h1 className="pcaf-title">PCA SERVICE DELIVERY RECORD</h1>
+        <div className={`pcaf-page ${isMobile ? 'pcaf-page--mobile' : ''}`}>
+            {/* Title — desktop only */}
+            {!isMobile && <h1 className="pcaf-title">PCA SERVICE DELIVERY RECORD</h1>}
 
             {/* Top bar */}
-            <div className="pcaf-topbar">
+            <div className={`pcaf-topbar ${isMobile ? 'pcaf-topbar--mobile' : ''}`}>
                 <div className="pcaf-topbar__week">
                     <div className="pcaf-topbar__week-row">
                         <button type="button" className="pcaf-week-arrow" onClick={() => navigateWeek(-1)}>&lsaquo;</button>
                         <span className="pcaf-topbar__cal-box">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
                         </span>
-                        <span className="pcaf-topbar__week-label">Week of Sunday:</span>
-                        <input type="date" className="pcaf-week-input" value={selectedWeekStart} onChange={(e) => handleWeekChange(e.target.value)} />
+                        {isMobile ? (
+                            <>
+                                <input type="date" className="pcaf-week-input" value={selectedWeekStart} onChange={(e) => handleWeekChange(e.target.value)} />
+                                <span className="pcaf-topbar__week-range-inline">{mobileWeekLabel}</span>
+                            </>
+                        ) : (
+                            <>
+                                <span className="pcaf-topbar__week-label">Week of Sunday:</span>
+                                <input type="date" className="pcaf-week-input" value={selectedWeekStart} onChange={(e) => handleWeekChange(e.target.value)} />
+                            </>
+                        )}
                         <button type="button" className="pcaf-week-arrow" onClick={() => navigateWeek(1)}>&rsaquo;</button>
                     </div>
-                    <div className="pcaf-topbar__week-range">{weekLabel}</div>
+                    {!isMobile && <div className="pcaf-topbar__week-range">{weekLabel}</div>}
                 </div>
-                <div className="pcaf-topbar__details">
-                    <div className="pcaf-topbar__detail-group">
-                        <div className="pcaf-detail"><span className="pcaf-detail__label">Client:</span><span className="pcaf-detail__value">{data.client.clientName}</span></div>
-                        <div className="pcaf-detail"><span className="pcaf-detail__label">Medicaid ID:</span><span className="pcaf-detail__value">{data.client.medicaidId || '—'}</span></div>
+                {isMobile ? (
+                    <div className="pcaf-topbar__mobile-info">
+                        <span className="pcaf-detail__value">{data.client.clientName}</span>
+                        <span className="pcaf-detail__label"> | </span>
+                        <span className="pcaf-detail__value">{data.pcaName}</span>
+                        <span className={`pcaf-status-badge pcaf-status-badge--${submitted ? 'submitted' : 'draft'}`}>
+                            {submitted ? ' ✓' : ''}
+                        </span>
                     </div>
-                    <div className="pcaf-topbar__detail-group">
-                        <div className="pcaf-detail"><span className="pcaf-detail__label">PCA (Caregiver):</span><span className="pcaf-detail__value">{data.pcaName}</span></div>
-                        <div className="pcaf-detail"><span className="pcaf-detail__label">Date Submitted:</span><span className="pcaf-detail__value">{data.timesheet.submittedAt ? new Date(data.timesheet.submittedAt).toLocaleDateString() : 'Not Submitted'}</span></div>
-                    </div>
-                </div>
-                <div className="pcaf-topbar__status">
-                    <span className="pcaf-detail__label">Status:</span>
-                    <span className={`pcaf-status-badge pcaf-status-badge--${submitted ? 'submitted' : 'draft'}`}>
-                        {submitted ? 'Submitted' : 'In Progress'}
-                    </span>
-                </div>
+                ) : (
+                    <>
+                        <div className="pcaf-topbar__details">
+                            <div className="pcaf-topbar__detail-group">
+                                <div className="pcaf-detail"><span className="pcaf-detail__label">Client:</span><span className="pcaf-detail__value">{data.client.clientName}</span></div>
+                                <div className="pcaf-detail"><span className="pcaf-detail__label">Medicaid ID:</span><span className="pcaf-detail__value">{data.client.medicaidId || '—'}</span></div>
+                            </div>
+                            <div className="pcaf-topbar__detail-group">
+                                <div className="pcaf-detail"><span className="pcaf-detail__label">PCA (Caregiver):</span><span className="pcaf-detail__value">{data.pcaName}</span></div>
+                                <div className="pcaf-detail"><span className="pcaf-detail__label">Date Submitted:</span><span className="pcaf-detail__value">{data.timesheet.submittedAt ? new Date(data.timesheet.submittedAt).toLocaleDateString() : 'Not Submitted'}</span></div>
+                            </div>
+                        </div>
+                        <div className="pcaf-topbar__status">
+                            <span className="pcaf-detail__label">Status:</span>
+                            <span className={`pcaf-status-badge pcaf-status-badge--${submitted ? 'submitted' : 'draft'}`}>
+                                {submitted ? 'Submitted' : 'In Progress'}
+                            </span>
+                        </div>
+                    </>
+                )}
             </div>
 
-            {/* Authorized Hours Card */}
-            {Object.keys(authLimits).length > 0 && (
+            {/* Mobile: Day tabs + Auth bar */}
+            {isMobile && (
+                <>
+                    <MobileDayTabs
+                        activeDay={activeDay}
+                        onDayChange={setActiveDay}
+                        entries={entries}
+                        fieldErrors={fieldErrors}
+                        enabledSections={enabledSectionKeys}
+                    />
+                    <MobileAuthBar
+                        authLimits={authLimits}
+                        totalPas={totalPas}
+                        totalHm={totalHm}
+                        totalRespite={totalRespite}
+                    />
+                </>
+            )}
+
+            {/* Desktop: Authorized Hours Card */}
+            {!isMobile && Object.keys(authLimits).length > 0 && (
                 <div className="pcaf-auth-card">
                     <div className="pcaf-auth-card__left">
                         <span className="pcaf-auth-card__title">AUTHORIZED HOURS</span>
@@ -539,8 +618,8 @@ export default function PcaFormPage() {
                 </div>
             )}
 
-            {/* Unsaved changes warning */}
-            {!submitted && hasUnsavedChanges && (
+            {/* Unsaved changes warning — desktop only */}
+            {!isMobile && !submitted && hasUnsavedChanges && (
                 <div className="pcaf-unsaved-banner">
                     You have unsaved changes. Click <strong>Save Progress</strong> to keep your work.
                 </div>
@@ -554,141 +633,200 @@ export default function PcaFormPage() {
                     <div style={{ padding: 40, textAlign: 'center', color: 'hsl(var(--destructive))' }}>{error}</div>
                 ) : (
                     <>
-                        {/* PAS Section */}
-                        {pasEnabled && (
-                            <ProgramSection
-                                title="PAS"
-                                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
-                                colorClass="pas"
-                                activities={ADL_ACTIVITIES}
-                                section="adl"
-                                entries={entries}
-                                updateEntry={updateEntry}
-                                dailyHoursFn={adlHrs}
-                                disabled={submitted}
-                                sectionDisabled={false}
-                                onAddShift={handleAddShift}
-                                onRemoveShift={handleRemoveShift}
-                                fieldErrors={fieldErrors}
-                            />
-                        )}
+                        {isMobile ? (
+                            /* ── Mobile: Day Card or Summary ── */
+                            activeDay === 'all' ? (
+                                <MobileSummaryTab
+                                    entries={entries}
+                                    enabledSectionKeys={enabledSectionKeys}
+                                    dailyHoursFns={dailyHoursFns}
+                                    fieldErrors={fieldErrors}
+                                    onDayChange={setActiveDay}
+                                    totalPas={totalPas}
+                                    totalHm={totalHm}
+                                    totalRespite={totalRespite}
+                                    totalAll={totalAll}
+                                    authLimits={authLimits}
+                                    pasEnabled={pasEnabled}
+                                    hmEnabled={hmEnabled}
+                                    respiteEnabled={respiteEnabled}
+                                    pcaFullName={pcaFullName}
+                                    setPcaFullName={setPcaFullName}
+                                    recipientName={recipientName}
+                                    setRecipientName={setRecipientName}
+                                    pcaSig={pcaSig}
+                                    setPcaSig={setPcaSig}
+                                    recipientSig={recipientSig}
+                                    setRecipientSig={setRecipientSig}
+                                    submitted={submitted}
+                                    setHasUnsavedChanges={setHasUnsavedChanges}
+                                    submitAttempted={submitAttempted}
+                                />
+                            ) : (
+                                entries[activeDay] && (
+                                    <MobileDayCard
+                                        entry={entries[activeDay]}
+                                        dayIndex={activeDay}
+                                        updateEntry={updateEntry}
+                                        disabled={submitted}
+                                        enabledSections={enabledSectionsForCard}
+                                        dailyHoursFns={dailyHoursFns}
+                                        onAddShift={handleAddShift}
+                                        onRemoveShift={handleRemoveShift}
+                                        fieldErrors={fieldErrors}
+                                    />
+                                )
+                            )
+                        ) : (
+                            /* ── Desktop: existing grid layout ── */
+                            <>
+                                {pasEnabled && (
+                                    <ProgramSection
+                                        title="PAS"
+                                        icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
+                                        colorClass="pas"
+                                        activities={ADL_ACTIVITIES}
+                                        section="adl"
+                                        entries={entries}
+                                        updateEntry={updateEntry}
+                                        dailyHoursFn={adlHrs}
+                                        disabled={submitted}
+                                        sectionDisabled={false}
+                                        onAddShift={handleAddShift}
+                                        onRemoveShift={handleRemoveShift}
+                                        fieldErrors={fieldErrors}
+                                    />
+                                )}
 
-                        {/* Homemaker Section */}
-                        {hmEnabled && (
-                            <ProgramSection
-                                title="HOMEMAKER"
-                                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>}
-                                colorClass="hm"
-                                activities={IADL_ACTIVITIES}
-                                section="iadl"
-                                entries={entries}
-                                updateEntry={updateEntry}
-                                dailyHoursFn={iadlHrs}
-                                disabled={submitted}
-                                sectionDisabled={false}
-                                onAddShift={handleAddShift}
-                                onRemoveShift={handleRemoveShift}
-                                fieldErrors={fieldErrors}
-                            />
-                        )}
+                                {hmEnabled && (
+                                    <ProgramSection
+                                        title="HOMEMAKER"
+                                        icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>}
+                                        colorClass="hm"
+                                        activities={IADL_ACTIVITIES}
+                                        section="iadl"
+                                        entries={entries}
+                                        updateEntry={updateEntry}
+                                        dailyHoursFn={iadlHrs}
+                                        disabled={submitted}
+                                        sectionDisabled={false}
+                                        onAddShift={handleAddShift}
+                                        onRemoveShift={handleRemoveShift}
+                                        fieldErrors={fieldErrors}
+                                    />
+                                )}
 
-                        {/* Respite Section */}
-                        {respiteEnabled && (
-                            <ProgramSection
-                                title="RESPITE"
-                                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>}
-                                colorClass="respite"
-                                activities={RESPITE_ACTIVITIES}
-                                section="respite"
-                                entries={entries}
-                                updateEntry={updateEntry}
-                                dailyHoursFn={respiteHrs}
-                                disabled={submitted}
-                                sectionDisabled={false}
-                                onAddShift={handleAddShift}
-                                onRemoveShift={handleRemoveShift}
-                                fieldErrors={fieldErrors}
-                            />
-                        )}
+                                {respiteEnabled && (
+                                    <ProgramSection
+                                        title="RESPITE"
+                                        icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>}
+                                        colorClass="respite"
+                                        activities={RESPITE_ACTIVITIES}
+                                        section="respite"
+                                        entries={entries}
+                                        updateEntry={updateEntry}
+                                        dailyHoursFn={respiteHrs}
+                                        disabled={submitted}
+                                        sectionDisabled={false}
+                                        onAddShift={handleAddShift}
+                                        onRemoveShift={handleRemoveShift}
+                                        fieldErrors={fieldErrors}
+                                    />
+                                )}
 
-                        {/* Weekly Total Bar */}
-                        <div className="pcaf-weekly-total">
-                            <div className="pcaf-weekly-total__icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                            </div>
-                            <div className="pcaf-weekly-total__title">
-                                <strong>WEEKLY TOTAL</strong>
-                                <span>(All Programs)</span>
-                            </div>
-                            <div className="pcaf-weekly-total__col">
-                                <span className="pcaf-weekly-total__col-label">TOTAL HOURS</span>
-                                <span className="pcaf-weekly-total__col-value">{totalAll.toFixed(2)} hrs</span>
-                            </div>
-                            <div className="pcaf-weekly-total__col">
-                                <span className="pcaf-weekly-total__col-label">TOTAL UNITS</span>
-                                <span className="pcaf-weekly-total__col-value">{Math.round(totalAll * 4)} units</span>
-                            </div>
-                            {pasEnabled && (
-                                <div className="pcaf-weekly-total__col">
-                                    <span className="pcaf-weekly-total__col-label">PAS HOURS / UNITS</span>
-                                    <span className="pcaf-weekly-total__col-value">{totalPas.toFixed(2)} hrs / {Math.round(totalPas * 4)} units</span>
-                                </div>
-                            )}
-                            {hmEnabled && (
-                                <div className="pcaf-weekly-total__col">
-                                    <span className="pcaf-weekly-total__col-label">HOMEMAKER HOURS / UNITS</span>
-                                    <span className="pcaf-weekly-total__col-value">{totalHm.toFixed(2)} hrs / {Math.round(totalHm * 4)} units</span>
-                                </div>
-                            )}
-                            {respiteEnabled && (
-                                <div className="pcaf-weekly-total__col">
-                                    <span className="pcaf-weekly-total__col-label">RESPITE HOURS / UNITS</span>
-                                    <span className="pcaf-weekly-total__col-value">{totalRespite.toFixed(2)} hrs / {Math.round(totalRespite * 4)} units</span>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Tip */}
-                        <div className="pcaf-tip">
-                            <svg className="pcaf-tip__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-                            <span>Tip: You can only log one program per day. Use the sections above to select the program and record your activities.</span>
-                        </div>
-
-                        {/* Signature Section */}
-                        <div className="pcaf-signatures">
-                            <div className="pcaf-signatures__header">ACKNOWLEDGEMENT AND REQUIRED SIGNATURES</div>
-                            <div className="pcaf-signatures__body">
-                                <div className="pcaf-signatures__grid">
-                                    <div className={`pcaf-signatures__field ${fieldErrors.pcaFullName ? 'pcaf-name-error' : ''}`}>
-                                        <label>PCA (Caregiver) Name *</label>
-                                        <input type="text" value={pcaFullName} onChange={(e) => { setPcaFullName(e.target.value); setHasUnsavedChanges(true); }} disabled={submitted} placeholder="Jane A. Doe" />
+                                {/* Weekly Total Bar */}
+                                <div className="pcaf-weekly-total">
+                                    <div className="pcaf-weekly-total__icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
                                     </div>
-                                    <div className={`pcaf-signatures__field ${fieldErrors.recipientName ? 'pcaf-name-error' : ''}`}>
-                                        <label>Recipient (Client) Name *</label>
-                                        <input type="text" value={recipientName} onChange={(e) => { setRecipientName(e.target.value); setHasUnsavedChanges(true); }} disabled={submitted} placeholder="John B. Client" />
+                                    <div className="pcaf-weekly-total__title">
+                                        <strong>WEEKLY TOTAL</strong>
+                                        <span>(All Programs)</span>
                                     </div>
+                                    <div className="pcaf-weekly-total__col">
+                                        <span className="pcaf-weekly-total__col-label">TOTAL HOURS</span>
+                                        <span className="pcaf-weekly-total__col-value">{totalAll.toFixed(2)} hrs</span>
+                                    </div>
+                                    <div className="pcaf-weekly-total__col">
+                                        <span className="pcaf-weekly-total__col-label">TOTAL UNITS</span>
+                                        <span className="pcaf-weekly-total__col-value">{Math.round(totalAll * 4)} units</span>
+                                    </div>
+                                    {pasEnabled && (
+                                        <div className="pcaf-weekly-total__col">
+                                            <span className="pcaf-weekly-total__col-label">PAS HOURS / UNITS</span>
+                                            <span className="pcaf-weekly-total__col-value">{totalPas.toFixed(2)} hrs / {Math.round(totalPas * 4)} units</span>
+                                        </div>
+                                    )}
+                                    {hmEnabled && (
+                                        <div className="pcaf-weekly-total__col">
+                                            <span className="pcaf-weekly-total__col-label">HOMEMAKER HOURS / UNITS</span>
+                                            <span className="pcaf-weekly-total__col-value">{totalHm.toFixed(2)} hrs / {Math.round(totalHm * 4)} units</span>
+                                        </div>
+                                    )}
+                                    {respiteEnabled && (
+                                        <div className="pcaf-weekly-total__col">
+                                            <span className="pcaf-weekly-total__col-label">RESPITE HOURS / UNITS</span>
+                                            <span className="pcaf-weekly-total__col-value">{totalRespite.toFixed(2)} hrs / {Math.round(totalRespite * 4)} units</span>
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="pcaf-signatures__sig-grid">
-                                    <div className={`pcaf-signatures__pad ${fieldErrors.pcaSig ? 'pcaf-sig-error' : ''}`}>
-                                        <SignaturePad label="PCA (Caregiver) Signature *" value={pcaSig} onChange={(v) => { setPcaSig(v); setHasUnsavedChanges(true); }} disabled={submitted} />
-                                    </div>
-                                    <div className={`pcaf-signatures__pad ${fieldErrors.recipientSig ? 'pcaf-sig-error' : ''}`}>
-                                        <SignaturePad label="Recipient (Client) Signature *" value={recipientSig} onChange={(v) => { setRecipientSig(v); setHasUnsavedChanges(true); }} disabled={submitted} />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
 
-                        {/* Action Buttons */}
-                        {!submitted && (
-                            <div className="pcaf-actions">
-                                <button className="pcaf-btn pcaf-btn--outline" onClick={handleSave} disabled={saving || submitting}>{saving ? 'Saving...' : 'Save Progress'}</button>
-                                <button className="pcaf-btn pcaf-btn--primary" onClick={handleSubmit} disabled={submitting || saving}>{submitting ? 'Submitting...' : 'Submit Timesheet'}</button>
-                            </div>
+                                {/* Tip */}
+                                <div className="pcaf-tip">
+                                    <svg className="pcaf-tip__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                                    <span>Tip: You can only log one program per day. Use the sections above to select the program and record your activities.</span>
+                                </div>
+
+                                {/* Signature Section */}
+                                <div className="pcaf-signatures">
+                                    <div className="pcaf-signatures__header">ACKNOWLEDGEMENT AND REQUIRED SIGNATURES</div>
+                                    <div className="pcaf-signatures__body">
+                                        <div className="pcaf-signatures__grid">
+                                            <div className={`pcaf-signatures__field ${fieldErrors.pcaFullName ? 'pcaf-name-error' : ''}`}>
+                                                <label>PCA (Caregiver) Name *</label>
+                                                <input type="text" value={pcaFullName} onChange={(e) => { setPcaFullName(e.target.value); setHasUnsavedChanges(true); }} disabled={submitted} placeholder="Jane A. Doe" />
+                                            </div>
+                                            <div className={`pcaf-signatures__field ${fieldErrors.recipientName ? 'pcaf-name-error' : ''}`}>
+                                                <label>Recipient (Client) Name *</label>
+                                                <input type="text" value={recipientName} onChange={(e) => { setRecipientName(e.target.value); setHasUnsavedChanges(true); }} disabled={submitted} placeholder="John B. Client" />
+                                            </div>
+                                        </div>
+                                        <div className="pcaf-signatures__sig-grid">
+                                            <div className={`pcaf-signatures__pad ${fieldErrors.pcaSig ? 'pcaf-sig-error' : ''}`}>
+                                                <SignaturePad label="PCA (Caregiver) Signature *" value={pcaSig} onChange={(v) => { setPcaSig(v); setHasUnsavedChanges(true); }} disabled={submitted} />
+                                            </div>
+                                            <div className={`pcaf-signatures__pad ${fieldErrors.recipientSig ? 'pcaf-sig-error' : ''}`}>
+                                                <SignaturePad label="Recipient (Client) Signature *" value={recipientSig} onChange={(v) => { setRecipientSig(v); setHasUnsavedChanges(true); }} disabled={submitted} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Action Buttons — desktop */}
+                                {!submitted && (
+                                    <div className="pcaf-actions">
+                                        <button className="pcaf-btn pcaf-btn--outline" onClick={handleSave} disabled={saving || submitting}>{saving ? 'Saving...' : 'Save Progress'}</button>
+                                        <button className="pcaf-btn pcaf-btn--primary" onClick={handleSubmit} disabled={submitting || saving}>{submitting ? 'Submitting...' : 'Submit Timesheet'}</button>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </>
                 )}
             </div>
+
+            {/* Mobile: Sticky Bottom Action Bar */}
+            {isMobile && !submitted && (
+                <div className="pcaf-mobile-actions">
+                    <button className="pcaf-btn pcaf-btn--outline" onClick={handleSave} disabled={saving || submitting}>
+                        {saving ? 'Saving...' : 'Save'}
+                        {hasUnsavedChanges && <span className="pcaf-mobile-actions__unsaved-dot" />}
+                    </button>
+                    <button className="pcaf-btn pcaf-btn--primary" onClick={handleSubmit} disabled={submitting || saving}>
+                        {submitting ? 'Submitting...' : 'Submit'}
+                    </button>
+                </div>
+            )}
 
             {toast && <div className="pcaf-toast">{toast}</div>}
         </div>
