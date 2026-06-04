@@ -7,6 +7,7 @@ import ConfirmModal from '../components/common/ConfirmModal';
 import * as api from '../api';
 import { useAuth } from '../hooks/useAuth';
 import { ActivityButton } from '../components/common/ActivityDrawer';
+import TrashDrawer from '../components/common/TrashDrawer';
 
 function fmtDate(d) {
     if (!d) return '—';
@@ -220,6 +221,8 @@ export default function EmployeesPage() {
     const [importing, setImporting] = useState(false);
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [bulkNoteModal, setBulkNoteModal] = useState(false);
+    const [trashOpen, setTrashOpen] = useState(false);
+    const [archivedEmployees, setArchivedEmployees] = useState([]);
     const fileRef = useRef();
 
     const fetchData = useCallback(async () => {
@@ -240,6 +243,17 @@ export default function EmployeesPage() {
     useEffect(() => { fetchData(); }, [fetchData]);
 
     useEffect(() => { setSelectedIds(new Set()); }, [statusFilter, search, showArchived]);
+
+    const fetchArchivedEmployees = useCallback(async () => {
+        try {
+            const data = await api.listArchivedEmployees();
+            setArchivedEmployees(data);
+        } catch {}
+    }, []);
+
+    useEffect(() => {
+        if (trashOpen) fetchArchivedEmployees();
+    }, [trashOpen, fetchArchivedEmployees]);
 
     const handleSave = async (data) => {
         try {
@@ -378,6 +392,13 @@ export default function EmployeesPage() {
                     </div>
                 </div>
                 <div className="page-hero__right">
+                    <button
+                        className="btn btn--outline btn--sm"
+                        onClick={() => setTrashOpen(true)}
+                        title="View deleted employees"
+                    >
+                        {Icons.trash}
+                    </button>
                     <input
                         type="text"
                         className="page-hero__search"
@@ -688,6 +709,26 @@ export default function EmployeesPage() {
                         onClose={() => setBulkNoteModal(false)}
                     />
                 </Modal>
+            )}
+            {trashOpen && (
+                <TrashDrawer
+                    items={archivedEmployees}
+                    batches={[]}
+                    onRestore={async (ids) => {
+                        await api.bulkRestoreEmployees(ids);
+                        fetchData();
+                        fetchArchivedEmployees();
+                        showToast(`Restored ${ids.length} employee${ids.length !== 1 ? 's' : ''}`);
+                    }}
+                    onRestoreBatch={() => {}}
+                    onPermanentDelete={async (ids) => {
+                        await api.bulkPermanentlyDeleteEmployees(ids);
+                        fetchArchivedEmployees();
+                        showToast(`Permanently deleted ${ids.length} employee${ids.length !== 1 ? 's' : ''}`);
+                    }}
+                    onClose={() => setTrashOpen(false)}
+                    entityLabel="employees"
+                />
             )}
         </>
     );

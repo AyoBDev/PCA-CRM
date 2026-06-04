@@ -207,4 +207,43 @@ async function bulkImportEmployees(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listEmployees, getEmployee, createEmployee, updateEmployee, deleteEmployee, restoreEmployee, permanentlyDeleteEmployee, bulkPermanentlyDeleteEmployees, bulkImportEmployees };
+// POST /api/employees/restore (bulk)
+async function restoreEmployees(req, res, next) {
+    try {
+        const { employeeIds } = req.body;
+        if (!Array.isArray(employeeIds) || employeeIds.length === 0) {
+            return res.status(400).json({ error: 'employeeIds array is required' });
+        }
+        const result = await prisma.employee.updateMany({
+            where: { id: { in: employeeIds.map(Number) }, archivedAt: { not: null } },
+            data: { archivedAt: null },
+        });
+        audit.logAction({
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            action: 'RESTORE', entityType: 'Employee', entityId: employeeIds[0],
+            metadata: { bulk: true, count: result.count, employeeIds },
+        });
+        res.json({ restored: result.count });
+    } catch (err) { next(err); }
+}
+
+// GET /api/employees/archived
+async function listArchivedEmployees(req, res, next) {
+    try {
+        const employees = await prisma.employee.findMany({
+            where: { archivedAt: { not: null } },
+            orderBy: { archivedAt: 'desc' },
+            take: 200,
+        });
+        res.json(employees.map(e => ({
+            id: e.id,
+            label: e.name || 'Unknown',
+            name: e.name,
+            archivedAt: e.archivedAt,
+            deletedBy: 'Admin',
+            deletedAt: e.archivedAt ? new Date(e.archivedAt).toLocaleString() : '',
+        })));
+    } catch (err) { next(err); }
+}
+
+module.exports = { listEmployees, getEmployee, createEmployee, updateEmployee, deleteEmployee, restoreEmployee, permanentlyDeleteEmployee, bulkPermanentlyDeleteEmployees, bulkImportEmployees, restoreEmployees, listArchivedEmployees };

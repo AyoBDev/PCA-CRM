@@ -520,4 +520,43 @@ async function mergeClients(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listClients, getClient, createClient, updateClient, patchClient, deleteClient, bulkDelete, bulkImport, restoreClient, permanentlyDeleteClient, bulkPermanentlyDeleteClients, mergeClients };
+// POST /api/clients/restore (bulk)
+async function restoreClients(req, res, next) {
+    try {
+        const { clientIds } = req.body;
+        if (!Array.isArray(clientIds) || clientIds.length === 0) {
+            return res.status(400).json({ error: 'clientIds array is required' });
+        }
+        const result = await prisma.client.updateMany({
+            where: { id: { in: clientIds.map(Number) }, archivedAt: { not: null } },
+            data: { archivedAt: null },
+        });
+        audit.logAction({
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            action: 'RESTORE', entityType: 'Client', entityId: clientIds[0],
+            metadata: { bulk: true, count: result.count, clientIds },
+        });
+        res.json({ restored: result.count });
+    } catch (err) { next(err); }
+}
+
+// GET /api/clients/archived
+async function listArchivedClients(req, res, next) {
+    try {
+        const clients = await prisma.client.findMany({
+            where: { archivedAt: { not: null } },
+            orderBy: { archivedAt: 'desc' },
+            take: 200,
+        });
+        res.json(clients.map(c => ({
+            id: c.id,
+            label: `${c.clientName} (${c.medicaidId || 'No ID'})`,
+            clientName: c.clientName,
+            archivedAt: c.archivedAt,
+            deletedBy: 'Admin',
+            deletedAt: c.archivedAt ? new Date(c.archivedAt).toLocaleString() : '',
+        })));
+    } catch (err) { next(err); }
+}
+
+module.exports = { listClients, getClient, createClient, updateClient, patchClient, deleteClient, bulkDelete, bulkImport, restoreClient, permanentlyDeleteClient, bulkPermanentlyDeleteClients, mergeClients, restoreClients, listArchivedClients };

@@ -14,6 +14,8 @@ const {
     permanentlyDeleteClient,
     bulkPermanentlyDeleteClients,
     mergeClients,
+    restoreClients,
+    listArchivedClients,
 } = require('../controllers/clientController');
 const {
     createAuthorization,
@@ -122,6 +124,8 @@ const {
     permanentlyDeleteEmployee,
     bulkPermanentlyDeleteEmployees,
     bulkImportEmployees,
+    restoreEmployees,
+    listArchivedEmployees,
 } = require('../controllers/employeeController');
 const { listCertifications, createCertification, updateCertification, deleteCertification, downloadCertification } = require('../controllers/employeeCertController');
 const { getDashboardStats } = require('../controllers/dashboardController');
@@ -202,6 +206,8 @@ router.get('/dashboard/stats', requireRole('admin', 'user', 'pca'), getDashboard
 
 // Client routes — bulk import is admin only, everything else is admin + user
 router.get('/clients', requireRole('admin', 'user', 'pca'), listClients);
+router.get('/clients/archived', requireRole('admin', 'user', 'pca'), listArchivedClients);
+router.post('/clients/restore', requireRole('admin', 'user', 'pca'), restoreClients);
 router.delete('/clients/bulk-permanent', requireRole('admin'), bulkPermanentlyDeleteClients);
 router.get('/clients/:id', requireRole('admin', 'user', 'pca'), getClient);
 router.post('/clients', requireRole('admin', 'user', 'pca'), createClient);
@@ -304,6 +310,8 @@ router.patch('/payroll/visits/:id/notes',  requireRole('admin', 'user', 'pca'), 
 
 // Employees
 router.get('/employees',       requireRole('admin', 'user', 'pca'), listEmployees);
+router.get('/employees/archived', requireRole('admin', 'user', 'pca'), listArchivedEmployees);
+router.post('/employees/restore', requireRole('admin', 'user', 'pca'), restoreEmployees);
 router.delete('/employees/bulk-permanent', requireRole('admin'), bulkPermanentlyDeleteEmployees);
 router.get('/employees/:id',   requireRole('admin', 'user', 'pca'), getEmployee);
 router.post('/employees',      requireRole('admin', 'user', 'pca'), createEmployee);

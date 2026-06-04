@@ -128,8 +128,10 @@ export const restoreClient = (id) =>
     request(`/clients/${id}/restore`, { method: 'PUT' });
 export const permanentlyDeleteClient = (id) =>
     request(`/clients/${id}/permanent`, { method: 'DELETE' });
-export const bulkPermanentlyDeleteClients = () =>
-    request('/clients/bulk-permanent', { method: 'DELETE' });
+export const bulkPermanentlyDeleteClients = (clientIds) =>
+    request('/clients/bulk-permanent', { method: 'DELETE', body: JSON.stringify({ clientIds }) });
+export const listArchivedClients = () => request('/clients/archived');
+export const bulkRestoreClients = (clientIds) => request('/clients/restore', { method: 'POST', body: JSON.stringify({ clientIds }) });
 export const mergeClients = (keepId, mergeId) =>
     request(`/clients/${keepId}/merge`, { method: 'POST', body: JSON.stringify({ mergeId }) });
 
@@ -446,7 +448,9 @@ export const updateEmployee = (id, data) => request(`/employees/${id}`, { method
 export const deleteEmployee = (id) => request(`/employees/${id}`, { method: 'DELETE' });
 export const restoreEmployee = (id) => request(`/employees/${id}/restore`, { method: 'PUT' });
 export const permanentlyDeleteEmployee = (id) => request(`/employees/${id}/permanent`, { method: 'DELETE' });
-export const bulkPermanentlyDeleteEmployees = () => request('/employees/bulk-permanent', { method: 'DELETE' });
+export const bulkPermanentlyDeleteEmployees = (employeeIds) => request('/employees/bulk-permanent', { method: 'DELETE', body: JSON.stringify({ employeeIds }) });
+export const listArchivedEmployees = () => request('/employees/archived');
+export const bulkRestoreEmployees = (employeeIds) => request('/employees/restore', { method: 'POST', body: JSON.stringify({ employeeIds }) });
 export const bulkImportEmployees = (formData) =>
     fetch(`${BASE}/employees/bulk-import`, { method: 'POST', headers: { Authorization: `Bearer ${getToken()}` }, body: formData }).then(handleRes);
 

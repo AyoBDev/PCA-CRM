@@ -6,6 +6,7 @@ import Modal from '../components/common/Modal';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import ClientCreationWizard from '../components/ClientCreationWizard';
+import TrashDrawer from '../components/common/TrashDrawer';
 
 
 function getServiceCodes(client) {
@@ -43,6 +44,8 @@ export default function ClientsListPage() {
     const [bulkNoteModal, setBulkNoteModal] = useState(false);
     const [bulkAssignModal, setBulkAssignModal] = useState(false);
     const [allEmployees, setAllEmployees] = useState([]);
+    const [trashOpen, setTrashOpen] = useState(false);
+    const [archivedClients, setArchivedClients] = useState([]);
 
     const fetchClients = useCallback(async () => {
         try {
@@ -63,6 +66,17 @@ export default function ClientsListPage() {
     }, []);
 
     useEffect(() => { fetchClients(); fetchInsuranceTypes(); api.getEmployees().then(setAllEmployees).catch(() => {}); }, [fetchClients, fetchInsuranceTypes]);
+
+    const fetchArchivedClients = useCallback(async () => {
+        try {
+            const data = await api.listArchivedClients();
+            setArchivedClients(data);
+        } catch {}
+    }, []);
+
+    useEffect(() => {
+        if (trashOpen) fetchArchivedClients();
+    }, [trashOpen, fetchArchivedClients]);
 
     useEffect(() => {
         if (!menuOpenId) return;
@@ -137,6 +151,13 @@ export default function ClientsListPage() {
                     </div>
                 </div>
                 <div className="page-hero__right">
+                    <button
+                        className="btn btn--outline btn--sm"
+                        onClick={() => setTrashOpen(true)}
+                        title="View deleted clients"
+                    >
+                        {Icons.trash}
+                    </button>
                     <input
                         type="text"
                         className="page-hero__search"
@@ -479,6 +500,22 @@ export default function ClientsListPage() {
                     onClose={() => setBulkAssignModal(false)}
                 />
             )}
+            <TrashDrawerWrapper
+                open={trashOpen}
+                archivedClients={archivedClients}
+                onClose={() => setTrashOpen(false)}
+                onRestore={async (ids) => {
+                    await api.bulkRestoreClients(ids);
+                    fetchClients();
+                    fetchArchivedClients();
+                    showToast(`Restored ${ids.length} client${ids.length !== 1 ? 's' : ''}`);
+                }}
+                onPermanentDelete={async (ids) => {
+                    await api.bulkPermanentlyDeleteClients(ids);
+                    fetchArchivedClients();
+                    showToast(`Permanently deleted ${ids.length} client${ids.length !== 1 ? 's' : ''}`);
+                }}
+            />
         </>
     );
 }
@@ -547,5 +584,20 @@ function BulkAssignModal({ employees, count, onSave, onClose }) {
                 </div>
             </form>
         </Modal>
+    );
+}
+
+function TrashDrawerWrapper({ open, archivedClients, onClose, onRestore, onPermanentDelete }) {
+    if (!open) return null;
+    return (
+        <TrashDrawer
+            items={archivedClients}
+            batches={[]}
+            onRestore={onRestore}
+            onRestoreBatch={() => {}}
+            onPermanentDelete={onPermanentDelete}
+            onClose={onClose}
+            entityLabel="clients"
+        />
     );
 }
