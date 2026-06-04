@@ -11024,3 +11024,45 @@ tr:hover .auth-note-icon--empty {
 }
 
 /* ─── Employee Certification Cards (reuses pa-service-card pattern) ─── */
+
+/* ─── Undo Banner ─── */
+.undo-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: hsl(var(--foreground));
+  color: hsl(var(--background));
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  animation: undo-banner-in 0.2s ease-out;
+}
+@keyframes undo-banner-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.undo-banner__content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.undo-banner__message {
+  font-size: 13px;
+  font-weight: 500;
+}
+.undo-banner__countdown {
+  font-size: 12px;
+  opacity: 0.6;
+  min-width: 28px;
+}
+.undo-banner__dismiss {
+  background: none;
+  border: none;
+  color: hsl(var(--background));
+  cursor: pointer;
+  opacity: 0.6;
+  padding: 4px;
+}
+.undo-banner__dismiss:hover {
+  opacity: 1;
+}
