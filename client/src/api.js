@@ -422,6 +422,12 @@ export const deleteShift = (id, { group } = {}) =>
     request(`/shifts/${id}${group ? '?group=true' : ''}`, { method: 'DELETE' });
 export const restoreShift = (id) =>
     request(`/shifts/${id}/restore`, { method: 'PUT' });
+export const restoreShifts = (shiftIds) =>
+    request('/shifts/restore', { method: 'POST', body: JSON.stringify({ shiftIds }) });
+export const permanentDeleteShifts = (shiftIds) =>
+    request('/shifts/permanent', { method: 'DELETE', body: JSON.stringify({ shiftIds }) });
+export const listArchivedShifts = () =>
+    request('/shifts/archived');
 export const deleteAllShifts = () =>
     request('/shifts/all', { method: 'DELETE' });
 export const getClientSchedule = (clientId, weekStart) =>

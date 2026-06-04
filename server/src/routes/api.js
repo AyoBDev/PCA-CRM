@@ -108,6 +108,9 @@ const {
     authCheck,
     restoreShift,
     repeatShift,
+    restoreShifts,
+    permanentDeleteShifts,
+    listArchivedShifts,
 } = require('../controllers/schedulingController');
 const {
     listEmployees,
@@ -330,6 +333,9 @@ router.get('/shifts/bulk-edit-batches',      requireRole('admin', 'user', 'pca')
 router.post('/shifts/bulk-undo/:batchId',   requireRole('admin', 'user', 'pca'), bulkUndoBatch);
 router.post('/shifts/:id/repeat',            requireRole('admin', 'user', 'pca'), repeatShift);
 router.put('/shifts/:id/restore',           requireRole('admin', 'user', 'pca'), restoreShift);
+router.post('/shifts/restore',              requireRole('admin', 'user', 'pca'), restoreShifts);
+router.delete('/shifts/permanent',          requireRole('admin'), permanentDeleteShifts);
+router.get('/shifts/archived',              requireRole('admin', 'user', 'pca'), listArchivedShifts);
 router.put('/shifts/:id',                   requireRole('admin', 'user', 'pca'), updateShift);
 router.delete('/shifts/all',                requireRole('admin', 'user', 'pca'), deleteAllShifts);
 router.delete('/shifts/:id',                requireRole('admin', 'user', 'pca'), deleteShift);

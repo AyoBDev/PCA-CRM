@@ -1290,4 +1290,68 @@ async function listBulkEditBatches(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listShifts, createShift, updateShift, bulkUpdateShifts, bulkUpdateShiftsPerShift, bulkDeleteShifts, bulkUndoBatch, listBulkEditBatches, deleteShift, deleteAllShifts, getClientSchedule, getEmployeeSchedule, authCheck, restoreShift, repeatShift };
+// POST /api/shifts/restore
+async function restoreShifts(req, res, next) {
+    try {
+        const { shiftIds } = req.body;
+        if (!Array.isArray(shiftIds) || shiftIds.length === 0) {
+            return res.status(400).json({ error: 'shiftIds array is required' });
+        }
+        const result = await prisma.shift.updateMany({
+            where: { id: { in: shiftIds.map(Number) }, archivedAt: { not: null } },
+            data: { archivedAt: null },
+        });
+        audit.logAction({
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            action: 'RESTORE', entityType: 'Shift', entityId: shiftIds[0],
+            metadata: { bulk: true, count: result.count, shiftIds },
+        });
+        res.json({ restored: result.count });
+    } catch (err) { next(err); }
+}
+
+// DELETE /api/shifts/permanent
+async function permanentDeleteShifts(req, res, next) {
+    try {
+        const { shiftIds } = req.body;
+        if (!Array.isArray(shiftIds) || shiftIds.length === 0) {
+            return res.status(400).json({ error: 'shiftIds array is required' });
+        }
+        const result = await prisma.shift.deleteMany({
+            where: { id: { in: shiftIds.map(Number) }, archivedAt: { not: null } },
+        });
+        audit.logAction({
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            action: 'PERMANENT_DELETE', entityType: 'Shift', entityId: shiftIds[0],
+            metadata: { bulk: true, count: result.count, shiftIds },
+        });
+        res.json({ deleted: result.count });
+    } catch (err) { next(err); }
+}
+
+// GET /api/shifts/archived
+async function listArchivedShifts(req, res, next) {
+    try {
+        const shifts = await prisma.shift.findMany({
+            where: { archivedAt: { not: null } },
+            include: { client: { select: { clientName: true } }, employee: { select: { name: true } } },
+            orderBy: { archivedAt: 'desc' },
+            take: 200,
+        });
+        res.json(shifts.map(s => ({
+            id: s.id,
+            label: `${s.client?.clientName || 'Unknown'} — ${s.shiftDate ? new Date(s.shiftDate).toLocaleDateString() : '?'} (${s.startTime || '?'}–${s.endTime || '?'})`,
+            clientName: s.client?.clientName || '',
+            employeeName: s.employee?.name || '',
+            shiftDate: s.shiftDate,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            serviceCode: s.serviceCode,
+            archivedAt: s.archivedAt,
+            deletedBy: 'Admin',
+            deletedAt: s.archivedAt ? new Date(s.archivedAt).toLocaleString() : '',
+        })));
+    } catch (err) { next(err); }
+}
+
+module.exports = { listShifts, createShift, updateShift, bulkUpdateShifts, bulkUpdateShiftsPerShift, bulkDeleteShifts, bulkUndoBatch, listBulkEditBatches, deleteShift, deleteAllShifts, getClientSchedule, getEmployeeSchedule, authCheck, restoreShift, repeatShift, restoreShifts, permanentDeleteShifts, listArchivedShifts };
