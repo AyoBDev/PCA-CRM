@@ -3774,6 +3774,158 @@ body {
   border-color: #ea580c;
 }
 
+/* ── PCA Form Mobile: Day Card ── */
+.pcaf-mcard {
+  padding: 0 12px 16px;
+}
+
+.pcaf-mcard__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0 10px;
+  border-bottom: 1px solid hsl(var(--border));
+  margin-bottom: 12px;
+}
+
+.pcaf-mcard__date {
+  font-size: 16px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+}
+
+.pcaf-mcard__hours {
+  font-size: 14px;
+  font-weight: 700;
+  color: hsl(var(--muted-foreground));
+}
+
+.pcaf-mcard__section {
+  margin-bottom: 16px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.pcaf-mcard__sec-header {
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.03em;
+}
+
+.pcaf-mcard__sec-header--pas { background: #1e40af; }
+.pcaf-mcard__sec-header--hm { background: #16a34a; }
+.pcaf-mcard__sec-header--respite { background: #ea580c; }
+
+.pcaf-mcard__activities {
+  padding: 8px 12px;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.pcaf-mcard__activity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid hsl(var(--border) / 0.4);
+  cursor: pointer;
+}
+
+.pcaf-mcard__activity:last-child {
+  border-bottom: none;
+}
+
+.pcaf-mcard__activity-name {
+  font-size: 14px;
+  color: hsl(var(--foreground));
+}
+
+.pcaf-mcard__activity input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  accent-color: hsl(220 70% 50%);
+}
+
+.pcaf-mcard__initials {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.pcaf-mcard__field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.pcaf-mcard__field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  font-size: 16px;
+  background: hsl(var(--background));
+}
+
+.pcaf-mcard__field input[type="text"] {
+  text-align: center;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.pcaf-mcard__shift {
+  padding: 12px;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.pcaf-mcard__shift--extra {
+  border-left: 3px solid hsl(210 70% 55%);
+  background: hsl(210 80% 97%);
+}
+
+.pcaf-mcard__shift-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pcaf-mcard__times {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.pcaf-mcard__add-shift {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-top: 1px dashed hsl(var(--border));
+  background: transparent;
+  color: hsl(var(--primary));
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+
+.pcaf-mcard__add-shift:hover {
+  background: hsl(var(--muted) / 0.3);
+}
+
 /* ─── Legacy SDR classes (kept for backward compat) ─── */
 
 .sdr-client-info {
