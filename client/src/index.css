@@ -3672,6 +3672,70 @@ body {
   }
 }
 
+/* ── PCA Form Mobile: Day Tabs ── */
+.pcaf-mtabs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 8px;
+  background: hsl(var(--card));
+  border-bottom: 1px solid hsl(var(--border));
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.pcaf-mtab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 8px 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  min-width: 44px;
+  position: relative;
+}
+
+.pcaf-mtab--active {
+  border-bottom: 3px solid #1e40af;
+}
+
+.pcaf-mtab--active .pcaf-mtab__label {
+  color: #1e40af;
+  font-weight: 700;
+}
+
+.pcaf-mtab--all .pcaf-mtab__label {
+  font-weight: 700;
+  color: hsl(var(--foreground));
+}
+
+.pcaf-mtab__label {
+  font-size: 11px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  letter-spacing: 0.03em;
+}
+
+.pcaf-mtab__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.pcaf-mtab__dot--filled {
+  background: #16a34a;
+}
+
+.pcaf-mtab__dot--error {
+  background: hsl(0 84% 60%);
+}
+
 /* ─── Legacy SDR classes (kept for backward compat) ─── */
 
 .sdr-client-info {
