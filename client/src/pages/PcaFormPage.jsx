@@ -592,7 +592,7 @@ export default function PcaFormPage() {
                 )}
             </div>
 
-            {/* Mobile: Day tabs + Auth bar */}
+            {/* Mobile: Day tabs + Auth bar + unsaved banner */}
             {isMobile && (
                 <>
                     <MobileDayTabs
@@ -608,6 +608,11 @@ export default function PcaFormPage() {
                         totalHm={totalHm}
                         totalRespite={totalRespite}
                     />
+                    {!submitted && hasUnsavedChanges && (
+                        <div className="pcaf-unsaved-banner pcaf-unsaved-banner--mobile">
+                            You have unsaved changes. Tap <strong>Save</strong> to keep your work.
+                        </div>
+                    )}
                 </>
             )}
 

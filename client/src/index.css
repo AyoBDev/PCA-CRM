@@ -3094,6 +3094,15 @@ body {
   text-align: center;
 }
 
+.pcaf-unsaved-banner--mobile {
+  margin: 0;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
 /* Main content */
 .pcaf-content {
   max-width: 1200px;
