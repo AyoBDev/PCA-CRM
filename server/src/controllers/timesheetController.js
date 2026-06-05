@@ -510,7 +510,7 @@ async function exportTimesheetPdf(req, res, next) {
 
         const gridLines = (y, h) => {
             doc.save().lineWidth(0.15).strokeColor('#ddd');
-            doc.moveTo(mL, y + h).lineTo(mL + pageW, y + h).stroke();
+            doc.moveTo(mL, y + h).lineTo(mL + labelW + 7 * dayW, y + h).stroke();
             doc.moveTo(mL + labelW, y).lineTo(mL + labelW, y + h).stroke();
             for (let i = 1; i < 7; i++) doc.moveTo(mL + labelW + i * dayW, y).lineTo(mL + labelW + i * dayW, y + h).stroke();
             doc.moveTo(mL + labelW + 7 * dayW, y).lineTo(mL + labelW + 7 * dayW, y + h).stroke();
@@ -608,16 +608,20 @@ async function exportTimesheetPdf(req, res, next) {
 
             const endY = gridY;
 
-            // TOTALS in right column
+            // TOTALS merged cell (right column)
             const totalH = ts.entries.reduce((s, e) => s + (e[`${section}Hours`] || 0), 0);
             const totalU = Math.round(totalH * 4);
             const tx = mL + labelW + 7 * dayW;
-            const midY = startY + (endY - startY) / 2;
+            const sectionH = endY - startY;
+            const midY = startY + sectionH / 2;
 
-            doc.fontSize(5.5).font('Helvetica-Bold').fillColor(color).text('Hours', tx + totalsW - 20, midY - 16, { width: 18, align: 'right' });
-            doc.fontSize(16).font('Helvetica-Bold').fillColor(color).text(totalH.toFixed(2), tx + 2, midY - 8, { width: totalsW - 4, align: 'center' });
-            doc.fontSize(5.5).font('Helvetica-Bold').fillColor('#555').text('Units', tx + totalsW - 20, midY + 10, { width: 18, align: 'right' });
-            doc.fontSize(13).font('Helvetica-Bold').fillColor('#333').text(String(totalU), tx + 2, midY + 17, { width: totalsW - 4, align: 'center' });
+            // Draw merged cell border
+            doc.save().rect(tx, startY, totalsW, sectionH).lineWidth(0.3).strokeColor('#ddd').stroke().restore();
+
+            doc.fontSize(5.5).font('Helvetica').fillColor('#666').text('Hours', tx + 2, midY - 18, { width: totalsW - 4, align: 'center' });
+            doc.fontSize(16).font('Helvetica-Bold').fillColor(color).text(totalH.toFixed(2), tx + 2, midY - 10, { width: totalsW - 4, align: 'center' });
+            doc.fontSize(5.5).font('Helvetica').fillColor('#666').text('Units', tx + 2, midY + 8, { width: totalsW - 4, align: 'center' });
+            doc.fontSize(13).font('Helvetica-Bold').fillColor('#333').text(String(totalU), tx + 2, midY + 16, { width: totalsW - 4, align: 'center' });
 
             // Section bottom border
             doc.save().moveTo(mL, gridY).lineTo(mL + pageW, gridY).lineWidth(1.5).strokeColor('#fff').stroke().restore();
