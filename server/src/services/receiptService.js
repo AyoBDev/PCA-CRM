@@ -135,35 +135,50 @@ const WHITE = [255, 255, 255];
 
 async function generateReceiptPdf(receipt) {
     return new Promise((resolve, reject) => {
-        const doc = new PDFDocument({ size: 'LETTER', margins: { top: 40, bottom: 40, left: 50, right: 50 } });
+        const doc = new PDFDocument({ size: 'LETTER', layout: 'landscape', margins: { top: 40, bottom: 40, left: 50, right: 50 } });
         const chunks = [];
         doc.on('data', chunk => chunks.push(chunk));
         doc.on('end', () => resolve(Buffer.concat(chunks)));
         doc.on('error', reject);
 
-        const pageW = 612;
+        const pageW = 792;
         const marginL = 50;
         const marginR = 50;
         const tableW = pageW - marginL - marginR;
 
-        function drawTableRow(y, cols, opts = {}) {
-            const { header, height = 22 } = opts;
-            if (header) {
-                doc.rect(marginL, y, tableW, height).fill(PURPLE);
+        function drawRow(y, cols, opts = {}) {
+            const { filled, height = 26 } = opts;
+            const bg = filled ? PURPLE : null;
+            const textColor = filled ? WHITE : [0, 0, 0];
+
+            // Draw outer rect
+            if (bg) {
+                doc.rect(marginL, y, tableW, height).fill(bg);
             } else {
-                doc.rect(marginL, y, tableW, height).lineWidth(0.5).stroke(PURPLE);
+                doc.rect(marginL, y, tableW, height).lineWidth(1).stroke(PURPLE);
             }
-            const textColor = header ? WHITE : [0, 0, 0];
+
+            // Draw vertical cell dividers
             let x = marginL;
+            for (let i = 0; i < cols.length - 1; i++) {
+                const cellW = cols[i].width || (tableW / cols.length);
+                x += cellW;
+                doc.moveTo(x, y).lineTo(x, y + height)
+                    .lineWidth(0.5).stroke(filled ? WHITE : PURPLE);
+            }
+
+            // Draw text
+            x = marginL;
             for (const col of cols) {
                 const cellW = col.width || (tableW / cols.length);
-                const fs = col.fontSize || 9;
-                doc.fill(textColor).font(col.bold ? 'Helvetica-Bold' : 'Helvetica')
+                const fs = col.fontSize || 10;
+                doc.fill(textColor)
+                    .font(col.bold || filled ? 'Helvetica-Bold' : 'Helvetica')
                     .fontSize(fs)
-                    .text(col.text || '', x + 3, y + 4, {
-                        width: cellW - 6,
+                    .text(col.text || '', x + 4, y + (height - fs) / 2, {
+                        width: cellW - 8,
                         align: col.align || 'center',
-                        height: height - 4,
+                        lineBreak: false,
                     });
                 x += cellW;
             }
@@ -171,22 +186,38 @@ async function generateReceiptPdf(receipt) {
             return y + height;
         }
 
-        function drawTableRowMultiline(y, cols, opts = {}) {
-            const { header, height = 50 } = opts;
-            if (header) {
-                doc.rect(marginL, y, tableW, height).fill(PURPLE);
+        function drawRowWrap(y, cols, opts = {}) {
+            const { filled, height = 60 } = opts;
+            const bg = filled ? PURPLE : null;
+            const textColor = filled ? WHITE : [0, 0, 0];
+
+            if (bg) {
+                doc.rect(marginL, y, tableW, height).fill(bg);
             } else {
-                doc.rect(marginL, y, tableW, height).lineWidth(0.5).stroke(PURPLE);
+                doc.rect(marginL, y, tableW, height).lineWidth(1).stroke(PURPLE);
             }
-            const textColor = header ? WHITE : [0, 0, 0];
+
+            // Vertical dividers
             let x = marginL;
+            for (let i = 0; i < cols.length - 1; i++) {
+                const cellW = cols[i].width || (tableW / cols.length);
+                x += cellW;
+                doc.moveTo(x, y).lineTo(x, y + height)
+                    .lineWidth(0.5).stroke(filled ? WHITE : PURPLE);
+            }
+
+            // Text (with wrap)
+            x = marginL;
             for (const col of cols) {
                 const cellW = col.width || (tableW / cols.length);
-                doc.fill(textColor).font(col.bold ? 'Helvetica-Bold' : 'Helvetica')
-                    .fontSize(col.fontSize || 9)
-                    .text(col.text || '', x + 4, y + 6, {
+                const fs = col.fontSize || 10;
+                doc.fill(textColor)
+                    .font(col.bold || filled ? 'Helvetica-Bold' : 'Helvetica')
+                    .fontSize(fs)
+                    .text(col.text || '', x + 4, y + 8, {
                         width: cellW - 8,
                         align: col.align || 'center',
+                        height: height - 12,
                     });
                 x += cellW;
             }
@@ -195,26 +226,25 @@ async function generateReceiptPdf(receipt) {
         }
 
         // Company header
-        doc.font('Helvetica-Bold').fontSize(11).fill([0, 0, 0])
-            .text('Nevada Best PCA', marginL, 50);
-        doc.font('Helvetica').fontSize(9)
-            .text('2575 Montessouri St Ste 201 Las Vegas, NV 89117', marginL, 68)
+        doc.font('Helvetica-Bold').fontSize(14).fill([0, 0, 0])
+            .text('Nevada Best PCA', marginL, 45);
+        doc.font('Helvetica').fontSize(10)
+            .text('2575 Montessouri St Ste 201 Las Vegas, NV 89117', marginL, 66)
             .text('Tel: 702-207-2526  Fax: 702-447-2524  nevadabestpca@gmail.com', marginL, 80);
 
-        let y = 110;
+        let y = 115;
 
-        // Employee Info table header (total = 512)
-        const empColWidths = [170, 88, 62, 128, 64];
-        y = drawTableRow(y, [
-            { text: 'Employee Info', width: empColWidths[0], bold: true },
-            { text: 'EIN/SS#', width: empColWidths[1], bold: true },
-            { text: '1099/W2', width: empColWidths[2], bold: true },
-            { text: 'Pay Period', width: empColWidths[3], bold: true },
-            { text: 'Pay Date', width: empColWidths[4], bold: true },
-        ], { header: true, height: 24 });
+        // === EMPLOYEE INFO TABLE ===
+        const empColWidths = [220, 120, 100, 170, 82];
+        y = drawRow(y, [
+            { text: 'Employee Info', width: empColWidths[0] },
+            { text: 'EIN/SS#', width: empColWidths[1] },
+            { text: '1099/W2', width: empColWidths[2] },
+            { text: 'Pay Period', width: empColWidths[3] },
+            { text: 'Pay Date', width: empColWidths[4] },
+        ], { filled: true, height: 28 });
 
-        // Employee Info data row
-        const empName = receipt.employee.name;
+        const empName = receipt.employee.name.toUpperCase();
         const empAddress = receipt.employee.address || '';
         const empInfo = empAddress ? `${empName}\n${empAddress}` : empName;
         const einSsn = receipt.ssn || receipt.ein || '—';
@@ -222,63 +252,61 @@ async function generateReceiptPdf(receipt) {
         const periodStr = `${fmtDateShort(receipt.periodStart)} - ${fmtDateShort(receipt.periodEnd)}`;
         const payDateStr = fmtDateShort(receipt.payDate);
 
-        y = drawTableRowMultiline(y, [
-            { text: empInfo, width: empColWidths[0], align: 'center' },
-            { text: einSsn, width: empColWidths[1], align: 'center' },
-            { text: classification, width: empColWidths[2], align: 'center' },
-            { text: periodStr, width: empColWidths[3], align: 'center' },
-            { text: payDateStr, width: empColWidths[4], align: 'center' },
-        ], { height: 50 });
+        y = drawRowWrap(y, [
+            { text: empInfo, width: empColWidths[0] },
+            { text: einSsn, width: empColWidths[1] },
+            { text: classification, width: empColWidths[2] },
+            { text: periodStr, width: empColWidths[3] },
+            { text: payDateStr, width: empColWidths[4] },
+        ], { height: 60 });
 
-        y += 20;
+        y += 25;
 
-        // Earnings table header (total = 512)
-        const earnColWidths = [56, 44, 44, 78, 78, 78, 78, 56];
-        y = drawTableRow(y, [
-            { text: 'Earnings', width: earnColWidths[0], bold: true, fontSize: 8 },
-            { text: 'Pay Rate', width: earnColWidths[1], bold: true, fontSize: 8 },
-            { text: 'Total Hours', width: earnColWidths[2], bold: true, fontSize: 8 },
-            { text: 'Current Earnings', width: earnColWidths[3], bold: true, fontSize: 8 },
-            { text: 'Current Deductions', width: earnColWidths[4], bold: true, fontSize: 8 },
-            { text: 'Current Other Deductions', width: earnColWidths[5], bold: true, fontSize: 8 },
-            { text: 'Current Overpayments', width: earnColWidths[6], bold: true, fontSize: 8 },
-            { text: 'Net Pay', width: earnColWidths[7], bold: true, fontSize: 8 },
-        ], { header: true, height: 32 });
+        // === EARNINGS TABLE ===
+        const earnColWidths = [78, 62, 58, 105, 105, 112, 108, 64];
+        y = drawRowWrap(y, [
+            { text: 'Earnings', width: earnColWidths[0] },
+            { text: 'Pay Rate', width: earnColWidths[1] },
+            { text: 'Total Hours', width: earnColWidths[2] },
+            { text: 'Current Earnings', width: earnColWidths[3] },
+            { text: 'Current Deductions', width: earnColWidths[4] },
+            { text: 'Current Other Deductions', width: earnColWidths[5] },
+            { text: 'Current Overpayments', width: earnColWidths[6] },
+            { text: 'Net Pay', width: earnColWidths[7] },
+        ], { filled: true, height: 36 });
 
-        // Earnings data row
         const garnishDed = Math.abs(Number(receipt.garnishment)) + Math.abs(Number(receipt.childSupport));
         const otherDed = Math.abs(Number(receipt.otherDeductions));
         const overpayments = Math.abs(Number(receipt.overpaymentDeduction));
 
-        y = drawTableRowMultiline(y, [
-            { text: 'Regular\nEarning', width: earnColWidths[0], align: 'center', fontSize: 8 },
-            { text: String(Number(receipt.hourlyRate)), width: earnColWidths[1], align: 'center', fontSize: 8 },
-            { text: String(Number(receipt.totalHours)), width: earnColWidths[2], align: 'center', fontSize: 8 },
-            { text: fmtMoney(receipt.grossEarnings), width: earnColWidths[3], align: 'center', fontSize: 8 },
-            { text: fmtMoney(garnishDed), width: earnColWidths[4], align: 'center', fontSize: 8 },
-            { text: fmtMoney(otherDed), width: earnColWidths[5], align: 'center', fontSize: 8 },
-            { text: fmtMoney(overpayments), width: earnColWidths[6], align: 'center', fontSize: 8 },
-            { text: fmtMoney(receipt.netPay), width: earnColWidths[7], align: 'center', fontSize: 8 },
-        ], { height: 40 });
+        y = drawRowWrap(y, [
+            { text: 'Regular\nEarning', width: earnColWidths[0] },
+            { text: String(Number(receipt.hourlyRate)), width: earnColWidths[1] },
+            { text: String(Number(receipt.totalHours)), width: earnColWidths[2] },
+            { text: fmtMoney(receipt.grossEarnings), width: earnColWidths[3] },
+            { text: fmtMoney(garnishDed), width: earnColWidths[4] },
+            { text: fmtMoney(otherDed), width: earnColWidths[5] },
+            { text: fmtMoney(overpayments), width: earnColWidths[6] },
+            { text: fmtMoney(receipt.netPay), width: earnColWidths[7] },
+        ], { height: 100 });
 
         y += 30;
 
-        // YTD footer table header
-        const ytdColWidths = [tableW / 4, tableW / 4, tableW / 4, tableW / 4];
-        y = drawTableRow(y, [
-            { text: 'YTD GROSS', width: ytdColWidths[0], bold: true },
-            { text: 'YTD DEDUCTIONS', width: ytdColWidths[1], bold: true },
-            { text: 'YTD OVERPAYMENTS', width: ytdColWidths[2], bold: true },
-            { text: 'YTD NET PAY', width: ytdColWidths[3], bold: true },
-        ], { header: true, height: 24 });
+        // === YTD TABLE ===
+        const ytdW = tableW / 4;
+        y = drawRow(y, [
+            { text: 'YTD GROSS', width: ytdW },
+            { text: 'YTD DEDUCTIONS', width: ytdW },
+            { text: 'YTD OVERPAYMENTS', width: ytdW },
+            { text: 'YTD NET PAY', width: ytdW },
+        ], { filled: true, height: 28 });
 
-        // YTD data row
-        y = drawTableRow(y, [
-            { text: fmtMoney(receipt.ytdGross), width: ytdColWidths[0] },
-            { text: fmtMoney(Math.abs(Number(receipt.ytdDeductions))), width: ytdColWidths[1] },
-            { text: fmtMoney(Math.abs(Number(receipt.ytdOverpayments))), width: ytdColWidths[2] },
-            { text: fmtMoney(receipt.ytdNet), width: ytdColWidths[3] },
-        ], { height: 24 });
+        y = drawRow(y, [
+            { text: fmtMoney(receipt.ytdGross), width: ytdW },
+            { text: fmtMoney(Math.abs(Number(receipt.ytdDeductions))), width: ytdW },
+            { text: fmtMoney(Math.abs(Number(receipt.ytdOverpayments))), width: ytdW },
+            { text: fmtMoney(receipt.ytdNet), width: ytdW },
+        ], { filled: true, height: 28 });
 
         doc.end();
     });
