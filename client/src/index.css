@@ -8236,6 +8236,36 @@ button.sdr-section-tag:hover:not(:disabled) {
 /* Form Grid 2 columns */
 .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
+/* Employee Certification Row */
+.emp-cert-row {
+  display: grid;
+  grid-template-columns: 160px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid hsl(var(--border));
+}
+.emp-cert-row:last-child { border-bottom: none; }
+.emp-cert-row__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+}
+.emp-cert-row__dates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.emp-cert-row__dates .form-group { margin-bottom: 0; }
+.emp-cert-row__dates .form-group label { font-size: 11px; margin-bottom: 2px; }
+.emp-cert-row__dates .form-group input { padding: 6px 8px; font-size: 12px; }
+.emp-cert-row__file .btn--sm { font-size: 11px; padding: 4px 10px; white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+
+@media (max-width: 640px) {
+  .emp-cert-row { grid-template-columns: 1fr; gap: 6px; }
+  .emp-cert-row__dates { grid-template-columns: 1fr 1fr; }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .sched-toolbar { flex-direction: column; align-items: stretch; }

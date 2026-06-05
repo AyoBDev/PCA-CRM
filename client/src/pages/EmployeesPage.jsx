@@ -74,7 +74,44 @@ function ComplianceCell({ emp }) {
     );
 }
 
+const FORM_CERT_TYPES = [
+    { key: 'idExpDate', type: 'id_expiration', label: 'ID Expiration' },
+    { key: 'tbDueDate', type: 'tb_test', label: 'TB Test' },
+    { key: 'cprDueDate', type: 'cpr', label: 'CPR' },
+    { key: 'trainingDueDate', type: 'annual_training', label: '8hr Annual Training' },
+    { key: 'backgroundCheckDueDate', type: 'background_check', label: 'Background Check' },
+    { key: null, type: 'cultural_competency', label: 'Cultural Competency Training' },
+    { key: null, type: 'infection_control', label: 'Infection Control Training' },
+];
+
+function parseDatePaste(text) {
+    if (!text) return null;
+    text = text.trim();
+    let m = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+    if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+    m = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if (m) return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+    m = text.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
+    if (m) {
+        const d = new Date(`${m[1]} ${m[2]}, ${m[3]}`);
+        if (!isNaN(d)) return d.toISOString().split('T')[0];
+    }
+    return null;
+}
+
+function handleDatePaste(setter) {
+    return (e) => {
+        const text = (e.clipboardData || window.clipboardData).getData('text');
+        const parsed = parseDatePaste(text);
+        if (parsed && !isNaN(new Date(parsed + 'T00:00:00'))) {
+            e.preventDefault();
+            setter(parsed);
+        }
+    };
+}
+
 function EmployeeFormModal({ employee, users, onSave, onClose }) {
+    const { showToast } = useToast();
     const [name, setName] = useState(employee?.name || '');
     const [phone, setPhone] = useState(employee?.phone || '');
     const [email, setEmail] = useState(employee?.email || '');
@@ -83,26 +120,39 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
     const [npi, setNpi] = useState(employee?.npi || '');
     const [dob, setDob] = useState(employee?.dob ? new Date(employee.dob).toISOString().split('T')[0] : '');
     const [clientAssignment, setClientAssignment] = useState(employee?.clientAssignment || '');
-    const [idExpDate, setIdExpDate] = useState(employee?.idExpDate ? new Date(employee.idExpDate).toISOString().split('T')[0] : '');
-    const [tbDueDate, setTbDueDate] = useState(employee?.tbDueDate ? new Date(employee.tbDueDate).toISOString().split('T')[0] : '');
-    const [cprDueDate, setCprDueDate] = useState(employee?.cprDueDate ? new Date(employee.cprDueDate).toISOString().split('T')[0] : '');
-    const [trainingDueDate, setTrainingDueDate] = useState(employee?.trainingDueDate ? new Date(employee.trainingDueDate).toISOString().split('T')[0] : '');
-    const [backgroundCheckDueDate, setBackgroundCheckDueDate] = useState(employee?.backgroundCheckDueDate ? new Date(employee.backgroundCheckDueDate).toISOString().split('T')[0] : '');
+
+    const initCertDates = () => {
+        const dates = {};
+        for (const c of FORM_CERT_TYPES) {
+            const expKey = c.key ? (employee?.[c.key] ? new Date(employee[c.key]).toISOString().split('T')[0] : '') : '';
+            dates[c.type] = { initial: '', expiration: expKey };
+        }
+        return dates;
+    };
+    const [certDates, setCertDates] = useState(initCertDates);
+    const [certFiles, setCertFiles] = useState({});
+    const fileRefs = useRef({});
+
+    const setCertDate = (type, field, value) => {
+        setCertDates(prev => ({ ...prev, [type]: { ...prev[type], [field]: value } }));
+    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
         const data = { name, phone, email, userId: userId || null, address, npi, clientAssignment };
         if (dob) data.dob = new Date(dob).toISOString();
-        if (idExpDate) data.idExpDate = new Date(idExpDate).toISOString();
-        if (tbDueDate) data.tbDueDate = new Date(tbDueDate).toISOString();
-        if (cprDueDate) data.cprDueDate = new Date(cprDueDate).toISOString();
-        if (trainingDueDate) data.trainingDueDate = new Date(trainingDueDate).toISOString();
-        if (backgroundCheckDueDate) data.backgroundCheckDueDate = new Date(backgroundCheckDueDate).toISOString();
+        for (const c of FORM_CERT_TYPES) {
+            if (c.key && certDates[c.type]?.expiration) {
+                data[c.key] = new Date(certDates[c.type].expiration).toISOString();
+            }
+        }
+        data._certDates = certDates;
+        data._certFiles = certFiles;
         onSave(data);
     };
 
     return (
-        <Modal onClose={onClose}>
+        <Modal onClose={onClose} wide>
             <h2 className="modal__title">{employee ? 'Edit Employee' : 'Add Employee'}</h2>
             <p className="modal__desc">{employee ? 'Update the employee details below.' : 'Fill in all employee information below.'}</p>
             <form onSubmit={handleSubmit} style={{ maxHeight: '70vh', overflowY: 'auto' }}>
@@ -123,7 +173,7 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
                 <div className="form-grid-2">
                     <div className="form-group">
                         <label htmlFor="empDob">Date of Birth</label>
-                        <input id="empDob" type="date" value={dob} onChange={e => setDob(e.target.value)} />
+                        <input id="empDob" type="date" value={dob} onChange={e => setDob(e.target.value)} onPaste={handleDatePaste(setDob)} />
                     </div>
                     <div className="form-group">
                         <label htmlFor="empAddress">Address</label>
@@ -155,31 +205,28 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
                     </div>
                 )}
                 <div style={{ borderTop: '1px solid hsl(var(--border))', margin: '16px 0', paddingTop: 16 }}>
-                    <h4 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: 'hsl(var(--foreground))' }}>Certification Expiry Dates</h4>
-                    <div className="form-grid-2">
-                        <div className="form-group">
-                            <label htmlFor="empIdExp">ID Expiration</label>
-                            <input id="empIdExp" type="date" value={idExpDate} onChange={e => setIdExpDate(e.target.value)} />
+                    <h4 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: 'hsl(var(--foreground))' }}>Certifications</h4>
+                    {FORM_CERT_TYPES.map(c => (
+                        <div key={c.type} className="emp-cert-row">
+                            <div className="emp-cert-row__label">{c.label}</div>
+                            <div className="emp-cert-row__dates">
+                                <div className="form-group">
+                                    <label>Initial Date</label>
+                                    <input type="date" value={certDates[c.type]?.initial || ''} onChange={e => setCertDate(c.type, 'initial', e.target.value)} onPaste={handleDatePaste((v) => setCertDate(c.type, 'initial', v))} />
+                                </div>
+                                <div className="form-group">
+                                    <label>Expiration Date</label>
+                                    <input type="date" value={certDates[c.type]?.expiration || ''} onChange={e => setCertDate(c.type, 'expiration', e.target.value)} onPaste={handleDatePaste((v) => setCertDate(c.type, 'expiration', v))} />
+                                </div>
+                            </div>
+                            <div className="emp-cert-row__file">
+                                <input type="file" ref={el => fileRefs.current[c.type] = el} style={{ display: 'none' }} onChange={e => { if (e.target.files[0]) setCertFiles(prev => ({ ...prev, [c.type]: e.target.files[0] })); }} />
+                                <button type="button" className="btn btn--outline btn--sm" onClick={() => fileRefs.current[c.type]?.click()}>
+                                    {certFiles[c.type] ? certFiles[c.type].name : 'Add Attachment'}
+                                </button>
+                            </div>
                         </div>
-                        <div className="form-group">
-                            <label htmlFor="empTb">TB Test</label>
-                            <input id="empTb" type="date" value={tbDueDate} onChange={e => setTbDueDate(e.target.value)} />
-                        </div>
-                    </div>
-                    <div className="form-grid-2">
-                        <div className="form-group">
-                            <label htmlFor="empCpr">CPR</label>
-                            <input id="empCpr" type="date" value={cprDueDate} onChange={e => setCprDueDate(e.target.value)} />
-                        </div>
-                        <div className="form-group">
-                            <label htmlFor="empTraining">8hr Annual Training</label>
-                            <input id="empTraining" type="date" value={trainingDueDate} onChange={e => setTrainingDueDate(e.target.value)} />
-                        </div>
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="empBg">Background Check</label>
-                        <input id="empBg" type="date" value={backgroundCheckDueDate} onChange={e => setBackgroundCheckDueDate(e.target.value)} />
-                    </div>
+                    ))}
                 </div>
                 <div className="form-actions">
                     <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
@@ -257,13 +304,34 @@ export default function EmployeesPage() {
 
     const handleSave = async (data) => {
         try {
+            const certDates = data._certDates;
+            const certFiles = data._certFiles;
+            delete data._certDates;
+            delete data._certFiles;
+
+            let emp;
             if (modal.employee) {
-                await api.updateEmployee(modal.employee.id, data);
+                emp = await api.updateEmployee(modal.employee.id, data);
                 showToast('Employee updated');
             } else {
-                await api.createEmployee(data);
+                emp = await api.createEmployee(data);
                 showToast('Employee created');
             }
+
+            const empId = emp?.id || modal.employee?.id;
+            if (empId && certFiles) {
+                for (const [certType, file] of Object.entries(certFiles)) {
+                    if (!file) continue;
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('certType', certType);
+                    const dates = certDates?.[certType];
+                    if (dates?.expiration) formData.append('expirationDate', dates.expiration);
+                    if (dates?.initial) formData.append('notes', `Initial date: ${dates.initial}`);
+                    await api.createEmployeeCertification(empId, formData);
+                }
+            }
+
             setModal(null);
             fetchData();
         } catch (err) {
