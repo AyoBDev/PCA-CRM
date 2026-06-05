@@ -1263,11 +1263,13 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
         weekDates.push(toLocalDateStr(d));
     }
 
-    // Auto-select all filtered shifts when filter changes
+    // Auto-select all filtered shifts when filter/data changes
     const [selectedIds, setSelectedIds] = useState(() => new Set());
     useEffect(() => {
-        setSelectedIds(new Set(filteredShifts.map(s => s.id)));
-    }, [filterClientId, filterEmployeeId]);
+        if (filteredShifts.length > 0) {
+            setSelectedIds(new Set(filteredShifts.map(s => s.id)));
+        }
+    }, [filterClientId, filterEmployeeId, filteredShifts.length]);
 
     const selectByDay = (dayIdx) => {
         const dateStr = weekDates[dayIdx];
@@ -1398,9 +1400,10 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
 
     const hasChanges = selectedShifts.some(s => {
         const e = edits[s.id];
-        return e.serviceCode !== (s.serviceCode || '') ||
-            e.startTime !== (s.startTime || '') ||
-            e.endTime !== (s.endTime || '') ||
+        if (!e) return false;
+        return e.serviceCode !== (s.serviceCode || 'PCS') ||
+            e.startTime !== (s.startTime || '09:00') ||
+            e.endTime !== (s.endTime || '13:00') ||
             e.accountNumber !== (s.accountNumber || '') ||
             e.sandataClientId !== (s.sandataClientId || '');
     });
@@ -1418,9 +1421,9 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
             const edit = edits[s.id] || edits[selectedShifts[0]?.id]; // Use first selected shift's edits for future shifts
             if (!edit) continue;
             const updates = {};
-            if (edit.serviceCode !== (s.serviceCode || '')) updates.serviceCode = edit.serviceCode;
-            if (edit.startTime !== (s.startTime || '')) updates.startTime = edit.startTime;
-            if (edit.endTime !== (s.endTime || '')) updates.endTime = edit.endTime;
+            if (edit.serviceCode !== (s.serviceCode || 'PCS')) updates.serviceCode = edit.serviceCode;
+            if (edit.startTime !== (s.startTime || '09:00')) updates.startTime = edit.startTime;
+            if (edit.endTime !== (s.endTime || '13:00')) updates.endTime = edit.endTime;
             if (edit.accountNumber !== (s.accountNumber || '')) updates.accountNumber = edit.accountNumber;
             if (edit.sandataClientId !== (s.sandataClientId || '')) updates.sandataClientId = edit.sandataClientId;
             if (Object.keys(updates).length > 0) perShiftUpdates[s.id] = updates;
