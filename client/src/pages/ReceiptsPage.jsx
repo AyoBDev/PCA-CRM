@@ -188,6 +188,7 @@ function GenerateReceiptsModal({ onClose }) {
     const [overrides, setOverrides] = useState({});
     const [sendOnGenerate, setSendOnGenerate] = useState(true);
     const [generating, setGenerating] = useState(false);
+    const [previewLoaded, setPreviewLoaded] = useState(false);
 
     const handlePeriodChange = (val) => {
         const sunday = snapToSunday(val);
@@ -200,6 +201,7 @@ function GenerateReceiptsModal({ onClose }) {
         try {
             const data = await api.previewReceipts({ periodStart, periodEnd });
             setPreviews(data);
+            setPreviewLoaded(true);
         } catch (err) {
             showToast('Failed to load preview', 'error');
         }
@@ -261,6 +263,12 @@ function GenerateReceiptsModal({ onClose }) {
                     <button className="btn btn--outline" onClick={handlePreview} disabled={!periodStart}>Preview Employees</button>
                 </div>
             </div>
+
+            {previewLoaded && previews.length === 0 && (
+                <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: 13, marginTop: 8 }}>
+                    No employees have a payroll profile. Go to an employee's Payroll tab to set one up first.
+                </p>
+            )}
 
             {previews.length > 0 && (
                 <>
