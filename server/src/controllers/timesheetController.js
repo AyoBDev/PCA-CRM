@@ -433,59 +433,58 @@ async function exportTimesheetPdf(req, res, next) {
         const orange = '#ea580c';
 
         // ═══ HEADER ═══
-        const headerH = 42;
-        doc.save().rect(mL, gridY, pageW, headerH).lineWidth(1.5).strokeColor(navy).stroke().restore();
+        const headerH = 48;
+        doc.save().rect(mL, gridY, pageW, headerH).lineWidth(1.2).strokeColor(navy).stroke().restore();
 
         // Logo section
         const logoW = 200;
-        doc.save().moveTo(mL + logoW, gridY).lineTo(mL + logoW, gridY + headerH).lineWidth(0.5).strokeColor(navy).stroke().restore();
-        doc.fontSize(13).font('Helvetica-Bold').fillColor(navy).text('NV BEST PCA', mL + 8, gridY + 7);
-        doc.fontSize(6.5).font('Helvetica').fillColor('#555').text('PCA Service Delivery Record', mL + 8, gridY + 23);
+        doc.save().moveTo(mL + logoW, gridY).lineTo(mL + logoW, gridY + headerH).lineWidth(0.5).strokeColor('#ccc').stroke().restore();
+        doc.fontSize(13).font('Helvetica-Bold').fillColor(navy).text('NV BEST PCA', mL + 10, gridY + 10);
+        doc.fontSize(6.5).font('Helvetica').fillColor('#555').text('PCA Service Delivery Record', mL + 10, gridY + 27);
 
         // Info cells (4 equal sections to the right of logo)
         const infoW = (pageW - logoW) / 4;
         for (let i = 1; i < 4; i++) {
-            doc.save().moveTo(mL + logoW + infoW * i, gridY).lineTo(mL + logoW + infoW * i, gridY + headerH).lineWidth(0.5).strokeColor(navy).stroke().restore();
+            doc.save().moveTo(mL + logoW + infoW * i, gridY).lineTo(mL + logoW + infoW * i, gridY + headerH).lineWidth(0.5).strokeColor('#ccc').stroke().restore();
         }
 
-        // Cell 1: Client + Medicaid
-        const c1 = mL + logoW + 6;
+        // Cell 1: Client + Medicaid (stacked, left-aligned)
+        const c1 = mL + logoW + 8;
         doc.fontSize(6).font('Helvetica').fillColor('#666').text('Client:', c1, gridY + 5);
-        doc.fontSize(8).font('Helvetica-Bold').fillColor('#000').text(ts.client?.clientName || '', c1 + 28, gridY + 4);
-        doc.fontSize(6).font('Helvetica').fillColor('#666').text('Medicaid ID:', c1, gridY + 20);
-        doc.fontSize(8).font('Helvetica-Bold').fillColor('#000').text(ts.client?.medicaidId || '', c1 + 50, gridY + 19);
+        doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#000').text(ts.client?.clientName || '', c1, gridY + 14);
+        doc.fontSize(6).font('Helvetica').fillColor('#666').text('Medicaid ID:', c1, gridY + 28);
+        doc.fontSize(8).font('Helvetica-Bold').fillColor('#000').text(ts.client?.medicaidId || '', c1, gridY + 37);
 
-        // Cell 2: PCA + Week
-        const c2 = mL + logoW + infoW + 6;
+        // Cell 2: PCA + Week (stacked, left-aligned)
+        const c2 = mL + logoW + infoW + 8;
         doc.fontSize(6).font('Helvetica').fillColor('#666').text('Caregiver / PCA:', c2, gridY + 5);
-        doc.fontSize(8).font('Helvetica-Bold').fillColor('#000').text(ts.pcaName || '', c2 + 65, gridY + 4);
-        doc.fontSize(6).font('Helvetica').fillColor('#666').text('Week:', c2, gridY + 20);
-        doc.fontSize(7).font('Helvetica-Bold').fillColor('#000').text(`${fmtMD(weekStart)} – ${fmtMDY(weekEnd)}`, c2 + 24, gridY + 19);
-        doc.fontSize(5.5).font('Helvetica').fillColor('#888').text('(Sun – Sat)', c2 + 24, gridY + 30);
+        doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#000').text(ts.pcaName || '', c2, gridY + 14);
+        doc.fontSize(6).font('Helvetica').fillColor('#666').text('Week:', c2, gridY + 28);
+        doc.fontSize(7.5).font('Helvetica-Bold').fillColor('#000').text(`${fmtMD(weekStart)} – ${fmtMDY(weekEnd)}  (Sun – Sat)`, c2, gridY + 37);
 
-        // Cell 3: Date Submitted
-        const c3 = mL + logoW + infoW * 2 + 6;
+        // Cell 3: Date Submitted (stacked, left-aligned)
+        const c3 = mL + logoW + infoW * 2 + 8;
         doc.fontSize(6).font('Helvetica').fillColor('#666').text('Date Submitted:', c3, gridY + 5);
         if (ts.submittedAt) {
             const sd = new Date(ts.submittedAt);
-            doc.fontSize(7.5).font('Helvetica-Bold').fillColor('#000').text(
+            doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#000').text(
                 sd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-                c3, gridY + 16
+                c3, gridY + 14
             );
-            doc.fontSize(6).font('Helvetica').fillColor('#555').text(
+            doc.fontSize(6.5).font('Helvetica').fillColor('#555').text(
                 sd.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-                c3, gridY + 28
+                c3, gridY + 26
             );
         }
 
-        // Cell 4: Status
-        const c4 = mL + logoW + infoW * 3 + 6;
+        // Cell 4: Status (stacked, left-aligned)
+        const c4 = mL + logoW + infoW * 3 + 8;
         doc.fontSize(6).font('Helvetica').fillColor('#666').text('Status:', c4, gridY + 5);
         const statusLabel = ts.status === 'accepted' ? 'Accepted' : ts.status === 'submitted' ? 'Submitted' : ts.status === 'rejected' ? 'Rejected' : 'Draft';
         const statusColor = (ts.status === 'accepted' || ts.status === 'submitted') ? green : ts.status === 'rejected' ? '#dc2626' : navy;
-        doc.fontSize(8).font('Helvetica-Bold').fillColor(statusColor).text(statusLabel, c4 + 10, gridY + 19);
+        doc.fontSize(9).font('Helvetica-Bold').fillColor(statusColor).text(statusLabel, c4, gridY + 14);
 
-        gridY += headerH + 3;
+        gridY += headerH + 4;
 
         // ═══ COLUMN HEADER BAR ═══
         const colH = 22;
