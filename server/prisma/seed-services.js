@@ -2,6 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 const DEFAULT_SERVICES = [
+    { category: 'PCS', code: 'S5120', name: 'Chore Services' },
     { category: 'PCS', code: 'S5130', name: 'Homemaker' },
     { category: 'PCS', code: 'S5125', name: 'Attendant Care' },
     { category: 'PCS', code: 'S5150', name: 'Unskilled Respite Care' },

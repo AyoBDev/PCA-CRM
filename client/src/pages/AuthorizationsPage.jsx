@@ -13,6 +13,47 @@ import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import { ActivityButton, EntityActivityButton } from '../components/common/ActivityDrawer';
 
+const SERVICE_CATEGORIES = ['PCS', 'SDPC', 'Waiver 58', 'Waiver 48', 'Timesheets', 'COPE', 'PAS'];
+
+function ServiceCategoryInput({ value, onChange }) {
+    const [open, setOpen] = useState(false);
+    const [focused, setFocused] = useState(false);
+    const ref = useRef(null);
+    const filtered = value
+        ? SERVICE_CATEGORIES.filter(c => c.toLowerCase().startsWith(value.toLowerCase()))
+        : SERVICE_CATEGORIES;
+
+    useEffect(() => {
+        if (!open) return;
+        const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        document.addEventListener('mousedown', close);
+        return () => document.removeEventListener('mousedown', close);
+    }, [open]);
+
+    return (
+        <div ref={ref} style={{ position: 'relative' }}>
+            <input
+                type="text"
+                value={value}
+                onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+                onFocus={() => { setFocused(true); setOpen(true); }}
+                onBlur={() => setFocused(false)}
+                placeholder="PCS, SDPC, Waiver 58…"
+                autoComplete="off"
+            />
+            {open && filtered.length > 0 && (
+                <div className="autocomplete-dropdown">
+                    {filtered.map(cat => (
+                        <div key={cat} className="autocomplete-dropdown__item" onMouseDown={() => { onChange(cat); setOpen(false); }}>
+                            {cat}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ── Client Row 3-dot Menu (status + actions) ──
 function ClientRowMenu({ client, onSetActive, onSetPending, onSetInactive, onEdit, onDelete }) {
     const [open, setOpen] = useState(false);
@@ -301,9 +342,9 @@ function AuthFormModal({ auth, clientId, onSave, onClose, onRenewal, isRenewal }
             <p className="modal__desc">{isRenewal ? 'Create a new authorization to replace the previous one.' : isEdit ? 'Update the authorization details below.' : 'Fill in the service and date details.'}</p>
             <form onSubmit={handleSubmit}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div className="form-group">
+                    <div className="form-group" style={{ position: 'relative' }}>
                         <label>Service Category</label>
-                        <input type="text" value={serviceCategory} onChange={(e) => handleServiceCategoryChange(e.target.value)} placeholder="PCS, WAIVER 58…" />
+                        <ServiceCategoryInput value={serviceCategory} onChange={handleServiceCategoryChange} />
                     </div>
                     <div className="form-group">
                         <label>Service Code</label>
@@ -311,18 +352,19 @@ function AuthFormModal({ auth, clientId, onSave, onClose, onRenewal, isRenewal }
                             <optgroup label="EVV Services">
                                 <option value="PCS">PCS</option>
                                 <option value="SDPC">SDPC</option>
+                                <option value="S5120">S5120 — Chore Services</option>
                                 <option value="S5125">S5125 — Attendant Care</option>
                                 <option value="S5130">S5130 — Homemaker</option>
                                 <option value="S5135">S5135 — Companion</option>
                                 <option value="S5150">S5150 — Respite</option>
                             </optgroup>
                             <optgroup label="Timesheet Services">
-                                <option value="TIMESHEETS">Timesheet (Private)</option>
-                                <option value="TIMESHEET_PCS">Timesheet – PCS</option>
-                                <option value="TIMESHEET_HOMEMAKER">Timesheet – Homemaker</option>
-                                <option value="TIMESHEET_RESPITE">Timesheet – Respite</option>
-                                <option value="TIMESHEET_COMPANION">Timesheet – Companion</option>
-                                <option value="TIMESHEET_CHORE">Timesheet – Chore</option>
+                                <option value="TIMESHEETS">Timesheets (Private)</option>
+                                <option value="TIMESHEET_PCS">Timesheets-PCS</option>
+                                <option value="TIMESHEET_HOMEMAKER">Timesheets-Homemaker</option>
+                                <option value="TIMESHEET_RESPITE">Timesheets-Respite</option>
+                                <option value="TIMESHEET_COMPANION">Timesheets-Companion Care</option>
+                                <option value="TIMESHEET_CHORE">Timesheets-Chore</option>
                             </optgroup>
                             <optgroup label="Programs">
                                 <option value="PAS">PAS</option>

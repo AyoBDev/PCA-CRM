@@ -2,7 +2,7 @@ const prisma = require('../lib/prisma');
 const { enrichAuthorization, enrichClient } = require('../services/authorizationService');
 const audit = require('../services/auditService');
 
-const VALID_SERVICE_CODES = ['PCS', 'SDPC', 'TIMESHEETS', 'TIMESHEET_PCS', 'TIMESHEET_HOMEMAKER', 'TIMESHEET_RESPITE', 'TIMESHEET_COMPANION', 'TIMESHEET_CHORE', 'S5125', 'S5130', 'S5135', 'S5150', 'PAS', 'COPE'];
+const VALID_SERVICE_CODES = ['PCS', 'SDPC', 'TIMESHEETS', 'TIMESHEET_PCS', 'TIMESHEET_HOMEMAKER', 'TIMESHEET_RESPITE', 'TIMESHEET_COMPANION', 'TIMESHEET_CHORE', 'S5120', 'S5125', 'S5130', 'S5135', 'S5150', 'PAS', 'COPE'];
 
 function validateBody(body) {
     const { serviceCode } = body;

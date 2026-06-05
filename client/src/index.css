@@ -1502,6 +1502,30 @@ body {
   color: hsl(var(--foreground));
 }
 
+.autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  max-height: 180px;
+  overflow-y: auto;
+  margin-top: 2px;
+}
+.autocomplete-dropdown__item {
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  color: hsl(var(--foreground));
+}
+.autocomplete-dropdown__item:hover {
+  background: hsl(var(--muted));
+}
+
 .form-actions {
   display: flex;
   gap: 8px;
