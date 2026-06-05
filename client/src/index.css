@@ -3101,9 +3101,6 @@ body {
   border-right: none;
   padding: 8px 12px;
   font-size: 12px;
-  position: sticky;
-  top: 0;
-  z-index: 52;
 }
 
 /* Main content */
@@ -3974,6 +3971,19 @@ body {
 
 .pcaf-mcard__add-shift:hover {
   background: hsl(var(--muted) / 0.3);
+}
+
+.pcaf-mcard__sec-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  margin-top: 8px;
+  background: hsl(var(--muted) / 0.15);
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
 }
 
 /* ── PCA Form Mobile: Summary Tab ── */

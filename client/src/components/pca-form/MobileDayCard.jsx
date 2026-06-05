@@ -20,6 +20,7 @@ function MobileDayCard({ entry, dayIndex, updateEntry, disabled, enabledSections
                 const activities = JSON.parse(entry[`${sec.key}Activities`] || '{}');
                 let blocks = [];
                 try { blocks = JSON.parse(entry[`${sec.key}TimeBlocks`] || '[]'); } catch {}
+                const secHours = dailyHoursFns[sec.key]?.(entry) || 0;
 
                 return (
                     <div key={sec.key} className="pcaf-mcard__section">
@@ -146,6 +147,11 @@ function MobileDayCard({ entry, dayIndex, updateEntry, disabled, enabledSections
                         {!disabled && (
                             <button type="button" className="pcaf-mcard__add-shift" onClick={() => onAddShift(sec.key)}>+ Add Shift</button>
                         )}
+
+                        <div className="pcaf-mcard__sec-total">
+                            <span>{sec.title} Total</span>
+                            <span>{secHours.toFixed(2)} hrs ({Math.round(secHours * 4)} units)</span>
+                        </div>
                     </div>
                 );
             })}
