@@ -3675,11 +3675,11 @@ body {
 /* ── PCA Form Mobile: Day Tabs ── */
 .pcaf-mtabs {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 0;
-  padding: 0 8px;
-  background: hsl(var(--card));
-  border-bottom: 1px solid hsl(var(--border));
+  padding: 0;
+  background: var(--sidebar-bg);
+  border-bottom: none;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   position: sticky;
@@ -3691,33 +3691,39 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 10px 8px 6px;
+  justify-content: center;
+  gap: 3px;
+  padding: 10px 0 8px;
   border: none;
+  border-bottom: 3px solid transparent;
   background: transparent;
   cursor: pointer;
   min-width: 44px;
-  position: relative;
+  flex: 1;
 }
 
 .pcaf-mtab--active {
-  border-bottom: 3px solid #1e40af;
+  border-bottom-color: #fff;
+  background: var(--sidebar-bg-active);
 }
 
 .pcaf-mtab--active .pcaf-mtab__label {
-  color: #1e40af;
+  color: #fff;
   font-weight: 700;
+}
+
+.pcaf-mtab--all {
+  border-left: 1px solid var(--sidebar-border);
 }
 
 .pcaf-mtab--all .pcaf-mtab__label {
   font-weight: 700;
-  color: hsl(var(--foreground));
 }
 
 .pcaf-mtab__label {
   font-size: 11px;
   font-weight: 600;
-  color: hsl(var(--muted-foreground));
+  color: var(--sidebar-text);
   letter-spacing: 0.03em;
 }
 
@@ -3729,11 +3735,11 @@ body {
 }
 
 .pcaf-mtab__dot--filled {
-  background: #16a34a;
+  background: hsl(var(--success));
 }
 
 .pcaf-mtab__dot--error {
-  background: hsl(0 84% 60%);
+  background: hsl(var(--danger));
 }
 
 /* ── PCA Form Mobile: Auth Bar ── */
@@ -3798,6 +3804,38 @@ body {
   font-size: 14px;
   font-weight: 700;
   color: hsl(var(--muted-foreground));
+}
+
+.pcaf-mcard__daily-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: var(--sidebar-bg);
+  border-radius: var(--radius);
+  color: #fff;
+}
+
+.pcaf-mcard__daily-total-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sidebar-text);
+}
+
+.pcaf-mcard__daily-total-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.pcaf-mcard__daily-total-units {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sidebar-text);
+  margin-left: 8px;
 }
 
 .pcaf-mcard__section {
@@ -4141,15 +4179,38 @@ body {
   flex-direction: column;
   align-items: stretch;
   gap: 6px;
-  padding: 8px 12px;
+  padding: 10px 12px;
   position: sticky;
   top: 0;
   z-index: 51;
-  background: hsl(var(--card));
+  background: var(--sidebar-bg);
+  border-bottom: none;
+  color: #fff;
 }
 
 .pcaf-topbar--mobile .pcaf-topbar__week-row {
   justify-content: center;
+}
+
+.pcaf-topbar--mobile .pcaf-week-arrow {
+  background: var(--sidebar-bg-hover);
+  border-color: var(--sidebar-border);
+  color: #fff;
+}
+
+.pcaf-topbar--mobile .pcaf-week-arrow:hover {
+  background: var(--sidebar-bg-active);
+}
+
+.pcaf-topbar--mobile .pcaf-topbar__cal-box {
+  border-color: var(--sidebar-border);
+  color: var(--sidebar-text);
+}
+
+.pcaf-topbar--mobile .pcaf-week-input {
+  background: var(--sidebar-bg-hover);
+  border-color: var(--sidebar-border);
+  color: #fff;
 }
 
 .pcaf-topbar__mobile-info {
@@ -4158,11 +4219,28 @@ body {
   justify-content: center;
   gap: 4px;
   font-size: 12px;
+  color: var(--sidebar-text);
+}
+
+.pcaf-topbar__mobile-info .pcaf-detail__value {
+  color: #fff;
+}
+
+.pcaf-topbar__mobile-info .pcaf-detail__label {
+  color: var(--sidebar-text-muted);
+}
+
+.pcaf-topbar__mobile-info .pcaf-status-badge--draft {
+  color: var(--sidebar-text);
+}
+
+.pcaf-topbar__mobile-info .pcaf-status-badge--submitted {
+  color: hsl(var(--success));
 }
 
 .pcaf-topbar__week-range-inline {
   font-size: 12px;
-  color: hsl(var(--muted-foreground));
+  color: var(--sidebar-text);
   white-space: nowrap;
 }
 

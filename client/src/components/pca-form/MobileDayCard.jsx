@@ -149,6 +149,15 @@ function MobileDayCard({ entry, dayIndex, updateEntry, disabled, enabledSections
                     </div>
                 );
             })}
+
+            {/* Daily Total Bar */}
+            <div className="pcaf-mcard__daily-total">
+                <span className="pcaf-mcard__daily-total-label">Daily Total</span>
+                <div>
+                    <span className="pcaf-mcard__daily-total-value">{totalHours.toFixed(2)} hrs</span>
+                    <span className="pcaf-mcard__daily-total-units">({Math.round(totalHours * 4)} units)</span>
+                </div>
+            </div>
         </div>
     );
 }
