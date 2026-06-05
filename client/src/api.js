@@ -597,6 +597,29 @@ export const listWorkflowTriggers = () => request('/workflow-triggers');
 export const updateWorkflowTrigger = (id, data) =>
     request(`/workflow-triggers/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 
+// ── Receipts ──
+export const getReceipts = (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/receipts${qs ? '?' + qs : ''}`);
+};
+export const previewReceipts = (data) => request('/receipts/preview', { method: 'POST', body: JSON.stringify(data) });
+export const generateReceipts = (data) => request('/receipts/generate', { method: 'POST', body: JSON.stringify(data) });
+export const updateReceipt = (id, data) => request(`/receipts/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+export const finalizeReceipts = (ids) => request('/receipts/finalize', { method: 'POST', body: JSON.stringify({ ids }) });
+export const sendReceipts = (ids) => request('/receipts/send', { method: 'POST', body: JSON.stringify({ ids }) });
+export const downloadReceiptPdf = (id) =>
+    fetch(`${BASE}/receipts/${id}/pdf`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+    }).then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+    });
+
+// ── Payroll Profile ──
+export const getPayrollProfile = (employeeId) => request(`/employees/${employeeId}/payroll-profile`);
+export const upsertPayrollProfile = (employeeId, data) => request(`/employees/${employeeId}/payroll-profile`, { method: 'PUT', body: JSON.stringify(data) });
+export const revealPayrollField = (employeeId, field) => request(`/employees/${employeeId}/payroll-profile/reveal?field=${field}`);
+
 // ── Backup ──
 export async function downloadBackup() {
     const headers = {};
