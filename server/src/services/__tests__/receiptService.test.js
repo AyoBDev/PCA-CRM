@@ -2,6 +2,7 @@ const {
     computeReceipt,
     computeYTD,
     snapBiweeklyPeriod,
+    generateReceiptPdf,
 } = require('../receiptService');
 
 describe('snapBiweeklyPeriod', () => {
@@ -92,5 +93,36 @@ describe('computeYTD', () => {
         const ytd = computeYTD(priorReceipts, current, overrides);
         expect(ytd.ytdGross).toBe(6000);
         expect(ytd.ytdNet).toBe(5500);
+    });
+});
+
+describe('generateReceiptPdf', () => {
+    test('returns a Buffer containing PDF data', async () => {
+        const receipt = {
+            employee: { name: 'John Smith', address: '123 Main St, Las Vegas, NV' },
+            ssn: '***-**-6789',
+            ein: '',
+            accountNumber: '78901',
+            classification: 'W2',
+            periodStart: new Date('2026-06-01'),
+            periodEnd: new Date('2026-06-14'),
+            payDate: new Date('2026-06-18'),
+            totalHours: 80,
+            hourlyRate: 15,
+            grossEarnings: 1200,
+            garnishment: -216,
+            childSupport: 0,
+            overpaymentDeduction: -50,
+            otherDeductions: 0,
+            netPay: 934,
+            ytdGross: 15600,
+            ytdDeductions: -2808,
+            ytdOverpayments: -200,
+            ytdNet: 12592,
+        };
+        const buffer = await generateReceiptPdf(receipt);
+        expect(Buffer.isBuffer(buffer)).toBe(true);
+        expect(buffer.length).toBeGreaterThan(500);
+        expect(buffer.slice(0, 5).toString()).toBe('%PDF-');
     });
 });
