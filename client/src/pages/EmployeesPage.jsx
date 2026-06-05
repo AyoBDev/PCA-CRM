@@ -112,6 +112,7 @@ function handleDatePaste(setter) {
 
 function EmployeeFormModal({ employee, users, onSave, onClose }) {
     const { showToast } = useToast();
+    const [step, setStep] = useState(1);
     const [name, setName] = useState(employee?.name || '');
     const [phone, setPhone] = useState(employee?.phone || '');
     const [email, setEmail] = useState(employee?.email || '');
@@ -137,8 +138,12 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
         setCertDates(prev => ({ ...prev, [type]: { ...prev[type], [field]: value } }));
     };
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
+    const handleNext = () => {
+        if (!name.trim()) { showToast('Name is required'); return; }
+        setStep(2);
+    };
+
+    const handleSubmit = () => {
         const data = { name, phone, email, userId: userId || null, address, npi, clientAssignment };
         if (dob) data.dob = new Date(dob).toISOString();
         for (const c of FORM_CERT_TYPES) {
@@ -151,88 +156,132 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
         onSave(data);
     };
 
+    const steps = ['Employee Info', 'Certifications'];
+
     return (
         <Modal onClose={onClose} wide>
             <h2 className="modal__title">{employee ? 'Edit Employee' : 'Add Employee'}</h2>
-            <p className="modal__desc">{employee ? 'Update the employee details below.' : 'Fill in all employee information below.'}</p>
-            <form onSubmit={handleSubmit} style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-                <div className="form-group">
-                    <label htmlFor="empName">Name *</label>
-                    <input id="empName" value={name} onChange={e => setName(e.target.value)} required autoFocus />
-                </div>
-                <div className="form-grid-2">
-                    <div className="form-group">
-                        <label htmlFor="empPhone">Phone</label>
-                        <input id="empPhone" value={phone} onChange={e => setPhone(e.target.value)} placeholder="(555) 123-4567" />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="empEmail">Email</label>
-                        <input id="empEmail" type="email" value={email} onChange={e => setEmail(e.target.value)} />
-                    </div>
-                </div>
-                <div className="form-grid-2">
-                    <div className="form-group">
-                        <label htmlFor="empDob">Date of Birth</label>
-                        <input id="empDob" type="date" value={dob} onChange={e => setDob(e.target.value)} onPaste={handleDatePaste(setDob)} />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="empAddress">Address</label>
-                        <input id="empAddress" value={address} onChange={e => setAddress(e.target.value)} />
-                    </div>
-                </div>
-                <div className="form-grid-2">
-                    <div className="form-group">
-                        <label htmlFor="empNpi">NPI</label>
-                        <input id="empNpi" value={npi} onChange={e => setNpi(e.target.value)} />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="empClient">Client Assignment</label>
-                        <input id="empClient" value={clientAssignment} onChange={e => setClientAssignment(e.target.value)} />
-                    </div>
-                </div>
-                <div className="form-group">
-                    <label htmlFor="empUser">Link to User Account (optional)</label>
-                    <select id="empUser" value={userId} onChange={e => setUserId(e.target.value)}>
-                        <option value="">— None —</option>
-                        {users.map(u => (
-                            <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
-                        ))}
-                    </select>
-                </div>
-                {!phone && !email && (
-                    <div className="form-warning">
-                        No contact info — this employee won't receive schedule notifications.
-                    </div>
-                )}
-                <div style={{ borderTop: '1px solid hsl(var(--border))', margin: '16px 0', paddingTop: 16 }}>
-                    <h4 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: 'hsl(var(--foreground))' }}>Certifications</h4>
-                    {FORM_CERT_TYPES.map(c => (
-                        <div key={c.type} className="emp-cert-row">
-                            <div className="emp-cert-row__label">{c.label}</div>
-                            <div className="emp-cert-row__dates">
-                                <div className="form-group">
-                                    <label>Initial Date</label>
-                                    <input type="date" value={certDates[c.type]?.initial || ''} onChange={e => setCertDate(c.type, 'initial', e.target.value)} onPaste={handleDatePaste((v) => setCertDate(c.type, 'initial', v))} />
-                                </div>
-                                <div className="form-group">
-                                    <label>Expiration Date</label>
-                                    <input type="date" value={certDates[c.type]?.expiration || ''} onChange={e => setCertDate(c.type, 'expiration', e.target.value)} onPaste={handleDatePaste((v) => setCertDate(c.type, 'expiration', v))} />
-                                </div>
+            <p className="modal__desc">{employee ? 'Update the employee details below.' : 'Enter employee information and certifications.'}</p>
+
+            <div className="wizard-steps">
+                {steps.map((label, i) => {
+                    const stepNum = i + 1;
+                    const isActive = stepNum === step;
+                    const isCompleted = stepNum < step;
+                    let cls = 'wizard-step';
+                    if (isActive) cls += ' wizard-step--active';
+                    else if (isCompleted) cls += ' wizard-step--completed';
+                    else cls += ' wizard-step--disabled';
+                    return (
+                        <span key={stepNum} style={{ display: 'contents' }}>
+                            {i > 0 && <div className={`wizard-step-connector${isCompleted || isActive ? ' wizard-step-connector--completed' : ''}`} />}
+                            <div className={cls} onClick={isCompleted ? () => setStep(stepNum) : undefined}>
+                                <div className="wizard-step__circle">{isCompleted ? '✓' : stepNum}</div>
+                                <span className="wizard-step__label">{label}</span>
                             </div>
-                            <div className="emp-cert-row__file">
-                                <input type="file" ref={el => fileRefs.current[c.type] = el} style={{ display: 'none' }} onChange={e => { if (e.target.files[0]) setCertFiles(prev => ({ ...prev, [c.type]: e.target.files[0] })); }} />
-                                <button type="button" className="btn btn--outline btn--sm" onClick={() => fileRefs.current[c.type]?.click()}>
-                                    {certFiles[c.type] ? certFiles[c.type].name : 'Add Attachment'}
-                                </button>
+                        </span>
+                    );
+                })}
+            </div>
+
+            <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: 4 }}>
+                {step === 1 && (
+                    <div>
+                        <div className="form-group">
+                            <label htmlFor="empName">Name *</label>
+                            <input id="empName" value={name} onChange={e => setName(e.target.value)} required autoFocus />
+                        </div>
+                        <div className="form-grid-2">
+                            <div className="form-group">
+                                <label htmlFor="empPhone">Phone</label>
+                                <input id="empPhone" value={phone} onChange={e => setPhone(e.target.value)} placeholder="(555) 123-4567" />
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="empEmail">Email</label>
+                                <input id="empEmail" type="email" value={email} onChange={e => setEmail(e.target.value)} />
                             </div>
                         </div>
-                    ))}
+                        <div className="form-grid-2">
+                            <div className="form-group">
+                                <label htmlFor="empDob">Date of Birth</label>
+                                <input id="empDob" type="date" value={dob} onChange={e => setDob(e.target.value)} onPaste={handleDatePaste(setDob)} />
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="empAddress">Address</label>
+                                <input id="empAddress" value={address} onChange={e => setAddress(e.target.value)} />
+                            </div>
+                        </div>
+                        <div className="form-grid-2">
+                            <div className="form-group">
+                                <label htmlFor="empNpi">NPI</label>
+                                <input id="empNpi" value={npi} onChange={e => setNpi(e.target.value)} />
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="empClient">Client Assignment</label>
+                                <input id="empClient" value={clientAssignment} onChange={e => setClientAssignment(e.target.value)} />
+                            </div>
+                        </div>
+                        <div className="form-group">
+                            <label htmlFor="empUser">Link to User Account (optional)</label>
+                            <select id="empUser" value={userId} onChange={e => setUserId(e.target.value)}>
+                                <option value="">— None —</option>
+                                {users.map(u => (
+                                    <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                                ))}
+                            </select>
+                        </div>
+                        {!phone && !email && (
+                            <div className="form-warning">
+                                No contact info — this employee won't receive schedule notifications.
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {step === 2 && (
+                    <div>
+                        {FORM_CERT_TYPES.map(c => (
+                            <div key={c.type} className="emp-cert-row">
+                                <div className="emp-cert-row__label">{c.label}</div>
+                                <div className="emp-cert-row__dates">
+                                    <div className="form-group">
+                                        <label>Initial Date</label>
+                                        <input type="date" value={certDates[c.type]?.initial || ''} onChange={e => setCertDate(c.type, 'initial', e.target.value)} onPaste={handleDatePaste((v) => setCertDate(c.type, 'initial', v))} />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Expiration Date</label>
+                                        <input type="date" value={certDates[c.type]?.expiration || ''} onChange={e => setCertDate(c.type, 'expiration', e.target.value)} onPaste={handleDatePaste((v) => setCertDate(c.type, 'expiration', v))} />
+                                    </div>
+                                </div>
+                                <div className="emp-cert-row__file">
+                                    <input type="file" ref={el => fileRefs.current[c.type] = el} style={{ display: 'none' }} onChange={e => { if (e.target.files[0]) setCertFiles(prev => ({ ...prev, [c.type]: e.target.files[0] })); }} />
+                                    <button type="button" className="btn btn--outline btn--sm" onClick={() => fileRefs.current[c.type]?.click()}>
+                                        {certFiles[c.type] ? certFiles[c.type].name : 'Add Attachment'}
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <div className="wizard-nav">
+                <div>
+                    {step > 1 && (
+                        <button type="button" className="btn btn--outline" onClick={() => setStep(1)}>Back</button>
+                    )}
                 </div>
-                <div className="form-actions">
+                <div className="wizard-nav__right">
                     <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn--primary">{employee ? 'Save Changes' : 'Add Employee'}</button>
+                    {step === 1 ? (
+                        <button type="button" className="btn btn--primary" onClick={handleNext}>Next</button>
+                    ) : (
+                        <button type="button" className="btn btn--primary" onClick={handleSubmit}>
+                            {employee ? 'Save Changes' : 'Add Employee'}
+                        </button>
+                    )}
                 </div>
-            </form>
+            </div>
         </Modal>
     );
 }
