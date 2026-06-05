@@ -535,6 +535,13 @@ export default function PcaFormPage() {
 
     return (
         <div className={`pcaf-page ${isMobile ? 'pcaf-page--mobile' : ''}`}>
+            {/* Mobile: Unsaved changes banner — sticky top */}
+            {isMobile && !submitted && hasUnsavedChanges && (
+                <div className="pcaf-unsaved-banner pcaf-unsaved-banner--mobile">
+                    You have unsaved changes. Tap <strong>Save</strong> to keep your work.
+                </div>
+            )}
+
             {/* Title — desktop only */}
             {!isMobile && <h1 className="pcaf-title">PCA SERVICE DELIVERY RECORD</h1>}
 
@@ -608,11 +615,6 @@ export default function PcaFormPage() {
                         totalHm={totalHm}
                         totalRespite={totalRespite}
                     />
-                    {!submitted && hasUnsavedChanges && (
-                        <div className="pcaf-unsaved-banner pcaf-unsaved-banner--mobile">
-                            You have unsaved changes. Tap <strong>Save</strong> to keep your work.
-                        </div>
-                    )}
                 </>
             )}
 

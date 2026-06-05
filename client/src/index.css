@@ -3101,6 +3101,9 @@ body {
   border-right: none;
   padding: 8px 12px;
   font-size: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 52;
 }
 
 /* Main content */
