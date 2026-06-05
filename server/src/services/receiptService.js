@@ -84,15 +84,12 @@ async function getEmployeeHours(employeeId, employeeName, periodStart, periodEnd
 
     const timesheets = await prisma.timesheet.findMany({
         where: {
-            pcaId: employeeId,
-            status: 'accepted',
+            pcaName: { contains: employeeName, mode: 'insensitive' },
+            status: { in: ['submitted', 'accepted'] },
             weekStart: { gte: periodStart, lte: periodEnd },
         },
-        include: { entries: true },
     });
-    const tsHours = timesheets.reduce((sum, ts) => {
-        return sum + ts.entries.reduce((eSum, e) => eSum + (Number(e.totalHours) || 0), 0);
-    }, 0);
+    const tsHours = timesheets.reduce((sum, ts) => sum + (Number(ts.totalHours) || 0), 0);
 
     return Math.round((evvHours + tsHours) * 100) / 100;
 }
