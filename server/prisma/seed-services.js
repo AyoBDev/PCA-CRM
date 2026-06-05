@@ -6,7 +6,14 @@ const DEFAULT_SERVICES = [
     { category: 'PCS', code: 'S5125', name: 'Attendant Care' },
     { category: 'PCS', code: 'S5150', name: 'Unskilled Respite Care' },
     { category: 'SDPC', code: 'SDPC', name: 'Self-Directed Personal Care' },
-    { category: 'TIMESHEETS', code: 'TIMESHEETS', name: 'Timesheets' },
+    { category: 'TIMESHEETS', code: 'TIMESHEETS', name: 'Timesheet (Private)' },
+    { category: 'TIMESHEETS', code: 'TIMESHEET_PCS', name: 'Timesheet – Personal Care Services (PCS)' },
+    { category: 'TIMESHEETS', code: 'TIMESHEET_HOMEMAKER', name: 'Timesheet – Homemaker' },
+    { category: 'TIMESHEETS', code: 'TIMESHEET_RESPITE', name: 'Timesheet – Respite' },
+    { category: 'TIMESHEETS', code: 'TIMESHEET_COMPANION', name: 'Timesheet – Companion' },
+    { category: 'TIMESHEETS', code: 'TIMESHEET_CHORE', name: 'Timesheet – Chore' },
+    { category: 'COPE', code: 'COPE', name: 'COPE' },
+    { category: 'PAS', code: 'PAS', name: 'Personal Assistance Services' },
 ];
 
 async function main() {
