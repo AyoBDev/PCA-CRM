@@ -150,6 +150,8 @@ const { uploadAuthDocument, downloadAuthDocument, deleteAuthDocument } = require
 const { listActivities, createActivity, deleteActivity } = require('../controllers/activityController');
 const { listTasks, getTask, createTask, updateTask, deleteTask, bulkUpdateTasks, getTaskSummary } = require('../controllers/taskController');
 const { listWorkflowTriggers, updateWorkflowTrigger } = require('../controllers/workflowTriggerController');
+const { getPayrollProfile, upsertPayrollProfile, revealSensitiveField } = require('../controllers/payrollProfileController');
+const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalizeReceipts, sendReceipts, downloadReceiptPdf } = require('../controllers/receiptController');
 const { authenticate, requireRole } = require('../middleware/authMiddleware');
 
 const router = express.Router();
@@ -379,5 +381,19 @@ router.delete('/tasks/:id', requireRole('admin'), deleteTask);
 // Workflow Triggers (admin only)
 router.get('/workflow-triggers', requireRole('admin'), listWorkflowTriggers);
 router.patch('/workflow-triggers/:id', requireRole('admin'), updateWorkflowTrigger);
+
+// Payroll Profiles (admin-only)
+router.get('/employees/:employeeId/payroll-profile', requireRole('admin'), getPayrollProfile);
+router.put('/employees/:employeeId/payroll-profile', requireRole('admin'), upsertPayrollProfile);
+router.get('/employees/:employeeId/payroll-profile/reveal', requireRole('admin'), revealSensitiveField);
+
+// Receipts (admin-only)
+router.get('/receipts', requireRole('admin'), listReceipts);
+router.post('/receipts/preview', requireRole('admin'), previewReceipts);
+router.post('/receipts/generate', requireRole('admin'), generateReceipts);
+router.patch('/receipts/:id', requireRole('admin'), updateReceipt);
+router.post('/receipts/finalize', requireRole('admin'), finalizeReceipts);
+router.post('/receipts/send', requireRole('admin'), sendReceipts);
+router.get('/receipts/:id/pdf', requireRole('admin'), downloadReceiptPdf);
 
 module.exports = router;
