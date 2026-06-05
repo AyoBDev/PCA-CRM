@@ -312,6 +312,14 @@ async function updatePcaForm(req, res, next) {
         return res.status(400).json({ error: 'All signatures and names are required' });
       }
 
+      const hasAnyTask = (entries || []).some(entry => {
+        const f = filterByEnabledServices(entry, enabledServices);
+        return hasActivity(f.adlActivities) || hasActivity(f.iadlActivities) || hasActivity(f.respiteActivities);
+      });
+      if (!hasAnyTask) {
+        return res.status(400).json({ error: 'Please select at least one service task before submitting your timesheet.' });
+      }
+
       const errors = [];
       for (const entry of (entries || [])) {
         const filtered = filterByEnabledServices(entry, enabledServices);

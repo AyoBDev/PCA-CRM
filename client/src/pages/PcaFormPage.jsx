@@ -383,6 +383,13 @@ export default function PcaFormPage() {
         if (!pcaSig) return 'PCA signature required';
         if (!recipientName.trim()) return 'Enter recipient name';
         if (!recipientSig) return 'Recipient signature required';
+        const hasAnyTask = entries.some(e => {
+            if (pasEnabled && hasActivity(e, 'adl')) return true;
+            if (hmEnabled && hasActivity(e, 'iadl')) return true;
+            if (respiteEnabled && hasActivity(e, 'respite')) return true;
+            return false;
+        });
+        if (!hasAnyTask) return 'Please select at least one service task before submitting your timesheet.';
         for (const e of entries) {
             const sections = [];
             if (pasEnabled) sections.push('adl');
