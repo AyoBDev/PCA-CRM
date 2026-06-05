@@ -213,6 +213,8 @@ function GenerateReceiptsModal({ onClose }) {
             const receiptInputs = previews.map(p => ({
                 employeeId: p.employeeId,
                 totalHours: overrides[p.employeeId]?.totalHours ?? p.totalHours,
+                week1Hours: overrides[p.employeeId]?.week1Hours ?? p.week1Hours ?? 0,
+                week2Hours: overrides[p.employeeId]?.week2Hours ?? p.week2Hours ?? 0,
                 hourlyRate: overrides[p.employeeId]?.hourlyRate ?? p.hourlyRate,
                 overpaymentDeduction: overrides[p.employeeId]?.overpaymentDeduction ?? (p.overpaymentBalance > 0 ? p.overpaymentBalance : 0),
                 otherDeductions: overrides[p.employeeId]?.otherDeductions ?? 0,
@@ -277,7 +279,9 @@ function GenerateReceiptsModal({ onClose }) {
                             <thead>
                                 <tr>
                                     <th>Employee</th>
-                                    <th>Hours</th>
+                                    <th>Week 1 Hrs</th>
+                                    <th>Week 2 Hrs</th>
+                                    <th>Total</th>
                                     <th>Rate</th>
                                     <th>Gross</th>
                                     <th>Deductions</th>
@@ -285,22 +289,45 @@ function GenerateReceiptsModal({ onClose }) {
                                 </tr>
                             </thead>
                             <tbody>
-                                {previews.map(p => (
-                                    <tr key={p.employeeId}>
-                                        <td style={{ fontWeight: 500 }}>
-                                            {p.employeeName}
-                                            {!p.hasEmail && <span style={{ color: 'hsl(var(--warning))', fontSize: 11, marginLeft: 6 }}>No email</span>}
-                                            {p.overpaymentBalance > 0 && <span style={{ color: 'hsl(var(--destructive))', fontSize: 11, marginLeft: 6 }}>Owes {fmtMoney(p.overpaymentBalance)}</span>}
-                                        </td>
-                                        <td>
-                                            <input type="number" step="0.25" style={{ width: 70 }} value={overrides[p.employeeId]?.totalHours ?? p.totalHours} onChange={e => updateOverride(p.employeeId, 'totalHours', Number(e.target.value))} />
-                                        </td>
-                                        <td>{fmtMoney(p.hourlyRate)}</td>
-                                        <td>{fmtMoney(p.grossEarnings)}</td>
-                                        <td>{fmtMoney(p.garnishment + p.childSupport + p.overpaymentDeduction + p.otherDeductions)}</td>
-                                        <td style={{ fontWeight: 600 }}>{fmtMoney(p.netPay)}</td>
-                                    </tr>
-                                ))}
+                                {previews.map(p => {
+                                    const w1 = overrides[p.employeeId]?.week1Hours ?? p.week1Hours ?? 0;
+                                    const w2 = overrides[p.employeeId]?.week2Hours ?? p.week2Hours ?? 0;
+                                    const total = overrides[p.employeeId]?.totalHours ?? p.totalHours;
+                                    const gross = total * (p.hourlyRate || 0);
+                                    const deductions = p.garnishment + p.childSupport + p.overpaymentDeduction + p.otherDeductions;
+                                    return (
+                                        <tr key={p.employeeId}>
+                                            <td style={{ fontWeight: 500 }}>
+                                                {p.employeeName}
+                                                {!p.hasEmail && <span style={{ color: 'hsl(var(--warning))', fontSize: 11, marginLeft: 6 }}>No email</span>}
+                                                {p.overpaymentBalance > 0 && <span style={{ color: 'hsl(var(--destructive))', fontSize: 11, marginLeft: 6 }}>Owes {fmtMoney(p.overpaymentBalance)}</span>}
+                                            </td>
+                                            <td>
+                                                <div className="form-group" style={{ margin: 0 }}>
+                                                    <input type="number" step="0.25" value={w1} onChange={e => {
+                                                        const val = Number(e.target.value);
+                                                        updateOverride(p.employeeId, 'week1Hours', val);
+                                                        updateOverride(p.employeeId, 'totalHours', val + w2);
+                                                    }} style={{ width: 70 }} />
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div className="form-group" style={{ margin: 0 }}>
+                                                    <input type="number" step="0.25" value={w2} onChange={e => {
+                                                        const val = Number(e.target.value);
+                                                        updateOverride(p.employeeId, 'week2Hours', val);
+                                                        updateOverride(p.employeeId, 'totalHours', w1 + val);
+                                                    }} style={{ width: 70 }} />
+                                                </div>
+                                            </td>
+                                            <td style={{ fontWeight: 600 }}>{total}</td>
+                                            <td>{fmtMoney(p.hourlyRate)}</td>
+                                            <td>{fmtMoney(gross)}</td>
+                                            <td>{fmtMoney(deductions)}</td>
+                                            <td style={{ fontWeight: 600 }}>{fmtMoney(gross - deductions)}</td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>

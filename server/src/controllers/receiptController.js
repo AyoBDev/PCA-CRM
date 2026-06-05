@@ -46,9 +46,9 @@ async function previewReceipts(req, res) {
 
     const previews = [];
     for (const profile of activeProfiles) {
-        const hours = await getEmployeeHours(profile.employeeId, profile.employee.name, start, end);
+        const { week1Hours, week2Hours, totalHours } = await getEmployeeHours(profile.employeeId, profile.employee.name, start, end);
         const computed = computeReceipt({
-            totalHours: hours,
+            totalHours,
             hourlyRate: Number(profile.hourlyRate),
             garnishmentActive: profile.garnishmentActive,
             childSupportActive: profile.childSupportActive,
@@ -60,7 +60,9 @@ async function previewReceipts(req, res) {
             employeeId: profile.employeeId,
             employeeName: profile.employee.name,
             employeeEmail: profile.employee.email,
-            totalHours: hours,
+            week1Hours,
+            week2Hours,
+            totalHours,
             hourlyRate: Number(profile.hourlyRate),
             ...computed,
             overpaymentBalance: Number(profile.overpaymentBalance),

@@ -72,6 +72,8 @@ function computeYTD(priorReceipts, current, overrides) {
 }
 
 async function getEmployeeHours(employeeId, employeeName, periodStart, periodEnd) {
+    const midpoint = new Date(periodStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+
     const evvVisits = await prisma.payrollVisit.findMany({
         where: {
             employeeName: { contains: employeeName, mode: 'insensitive' },
@@ -80,7 +82,12 @@ async function getEmployeeHours(employeeId, employeeName, periodStart, periodEnd
             voidFlag: false,
         },
     });
-    const evvHours = evvVisits.reduce((sum, v) => sum + (v.finalPayableUnits / 4), 0);
+    let evvW1 = 0, evvW2 = 0;
+    for (const v of evvVisits) {
+        const hrs = v.finalPayableUnits / 4;
+        if (v.visitDate < midpoint) evvW1 += hrs;
+        else evvW2 += hrs;
+    }
 
     const timesheets = await prisma.timesheet.findMany({
         where: {
@@ -89,9 +96,16 @@ async function getEmployeeHours(employeeId, employeeName, periodStart, periodEnd
             weekStart: { gte: periodStart, lte: periodEnd },
         },
     });
-    const tsHours = timesheets.reduce((sum, ts) => sum + (Number(ts.totalHours) || 0), 0);
+    let tsW1 = 0, tsW2 = 0;
+    for (const ts of timesheets) {
+        const hrs = Number(ts.totalHours) || 0;
+        if (ts.weekStart < midpoint) tsW1 += hrs;
+        else tsW2 += hrs;
+    }
 
-    return Math.round((evvHours + tsHours) * 100) / 100;
+    const week1Hours = Math.round((evvW1 + tsW1) * 100) / 100;
+    const week2Hours = Math.round((evvW2 + tsW2) * 100) / 100;
+    return { week1Hours, week2Hours, totalHours: Math.round((week1Hours + week2Hours) * 100) / 100 };
 }
 
 async function getPriorReceipts(employeeId, periodStart) {
