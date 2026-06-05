@@ -41,15 +41,18 @@ export default function TrashDrawer({ items, batches, onRestore, onRestoreBatch,
         <div className="activity-drawer-backdrop" onClick={onClose}>
             <aside className="activity-drawer" onClick={(e) => e.stopPropagation()}>
                 <div className="activity-drawer__header">
-                    <h3 className="activity-drawer__title">{Icons.trash} Deleted {entityLabel}</h3>
+                    <h3 className="activity-drawer__title">
+                        <span className="trash-drawer__title-icon">{Icons.trash}</span>
+                        Deleted {entityLabel}
+                    </h3>
                     <button className="activity-drawer__close" onClick={onClose} title="Close">
                         {Icons.x}
                     </button>
                 </div>
-                <div className="activity-drawer__body">
+                <div className="activity-drawer__body trash-drawer__body">
                     <input
                         type="text"
-                        className="search-input trash-drawer__search"
+                        className="trash-drawer__search"
                         placeholder={`Search deleted ${entityLabel}...`}
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
@@ -59,7 +62,7 @@ export default function TrashDrawer({ items, batches, onRestore, onRestoreBatch,
                         <div className="trash-drawer__actions">
                             <span className="trash-drawer__count">{selectedIds.size} selected</span>
                             <button className="btn btn--restore btn--sm" onClick={handleRestoreSelected}>
-                                {Icons.rotateCcw} Restore
+                                <span className="trash-drawer__btn-icon">{Icons.rotateCcw}</span> Restore
                             </button>
                             {isAdmin && (
                                 <button className="btn btn--danger btn--sm" onClick={() => setConfirmPermanent(true)}>
