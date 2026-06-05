@@ -535,18 +535,16 @@ export default function PcaFormPage() {
 
     return (
         <div className={`pcaf-page ${isMobile ? 'pcaf-page--mobile' : ''}`}>
-            {/* Mobile: Unsaved changes banner — sticky top */}
-            {isMobile && !submitted && hasUnsavedChanges && (
-                <div className="pcaf-unsaved-banner pcaf-unsaved-banner--mobile">
-                    You have unsaved changes. Tap <strong>Save</strong> to keep your work.
-                </div>
-            )}
-
             {/* Title — desktop only */}
             {!isMobile && <h1 className="pcaf-title">PCA SERVICE DELIVERY RECORD</h1>}
 
             {/* Top bar */}
             <div className={`pcaf-topbar ${isMobile ? 'pcaf-topbar--mobile' : ''}`}>
+                {isMobile && !submitted && hasUnsavedChanges && (
+                    <div className="pcaf-unsaved-banner pcaf-unsaved-banner--mobile">
+                        You have unsaved changes. Tap <strong>Save</strong> to keep your work.
+                    </div>
+                )}
                 <div className="pcaf-topbar__week">
                     <div className="pcaf-topbar__week-row">
                         <button type="button" className="pcaf-week-arrow" onClick={() => navigateWeek(-1)}>&lsaquo;</button>
