@@ -210,22 +210,20 @@ export default function PayrollTab({ employeeId }) {
                         <span className="cp-card__dot cp-card__dot--amber" />
                         Deductions
                     </h4>
-                    <div className="form-grid-2">
-                        <div className="form-group">
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                                <input type="checkbox" checked={form.garnishmentActive || false} onChange={e => handleChange('garnishmentActive', e.target.checked)} />
-                                Garnishment (18%)
-                            </label>
-                        </div>
-                        <div className="form-group">
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                                <input type="checkbox" checked={form.childSupportActive || false} onChange={e => handleChange('childSupportActive', e.target.checked)} />
-                                Child Support
-                            </label>
-                            {form.childSupportActive && (
-                                <input type="number" step="0.01" placeholder="Amount per period" value={form.childSupportAmount || ''} onChange={e => handleChange('childSupportAmount', e.target.value)} style={{ marginTop: 8 }} />
-                            )}
-                        </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                            <input type="checkbox" checked={form.garnishmentActive || false} onChange={e => handleChange('garnishmentActive', e.target.checked)} />
+                            Garnishment (18%)
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                            <input type="checkbox" checked={form.childSupportActive || false} onChange={e => handleChange('childSupportActive', e.target.checked)} />
+                            Child Support
+                        </label>
+                        {form.childSupportActive && (
+                            <div className="form-group" style={{ margin: '4px 0 0 26px' }}>
+                                <input type="number" step="0.01" placeholder="Amount per period" value={form.childSupportAmount || ''} onChange={e => handleChange('childSupportAmount', e.target.value)} />
+                            </div>
+                        )}
                     </div>
                     <div className="form-group">
                         <label>Overpayment Balance ($)</label>
