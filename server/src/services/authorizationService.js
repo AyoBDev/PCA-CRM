@@ -141,13 +141,14 @@ function enrichClient(client) {
   const uniqueCodes = [...new Set(auths.map((a) => a.serviceCode))];
   const serviceSummary = uniqueCodes.map((c) => `🔷 ${c}`).join(' / ') || '—';
 
-  // --- overall_status & status_color: worst child wins ---
+  // --- overall_status & status_color: worst active child wins ---
   let overallStatus = 'OK';
   let statusColor = 'BLUE';
 
-  if (auths.length > 0) {
+  const activeAuths = auths.filter(a => a.manualStatus === 'active' && !a.archivedAt);
+  if (activeAuths.length > 0) {
     let worstRank = 0;
-    for (const a of auths) {
+    for (const a of activeAuths) {
       const rank = STATUS_RANK[a.status] ?? 0;
       if (rank > worstRank) {
         worstRank = rank;
@@ -157,9 +158,9 @@ function enrichClient(client) {
     }
   }
 
-  // --- days_summary: creation-order list "PCS:12 / SDPC:-3" ---
+  // --- days_summary: creation-order list "PCS:12 / SDPC:-3" (active only) ---
   const daysSummary =
-    auths.map((a) => `${a.serviceCode}:${a.daysToExpire}`).join(' / ') || '—';
+    activeAuths.map((a) => `${a.serviceCode}:${a.daysToExpire}`).join(' / ') || '—';
 
   return {
     ...client,
