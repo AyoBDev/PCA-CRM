@@ -133,30 +133,30 @@ export default function PayrollTab({ employeeId }) {
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div className="cp-card cp-card--elevated" style={{ marginTop: 12 }}>
-                    <div className="cp-card__header">
-                        <h3 className="cp-card__title">
-                            <span className="cp-card__dot cp-card__dot--amber" />
-                            Deductions
-                        </h3>
-                    </div>
-                    <div className="cp-card__body">
-                        <div className="cp-info-list">
-                            <div className="cp-info-row">
-                                <span className="cp-info-row__label">Garnishment (18%)</span>
-                                <span className="cp-info-row__value">{profile.garnishmentActive ? 'Active' : 'Inactive'}</span>
-                            </div>
-                            <div className="cp-info-row">
-                                <span className="cp-info-row__label">Child Support</span>
-                                <span className="cp-info-row__value">{profile.childSupportActive ? `Active — $${Number(profile.childSupportAmount).toFixed(2)}/period` : 'Inactive'}</span>
-                            </div>
-                            <div className="cp-info-row">
-                                <span className="cp-info-row__label">Overpayment Balance</span>
-                                <span className="cp-info-row__value" style={{ fontWeight: Number(profile.overpaymentBalance) > 0 ? 600 : 400, color: Number(profile.overpaymentBalance) > 0 ? 'hsl(var(--destructive))' : undefined }}>
-                                    ${Number(profile.overpaymentBalance).toFixed(2)}
-                                </span>
+                    <div className="cp-card cp-card--elevated">
+                        <div className="cp-card__header">
+                            <h3 className="cp-card__title">
+                                <span className="cp-card__dot cp-card__dot--amber" />
+                                Deductions
+                            </h3>
+                        </div>
+                        <div className="cp-card__body">
+                            <div className="cp-info-list">
+                                <div className="cp-info-row">
+                                    <span className="cp-info-row__label">Garnishment (18%)</span>
+                                    <span className="cp-info-row__value">{profile.garnishmentActive ? 'Active' : 'Inactive'}</span>
+                                </div>
+                                <div className="cp-info-row">
+                                    <span className="cp-info-row__label">Child Support</span>
+                                    <span className="cp-info-row__value">{profile.childSupportActive ? `Active — $${Number(profile.childSupportAmount).toFixed(2)}/period` : 'Inactive'}</span>
+                                </div>
+                                <div className="cp-info-row">
+                                    <span className="cp-info-row__label">Overpayment Balance</span>
+                                    <span className="cp-info-row__value" style={{ fontWeight: Number(profile.overpaymentBalance) > 0 ? 600 : 400, color: Number(profile.overpaymentBalance) > 0 ? 'hsl(var(--destructive))' : undefined }}>
+                                        ${Number(profile.overpaymentBalance).toFixed(2)}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -205,30 +205,31 @@ export default function PayrollTab({ employeeId }) {
                         <input type="text" value={form.accountNumber || ''} onChange={e => handleChange('accountNumber', e.target.value)} />
                     </div>
 
-                    <div style={{ borderTop: '1px solid hsl(var(--border))', marginTop: 16, paddingTop: 16 }}>
-                        <h4 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: 'hsl(var(--foreground))' }}>Deductions</h4>
-                        <div className="form-grid-2">
-                            <div className="form-group">
-                                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <input type="checkbox" checked={form.garnishmentActive || false} onChange={e => handleChange('garnishmentActive', e.target.checked)} />
-                                    Garnishment (18%)
-                                </label>
-                            </div>
-                            <div className="form-group">
-                                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <input type="checkbox" checked={form.childSupportActive || false} onChange={e => handleChange('childSupportActive', e.target.checked)} />
-                                    Child Support
-                                </label>
-                                {form.childSupportActive && (
-                                    <input type="number" step="0.01" placeholder="Amount per period" value={form.childSupportAmount || ''} onChange={e => handleChange('childSupportAmount', e.target.value)} style={{ marginTop: 4 }} />
-                                )}
-                            </div>
-                        </div>
-
+                    <div className="separator" style={{ margin: '16px 0' }} />
+                    <h4 className="cp-card__title" style={{ fontSize: 13, marginBottom: 12 }}>
+                        <span className="cp-card__dot cp-card__dot--amber" />
+                        Deductions
+                    </h4>
+                    <div className="form-grid-2">
                         <div className="form-group">
-                            <label>Overpayment Balance ($)</label>
-                            <input type="number" step="0.01" value={form.overpaymentBalance || ''} onChange={e => handleChange('overpaymentBalance', e.target.value)} />
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                                <input type="checkbox" checked={form.garnishmentActive || false} onChange={e => handleChange('garnishmentActive', e.target.checked)} />
+                                Garnishment (18%)
+                            </label>
                         </div>
+                        <div className="form-group">
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                                <input type="checkbox" checked={form.childSupportActive || false} onChange={e => handleChange('childSupportActive', e.target.checked)} />
+                                Child Support
+                            </label>
+                            {form.childSupportActive && (
+                                <input type="number" step="0.01" placeholder="Amount per period" value={form.childSupportAmount || ''} onChange={e => handleChange('childSupportAmount', e.target.value)} style={{ marginTop: 8 }} />
+                            )}
+                        </div>
+                    </div>
+                    <div className="form-group">
+                        <label>Overpayment Balance ($)</label>
+                        <input type="number" step="0.01" value={form.overpaymentBalance || ''} onChange={e => handleChange('overpaymentBalance', e.target.value)} />
                     </div>
 
                     <div className="form-actions" style={{ marginTop: 16 }}>
