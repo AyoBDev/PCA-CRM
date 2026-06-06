@@ -1,6 +1,22 @@
 const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
-const { filterAuthsByWeek } = require('../services/authorizationService');
+function filterActiveAuthsForWeek(auths, weekStart, weekEnd) {
+    const wsMs = Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate());
+    const weMs = Date.UTC(weekEnd.getUTCFullYear(), weekEnd.getUTCMonth(), weekEnd.getUTCDate());
+    return auths.filter(auth => {
+        if ((auth.manualStatus || 'active') !== 'active') return false;
+        if (auth.archivedAt) return false;
+        if (auth.authorizationStartDate) {
+            const sd = new Date(auth.authorizationStartDate);
+            if (Date.UTC(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate()) > weMs) return false;
+        }
+        if (auth.authorizationEndDate) {
+            const ed = new Date(auth.authorizationEndDate);
+            if (Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate()) < wsMs) return false;
+        }
+        return true;
+    });
+}
 const { isOverdue } = require('../lib/timesheetUtils');
 
 // ── Activity definitions (match the paper form) ──────
@@ -55,14 +71,19 @@ function computeTotalHoursWithBlocks(timeIn, timeOut, timeBlocksJson) {
 // Handles serviceCode === 'TIMESHEETS' by falling back to serviceName-based matching.
 function deriveTimesheetService(auth) {
     const code = auth.serviceCode;
-    if (code === 'PCS' || code === 'PAS') return 'PAS';
-    if (code === 'S5130') return 'Homemaker';
-    if (code === 'S5150') return 'Respite';
+    if (code === 'PCS' || code === 'PAS' || code === 'S5125' || code === 'TIMESHEET_PCS' || code === 'COPE') return 'PAS';
+    if (code === 'S5130' || code === 'S5120' || code === 'TIMESHEET_HOMEMAKER' || code === 'TIMESHEET_CHORE') return 'Homemaker';
+    if (code === 'S5150' || code === 'TIMESHEET_RESPITE') return 'Respite';
+    if (code === 'S5135' || code === 'TIMESHEET_COMPANION') return 'Companion';
+    if (code === 'SDPC') return 'PAS';
     if (code === 'TIMESHEETS' || !code) {
-        const name = (auth.serviceName || '').toLowerCase();
+        const name = (auth.serviceName || auth.serviceCategory || '').toLowerCase();
         if (name === 'pas' || name === 'pca' || (name.includes('personal') && name.includes('care'))) return 'PAS';
         if (name === 'hm' || name.includes('homemaker')) return 'Homemaker';
         if (name.includes('respite')) return 'Respite';
+        if (name.includes('companion')) return 'Companion';
+        if (name.includes('chore')) return 'Homemaker';
+        return 'PAS';
     }
     return null;
 }
@@ -85,7 +106,7 @@ async function listTimesheets(req, res, next) {
         const clientIds = [...new Set(timesheets.map(t => t.clientId).filter(Boolean))];
         const auths = clientIds.length > 0 ? await prisma.authorization.findMany({
             where: { clientId: { in: clientIds } },
-            select: { clientId: true, serviceCode: true, serviceName: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true },
+            select: { clientId: true, serviceCode: true, serviceName: true, serviceCategory: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true, manualStatus: true, archivedAt: true },
         }) : [];
         // Group all auths by clientId for efficient per-timesheet filtering
         const authsByClientId = {};
@@ -98,11 +119,10 @@ async function listTimesheets(req, res, next) {
             if (!ts.clientId || !authsByClientId[ts.clientId]) {
                 return { ...ts, authLimits: null, isOverdue: isOverdue(ts) };
             }
-            // Filter auths to those active during this timesheet's week
             const wsDate = new Date(ts.weekStart);
             const weDate = new Date(wsDate);
             weDate.setUTCDate(weDate.getUTCDate() + 6);
-            const activeAuths = filterAuthsByWeek(authsByClientId[ts.clientId], wsDate, weDate);
+            const activeAuths = filterActiveAuthsForWeek(authsByClientId[ts.clientId], wsDate, weDate);
 
             const limits = {};
             for (const a of activeAuths) {
@@ -131,12 +151,12 @@ async function getTimesheet(req, res, next) {
         if (ts.clientId) {
             const auths = await prisma.authorization.findMany({
                 where: { clientId: ts.clientId },
-                select: { serviceCode: true, serviceName: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true },
+                select: { serviceCode: true, serviceName: true, serviceCategory: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true, manualStatus: true, archivedAt: true },
             });
             const wsDate = new Date(ts.weekStart);
             const weDate = new Date(wsDate);
             weDate.setUTCDate(weDate.getUTCDate() + 6);
-            const activeAuths = filterAuthsByWeek(auths, wsDate, weDate);
+            const activeAuths = filterActiveAuthsForWeek(auths, wsDate, weDate);
             const limits = {};
             for (const a of activeAuths) {
                 const svc = deriveTimesheetService(a);
