@@ -89,8 +89,8 @@ Public-facing timesheet form accessed via permanent link (`/pca-form/:token`). F
 - **Multiple shifts per day**: "+ Add Shift" button adds Shift 2, 3, etc. with independent time in/out. Stored as JSON in `adlTimeBlocks`/`iadlTimeBlocks`/`respiteTimeBlocks` fields. "x" button removes the last shift.
 - **Reusable weekly date control**: "Week of Sunday" date picker with prev/next arrows. Changing the Sunday date auto-fills Mon–Sat. Loads or creates a timesheet for the selected week.
 - **Save Progress**: draft save without submitting. Submit requires signatures and validation.
-- **Service tabs**: PAS (ADL) always shown; Homemaker/Respite toggle via tabs in the IADL section header.
-- **Authorization limits**: displays authorized hours/units per service near client info. Blocks submission if hours exceed authorized limits. Service code mapping: PCS/PAS → PAS, S5130 → Homemaker, S5150 → Respite.
+- **Service sections**: PAS (ADL), Homemaker (IADL), Respite, Companion — each enabled/disabled based on client's active authorizations for the week.
+- **Authorization limits**: displays authorized hours/units per service near client info. Blocks submission if hours exceed authorized limits. Service code mapping: PCS/PAS/COPE → PAS, S5130/S5120 → Homemaker, S5150 → Respite, S5135 → Companion.
 - **Legacy `/sign/:token` redirect**: `SignRedirectPage` resolves the signing token to a permanent link (auto-creates one if needed) and redirects to `/pca-form/:token`.
 
 ### Timesheet PDF Export
@@ -122,7 +122,7 @@ All `useState`/`useCallback`/`useEffect` hooks must be declared **before** any c
 - **Clients** — care recipients with Medicaid ID, insurance type, `enabledServices` JSON
 - **Authorizations** — per client (PCS, SDPC, S5130, S5150, etc.) with start/end dates and `authorizedUnits` (15-min units, not hours)
 - **Timesheets** — weekly records; status `draft`/`submitted`; signatures stored as JSON
-- **TimesheetEntries** — daily ADL/IADL/Respite logs (JSON activities), time in/out, hours, timeBlocks for multiple shifts
+- **TimesheetEntries** — daily ADL/IADL/Respite/Companion logs (JSON activities), time in/out, hours, timeBlocks for multiple shifts
 - **SigningTokens** — legacy one-time-use tokens; `/sign/:token` now auto-resolves to a permanent link
 - **PermanentLinks** — reusable links per client+PCA pair
 - **InsuranceTypes / Services** — reference data
@@ -211,6 +211,74 @@ Collapsible: `256px` expanded → `52px` collapsed. State persisted in `localSto
 - Single service: Express serves the React build from `client/dist`
 - Start command: `prisma migrate deploy` → `seed.js` → `node src/index.js`
 - Environment variables: `DATABASE_URL` (PostgreSQL), `JWT_SECRET`, `PORT`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `BREVO_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`
+
+## Service Code System — Cross-Entity Trace
+
+Service codes are the connective tissue of the app. A change to service codes must be traced through every layer:
+
+### Canonical Service Codes
+**EVV Services**: `PCS`, `S5120`, `S5125`, `S5130`, `S5135`, `S5150`, `SDPC`
+**Timesheet Services**: `TIMESHEET_PCS`, `TIMESHEET_HOMEMAKER`, `TIMESHEET_RESPITE`, `TIMESHEET_COMPANION`, `TIMESHEET_CHORE`
+**Programs**: `COPE`, `PAS`
+
+### Where Service Codes Live (must stay in sync)
+| Location | Purpose |
+|----------|---------|
+| `server/src/controllers/authorizationController.js` → `VALID_SERVICE_CODES` | Server-side validation of allowed codes |
+| `server/src/services/authorizationService.js` → `REMINDER_WINDOWS`, `RENEWAL_COLORS` | Expiry reminder config per code |
+| `server/prisma/seed-services.js` → `DEFAULT_SERVICES` | Reference data seeder |
+| `server/src/controllers/pcaFormController.js` → `deriveTimesheetService()` | Maps auth service codes → PCA form sections (PAS/Homemaker/Respite/Companion) |
+| `client/src/pages/AuthorizationsPage.jsx` → service code `<select>` | Admin dropdown when creating/editing authorizations |
+| `client/src/pages/client-tabs/ProgramsAuthTab.jsx` → `AUTH_COLORS` | Card labels/colors on client Programs tab |
+| `client/src/pages/client-tabs/ProfileInsuranceTab.jsx` → `AUTH_COLORS`, `SERVICE_CODE_NAMES` | Profile tab table display |
+| `client/src/pages/ClientServicePage.jsx` → `AUTH_COLORS` | Per-service detail page header |
+| `client/src/pages/ClientDetailPage.jsx` → auth grouping logic | Groups authorizations by code (remaps legacy `TIMESHEETS` → `TIMESHEET_PCS`) |
+| `client/src/pages/SchedulingPage.jsx` → service code selects in shift forms | Scheduling shift creation/editing |
+| `client/src/pages/PcaFormPage.jsx` → `enabledSectionsForCard` | Which service sections show on the timesheet form |
+| `client/src/pages/TimesheetsListPage.jsx` → service filter + table columns | Service type filter and per-program hour columns |
+| `client/src/pages/TimesheetFormPage.jsx` → program cards + weekly totals | Admin timesheet view |
+| `server/src/services/payrollService.js` → `SERVICE_CODE_RULES` | Maps EVV service names → codes for payroll |
+
+### Entity Relationship Flow
+```
+Client
+ ├── Authorizations (serviceCode, units, dates)
+ │     ↓ derives enabledServices on client record
+ │     ↓ feeds authLimits into PCA form
+ │     ↓ feeds authMap into payroll verification
+ ├── Timesheets (linked via PermanentLink → client+PCA pair)
+ │     ├── TimesheetEntries (ADL/IADL/Respite/Companion hours per day)
+ │     └── totalPasHours, totalHmHours, totalRespiteHours, totalCompanionHours
+ ├── Shifts (scheduled: client + employee + serviceCode + date/time)
+ │     ↓ bulk edit applies service code + times
+ │     ↓ generates schedule views for employees
+ └── PayrollVisits (imported from EVV, matched to client by name)
+       ↓ service code drives unit caps from authorizations
+
+Employee
+ ├── Shifts (assigned via scheduling)
+ ├── Timesheets (as PCA/caregiver via pcaName)
+ ├── EmployeeScheduleLink (public schedule view token)
+ └── PayrollVisits (matched by employee name)
+```
+
+### PCA Form Service Mapping (`deriveTimesheetService`)
+| Auth Service Code | → PCA Form Section |
+|---|---|
+| PCS, PAS, TIMESHEET_PCS, COPE | PAS (ADL activities) |
+| S5130, S5120, TIMESHEET_HOMEMAKER, TIMESHEET_CHORE | Homemaker (IADL activities) |
+| S5150, TIMESHEET_RESPITE | Respite |
+| S5135, TIMESHEET_COMPANION | Companion |
+
+### Impact Checklist (when adding/changing a service code)
+1. Add to `VALID_SERVICE_CODES` in authorization controller
+2. Add to `REMINDER_WINDOWS` and `RENEWAL_COLORS` in authorizationService
+3. Add to `seed-services.js`
+4. Update `deriveTimesheetService()` mapping in pcaFormController
+5. Add to authorization form dropdown (AuthorizationsPage)
+6. Add to `AUTH_COLORS` in ProgramsAuthTab, ProfileInsuranceTab, ClientServicePage
+7. Add to scheduling page service code selects
+8. If it maps to a new timesheet section: add DB fields, update controller totals, update PCA form + admin form + list page
 
 ## Spreadsheet Import Format (Client Data)
 The client XLSX uses a parent-child row layout:
