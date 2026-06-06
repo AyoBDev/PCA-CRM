@@ -1003,6 +1003,9 @@ function TimesheetsTab({ employeeName, navigate }) {
                                                 {(ts.totalRespiteHours || 0) > 0 && (
                                                     <span style={{ color: '#06b6d4' }}>RP {ts.totalRespiteHours.toFixed(1)}h</span>
                                                 )}
+                                                {(ts.totalCompanionHours || 0) > 0 && (
+                                                    <span style={{ color: '#ec4899' }}>CP {ts.totalCompanionHours.toFixed(1)}h</span>
+                                                )}
                                                 <span style={{ fontWeight: 600, fontSize: 13 }}>{ts.totalHours?.toFixed(1) || '0.0'}h</span>
                                             </div>
                                             <span style={{

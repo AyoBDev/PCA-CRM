@@ -38,14 +38,16 @@ function computeTotalHoursWithBlocks(timeIn, timeOut, timeBlocksJson) {
 // Handles serviceCode === 'TIMESHEETS' by falling back to serviceName-based matching.
 function deriveTimesheetService(auth) {
   const code = auth.serviceCode;
-  if (code === 'PCS' || code === 'PAS' || code === 'TIMESHEET_PCS' || code === 'TIMESHEET_COMPANION' || code === 'COPE') return 'PAS';
-  if (code === 'S5130' || code === 'TIMESHEET_HOMEMAKER' || code === 'TIMESHEET_CHORE') return 'Homemaker';
+  if (code === 'PCS' || code === 'PAS' || code === 'TIMESHEET_PCS' || code === 'COPE') return 'PAS';
+  if (code === 'S5130' || code === 'TIMESHEET_HOMEMAKER' || code === 'TIMESHEET_CHORE' || code === 'S5120') return 'Homemaker';
   if (code === 'S5150' || code === 'TIMESHEET_RESPITE') return 'Respite';
+  if (code === 'S5135' || code === 'TIMESHEET_COMPANION') return 'Companion';
   if (code === 'TIMESHEETS' || !code) {
     const name = (auth.serviceName || '').toLowerCase();
     if (name === 'pas' || name === 'pca' || (name.includes('personal') && name.includes('care'))) return 'PAS';
     if (name === 'hm' || name.includes('homemaker')) return 'Homemaker';
     if (name.includes('respite')) return 'Respite';
+    if (name.includes('companion')) return 'Companion';
   }
   return null;
 }

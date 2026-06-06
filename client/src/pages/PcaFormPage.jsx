@@ -14,6 +14,7 @@ const DAY_SHORT = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const ADL_ACTIVITIES = ['Bathing', 'Dressing', 'Grooming', 'Continence', 'Toileting', 'Ambulation/Mobility', 'Transfer', 'Eating/Feeding'];
 const IADL_ACTIVITIES = ['Light Housekeeping', 'Medication Reminders', 'Laundry', 'Shopping', 'Meal Preparation B.L.D.', 'Eating/Feeding', 'Other'];
 const RESPITE_ACTIVITIES = ['Companionship', 'Safety Supervision', 'Community Activities', 'Other Approved Respite Tasks'];
+const COMPANION_ACTIVITIES = ['Companionship', 'Safety Supervision', 'Social Activities', 'Light Errands', 'Other'];
 
 function roundTo15(timeStr) {
     if (!timeStr) return '';
@@ -308,6 +309,7 @@ export default function PcaFormPage() {
     const pasEnabled = enabledServices.includes('PAS');
     const hmEnabled = enabledServices.includes('Homemaker');
     const respiteEnabled = enabledServices.includes('Respite');
+    const companionEnabled = enabledServices.includes('Companion');
     const submitted = data?.timesheet?.status === 'submitted';
     const authLimits = data?.authLimits || {};
 
@@ -316,16 +318,18 @@ export default function PcaFormPage() {
         if (pasEnabled) keys.push('adl');
         if (hmEnabled) keys.push('iadl');
         if (respiteEnabled) keys.push('respite');
+        if (companionEnabled) keys.push('companion');
         return keys;
-    }, [pasEnabled, hmEnabled, respiteEnabled]);
+    }, [pasEnabled, hmEnabled, respiteEnabled, companionEnabled]);
 
     const enabledSectionsForCard = useMemo(() => {
         const sections = [];
         if (pasEnabled) sections.push({ key: 'adl', title: 'PAS', colorClass: 'pas', activities: ADL_ACTIVITIES });
         if (hmEnabled) sections.push({ key: 'iadl', title: 'HOMEMAKER', colorClass: 'hm', activities: IADL_ACTIVITIES });
         if (respiteEnabled) sections.push({ key: 'respite', title: 'RESPITE', colorClass: 'respite', activities: RESPITE_ACTIVITIES });
+        if (companionEnabled) sections.push({ key: 'companion', title: 'COMPANION', colorClass: 'companion', activities: COMPANION_ACTIVITIES });
         return sections;
-    }, [pasEnabled, hmEnabled, respiteEnabled]);
+    }, [pasEnabled, hmEnabled, respiteEnabled, companionEnabled]);
 
     const updateEntry = (idx, field, value) => {
         setEntries((prev) => prev.map((e, i) => (i === idx ? { ...e, [field]: value } : e)));
@@ -353,15 +357,18 @@ export default function PcaFormPage() {
     const adlHrs = (e) => totalHoursWithBlocks(e, 'adl');
     const iadlHrs = (e) => totalHoursWithBlocks(e, 'iadl');
     const respiteHrs = (e) => totalHoursWithBlocks(e, 'respite');
+    const companionHrs = (e) => totalHoursWithBlocks(e, 'companion');
     const totalPas = entries.reduce((s, e) => s + adlHrs(e), 0);
     const totalHm = entries.reduce((s, e) => s + iadlHrs(e), 0);
     const totalRespite = entries.reduce((s, e) => s + respiteHrs(e), 0);
-    const totalAll = totalPas + totalHm + totalRespite;
+    const totalCompanion = entries.reduce((s, e) => s + companionHrs(e), 0);
+    const totalAll = totalPas + totalHm + totalRespite + totalCompanion;
 
     const dailyHoursFns = useMemo(() => ({
         adl: adlHrs,
         iadl: iadlHrs,
         respite: respiteHrs,
+        companion: companionHrs,
     }), []);
 
     const handleWeekChange = (sundayDate) => {
@@ -387,6 +394,7 @@ export default function PcaFormPage() {
             if (pasEnabled && hasActivity(e, 'adl')) return true;
             if (hmEnabled && hasActivity(e, 'iadl')) return true;
             if (respiteEnabled && hasActivity(e, 'respite')) return true;
+            if (companionEnabled && hasActivity(e, 'companion')) return true;
             return false;
         });
         if (!hasAnyTask) return 'Please select at least one service task before submitting your timesheet.';
@@ -395,6 +403,7 @@ export default function PcaFormPage() {
             if (pasEnabled) sections.push('adl');
             if (hmEnabled) sections.push('iadl');
             if (respiteEnabled) sections.push('respite');
+            if (companionEnabled) sections.push('companion');
             for (const sec of sections) {
                 const anyAct = hasActivity(e, sec);
                 const anyInitials = e[`${sec}PcaInitials`] || e[`${sec}ClientInitials`];
@@ -421,8 +430,11 @@ export default function PcaFormPage() {
         if (authLimits.Respite && Math.round(totalRespite * 4) > authLimits.Respite.units) {
             return `Respite hours (${totalRespite.toFixed(2)} hrs) exceed authorized limit of ${authLimits.Respite.hours} hrs`;
         }
+        if (authLimits.Companion && Math.round(totalCompanion * 4) > authLimits.Companion.units) {
+            return `Companion hours (${totalCompanion.toFixed(2)} hrs) exceed authorized limit of ${authLimits.Companion.hours} hrs`;
+        }
         return null;
-    }, [data, entries, pcaFullName, pcaSig, recipientName, recipientSig, pasEnabled, hmEnabled, respiteEnabled, authLimits, totalPas, totalHm, totalRespite]);
+    }, [data, entries, pcaFullName, pcaSig, recipientName, recipientSig, pasEnabled, hmEnabled, respiteEnabled, companionEnabled, authLimits, totalPas, totalHm, totalRespite, totalCompanion]);
 
     const fieldErrors = useMemo(() => {
         if (!submitAttempted || !data) return {};
@@ -437,6 +449,7 @@ export default function PcaFormPage() {
             if (pasEnabled) sections.push('adl');
             if (hmEnabled) sections.push('iadl');
             if (respiteEnabled) sections.push('respite');
+            if (companionEnabled) sections.push('companion');
             for (const sec of sections) {
                 const anyAct = hasActivity(e, sec);
                 const anyInitials = e[`${sec}PcaInitials`] || e[`${sec}ClientInitials`];
@@ -450,7 +463,7 @@ export default function PcaFormPage() {
             }
         }
         return errors;
-    }, [submitAttempted, data, entries, pcaFullName, pcaSig, recipientName, recipientSig, pasEnabled, hmEnabled, respiteEnabled]);
+    }, [submitAttempted, data, entries, pcaFullName, pcaSig, recipientName, recipientSig, pasEnabled, hmEnabled, respiteEnabled, companionEnabled]);
 
     const buildPayload = (action) => ({
         action,
@@ -619,6 +632,7 @@ export default function PcaFormPage() {
                         totalPas={totalPas}
                         totalHm={totalHm}
                         totalRespite={totalRespite}
+                        totalCompanion={totalCompanion}
                     />
                 </>
             )}
@@ -681,11 +695,13 @@ export default function PcaFormPage() {
                                     totalPas={totalPas}
                                     totalHm={totalHm}
                                     totalRespite={totalRespite}
+                                    totalCompanion={totalCompanion}
                                     totalAll={totalAll}
                                     authLimits={authLimits}
                                     pasEnabled={pasEnabled}
                                     hmEnabled={hmEnabled}
                                     respiteEnabled={respiteEnabled}
+                                    companionEnabled={companionEnabled}
                                     pcaFullName={pcaFullName}
                                     setPcaFullName={setPcaFullName}
                                     recipientName={recipientName}
@@ -770,6 +786,24 @@ export default function PcaFormPage() {
                                     />
                                 )}
 
+                                {companionEnabled && (
+                                    <ProgramSection
+                                        title="COMPANION"
+                                        icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>}
+                                        colorClass="companion"
+                                        activities={COMPANION_ACTIVITIES}
+                                        section="companion"
+                                        entries={entries}
+                                        updateEntry={updateEntry}
+                                        dailyHoursFn={companionHrs}
+                                        disabled={submitted}
+                                        sectionDisabled={false}
+                                        onAddShift={handleAddShift}
+                                        onRemoveShift={handleRemoveShift}
+                                        fieldErrors={fieldErrors}
+                                    />
+                                )}
+
                                 {/* Weekly Total Bar */}
                                 <div className="pcaf-weekly-total">
                                     <div className="pcaf-weekly-total__icon">
@@ -803,6 +837,12 @@ export default function PcaFormPage() {
                                         <div className="pcaf-weekly-total__col">
                                             <span className="pcaf-weekly-total__col-label">RESPITE HOURS / UNITS</span>
                                             <span className="pcaf-weekly-total__col-value">{totalRespite.toFixed(2)} hrs / {Math.round(totalRespite * 4)} units</span>
+                                        </div>
+                                    )}
+                                    {companionEnabled && (
+                                        <div className="pcaf-weekly-total__col">
+                                            <span className="pcaf-weekly-total__col-label">COMPANION HOURS / UNITS</span>
+                                            <span className="pcaf-weekly-total__col-value">{totalCompanion.toFixed(2)} hrs / {Math.round(totalCompanion * 4)} units</span>
                                         </div>
                                     )}
                                 </div>

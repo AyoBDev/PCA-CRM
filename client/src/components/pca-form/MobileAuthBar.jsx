@@ -1,6 +1,6 @@
 import { memo } from 'react';
 
-function MobileAuthBar({ authLimits, totalPas, totalHm, totalRespite }) {
+function MobileAuthBar({ authLimits, totalPas, totalHm, totalRespite, totalCompanion }) {
     if (!authLimits || Object.keys(authLimits).length === 0) return null;
 
     return (
@@ -18,6 +18,11 @@ function MobileAuthBar({ authLimits, totalPas, totalHm, totalRespite }) {
             {authLimits.Respite && (
                 <span className="pcaf-mauth__pill pcaf-mauth__pill--respite">
                     Respite: {totalRespite.toFixed(1)} / {authLimits.Respite.hours} hrs
+                </span>
+            )}
+            {authLimits.Companion && (
+                <span className="pcaf-mauth__pill pcaf-mauth__pill--companion">
+                    Companion: {(totalCompanion || 0).toFixed(1)} / {authLimits.Companion.hours} hrs
                 </span>
             )}
         </div>

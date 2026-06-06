@@ -11,6 +11,7 @@ const DAY_SHORT = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const ADL_ACTIVITIES = ['Bathing', 'Dressing', 'Grooming', 'Continence', 'Toileting', 'Ambulation/Mobility', 'Transfer', 'Eating/Feeding'];
 const IADL_ACTIVITIES = ['Light Housekeeping', 'Medication Reminders', 'Laundry', 'Shopping', 'Meal Preparation B.L.D.', 'Eating/Feeding', 'Other'];
 const RESPITE_ACTIVITIES = ['Companionship', 'Safety Supervision'];
+const COMPANION_ACTIVITIES = ['Companionship', 'Safety Supervision', 'Social Activities', 'Light Errands', 'Other'];
 
 function roundTo15(timeStr) {
     if (!timeStr) return '';
@@ -237,6 +238,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
     const pasEnabled = enabledServices.includes('PAS');
     const hmEnabled = enabledServices.includes('Homemaker');
     const respiteEnabled = enabledServices.includes('Respite');
+    const companionEnabled = enabledServices.includes('Companion');
 
     const toggleService = async (svc) => {
         if (!isAdmin || !ts?.client?.id) return;
@@ -292,23 +294,27 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
     const adlDailyHours = (e) => totalHoursWithBlocks(e, 'adl');
     const iadlDailyHours = (e) => totalHoursWithBlocks(e, 'iadl');
     const respiteDailyHours = (e) => totalHoursWithBlocks(e, 'respite');
+    const companionDailyHours = (e) => totalHoursWithBlocks(e, 'companion');
     const totalPas = entries.reduce((s, e) => s + adlDailyHours(e), 0);
     const totalHm = entries.reduce((s, e) => s + iadlDailyHours(e), 0);
     const totalRespite = entries.reduce((s, e) => s + respiteDailyHours(e), 0);
-    const totalAll = totalPas + totalHm + totalRespite;
+    const totalCompanion = entries.reduce((s, e) => s + companionDailyHours(e), 0);
+    const totalAll = totalPas + totalHm + totalRespite + totalCompanion;
 
     const authLimits = ts?.authLimits || {};
     const authPasHours = authLimits.PAS ? (authLimits.PAS / 4).toFixed(2) : '—';
     const authHmHours = authLimits.Homemaker ? (authLimits.Homemaker / 4).toFixed(2) : '—';
     const authRespiteHours = authLimits.Respite ? (authLimits.Respite / 4).toFixed(2) : '—';
-    const authTotalHours = (authLimits.PAS || authLimits.Homemaker || authLimits.Respite)
-        ? (((authLimits.PAS || 0) + (authLimits.Homemaker || 0) + (authLimits.Respite || 0)) / 4).toFixed(2)
+    const authCompanionHours = authLimits.Companion ? (authLimits.Companion / 4).toFixed(2) : '—';
+    const authTotalHours = (authLimits.PAS || authLimits.Homemaker || authLimits.Respite || authLimits.Companion)
+        ? (((authLimits.PAS || 0) + (authLimits.Homemaker || 0) + (authLimits.Respite || 0) + (authLimits.Companion || 0)) / 4).toFixed(2)
         : '—';
     const remainPas = authLimits.PAS ? ((authLimits.PAS / 4) - totalPas).toFixed(2) : '—';
     const remainHm = authLimits.Homemaker ? ((authLimits.Homemaker / 4) - totalHm).toFixed(2) : '—';
     const remainRespite = authLimits.Respite ? ((authLimits.Respite / 4) - totalRespite).toFixed(2) : '—';
-    const remainTotal = (authLimits.PAS || authLimits.Homemaker || authLimits.Respite)
-        ? (((authLimits.PAS || 0) + (authLimits.Homemaker || 0) + (authLimits.Respite || 0)) / 4 - totalAll).toFixed(2)
+    const remainCompanion = authLimits.Companion ? ((authLimits.Companion / 4) - totalCompanion).toFixed(2) : '—';
+    const remainTotal = (authLimits.PAS || authLimits.Homemaker || authLimits.Respite || authLimits.Companion)
+        ? (((authLimits.PAS || 0) + (authLimits.Homemaker || 0) + (authLimits.Respite || 0) + (authLimits.Companion || 0)) / 4 - totalAll).toFixed(2)
         : '—';
 
     const handleSave = async () => {
@@ -476,6 +482,14 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                                     <div className="tsv2-program-card__activities">{RESPITE_ACTIVITIES.join(', ')}</div>
                                 </div>
                             </div>
+                            <div className={`tsv2-program-card ${companionEnabled ? 'tsv2-program-card--active-pink' : ''}`} onClick={() => toggleService('Companion')}>
+                                <div className="tsv2-program-card__checkbox">{companionEnabled && '✓'}</div>
+                                <div>
+                                    <div className="tsv2-program-card__name tsv2-program-card__name--pink">Companion</div>
+                                    <div className="tsv2-program-card__desc">Companion Services</div>
+                                    <div className="tsv2-program-card__activities">{COMPANION_ACTIVITIES.join(', ')}</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -602,6 +616,15 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                                         <td>{Math.round(totalRespite * 4)}</td>
                                         <td>{authRespiteHours}</td>
                                         <td className={remainRespite !== '—' && parseFloat(remainRespite) >= 0 ? 'tsv2-remaining--ok' : 'tsv2-remaining--over'}>{remainRespite}</td>
+                                    </tr>
+                                )}
+                                {companionEnabled && (
+                                    <tr>
+                                        <td><span className="tsv2-program-dot tsv2-program-dot--pink" />Companion (Companion Services)</td>
+                                        <td>{totalCompanion.toFixed(2)}</td>
+                                        <td>{Math.round(totalCompanion * 4)}</td>
+                                        <td>{authCompanionHours}</td>
+                                        <td className={remainCompanion !== '—' && parseFloat(remainCompanion) >= 0 ? 'tsv2-remaining--ok' : 'tsv2-remaining--over'}>{remainCompanion}</td>
                                     </tr>
                                 )}
                                 <tr>

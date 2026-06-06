@@ -236,15 +236,18 @@ async function updateTimesheet(req, res, next) {
         let totalPasHours = 0;
         let totalHmHours = 0;
         let totalRespiteHours = 0;
+        let totalCompanionHours = 0;
 
         if (entries && Array.isArray(entries)) {
             for (const entry of entries) {
                 const adlHours = computeTotalHoursWithBlocks(entry.adlTimeIn, entry.adlTimeOut, entry.adlTimeBlocks);
                 const iadlHours = computeTotalHoursWithBlocks(entry.iadlTimeIn, entry.iadlTimeOut, entry.iadlTimeBlocks);
                 const respiteHours = computeTotalHoursWithBlocks(entry.respiteTimeIn, entry.respiteTimeOut, entry.respiteTimeBlocks);
+                const companionHours = computeTotalHoursWithBlocks(entry.companionTimeIn, entry.companionTimeOut, entry.companionTimeBlocks);
                 totalPasHours += adlHours;
                 totalHmHours += iadlHours;
                 totalRespiteHours += respiteHours;
+                totalCompanionHours += companionHours;
 
                 await prisma.timesheetEntry.update({
                     where: { id: entry.id },
@@ -271,6 +274,13 @@ async function updateTimesheet(req, res, next) {
                         respiteTimeBlocks: entry.respiteTimeBlocks || '[]',
                         respitePcaInitials: (entry.respitePcaInitials || '').trim(),
                         respiteClientInitials: (entry.respiteClientInitials || '').trim(),
+                        companionActivities: typeof entry.companionActivities === 'string' ? entry.companionActivities : JSON.stringify(entry.companionActivities || {}),
+                        companionTimeIn: entry.companionTimeIn || null,
+                        companionTimeOut: entry.companionTimeOut || null,
+                        companionHours,
+                        companionTimeBlocks: entry.companionTimeBlocks || '[]',
+                        companionPcaInitials: (entry.companionPcaInitials || '').trim(),
+                        companionClientInitials: (entry.companionClientInitials || '').trim(),
                     },
                 });
             }
@@ -280,7 +290,8 @@ async function updateTimesheet(req, res, next) {
             totalPasHours,
             totalHmHours,
             totalRespiteHours,
-            totalHours: totalPasHours + totalHmHours + totalRespiteHours,
+            totalCompanionHours,
+            totalHours: totalPasHours + totalHmHours + totalRespiteHours + totalCompanionHours,
         };
         if (recipientName !== undefined) updateData.recipientName = recipientName;
         if (recipientSignature !== undefined) updateData.recipientSignature = recipientSignature;
@@ -296,7 +307,7 @@ async function updateTimesheet(req, res, next) {
             data: updateData,
             include: { client: { select: { id: true, clientName: true } }, entries: { orderBy: { dayOfWeek: 'asc' } } },
         });
-        const changes = audit.diffFields(existing, ts, ['totalPasHours', 'totalHmHours', 'totalRespiteHours', 'totalHours']);
+        const changes = audit.diffFields(existing, ts, ['totalPasHours', 'totalHmHours', 'totalRespiteHours', 'totalCompanionHours', 'totalHours']);
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             action: 'UPDATE', entityType: 'Timesheet', entityId: ts.id,

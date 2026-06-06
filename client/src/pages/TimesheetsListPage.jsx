@@ -90,6 +90,7 @@ export default function TimesheetsListPage() {
                 if (serviceFilter === 'PAS') return t.totalPasHours > 0;
                 if (serviceFilter === 'Homemaker') return t.totalHmHours > 0;
                 if (serviceFilter === 'Respite') return (t.totalRespiteHours || 0) > 0;
+                if (serviceFilter === 'Companion') return (t.totalCompanionHours || 0) > 0;
                 return true;
             });
         }
@@ -145,7 +146,7 @@ export default function TimesheetsListPage() {
     const handleExportExcel = () => {
         const toExport = selectedIds.size > 0 ? timesheets.filter(t => selectedIds.has(t.id)) : timesheets;
         if (toExport.length === 0) { showToast('No timesheets to export', 'error'); return; }
-        const headers = ['Caregiver', 'Client', 'Week Ending', 'Total Hours', 'PAS Hours', 'HM Hours', 'Respite Hours', 'Status', 'Date Submitted'];
+        const headers = ['Caregiver', 'Client', 'Week Ending', 'Total Hours', 'PAS Hours', 'HM Hours', 'Respite Hours', 'Companion Hours', 'Status', 'Date Submitted'];
         const rows = toExport.map(ts => [
             ts.pcaName,
             ts.client?.clientName || '',
@@ -154,6 +155,7 @@ export default function TimesheetsListPage() {
             ts.totalPasHours.toFixed(2),
             ts.totalHmHours.toFixed(2),
             (ts.totalRespiteHours || 0).toFixed(2),
+            (ts.totalCompanionHours || 0).toFixed(2),
             ts.status,
             ts.submittedAt ? new Date(ts.submittedAt).toLocaleDateString() : '',
         ]);
@@ -302,6 +304,7 @@ export default function TimesheetsListPage() {
                                     <option value="PAS">PAS</option>
                                     <option value="Homemaker">Homemaker</option>
                                     <option value="Respite">Respite</option>
+                                    <option value="Companion">Companion</option>
                                 </select>
                             </div>
                             <div className="ts-filter-bar__field">
@@ -399,6 +402,7 @@ export default function TimesheetsListPage() {
                                     <th scope="col">PAS Hours</th>
                                     <th scope="col">HM Hours</th>
                                     <th scope="col">Respite Hours</th>
+                                    <th scope="col">Companion Hours</th>
                                     <th scope="col">Status</th>
                                     <th scope="col">Date Submitted</th>
                                     <th scope="col" style={{ width: showArchived ? 160 : 120 }}>Actions</th>
@@ -418,6 +422,7 @@ export default function TimesheetsListPage() {
                                             <td>{ts.totalPasHours.toFixed(2)}</td>
                                             <td>{ts.totalHmHours.toFixed(2)}</td>
                                             <td>{(ts.totalRespiteHours || 0).toFixed(2)}</td>
+                                            <td>{(ts.totalCompanionHours || 0).toFixed(2)}</td>
                                             <td><span className={`ts-badge ${ts.isOverdue ? 'ts-badge--overdue' : `ts-badge--${ts.status}`}`}>{ts.isOverdue ? 'Overdue' : ts.status}</span></td>
                                             <td style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
                                                 {ts.submittedAt ? new Date(ts.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}

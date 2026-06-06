@@ -40,8 +40,8 @@ function getMissingFields(dayIdx, fieldErrors) {
 
 function MobileSummaryTab({
     entries, enabledSectionKeys, dailyHoursFns, fieldErrors, onDayChange,
-    totalPas, totalHm, totalRespite, totalAll,
-    authLimits, pasEnabled, hmEnabled, respiteEnabled,
+    totalPas, totalHm, totalRespite, totalCompanion, totalAll,
+    authLimits, pasEnabled, hmEnabled, respiteEnabled, companionEnabled,
     pcaFullName, setPcaFullName, recipientName, setRecipientName,
     pcaSig, setPcaSig, recipientSig, setRecipientSig,
     submitted, setHasUnsavedChanges, submitAttempted,
@@ -103,6 +103,12 @@ function MobileSummaryTab({
                     <div className="pcaf-msummary__total-row pcaf-msummary__total-row--respite">
                         <span>Respite</span>
                         <strong>{totalRespite.toFixed(2)} hrs{authLimits.Respite ? ` / ${authLimits.Respite.hours} authorized` : ''}</strong>
+                    </div>
+                )}
+                {companionEnabled && (
+                    <div className="pcaf-msummary__total-row pcaf-msummary__total-row--companion">
+                        <span>Companion</span>
+                        <strong>{(totalCompanion || 0).toFixed(2)} hrs{authLimits.Companion ? ` / ${authLimits.Companion.hours} authorized` : ''}</strong>
                     </div>
                 )}
             </div>
