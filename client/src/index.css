@@ -5451,9 +5451,10 @@ button.sdr-section-tag:hover:not(:disabled) {
   margin-right: 6px;
 }
 
-.tsv2-weekly-table .tsv2-program-dot--blue { background: #1e40af; }
-.tsv2-weekly-table .tsv2-program-dot--green { background: #16a34a; }
-.tsv2-weekly-table .tsv2-program-dot--orange { background: #ea580c; }
+.tsv2-weekly-table .tsv2-program-dot--green { background: #22c55e; }
+.tsv2-weekly-table .tsv2-program-dot--amber { background: #f59e0b; }
+.tsv2-weekly-table .tsv2-program-dot--cyan { background: #06b6d4; }
+.tsv2-weekly-table .tsv2-program-dot--pink { background: #ec4899; }
 
 .tsv2-remaining--ok { color: #16a34a; font-weight: 600; }
 .tsv2-remaining--over { color: #dc2626; font-weight: 600; }

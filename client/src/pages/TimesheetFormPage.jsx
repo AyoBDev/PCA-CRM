@@ -593,7 +593,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                             <tbody>
                                 {pasEnabled && (
                                     <tr>
-                                        <td><span className="tsv2-program-dot tsv2-program-dot--blue" />PAS (Personal Assistance Services)</td>
+                                        <td><span className="tsv2-program-dot tsv2-program-dot--green" />PAS (Personal Assistance Services)</td>
                                         <td>{totalPas.toFixed(2)}</td>
                                         <td>{Math.round(totalPas * 4)}</td>
                                         <td>{authPasHours}</td>
@@ -602,7 +602,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                                 )}
                                 {hmEnabled && (
                                     <tr>
-                                        <td><span className="tsv2-program-dot tsv2-program-dot--green" />Homemaker (IADL Services)</td>
+                                        <td><span className="tsv2-program-dot tsv2-program-dot--amber" />Homemaker (IADL Services)</td>
                                         <td>{totalHm.toFixed(2)}</td>
                                         <td>{Math.round(totalHm * 4)}</td>
                                         <td>{authHmHours}</td>
@@ -611,7 +611,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                                 )}
                                 {respiteEnabled && (
                                     <tr>
-                                        <td><span className="tsv2-program-dot tsv2-program-dot--orange" />Respite (Respite Services)</td>
+                                        <td><span className="tsv2-program-dot tsv2-program-dot--cyan" />Respite (Respite Services)</td>
                                         <td>{totalRespite.toFixed(2)}</td>
                                         <td>{Math.round(totalRespite * 4)}</td>
                                         <td>{authRespiteHours}</td>
