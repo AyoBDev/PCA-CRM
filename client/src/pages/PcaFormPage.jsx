@@ -825,24 +825,28 @@ export default function PcaFormPage() {
                                         <div className="pcaf-weekly-total__col">
                                             <span className="pcaf-weekly-total__col-label">PAS HOURS / UNITS</span>
                                             <span className="pcaf-weekly-total__col-value">{totalPas.toFixed(2)} hrs / {Math.round(totalPas * 4)} units</span>
+                                            {authLimits.PAS && <span className="pcaf-weekly-total__col-auth">Authorized: {authLimits.PAS.hours} hrs / {authLimits.PAS.units} units</span>}
                                         </div>
                                     )}
                                     {hmEnabled && (
                                         <div className="pcaf-weekly-total__col">
                                             <span className="pcaf-weekly-total__col-label">HOMEMAKER HOURS / UNITS</span>
                                             <span className="pcaf-weekly-total__col-value">{totalHm.toFixed(2)} hrs / {Math.round(totalHm * 4)} units</span>
+                                            {authLimits.Homemaker && <span className="pcaf-weekly-total__col-auth">Authorized: {authLimits.Homemaker.hours} hrs / {authLimits.Homemaker.units} units</span>}
                                         </div>
                                     )}
                                     {respiteEnabled && (
                                         <div className="pcaf-weekly-total__col">
                                             <span className="pcaf-weekly-total__col-label">RESPITE HOURS / UNITS</span>
                                             <span className="pcaf-weekly-total__col-value">{totalRespite.toFixed(2)} hrs / {Math.round(totalRespite * 4)} units</span>
+                                            {authLimits.Respite && <span className="pcaf-weekly-total__col-auth">Authorized: {authLimits.Respite.hours} hrs / {authLimits.Respite.units} units</span>}
                                         </div>
                                     )}
                                     {companionEnabled && (
                                         <div className="pcaf-weekly-total__col">
                                             <span className="pcaf-weekly-total__col-label">COMPANION HOURS / UNITS</span>
                                             <span className="pcaf-weekly-total__col-value">{totalCompanion.toFixed(2)} hrs / {Math.round(totalCompanion * 4)} units</span>
+                                            {authLimits.Companion && <span className="pcaf-weekly-total__col-auth">Authorized: {authLimits.Companion.hours} hrs / {authLimits.Companion.units} units</span>}
                                         </div>
                                     )}
                                 </div>
