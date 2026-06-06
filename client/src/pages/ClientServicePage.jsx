@@ -13,7 +13,6 @@ const AUTH_COLORS = {
     S5130: { accent: '#f59e0b', bg: 'hsl(38 100% 96%)', label: 'S5130 — Homemaker' },
     S5135: { accent: '#ec4899', bg: 'hsl(330 80% 96%)', label: 'S5135 — Companion' },
     S5150: { accent: '#06b6d4', bg: 'hsl(188 80% 96%)', label: 'S5150 — Respite' },
-    TIMESHEETS: { accent: '#64748b', bg: 'hsl(215 20% 96%)', label: 'Timesheets — Private' },
     TIMESHEET_PCS: { accent: '#22c55e', bg: 'hsl(142 76% 96%)', label: 'Timesheet — PCS' },
     TIMESHEET_HOMEMAKER: { accent: '#f59e0b', bg: 'hsl(38 100% 96%)', label: 'Timesheet — Homemaker' },
     TIMESHEET_RESPITE: { accent: '#06b6d4', bg: 'hsl(188 80% 96%)', label: 'Timesheet — Respite' },

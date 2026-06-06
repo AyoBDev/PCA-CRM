@@ -11,7 +11,6 @@ const AUTH_COLORS = {
     S5130: { accent: '#f59e0b', bg: 'hsl(38 100% 96%)', border: '#f59e0b', label: 'S5130 — HOMEMAKER', icon: 'building' },
     S5135: { accent: '#ec4899', bg: 'hsl(330 80% 96%)', border: '#ec4899', label: 'S5135 — COMPANION', icon: 'users' },
     S5150: { accent: '#06b6d4', bg: 'hsl(188 80% 96%)', border: '#06b6d4', label: 'S5150 — RESPITE', icon: 'heart' },
-    TIMESHEETS: { accent: '#64748b', bg: 'hsl(215 20% 96%)', border: '#64748b', label: 'TIMESHEETS — PRIVATE', icon: 'clipboard' },
     TIMESHEET_PCS: { accent: '#22c55e', bg: 'hsl(142 76% 96%)', border: '#22c55e', label: 'TIMESHEET — PCS', icon: 'clipboard' },
     TIMESHEET_HOMEMAKER: { accent: '#f59e0b', bg: 'hsl(38 100% 96%)', border: '#f59e0b', label: 'TIMESHEET — HOMEMAKER', icon: 'clipboard' },
     TIMESHEET_RESPITE: { accent: '#06b6d4', bg: 'hsl(188 80% 96%)', border: '#06b6d4', label: 'TIMESHEET — RESPITE', icon: 'clipboard' },
@@ -182,17 +181,17 @@ export default function ProgramsAuthTab({
                     </div>
                 </div>
 
-                <div className="pa-service-card__body">
+                <div className="pa-service-card__body" style={{ textTransform: 'uppercase' }}>
                     {latestAuth ? (
                         <>
                             <div className="pa-service-card__detail">
                                 {Icons.calendar} <span>{formatDate(latestAuth.authorizationStartDate)} – {formatDate(latestAuth.authorizationEndDate)}</span>
                             </div>
                             <div className="pa-service-card__detail">
-                                {Icons.clock} <span>{latestAuth.authorizedUnits || 0} units ({unitsToHours(latestAuth.authorizedUnits || 0)} hrs)</span>
+                                {Icons.clock} <span>{latestAuth.authorizedUnits || 0} UNITS ({unitsToHours(latestAuth.authorizedUnits || 0)} HRS)</span>
                             </div>
                             <div className="pa-service-card__detail">
-                                {Icons.paperclip} <span>{attachCount} attachment{attachCount !== 1 ? 's' : ''}</span>
+                                {Icons.paperclip} <span>{attachCount} ATTACHMENT{attachCount !== 1 ? 'S' : ''}</span>
                             </div>
                         </>
                     ) : (
