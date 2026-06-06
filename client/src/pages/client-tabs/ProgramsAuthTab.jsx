@@ -4,16 +4,25 @@ import * as api from '../../api';
 import { ACCOUNT_NUMBER_OPTIONS } from '../../utils/accountMapping';
 
 const AUTH_COLORS = {
-    PCS: { accent: '#22c55e', bg: 'hsl(142 76% 96%)', border: '#22c55e', label: 'PCA SERVICE AUTHORIZATION', icon: 'shieldCheck' },
-    SDPC: { accent: '#8b5cf6', bg: 'hsl(270 76% 96%)', border: '#8b5cf6', label: 'SDPC SERVICE AUTHORIZATION', icon: 'users' },
-    S5130: { accent: '#f59e0b', bg: 'hsl(38 100% 96%)', border: '#f59e0b', label: 'HOMEMAKER SERVICE AUTHORIZATION', icon: 'building' },
-    S5150: { accent: '#06b6d4', bg: 'hsl(188 80% 96%)', border: '#06b6d4', label: 'RESPITE SERVICE AUTHORIZATION', icon: 'heart' },
-    S5125: { accent: '#3b82f6', bg: 'hsl(217 91% 96%)', border: '#3b82f6', label: 'ATTENDANT CARE AUTHORIZATION', icon: 'user' },
-    S5135: { accent: '#ec4899', bg: 'hsl(330 80% 96%)', border: '#ec4899', label: 'COMPANION SERVICE AUTHORIZATION', icon: 'users' },
+    PCS: { accent: '#22c55e', bg: 'hsl(142 76% 96%)', border: '#22c55e', label: 'PCS — PERSONAL CARE SERVICES', icon: 'shieldCheck' },
+    SDPC: { accent: '#8b5cf6', bg: 'hsl(270 76% 96%)', border: '#8b5cf6', label: 'SDPC — SELF-DIRECTED PERSONAL CARE', icon: 'users' },
+    S5120: { accent: '#84cc16', bg: 'hsl(82 76% 96%)', border: '#84cc16', label: 'S5120 — CHORE SERVICES', icon: 'building' },
+    S5125: { accent: '#3b82f6', bg: 'hsl(217 91% 96%)', border: '#3b82f6', label: 'S5125 — ATTENDANT CARE', icon: 'user' },
+    S5130: { accent: '#f59e0b', bg: 'hsl(38 100% 96%)', border: '#f59e0b', label: 'S5130 — HOMEMAKER', icon: 'building' },
+    S5135: { accent: '#ec4899', bg: 'hsl(330 80% 96%)', border: '#ec4899', label: 'S5135 — COMPANION', icon: 'users' },
+    S5150: { accent: '#06b6d4', bg: 'hsl(188 80% 96%)', border: '#06b6d4', label: 'S5150 — RESPITE', icon: 'heart' },
+    TIMESHEETS: { accent: '#64748b', bg: 'hsl(215 20% 96%)', border: '#64748b', label: 'TIMESHEETS — PRIVATE', icon: 'clipboard' },
+    TIMESHEET_PCS: { accent: '#22c55e', bg: 'hsl(142 76% 96%)', border: '#22c55e', label: 'TIMESHEET — PCS', icon: 'clipboard' },
+    TIMESHEET_HOMEMAKER: { accent: '#f59e0b', bg: 'hsl(38 100% 96%)', border: '#f59e0b', label: 'TIMESHEET — HOMEMAKER', icon: 'clipboard' },
+    TIMESHEET_RESPITE: { accent: '#06b6d4', bg: 'hsl(188 80% 96%)', border: '#06b6d4', label: 'TIMESHEET — RESPITE', icon: 'clipboard' },
+    TIMESHEET_COMPANION: { accent: '#ec4899', bg: 'hsl(330 80% 96%)', border: '#ec4899', label: 'TIMESHEET — COMPANION', icon: 'clipboard' },
+    TIMESHEET_CHORE: { accent: '#84cc16', bg: 'hsl(82 76% 96%)', border: '#84cc16', label: 'TIMESHEET — CHORE', icon: 'clipboard' },
+    COPE: { accent: '#0ea5e9', bg: 'hsl(199 89% 96%)', border: '#0ea5e9', label: 'COPE', icon: 'heart' },
+    PAS: { accent: '#14b8a6', bg: 'hsl(173 80% 96%)', border: '#14b8a6', label: 'PAS — PERSONAL ASSISTANCE SERVICES', icon: 'user' },
 };
 const DEFAULT_AUTH_COLOR = { accent: '#64748b', bg: 'hsl(215 20% 96%)', border: '#64748b', label: 'SERVICE AUTHORIZATION', icon: 'clipboard' };
 
-const LEFT_CODES = ['PCS', 'SDPC'];
+const LEFT_CODES = ['PCS', 'SDPC', 'S5120', 'S5125', 'S5130', 'S5135', 'S5150', 'COPE', 'PAS'];
 
 const STATUS_SORT_ORDER = { active: 0, pending: 1, inactive: 2 };
 

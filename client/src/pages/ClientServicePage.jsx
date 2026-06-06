@@ -6,12 +6,21 @@ import Modal from '../components/common/Modal';
 import { useToast } from '../hooks/useToast';
 
 const AUTH_COLORS = {
-    PCS: { accent: '#22c55e', bg: 'hsl(142 76% 96%)', label: 'PCA Service Authorization' },
-    SDPC: { accent: '#8b5cf6', bg: 'hsl(270 76% 96%)', label: 'SDPC Service Authorization' },
-    S5130: { accent: '#f59e0b', bg: 'hsl(38 100% 96%)', label: 'Homemaker Service Authorization' },
-    S5150: { accent: '#06b6d4', bg: 'hsl(188 80% 96%)', label: 'Respite Service Authorization' },
-    S5125: { accent: '#3b82f6', bg: 'hsl(217 91% 96%)', label: 'Attendant Care Authorization' },
-    S5135: { accent: '#ec4899', bg: 'hsl(330 80% 96%)', label: 'Companion Service Authorization' },
+    PCS: { accent: '#22c55e', bg: 'hsl(142 76% 96%)', label: 'PCS — Personal Care Services' },
+    SDPC: { accent: '#8b5cf6', bg: 'hsl(270 76% 96%)', label: 'SDPC — Self-Directed Personal Care' },
+    S5120: { accent: '#84cc16', bg: 'hsl(82 76% 96%)', label: 'S5120 — Chore Services' },
+    S5125: { accent: '#3b82f6', bg: 'hsl(217 91% 96%)', label: 'S5125 — Attendant Care' },
+    S5130: { accent: '#f59e0b', bg: 'hsl(38 100% 96%)', label: 'S5130 — Homemaker' },
+    S5135: { accent: '#ec4899', bg: 'hsl(330 80% 96%)', label: 'S5135 — Companion' },
+    S5150: { accent: '#06b6d4', bg: 'hsl(188 80% 96%)', label: 'S5150 — Respite' },
+    TIMESHEETS: { accent: '#64748b', bg: 'hsl(215 20% 96%)', label: 'Timesheets — Private' },
+    TIMESHEET_PCS: { accent: '#22c55e', bg: 'hsl(142 76% 96%)', label: 'Timesheet — PCS' },
+    TIMESHEET_HOMEMAKER: { accent: '#f59e0b', bg: 'hsl(38 100% 96%)', label: 'Timesheet — Homemaker' },
+    TIMESHEET_RESPITE: { accent: '#06b6d4', bg: 'hsl(188 80% 96%)', label: 'Timesheet — Respite' },
+    TIMESHEET_COMPANION: { accent: '#ec4899', bg: 'hsl(330 80% 96%)', label: 'Timesheet — Companion' },
+    TIMESHEET_CHORE: { accent: '#84cc16', bg: 'hsl(82 76% 96%)', label: 'Timesheet — Chore' },
+    COPE: { accent: '#0ea5e9', bg: 'hsl(199 89% 96%)', label: 'COPE' },
+    PAS: { accent: '#14b8a6', bg: 'hsl(173 80% 96%)', label: 'PAS — Personal Assistance Services' },
 };
 const DEFAULT_AUTH_COLOR = { accent: '#64748b', bg: 'hsl(215 20% 96%)', label: 'Service Authorization' };
 

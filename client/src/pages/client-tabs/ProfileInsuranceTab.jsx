@@ -1,14 +1,41 @@
 import Icons from '../../components/common/Icons';
 
 const AUTH_COLORS = {
-    PCS: { accent: '#22c55e', bg: 'hsl(142 76% 96%)', label: 'PCA Service Authorization' },
-    SDPC: { accent: '#8b5cf6', bg: 'hsl(270 76% 96%)', label: 'SDPC Service Authorization' },
-    S5130: { accent: '#f59e0b', bg: 'hsl(38 100% 96%)', label: 'Homemaker Service Authorization' },
-    S5150: { accent: '#06b6d4', bg: 'hsl(188 80% 96%)', label: 'Respite Service Authorization' },
-    S5125: { accent: '#3b82f6', bg: 'hsl(217 91% 96%)', label: 'Attendant Care Authorization' },
-    S5135: { accent: '#ec4899', bg: 'hsl(330 80% 96%)', label: 'Companion Service Authorization' },
+    PCS: { accent: '#22c55e', bg: 'hsl(142 76% 96%)', label: 'PCS — Personal Care Services' },
+    SDPC: { accent: '#8b5cf6', bg: 'hsl(270 76% 96%)', label: 'SDPC — Self-Directed Personal Care' },
+    S5120: { accent: '#84cc16', bg: 'hsl(82 76% 96%)', label: 'S5120 — Chore Services' },
+    S5125: { accent: '#3b82f6', bg: 'hsl(217 91% 96%)', label: 'S5125 — Attendant Care' },
+    S5130: { accent: '#f59e0b', bg: 'hsl(38 100% 96%)', label: 'S5130 — Homemaker' },
+    S5135: { accent: '#ec4899', bg: 'hsl(330 80% 96%)', label: 'S5135 — Companion' },
+    S5150: { accent: '#06b6d4', bg: 'hsl(188 80% 96%)', label: 'S5150 — Respite' },
+    TIMESHEETS: { accent: '#64748b', bg: 'hsl(215 20% 96%)', label: 'Timesheets — Private' },
+    TIMESHEET_PCS: { accent: '#22c55e', bg: 'hsl(142 76% 96%)', label: 'Timesheet — PCS' },
+    TIMESHEET_HOMEMAKER: { accent: '#f59e0b', bg: 'hsl(38 100% 96%)', label: 'Timesheet — Homemaker' },
+    TIMESHEET_RESPITE: { accent: '#06b6d4', bg: 'hsl(188 80% 96%)', label: 'Timesheet — Respite' },
+    TIMESHEET_COMPANION: { accent: '#ec4899', bg: 'hsl(330 80% 96%)', label: 'Timesheet — Companion' },
+    TIMESHEET_CHORE: { accent: '#84cc16', bg: 'hsl(82 76% 96%)', label: 'Timesheet — Chore' },
+    COPE: { accent: '#0ea5e9', bg: 'hsl(199 89% 96%)', label: 'COPE' },
+    PAS: { accent: '#14b8a6', bg: 'hsl(173 80% 96%)', label: 'PAS — Personal Assistance Services' },
 };
 const DEFAULT_AUTH_COLOR = { accent: '#64748b', bg: 'hsl(215 20% 96%)', label: 'Service Authorization' };
+
+const SERVICE_CODE_NAMES = {
+    PCS: 'Personal Care Services',
+    SDPC: 'Self-Directed Personal Care',
+    S5120: 'Chore Services',
+    S5125: 'Attendant Care',
+    S5130: 'Homemaker',
+    S5135: 'Companion',
+    S5150: 'Unskilled Respite Care',
+    TIMESHEETS: 'Timesheet (Private)',
+    TIMESHEET_PCS: 'Timesheet – PCS',
+    TIMESHEET_HOMEMAKER: 'Timesheet – Homemaker',
+    TIMESHEET_RESPITE: 'Timesheet – Respite',
+    TIMESHEET_COMPANION: 'Timesheet – Companion',
+    TIMESHEET_CHORE: 'Timesheet – Chore',
+    COPE: 'COPE',
+    PAS: 'Personal Assistance Services',
+};
 
 export default function ProfileInsuranceTab({
     client,
@@ -83,7 +110,7 @@ export default function ProfileInsuranceTab({
                                         const colors = AUTH_COLORS[code] || DEFAULT_AUTH_COLOR;
                                         return (
                                             <div key={a.id} className="cp-auth-overview-row">
-                                                <span className="cp-auth-overview-row__cell">{a.serviceName || a.serviceCategory || code}</span>
+                                                <span className="cp-auth-overview-row__cell">{a.serviceName || SERVICE_CODE_NAMES[code] || a.serviceCategory || code}</span>
                                                 <span className="cp-auth-overview-row__cell cp-auth-overview-row__code" style={{ color: colors.accent }}>{a.serviceCode || code}</span>
                                                 <span className="cp-auth-overview-row__cell" style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 12 }}>{a.authorizationNumber || '—'}</span>
                                                 <span className="cp-auth-overview-row__cell">{formatDate(a.authorizationStartDate) || '—'}</span>
