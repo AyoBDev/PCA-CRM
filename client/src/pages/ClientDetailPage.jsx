@@ -597,7 +597,8 @@ export default function ClientDetailPage() {
 
     const authGroups = {};
     (client.authorizations || []).forEach(a => {
-        const key = a.serviceCode || a.serviceCategory || 'Other';
+        let key = a.serviceCode || a.serviceCategory || 'Other';
+        if (key === 'TIMESHEETS') key = 'TIMESHEET_PCS';
         if (!authGroups[key]) authGroups[key] = [];
         authGroups[key].push(a);
     });
@@ -628,7 +629,8 @@ export default function ClientDetailPage() {
     // For insurance tab: split auths into current vs archived per service group
     const authGroupsForInsurance = {};
     (client.authorizations || []).forEach(a => {
-        const key = a.serviceCode || a.serviceCategory || 'Other';
+        let key = a.serviceCode || a.serviceCategory || 'Other';
+        if (key === 'TIMESHEETS') key = 'TIMESHEET_PCS';
         if (!authGroupsForInsurance[key]) authGroupsForInsurance[key] = { current: [], archived: [] };
         if (a.archivedAt) {
             authGroupsForInsurance[key].archived.push(a);
