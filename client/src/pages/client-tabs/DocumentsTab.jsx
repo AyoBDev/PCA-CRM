@@ -13,6 +13,15 @@ const DOC_CATEGORIES = [
     { value: 'other', label: 'Other', color: '#94a3b8' },
 ];
 
+function getAuthFolder(serviceCode) {
+    if (!serviceCode) return null;
+    const code = serviceCode.toUpperCase();
+    if (['PCS', 'PAS', 'TIMESHEET_PCS', 'COPE', 'SDPC'].includes(code)) return 'auth_pca';
+    if (['S5130', 'S5120', 'S5125', 'S5150', 'S5135', 'TIMESHEET_HOMEMAKER', 'TIMESHEET_RESPITE', 'TIMESHEET_COMPANION', 'TIMESHEET_CHORE'].includes(code)) return 'auth_waiver';
+    if (code.startsWith('ISO') || code === 'TIMESHEET_ISO') return 'auth_iso';
+    return null;
+}
+
 function formatFileSize(bytes) {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -41,10 +50,19 @@ export default function DocumentsTab({
     }, {});
     const authDocs = (client.authorizations || [])
         .filter(a => !a.archivedAt)
-        .flatMap(a => (a.documents || []).map(d => ({ ...d, _authServiceCode: a.serviceCode })));
-    const activeAuthDocs = authDocs.length;
+        .flatMap(a => (a.documents || []).map(d => ({ ...d, _authServiceCode: a.serviceCode, _isAuthDoc: true })));
+
+    authDocs.forEach(doc => {
+        const folder = getAuthFolder(doc._authServiceCode);
+        if (folder) {
+            if (!docsByCategory[folder]) docsByCategory[folder] = [];
+            docsByCategory[folder].push(doc);
+        }
+    });
+    const unfolderedAuthDocs = authDocs.filter(d => !getAuthFolder(d._authServiceCode));
+
     const clientDocs = (client.documents || []).filter(d => !d.category || !d.category.startsWith('auth_')).length;
-    const totalDocs = activeAuthDocs + clientDocs;
+    const totalDocs = authDocs.length + clientDocs;
 
     return (
         <div className="cp-tab-panel">
@@ -84,14 +102,15 @@ export default function DocumentsTab({
                                 {isExpanded && docs.length > 0 && (
                                     <div className="cp-doc-folder__files">
                                         {docs.map(doc => (
-                                            <div key={doc.id} className="cp-doc-file">
+                                            <div key={doc._isAuthDoc ? `auth-${doc.id}` : doc.id} className="cp-doc-file">
                                                 <span className="cp-doc-file__icon">{Icons.paperclip}</span>
                                                 <span className="cp-doc-file__name">{doc.fileName}</span>
+                                                {doc._isAuthDoc && <span className="cp-doc-file__meta">{doc._authServiceCode}</span>}
                                                 <span className="cp-doc-file__meta">{formatFileSize(doc.fileSize)}</span>
                                                 <span className="cp-doc-file__meta">{formatDate(doc.createdAt)}</span>
                                                 <div className="cp-doc-file__actions">
-                                                    <button className="btn btn--ghost btn--icon" title="Download" onClick={() => handleDownloadDoc(doc)}>{Icons.download}</button>
-                                                    <button className="btn btn--danger-ghost btn--icon" title="Delete" onClick={() => setConfirmDelete({ type: 'doc', item: doc })}>{Icons.trash}</button>
+                                                    <button className="btn btn--ghost btn--icon" title="Download" onClick={() => doc._isAuthDoc ? handleDownloadAuthDoc(doc) : handleDownloadDoc(doc)}>{Icons.download}</button>
+                                                    {!doc._isAuthDoc && <button className="btn btn--danger-ghost btn--icon" title="Delete" onClick={() => setConfirmDelete({ type: 'doc', item: doc })}>{Icons.trash}</button>}
                                                 </div>
                                             </div>
                                         ))}
@@ -100,7 +119,7 @@ export default function DocumentsTab({
                             </div>
                         );
                     })}
-                    {authDocs.length > 0 && (
+                    {unfolderedAuthDocs.length > 0 && (
                         <div className={`cp-doc-folder cp-doc-folder--has-files`}>
                             <button
                                 className="cp-doc-folder__header"
@@ -112,11 +131,11 @@ export default function DocumentsTab({
                                 </span>
                                 <span className="cp-doc-folder__icon">{Icons.shieldCheck}</span>
                                 <span className="cp-doc-folder__name">Authorization Attachments</span>
-                                <span className="cp-doc-folder__count">{authDocs.length}</span>
+                                <span className="cp-doc-folder__count">{unfolderedAuthDocs.length}</span>
                             </button>
                             {expandedFolders['_auth_attachments'] !== false && (
                                 <div className="cp-doc-folder__files">
-                                    {authDocs.map(doc => (
+                                    {unfolderedAuthDocs.map(doc => (
                                         <div key={`auth-${doc.id}`} className="cp-doc-file">
                                             <span className="cp-doc-file__icon">{Icons.paperclip}</span>
                                             <span className="cp-doc-file__name">{doc.fileName}</span>
