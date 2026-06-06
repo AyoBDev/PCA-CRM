@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
+import ConfirmModal from '../components/common/ConfirmModal';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import ClientCreationWizard from '../components/ClientCreationWizard';
@@ -46,6 +47,7 @@ export default function ClientsListPage() {
     const [allEmployees, setAllEmployees] = useState([]);
     const [trashOpen, setTrashOpen] = useState(false);
     const [archivedClients, setArchivedClients] = useState([]);
+    const [confirmArchive, setConfirmArchive] = useState(null);
 
     const fetchClients = useCallback(async () => {
         try {
@@ -90,6 +92,30 @@ export default function ClientsListPage() {
     const handleClientCreated = (client) => {
         setShowCreateWizard(false);
         navigate(`/clients/${client.id}`);
+    };
+
+    const handleArchive = async () => {
+        try {
+            const toArchive = confirmArchive;
+            if (toArchive.length === 1) {
+                await api.deleteClient(toArchive[0].id);
+            } else {
+                await api.bulkDeleteClients(toArchive.map(c => c.id));
+            }
+            setConfirmArchive(null);
+            setSelectedIds(new Set());
+            fetchClients();
+            showUndoToast(`Archived ${toArchive.length} client${toArchive.length > 1 ? 's' : ''}`, async () => {
+                if (toArchive.length === 1) {
+                    await api.restoreClient(toArchive[0].id);
+                } else {
+                    await api.bulkRestoreClients(toArchive.map(c => c.id));
+                }
+                fetchClients();
+            });
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
     };
 
     const getEffectiveStatus = (c) => c.clientStatus || 'active';
@@ -226,6 +252,8 @@ export default function ClientsListPage() {
                                             await Promise.all(prevStatuses.map(s => api.patchClient(s.id, { clientStatus: s.status })));
                                             fetchClients();
                                         });
+                                    } else if (action === 'Archive') {
+                                        setConfirmArchive(selected);
                                     } else if (action === 'Add Note') {
                                         setBulkNoteModal(true);
                                     } else if (action === 'Assign Caregiver') {
@@ -240,6 +268,7 @@ export default function ClientsListPage() {
                                 <option value="Assign Caregiver">Assign Caregiver</option>
                                 <option value="Transfer">Transfer</option>
                                 <option value="Discharge">Discharge</option>
+                                <option value="Archive">Archive</option>
                             </select>
                         </div>
                         <div className="table-toolbar__right">
@@ -372,6 +401,9 @@ export default function ClientsListPage() {
                                                             <button className="cl-row-menu__item" onClick={() => { navigate(`/clients/${c.id}`); setMenuOpenId(null); }}>
                                                                 {Icons.edit} Edit Client
                                                             </button>
+                                                            <button className="cl-row-menu__item cl-row-menu__item--danger" onClick={() => { setConfirmArchive([c]); setMenuOpenId(null); }}>
+                                                                {Icons.trash} Archive
+                                                            </button>
                                                         </div>
                                                     )}
                                                 </div>
@@ -498,6 +530,18 @@ export default function ClientsListPage() {
                         });
                     }}
                     onClose={() => setBulkAssignModal(false)}
+                />
+            )}
+            {confirmArchive && (
+                <ConfirmModal
+                    title={confirmArchive.length === 1 ? 'Archive Client' : `Archive ${confirmArchive.length} Clients`}
+                    message={confirmArchive.length === 1
+                        ? `Archive "${confirmArchive[0].clientName}"? This will remove them from authorizations, scheduling, and timesheets. You can restore from the trash drawer.`
+                        : `Archive ${confirmArchive.length} clients? This will remove them from authorizations, scheduling, and timesheets. You can restore from the trash drawer.`}
+                    confirmLabel="Archive"
+                    confirmVariant="danger"
+                    onConfirm={handleArchive}
+                    onClose={() => setConfirmArchive(null)}
                 />
             )}
             <TrashDrawerWrapper
