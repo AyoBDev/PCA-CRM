@@ -328,7 +328,7 @@ export default function ClientsListPage() {
                                         />
                                     </th>
                                     <th scope="col" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setSortOrder(sortOrder === 'az' ? 'za' : 'az')}>
-                                        <span className="th-content">Client {sortOrder === 'az' ? '↑' : '↓'}</span>
+                                        <span className="th-content">Client {sortOrder === 'az' ? Icons.chevronUp : Icons.chevronDown}</span>
                                     </th>
                                     <th scope="col"><span className="th-content">Client ID</span></th>
                                     <th scope="col"><span className="th-content">Gender</span></th>

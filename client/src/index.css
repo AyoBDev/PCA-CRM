@@ -9748,6 +9748,16 @@ button.sdr-section-tag:hover:not(:disabled) {
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.15s, color 0.15s;
+  position: relative;
+}
+.cp-tab:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: 20%;
+  height: 60%;
+  width: 1px;
+  background: hsl(240 5.9% 90%);
 }
 .cp-tab__icon {
   display: inline-flex;

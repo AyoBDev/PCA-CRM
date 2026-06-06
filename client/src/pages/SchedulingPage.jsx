@@ -2514,7 +2514,7 @@ export default function SchedulingPage() {
                     <button
                         className="btn btn--outline btn--sm"
                         onClick={() => setTrashOpen(true)}
-                        title="View deleted shifts"
+                        title="View archived shifts"
                     >
                         {Icons.trash}
                     </button>
@@ -2526,11 +2526,6 @@ export default function SchedulingPage() {
                     >
                         {Icons.edit} Bulk Edit
                     </button>
-                    {allShifts.length > 0 && (
-                        <button className="btn btn--outline" style={{ color: 'hsl(0 84% 60%)', borderColor: 'hsl(0 84% 80%)' }} onClick={() => setModal({ type: 'confirmDeleteAll' })}>
-                            {Icons.trash} Delete All
-                        </button>
-                    )}
                     <button className="btn btn--primary" onClick={() => setModal({ type: 'shift', shift: null, defaultClientId: viewMode === 'future' ? futureFilterContext.clientId : selectedClientId, defaultEmployeeId: viewMode === 'future' ? futureFilterContext.employeeId : selectedEmployeeId })}>
                         {Icons.plus} Create Shift
                     </button>

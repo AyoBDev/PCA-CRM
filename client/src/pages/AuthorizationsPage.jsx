@@ -1270,7 +1270,7 @@ export default function AuthorizationsPage() {
                                                                 {activeAuths.map((auth) => (
                                                                     <tr key={`a-${auth.id}`} className="row-auth">
                                                                         <td></td>
-                                                                        <td style={{ fontSize: 12, fontWeight: 700, color: SERVICE_CODE_COLORS[auth.serviceCode] || '#64748b' }}>{auth.serviceCode}</td>
+                                                                        <td style={{ fontSize: 12, fontWeight: 700, color: SERVICE_CODE_COLORS[auth.serviceCode] || '#64748b' }}>{auth.serviceCode}{auth.serviceName ? ` — ${auth.serviceName}` : ''}</td>
                                                                         <td style={{ fontSize: 13, fontWeight: 500 }}>
                                                                             {auth.authorizationNumber || '—'}
                                                                         </td>
@@ -1468,7 +1468,7 @@ export default function AuthorizationsPage() {
                             <table className="data-table data-table--compact">
                                 <thead>
                                     <tr>
-                                        <th scope="col">Service</th><th scope="col">Code</th><th scope="col">Units</th>
+                                        <th scope="col">Service</th><th scope="col">Code</th><th scope="col">Name</th><th scope="col">Units</th>
                                         <th scope="col">Start</th><th scope="col">End</th><th scope="col">Status</th><th scope="col"></th>
                                     </tr>
                                 </thead>
@@ -1477,6 +1477,7 @@ export default function AuthorizationsPage() {
                                         <tr key={auth.id}>
                                             <td>{auth.serviceCategory || '—'}</td>
                                             <td>{auth.serviceCode}</td>
+                                            <td>{auth.serviceName || '—'}</td>
                                             <td>{auth.authorizedUnits}</td>
                                             <td>{fmtDate(auth.authorizationStartDate)}</td>
                                             <td>{fmtDate(auth.authorizationEndDate)}</td>
