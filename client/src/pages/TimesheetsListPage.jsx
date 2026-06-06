@@ -434,10 +434,7 @@ export default function TimesheetsListPage() {
                                                         <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmPermanentDelete(ts)} title="Delete permanently">{Icons.trash}</button>
                                                     </div>
                                                 ) : (
-                                                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                                        <button className="btn btn--outline btn--xs" onClick={() => setActiveTimesheetId(ts.id)}>Open</button>
-                                                        <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmDelete(ts)} title="Archive">{Icons.trash}</button>
-                                                    </div>
+                                                    <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmDelete(ts)} title="Archive">{Icons.trash}</button>
                                                 )}
                                             </td>
                                         </tr>
