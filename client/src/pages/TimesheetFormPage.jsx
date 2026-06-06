@@ -334,6 +334,9 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                     respiteActivities: e.respiteActivities || '{}', respiteTimeIn: e.respiteTimeIn || null, respiteTimeOut: e.respiteTimeOut || null,
                     respiteTimeBlocks: e.respiteTimeBlocks || '[]',
                     respitePcaInitials: e.respitePcaInitials || '', respiteClientInitials: e.respiteClientInitials || '',
+                    companionActivities: e.companionActivities || '{}', companionTimeIn: e.companionTimeIn || null, companionTimeOut: e.companionTimeOut || null,
+                    companionTimeBlocks: e.companionTimeBlocks || '[]',
+                    companionPcaInitials: e.companionPcaInitials || '', companionClientInitials: e.companionClientInitials || '',
                 })),
                 recipientName, pcaFullName, recipientSignature: recipientSig, pcaSignature: pcaSig, supervisorSignature: supervisorSig, completionDate,
             };
@@ -570,11 +573,28 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                     onRemoveShift={handleRemoveShift}
                 />
 
+                {/* Companion Section */}
+                <ProgramSection
+                    title="Companion"
+                    subtitle="Companion Services"
+                    icon={Icons.users}
+                    colorClass="pink"
+                    activities={COMPANION_ACTIVITIES}
+                    section="companion"
+                    entries={entries}
+                    updateEntry={updateEntry}
+                    disabled={readOnly || !companionEnabled}
+                    sectionDisabled={!companionEnabled}
+                    dailyHoursFn={companionDailyHours}
+                    onAddShift={handleAddShift}
+                    onRemoveShift={handleRemoveShift}
+                />
+
                 {/* Daily Totals Bar */}
                 <div className="tsv2-daily-totals">
                     <div className="tsv2-daily-totals__label">DAILY TOTAL (All Programs)</div>
                     {entries.map((e, i) => {
-                        const dayTotal = adlDailyHours(e) + iadlDailyHours(e) + respiteDailyHours(e);
+                        const dayTotal = adlDailyHours(e) + iadlDailyHours(e) + respiteDailyHours(e) + companionDailyHours(e);
                         const dayUnits = Math.round(dayTotal * 4);
                         return (
                             <div key={i} className="tsv2-daily-totals__cell">

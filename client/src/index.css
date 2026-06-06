@@ -5177,6 +5177,10 @@ button.sdr-section-tag:hover:not(:disabled) {
   background: hsl(25 80% 93%);
   color: #ea580c;
 }
+.tsv2-section-icon--pink {
+  background: hsl(330 80% 93%);
+  color: #ec4899;
+}
 
 .tsv2-section-name {
   font-size: 13px;
@@ -5186,6 +5190,7 @@ button.sdr-section-tag:hover:not(:disabled) {
 .tsv2-section-name--blue { color: #1e40af; }
 .tsv2-section-name--green { color: #16a34a; }
 .tsv2-section-name--orange { color: #ea580c; }
+.tsv2-section-name--pink { color: #ec4899; }
 
 .tsv2-section-subtitle {
   font-size: 11px;

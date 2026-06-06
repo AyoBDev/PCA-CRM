@@ -31,6 +31,9 @@ const IADL_ACTIVITIES = [
 const RESPITE_ACTIVITIES = [
     'Companionship', 'Safety Supervision',
 ];
+const COMPANION_ACTIVITIES = [
+    'Companionship', 'Safety Supervision', 'Social Activities', 'Light Errands', 'Other',
+];
 
 // ── 15-minute rounding ──────────────────────────
 function roundTo15(timeStr) {
@@ -670,6 +673,13 @@ async function exportTimesheetPdf(req, res, next) {
             drawSection('Respite', 'Respite Services', RESPITE_ACTIVITIES, 'respite', orange);
         }
 
+        const hasCompanion = (ts.totalCompanionHours || 0) > 0 || ts.entries.some(e => {
+            try { return Object.values(JSON.parse(e.companionActivities || '{}')).some(Boolean); } catch { return false; }
+        });
+        if (hasCompanion) {
+            drawSection('Companion', 'Companion Services', COMPANION_ACTIVITIES, 'companion', '#ec4899');
+        }
+
         // ═══ DAILY TOTALS BAR ═══
         const barH = 30;
         doc.save().rect(mL, gridY, pageW, barH).fill(navy).restore();
@@ -687,7 +697,7 @@ async function exportTimesheetPdf(req, res, next) {
 
         for (let i = 0; i < 7; i++) {
             const e = ts.entries[i];
-            const dh = (e?.adlHours || 0) + (e?.iadlHours || 0) + (e?.respiteHours || 0);
+            const dh = (e?.adlHours || 0) + (e?.iadlHours || 0) + (e?.respiteHours || 0) + (e?.companionHours || 0);
             const du = Math.round(dh * 4);
             const x = mL + labelW + i * dayW;
             if (dh > 0) {
