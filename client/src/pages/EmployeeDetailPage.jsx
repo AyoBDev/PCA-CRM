@@ -7,12 +7,14 @@ import Breadcrumbs from '../components/common/Breadcrumbs';
 import { EntityActivityButton } from '../components/common/ActivityDrawer';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
+import PayrollTab from './employee-tabs/PayrollTab';
 
 const TABS = [
     { key: 'profile', label: 'Profile', icon: 'user' },
     { key: 'certifications', label: 'Certifications', icon: 'shieldCheck' },
     { key: 'timesheets', label: 'Timesheets', icon: 'clock' },
     { key: 'schedule', label: 'Schedule', icon: 'calendar' },
+    { key: 'payroll', label: 'Payroll', icon: 'dollarSign', adminOnly: true },
     { key: 'activity', label: 'Activity Log', icon: 'clipboard' },
 ];
 
@@ -403,7 +405,7 @@ export default function EmployeeDetailPage() {
 
                 {/* TAB NAVIGATION */}
                 <div className="cp-tabs">
-                    {TABS.map(tab => (
+                    {TABS.filter(tab => !tab.adminOnly || isAdmin).map(tab => (
                         <button
                             key={tab.key}
                             className={`cp-tab ${activeTab === tab.key ? 'cp-tab--active' : ''}`}
@@ -434,6 +436,9 @@ export default function EmployeeDetailPage() {
                     )}
                     {activeTab === 'schedule' && (
                         <ScheduleTab shifts={shifts} loading={shiftsLoading} navigate={navigate} />
+                    )}
+                    {activeTab === 'payroll' && (
+                        <PayrollTab employeeId={employee.id} />
                     )}
                     {activeTab === 'activity' && (
                         <ActivityTab employeeId={employee.id} />

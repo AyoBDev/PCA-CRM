@@ -21,7 +21,7 @@ async function sendSms(to, body) {
     });
 }
 
-async function sendEmail(to, subject, html, text) {
+async function sendEmail(to, subject, html, text, attachments) {
     if (!isEmailConfigured()) throw new Error('Email not configured — set BREVO_API_KEY');
     const SibApiV3Sdk = require('sib-api-v3-sdk');
     const client = SibApiV3Sdk.ApiClient.instance;
@@ -36,6 +36,12 @@ async function sendEmail(to, subject, html, text) {
     sendSmtpEmail.subject = subject;
     sendSmtpEmail.htmlContent = html;
     if (text) sendSmtpEmail.textContent = text;
+    if (attachments && attachments.length > 0) {
+        sendSmtpEmail.attachment = attachments.map(a => ({
+            content: a.content,
+            name: a.name,
+        }));
+    }
     return apiInstance.sendTransacEmail(sendSmtpEmail);
 }
 

@@ -18,6 +18,7 @@ const InsuranceTypesPage = lazy(() => import('./pages/InsuranceTypesPage'));
 const ServicesPage = lazy(() => import('./pages/ServicesPage'));
 const UsersPage = lazy(() => import('./pages/UsersPage'));
 const PayrollPage = lazy(() => import('./pages/PayrollPage'));
+const ReceiptsPage = lazy(() => import('./pages/ReceiptsPage'));
 const SchedulingPage = lazy(() => import('./pages/SchedulingPage'));
 const TasksPage = lazy(() => import('./pages/TasksPage'));
 const EmployeesPage = lazy(() => import('./pages/EmployeesPage'));
@@ -65,6 +66,7 @@ function AppRoutes() {
                 <Route path="/tasks" element={<ProtectedRoute staffOnly><Layout><TasksPage /></Layout></ProtectedRoute>} />
                 <Route path="/payroll" element={<ProtectedRoute staffOnly><Layout><PayrollPage /></Layout></ProtectedRoute>} />
                 <Route path="/payroll/runs/:runId" element={<ProtectedRoute staffOnly><Layout><PayrollPage /></Layout></ProtectedRoute>} />
+                <Route path="/receipts" element={<ProtectedRoute adminOnly><Layout><ReceiptsPage /></Layout></ProtectedRoute>} />
                 <Route path="/insurance-types" element={<ProtectedRoute staffOnly><Layout><InsuranceTypesPage /></Layout></ProtectedRoute>} />
                 <Route path="/services" element={<ProtectedRoute staffOnly><Layout><ServicesPage /></Layout></ProtectedRoute>} />
                 <Route path="/employees" element={<ProtectedRoute staffOnly><Layout><EmployeesPage /></Layout></ProtectedRoute>} />

@@ -13,6 +13,7 @@ const PATH_TO_PAGE = {
     '/scheduling': 'scheduling',
     '/tasks': 'tasks',
     '/payroll': 'payroll',
+    '/receipts': 'receipts',
     '/employees': 'employees',
     '/insurance-types': 'insuranceTypes',
     '/services': 'services',
@@ -106,6 +107,11 @@ export default function Sidebar({ onMobileClose }) {
                 {isStaff && (
                     <button className={`sidebar__nav-item ${activePage === 'payroll' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/payroll')} title="Payroll">
                         {Icons.dollarSign} Payroll
+                    </button>
+                )}
+                {isAdmin && (
+                    <button className={`sidebar__nav-item ${activePage === 'receipts' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/receipts')} title="Receipts">
+                        {Icons.fileText} Receipts
                     </button>
                 )}
             </nav>

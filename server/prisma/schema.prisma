@@ -71,6 +71,8 @@ model Employee {
   user                    User?                  @relation(fields: [userId], references: [id])
   notifications           ScheduleNotification[]
   shifts                  Shift[]
+  payrollProfile          PayrollProfile?
+  receipts                PayReceipt[]
 
   @@map("employees")
 }
@@ -466,6 +468,63 @@ model PayrollVisit {
 
   @@index([runId])
   @@map("payroll_visits")
+}
+
+model PayrollProfile {
+  id                     Int       @id @default(autoincrement())
+  employeeId             Int       @unique @map("employee_id")
+  hourlyRate             Decimal   @default(0) @map("hourly_rate") @db.Decimal(10, 2)
+  classification         String    @default("W2") @map("classification")
+  ein                    String    @default("") @map("ein")
+  ssn                    String    @default("") @map("ssn")
+  accountNumber          String    @default("") @map("account_number")
+  garnishmentActive      Boolean   @default(false) @map("garnishment_active")
+  childSupportActive     Boolean   @default(false) @map("child_support_active")
+  childSupportAmount     Decimal   @default(0) @map("child_support_amount") @db.Decimal(10, 2)
+  overpaymentBalance     Decimal   @default(0) @map("overpayment_balance") @db.Decimal(10, 2)
+  ytdGrossOverride       Decimal?  @map("ytd_gross_override") @db.Decimal(10, 2)
+  ytdDeductionsOverride  Decimal?  @map("ytd_deductions_override") @db.Decimal(10, 2)
+  ytdNetOverride         Decimal?  @map("ytd_net_override") @db.Decimal(10, 2)
+  ytdOverpaymentOverride Decimal?  @map("ytd_overpayment_override") @db.Decimal(10, 2)
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  employee               Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("payroll_profiles")
+}
+
+model PayReceipt {
+  id                   Int       @id @default(autoincrement())
+  employeeId           Int       @map("employee_id")
+  periodStart          DateTime  @map("period_start")
+  periodEnd            DateTime  @map("period_end")
+  payDate              DateTime  @map("pay_date")
+  totalHours           Decimal   @default(0) @map("total_hours") @db.Decimal(10, 2)
+  hourlyRate           Decimal   @default(0) @map("hourly_rate") @db.Decimal(10, 2)
+  grossEarnings        Decimal   @default(0) @map("gross_earnings") @db.Decimal(10, 2)
+  garnishment          Decimal   @default(0) @map("garnishment") @db.Decimal(10, 2)
+  childSupport         Decimal   @default(0) @map("child_support") @db.Decimal(10, 2)
+  overpaymentDeduction Decimal   @default(0) @map("overpayment_deduction") @db.Decimal(10, 2)
+  otherDeductions      Decimal   @default(0) @map("other_deductions") @db.Decimal(10, 2)
+  netPay               Decimal   @default(0) @map("net_pay") @db.Decimal(10, 2)
+  ytdGross             Decimal   @default(0) @map("ytd_gross") @db.Decimal(10, 2)
+  ytdDeductions        Decimal   @default(0) @map("ytd_deductions") @db.Decimal(10, 2)
+  ytdOverpayments      Decimal   @default(0) @map("ytd_overpayments") @db.Decimal(10, 2)
+  ytdNet               Decimal   @default(0) @map("ytd_net") @db.Decimal(10, 2)
+  classification       String    @default("W2") @map("classification")
+  status               String    @default("draft") @map("status")
+  emailSentAt          DateTime? @map("email_sent_at")
+  notes                String    @default("") @map("notes")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  employee             Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, periodStart])
+  @@index([employeeId])
+  @@index([periodStart])
+  @@map("pay_receipts")
 }
 
 model Shift {
