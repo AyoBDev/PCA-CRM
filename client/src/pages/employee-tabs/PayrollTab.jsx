@@ -64,7 +64,7 @@ export default function PayrollTab({ employeeId }) {
         return (
             <div className="cp-tab-panel">
                 <div className="cp-card cp-card--elevated" style={{ textAlign: 'center', padding: '48px 24px' }}>
-                    <div style={{ color: 'hsl(var(--muted-foreground))', marginBottom: 12 }}>{Icons.dollarSign}</div>
+                    <div style={{ width: 32, height: 32, color: 'hsl(var(--muted-foreground))', marginBottom: 12, margin: '0 auto 12px' }}>{Icons.dollarSign}</div>
                     <h3 style={{ margin: '0 0 8px', fontSize: 15, fontWeight: 600 }}>No payroll profile</h3>
                     <p style={{ margin: '0 0 20px', fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>Set up payroll details for this employee.</p>
                     <button className="btn btn--primary" onClick={() => { setEditing(true); setForm({ hourlyRate: 0, classification: 'W2', ssn: '', ein: '', accountNumber: '', garnishmentActive: false, childSupportActive: false, childSupportAmount: 0, overpaymentBalance: 0 }); }}>
