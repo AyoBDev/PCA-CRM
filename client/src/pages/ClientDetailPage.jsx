@@ -109,6 +109,7 @@ export default function ClientDetailPage() {
     const [editingIncident, setEditingIncident] = useState(null);
     const [incidentForm, setIncidentForm] = useState({ incidentDate: '', description: '', severity: 'minor', reportedBy: '', notes: '' });
     const [confirmDelete, setConfirmDelete] = useState(null);
+    const [confirmArchiveClient, setConfirmArchiveClient] = useState(false);
     const [saving, setSaving] = useState(false);
     const [editingNotes, setEditingNotes] = useState(false);
     const [notesValue, setNotesValue] = useState('');
@@ -535,6 +536,17 @@ export default function ClientDetailPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    const handleArchiveClient = async () => {
+        try {
+            await api.deleteClient(client.id);
+            setConfirmArchiveClient(false);
+            navigate('/clients');
+            showToast(`"${client.clientName}" archived`);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    };
+
     const handleUploadAuthDoc = async (authId, file) => {
         try {
             const formData = new FormData();
@@ -656,6 +668,9 @@ export default function ClientDetailPage() {
                     <EntityActivityButton entityType="Client" entityId={client.id} />
                     <button className="btn btn--outline btn--sm" onClick={openEditClientModal}>
                         {Icons.edit} Edit Client
+                    </button>
+                    <button className="btn btn--danger-ghost btn--sm" onClick={() => setConfirmArchiveClient(true)}>
+                        {Icons.trash} Archive
                     </button>
                 </div>
             </div>
@@ -1318,6 +1333,16 @@ export default function ClientDetailPage() {
                         else handleDeleteIncident(confirmDelete.item);
                     }}
                     onClose={() => setConfirmDelete(null)}
+                />
+            )}
+            {confirmArchiveClient && (
+                <ConfirmModal
+                    title="Archive Client"
+                    message={`Archive "${client.clientName}"? This will remove them from authorizations, scheduling, and timesheets. You can restore from the trash drawer.`}
+                    confirmLabel="Archive"
+                    confirmVariant="danger"
+                    onConfirm={handleArchiveClient}
+                    onClose={() => setConfirmArchiveClient(false)}
                 />
             )}
         </>
