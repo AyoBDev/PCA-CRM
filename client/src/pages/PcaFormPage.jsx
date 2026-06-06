@@ -617,6 +617,12 @@ export default function PcaFormPage() {
                 )}
             </div>
 
+            {data?.timesheet?.correctionNote && (
+                <div style={{ margin: '0 16px 12px', padding: '10px 14px', background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 8, fontSize: 13, color: '#92400e' }}>
+                    <strong>Correction Needed:</strong> {data.timesheet.correctionNote}
+                </div>
+            )}
+
             {/* Mobile: Day tabs + Auth bar + unsaved banner */}
             {isMobile && (
                 <>

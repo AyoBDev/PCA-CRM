@@ -350,6 +350,7 @@ model Timesheet {
   supervisorName      String           @default("Sona Hakobyan") @map("supervisor_name")
   supervisorSignature String           @default("") @map("supervisor_signature")
   completionDate      String           @default("") @map("completion_date")
+  correctionNote      String           @default("") @map("correction_note")
   submittedAt         DateTime?        @map("submitted_at")
   acceptedAt          DateTime?        @map("accepted_at")
   archivedAt          DateTime?        @map("archived_at")

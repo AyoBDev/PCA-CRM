@@ -230,6 +230,8 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
     const [shareLinkModal, setShareLinkModal] = useState(null);
     const [enabledServices, setEnabledServices] = useState(['PAS', 'Homemaker']);
     const [notes, setNotes] = useState('');
+    const [showCorrectionModal, setShowCorrectionModal] = useState(false);
+    const [correctionNote, setCorrectionNote] = useState('');
 
     const submitted = ts?.status === 'submitted';
     const accepted = ts?.status === 'accepted';
@@ -360,6 +362,17 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
             const data = await api.updateTimesheetStatus(ts.id, 'rejected');
             setTs(data);
             showToast('Timesheet sent back for corrections');
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleSendBackForCorrection = async () => {
+        if (!correctionNote.trim()) return;
+        try {
+            const data = await api.updateTimesheetStatus(ts.id, 'rejected', correctionNote.trim());
+            setTs(data);
+            setShowCorrectionModal(false);
+            setCorrectionNote('');
+            showToast('Sent back for corrections', 'success');
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -688,10 +701,13 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                                 <div className="tsv2-office-actions">
                                     <button className="btn--accept" onClick={handleAcceptTimesheet} disabled={!submitted}><span className="tsv2-btn-icon">{Icons.checkCircle}</span> Accept</button>
                                     <button className="btn--reject" onClick={handleRejectTimesheet} disabled={!submitted}><span className="tsv2-btn-icon">{Icons.alertCircle}</span> Reject</button>
-                                    <button className="btn--sendback" onClick={handleRevertToDraft} disabled={!submitted && !accepted}><span className="tsv2-btn-icon">{Icons.rotateCcw}</span> Send Back for Corrections</button>
+                                    <button className="btn--sendback" onClick={() => setShowCorrectionModal(true)} disabled={!submitted && !accepted}><span className="tsv2-btn-icon">{Icons.rotateCcw}</span> Send Back for Corrections</button>
                                 </div>
-                                <div className="tsv2-office-comment">Comments (required if rejected or sent back)</div>
-                                <textarea className="tsv2-office-textarea" placeholder="Add comments here..." />
+                                {ts?.correctionNote && (
+                                    <div className="tsv2-office-comment" style={{ marginTop: 8, padding: '8px 12px', background: 'hsl(var(--warning) / 0.1)', borderRadius: 6, fontSize: 13 }}>
+                                        <strong>Correction Note:</strong> {ts.correctionNote}
+                                    </div>
+                                )}
                             </>
                         )}
                     </div>
@@ -731,6 +747,21 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                             <input type="text" readOnly value={shareLinkModal.link} className="share-link-input" />
                             <button className="btn btn--outline btn--sm" onClick={() => { navigator.clipboard.writeText(shareLinkModal.link); showToast('Link copied!'); }}>{Icons.copy} Copy</button>
                         </div>
+                    </div>
+                </Modal>
+            )}
+
+            {showCorrectionModal && (
+                <Modal onClose={() => { setShowCorrectionModal(false); setCorrectionNote(''); }}>
+                    <h2 className="modal__title">Send Back for Corrections</h2>
+                    <p className="modal__desc">Describe what needs to be corrected. The timesheet will be returned to draft status.</p>
+                    <div className="form-group">
+                        <label>Correction Notes</label>
+                        <textarea rows={4} value={correctionNote} onChange={e => setCorrectionNote(e.target.value)} placeholder="Describe what needs to be fixed..." />
+                    </div>
+                    <div className="form-actions">
+                        <button className="btn btn--outline" onClick={() => { setShowCorrectionModal(false); setCorrectionNote(''); }}>Cancel</button>
+                        <button className="btn btn--primary" onClick={handleSendBackForCorrection} disabled={!correctionNote.trim()}>Send</button>
                     </div>
                 </Modal>
             )}

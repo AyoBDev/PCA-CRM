@@ -311,8 +311,8 @@ export const restoreTimesheet = (id) =>
     request(`/timesheets/${id}/restore`, { method: 'PUT' });
 
 // Timesheet Status (admin revert)
-export const updateTimesheetStatus = (id, status) =>
-    request(`/timesheets/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) });
+export const updateTimesheetStatus = (id, status, correctionNote) =>
+    request(`/timesheets/${id}/status`, { method: 'PUT', body: JSON.stringify({ status, correctionNote }) });
 
 // Signing Links
 export const generateSigningLinks = (timesheetId) =>

@@ -764,7 +764,7 @@ async function exportTimesheetPdf(req, res, next) {
 async function updateTimesheetStatus(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const { status } = req.body;
+        const { status, correctionNote } = req.body;
         if (!['draft', 'submitted', 'accepted', 'rejected'].includes(status)) {
             return res.status(400).json({ error: 'Invalid status' });
         }
@@ -774,9 +774,14 @@ async function updateTimesheetStatus(req, res, next) {
         const data = { status };
         if (status === 'rejected') {
             data.status = 'draft';
+            if (correctionNote) data.correctionNote = correctionNote;
         }
         if (status === 'accepted') {
             data.acceptedAt = new Date();
+            data.correctionNote = '';
+        }
+        if (status === 'submitted') {
+            data.correctionNote = '';
         }
 
         const ts = await prisma.timesheet.update({
@@ -788,7 +793,10 @@ async function updateTimesheetStatus(req, res, next) {
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             action: 'UPDATE', entityType: 'Timesheet', entityId: ts.id,
             entityName: `${ts.pcaName} - ${ts.client?.clientName || ''}`,
-            changes: [{ field: 'status', oldValue: existing.status, newValue: status === 'rejected' ? 'draft (rejected)' : status }],
+            changes: [
+                { field: 'status', oldValue: existing.status, newValue: status === 'rejected' ? 'draft (sent back)' : status },
+                ...(correctionNote ? [{ field: 'correctionNote', oldValue: '', newValue: correctionNote }] : []),
+            ],
         });
         res.json(ts);
     } catch (err) {
