@@ -1,5 +1,4 @@
 const prisma = require('../lib/prisma');
-const { filterAuthsByWeek } = require('../services/authorizationService');
 
 function roundTo15(timeStr) {
   if (!timeStr) return null;
@@ -38,16 +37,19 @@ function computeTotalHoursWithBlocks(timeIn, timeOut, timeBlocksJson) {
 // Handles serviceCode === 'TIMESHEETS' by falling back to serviceName-based matching.
 function deriveTimesheetService(auth) {
   const code = auth.serviceCode;
-  if (code === 'PCS' || code === 'PAS' || code === 'TIMESHEET_PCS' || code === 'COPE') return 'PAS';
-  if (code === 'S5130' || code === 'TIMESHEET_HOMEMAKER' || code === 'TIMESHEET_CHORE' || code === 'S5120') return 'Homemaker';
+  if (code === 'PCS' || code === 'PAS' || code === 'S5125' || code === 'TIMESHEET_PCS' || code === 'COPE') return 'PAS';
+  if (code === 'S5130' || code === 'S5120' || code === 'TIMESHEET_HOMEMAKER' || code === 'TIMESHEET_CHORE') return 'Homemaker';
   if (code === 'S5150' || code === 'TIMESHEET_RESPITE') return 'Respite';
   if (code === 'S5135' || code === 'TIMESHEET_COMPANION') return 'Companion';
+  if (code === 'SDPC') return 'PAS';
   if (code === 'TIMESHEETS' || !code) {
-    const name = (auth.serviceName || '').toLowerCase();
+    const name = (auth.serviceName || auth.serviceCategory || '').toLowerCase();
     if (name === 'pas' || name === 'pca' || (name.includes('personal') && name.includes('care'))) return 'PAS';
     if (name === 'hm' || name.includes('homemaker')) return 'Homemaker';
     if (name.includes('respite')) return 'Respite';
     if (name.includes('companion')) return 'Companion';
+    if (name.includes('chore')) return 'Homemaker';
+    return 'PAS';
   }
   return null;
 }
@@ -152,23 +154,37 @@ async function getPcaForm(req, res, next) {
       select: {
         serviceCode: true,
         serviceName: true,
+        serviceCategory: true,
         authorizedUnits: true,
         authorizationStartDate: true,
         authorizationEndDate: true,
+        manualStatus: true,
+        archivedAt: true,
       },
     });
 
-    // Filter to authorizations active during this timesheet's week
-    const authorizations = filterAuthsByWeek(allAuthorizations, weekStart, weekEnd);
+    // Filter to active authorizations overlapping this week (no dedup — accumulate all per derived service)
+    const wsMs = Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate());
+    const weMs = Date.UTC(weekEnd.getUTCFullYear(), weekEnd.getUTCMonth(), weekEnd.getUTCDate());
+    const authorizations = allAuthorizations.filter(auth => {
+      if ((auth.manualStatus || 'active') !== 'active') return false;
+      if (auth.archivedAt) return false;
+      if (auth.authorizationStartDate) {
+        const sd = new Date(auth.authorizationStartDate);
+        if (Date.UTC(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate()) > weMs) return false;
+      }
+      if (auth.authorizationEndDate) {
+        const ed = new Date(auth.authorizationEndDate);
+        if (Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate()) < wsMs) return false;
+      }
+      return true;
+    });
 
     // Build a map of service → authorized weekly units
-    // Service code mapping: PCS/PAS → PAS, S5130 → Homemaker, S5150 → Respite
-    // Also handles TIMESHEETS entries by deriving service from serviceName
     const authLimits = {};
     for (const auth of authorizations) {
       const service = deriveTimesheetService(auth);
       if (service) {
-        // authorizedUnits are weekly 15-min units — accumulate across matching auths
         if (!authLimits[service]) {
           authLimits[service] = {
             units: 0,
@@ -359,14 +375,28 @@ async function updatePcaForm(req, res, next) {
         }
       }
 
-      // Check authorization limits — filter by timesheet week
+      // Check authorization limits — filter by timesheet week (no dedup)
       const submitWeekEnd = new Date(weekStart);
       submitWeekEnd.setUTCDate(submitWeekEnd.getUTCDate() + 6);
       const allAuthz = await prisma.authorization.findMany({
         where: { clientId: link.clientId },
-        select: { serviceCode: true, serviceName: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true },
+        select: { serviceCode: true, serviceName: true, serviceCategory: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true, manualStatus: true, archivedAt: true },
       });
-      const authz = filterAuthsByWeek(allAuthz, weekStart, submitWeekEnd);
+      const swsMs = Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate());
+      const sweMs = Date.UTC(submitWeekEnd.getUTCFullYear(), submitWeekEnd.getUTCMonth(), submitWeekEnd.getUTCDate());
+      const authz = allAuthz.filter(auth => {
+        if ((auth.manualStatus || 'active') !== 'active') return false;
+        if (auth.archivedAt) return false;
+        if (auth.authorizationStartDate) {
+          const sd = new Date(auth.authorizationStartDate);
+          if (Date.UTC(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate()) > sweMs) return false;
+        }
+        if (auth.authorizationEndDate) {
+          const ed = new Date(auth.authorizationEndDate);
+          if (Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate()) < swsMs) return false;
+        }
+        return true;
+      });
       const authMap = {};
       for (const a of authz) {
         const svc = deriveTimesheetService(a);
@@ -478,14 +508,28 @@ async function updatePcaForm(req, res, next) {
       include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
     });
 
-    // Fetch auth limits for response — filtered by timesheet week
+    // Fetch auth limits for response — filtered by timesheet week (no dedup)
     const respWeekEnd = new Date(weekStart);
     respWeekEnd.setUTCDate(respWeekEnd.getUTCDate() + 6);
     const allAuthzForResp = await prisma.authorization.findMany({
       where: { clientId: link.clientId },
-      select: { serviceCode: true, serviceName: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true },
+      select: { serviceCode: true, serviceName: true, serviceCategory: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true, manualStatus: true, archivedAt: true },
     });
-    const authzForResp = filterAuthsByWeek(allAuthzForResp, weekStart, respWeekEnd);
+    const rwsMs = Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate());
+    const rweMs = Date.UTC(respWeekEnd.getUTCFullYear(), respWeekEnd.getUTCMonth(), respWeekEnd.getUTCDate());
+    const authzForResp = allAuthzForResp.filter(auth => {
+      if ((auth.manualStatus || 'active') !== 'active') return false;
+      if (auth.archivedAt) return false;
+      if (auth.authorizationStartDate) {
+        const sd = new Date(auth.authorizationStartDate);
+        if (Date.UTC(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate()) > rweMs) return false;
+      }
+      if (auth.authorizationEndDate) {
+        const ed = new Date(auth.authorizationEndDate);
+        if (Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate()) < rwsMs) return false;
+      }
+      return true;
+    });
     const respAuthLimits = {};
     for (const auth of authzForResp) {
       const service = deriveTimesheetService(auth);
