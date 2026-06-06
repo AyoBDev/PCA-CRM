@@ -458,7 +458,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                         <div className="tsv2-programs__title">Service Types (Programs)</div>
                         <div className="tsv2-programs__subtitle">Select the programs provided for this client.</div>
                         <div className="tsv2-programs__grid">
-                            <div className={`tsv2-program-card ${pasEnabled ? 'tsv2-program-card--active-blue' : ''}`} onClick={() => toggleService('PAS')}>
+                            <div className={`tsv2-program-card ${pasEnabled ? 'tsv2-program-card--active-green' : ''}`} onClick={() => toggleService('PAS')}>
                                 <div className="tsv2-program-card__checkbox">{pasEnabled && '✓'}</div>
                                 <div>
                                     <div className="tsv2-program-card__name tsv2-program-card__name--blue">PAS</div>
@@ -466,7 +466,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                                     <div className="tsv2-program-card__activities">{ADL_ACTIVITIES.join(', ')}</div>
                                 </div>
                             </div>
-                            <div className={`tsv2-program-card ${hmEnabled ? 'tsv2-program-card--active-green' : ''}`} onClick={() => toggleService('Homemaker')}>
+                            <div className={`tsv2-program-card ${hmEnabled ? 'tsv2-program-card--active-amber' : ''}`} onClick={() => toggleService('Homemaker')}>
                                 <div className="tsv2-program-card__checkbox">{hmEnabled && '✓'}</div>
                                 <div>
                                     <div className="tsv2-program-card__name tsv2-program-card__name--green">Homemaker</div>
@@ -474,7 +474,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                                     <div className="tsv2-program-card__activities">{IADL_ACTIVITIES.join(', ')}</div>
                                 </div>
                             </div>
-                            <div className={`tsv2-program-card ${respiteEnabled ? 'tsv2-program-card--active-orange' : ''}`} onClick={() => toggleService('Respite')}>
+                            <div className={`tsv2-program-card ${respiteEnabled ? 'tsv2-program-card--active-cyan' : ''}`} onClick={() => toggleService('Respite')}>
                                 <div className="tsv2-program-card__checkbox">{respiteEnabled && '✓'}</div>
                                 <div>
                                     <div className="tsv2-program-card__name tsv2-program-card__name--orange">Respite</div>
