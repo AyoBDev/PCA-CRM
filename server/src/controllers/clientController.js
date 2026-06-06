@@ -209,10 +209,22 @@ async function patchClient(req, res, next) {
             include: { authorizations: true },
         });
 
-        if (clientStatus === 'inactive') {
+        if (clientStatus === 'inactive' || clientStatus === 'discharged' || clientStatus === 'transferred') {
             await prisma.authorization.updateMany({
-                where: { clientId: id, archivedAt: null },
+                where: { clientId: id, archivedAt: null, manualStatus: 'active' },
                 data: { manualStatus: 'inactive' },
+            });
+            const today = new Date();
+            today.setUTCHours(0, 0, 0, 0);
+            await prisma.shift.updateMany({
+                where: { clientId: id, archivedAt: null, shiftDate: { gt: today } },
+                data: { archivedAt: new Date() },
+            });
+        }
+        if (clientStatus === 'active' && oldClient.client_status !== 'active') {
+            await prisma.authorization.updateMany({
+                where: { clientId: id, manualStatus: 'inactive', archivedAt: null },
+                data: { manualStatus: 'active' },
             });
         }
 
@@ -239,6 +251,8 @@ async function deleteClient(req, res, next) {
         const now = new Date();
         await prisma.shift.updateMany({ where: { clientId: id, archivedAt: null }, data: { archivedAt: now } });
         await prisma.timesheet.updateMany({ where: { clientId: id, archivedAt: null }, data: { archivedAt: now } });
+        await prisma.authorization.updateMany({ where: { clientId: id, archivedAt: null }, data: { archivedAt: now } });
+        await prisma.permanentLink.updateMany({ where: { clientId: id, active: true }, data: { active: false } });
         const archived = await prisma.client.update({ where: { id }, data: { archivedAt: now }, include: { authorizations: true } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'ARCHIVE', entityType: 'Client', entityId: id, entityName: client.clientName });
         res.json(archived);
@@ -258,6 +272,8 @@ async function bulkDelete(req, res, next) {
         const now = new Date();
         await prisma.shift.updateMany({ where: { clientId: { in: numericIds }, archivedAt: null }, data: { archivedAt: now } });
         await prisma.timesheet.updateMany({ where: { clientId: { in: numericIds }, archivedAt: null }, data: { archivedAt: now } });
+        await prisma.authorization.updateMany({ where: { clientId: { in: numericIds }, archivedAt: null }, data: { archivedAt: now } });
+        await prisma.permanentLink.updateMany({ where: { clientId: { in: numericIds }, active: true }, data: { active: false } });
         await prisma.client.updateMany({ where: { id: { in: numericIds } }, data: { archivedAt: now } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'ARCHIVE', entityType: 'Client', entityId: 0, metadata: { count: numericIds.length } });
         res.json({ archived: numericIds.length });
@@ -272,8 +288,11 @@ async function restoreClient(req, res, next) {
         const id = Number(req.params.id);
         const client = await prisma.client.findUnique({ where: { id } });
         if (!client) return res.status(404).json({ error: 'Client not found' });
-        await prisma.shift.updateMany({ where: { clientId: id, archivedAt: { not: null } }, data: { archivedAt: null } });
-        await prisma.timesheet.updateMany({ where: { clientId: id, archivedAt: { not: null } }, data: { archivedAt: null } });
+        const clientArchivedAt = client.archivedAt;
+        await prisma.shift.updateMany({ where: { clientId: id, archivedAt: clientArchivedAt }, data: { archivedAt: null } });
+        await prisma.timesheet.updateMany({ where: { clientId: id, archivedAt: clientArchivedAt }, data: { archivedAt: null } });
+        await prisma.authorization.updateMany({ where: { clientId: id, archivedAt: clientArchivedAt }, data: { archivedAt: null } });
+        await prisma.permanentLink.updateMany({ where: { clientId: id, active: false }, data: { active: true } });
         const restored = await prisma.client.update({
             where: { id }, data: { archivedAt: null },
             include: { authorizations: { orderBy: { createdAt: 'asc' } } },
@@ -527,8 +546,16 @@ async function restoreClients(req, res, next) {
         if (!Array.isArray(clientIds) || clientIds.length === 0) {
             return res.status(400).json({ error: 'clientIds array is required' });
         }
+        const numericIds = clientIds.map(Number);
+        const clients = await prisma.client.findMany({ where: { id: { in: numericIds }, archivedAt: { not: null } } });
+        for (const client of clients) {
+            await prisma.shift.updateMany({ where: { clientId: client.id, archivedAt: client.archivedAt }, data: { archivedAt: null } });
+            await prisma.timesheet.updateMany({ where: { clientId: client.id, archivedAt: client.archivedAt }, data: { archivedAt: null } });
+            await prisma.authorization.updateMany({ where: { clientId: client.id, archivedAt: client.archivedAt }, data: { archivedAt: null } });
+            await prisma.permanentLink.updateMany({ where: { clientId: client.id, active: false }, data: { active: true } });
+        }
         const result = await prisma.client.updateMany({
-            where: { id: { in: clientIds.map(Number) }, archivedAt: { not: null } },
+            where: { id: { in: numericIds }, archivedAt: { not: null } },
             data: { archivedAt: null },
         });
         audit.logAction({
