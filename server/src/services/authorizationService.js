@@ -90,7 +90,11 @@ function computeStatus(daysToExpire, serviceCode) {
  */
 function enrichAuthorization(auth) {
   const daysToExpire = computeDaysToExpire(auth.authorizationEndDate);
-  const { status, statusColor } = computeStatus(daysToExpire, auth.serviceCode);
+  let { status, statusColor } = computeStatus(daysToExpire, auth.serviceCode);
+  if (auth.manualStatus === 'inactive') {
+    status = 'Expired';
+    statusColor = 'RED';
+  }
 
   const documents = (auth.authorization_documents || []).map(doc => ({
     id: doc.id,
