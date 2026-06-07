@@ -39,7 +39,8 @@ export default function ClientsListPage() {
     const [showCreateWizard, setShowCreateWizard] = useState(false);
     const [insuranceTypes, setInsuranceTypes] = useState([]);
     const [menuOpenId, setMenuOpenId] = useState(null);
-    const [sortOrder, setSortOrder] = useState('az');
+    const [sortField, setSortField] = useState('clientName');
+    const [sortDir, setSortDir] = useState('asc');
     const [previewClient, setPreviewClient] = useState(null);
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [bulkNoteModal, setBulkNoteModal] = useState(false);
@@ -122,6 +123,15 @@ export default function ClientsListPage() {
 
     const allServiceCodes = [...new Set(clients.flatMap(c => getServiceCodes(c)))].sort();
 
+    const handleSort = (field) => {
+        if (sortField === field) {
+            setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortDir('asc');
+        }
+    };
+
     const filtered = clients.filter(c => {
         if (statusFilter !== 'all' && getEffectiveStatus(c) !== statusFilter) return false;
         if (serviceFilter !== 'all' && !getServiceCodes(c).includes(serviceFilter)) return false;
@@ -129,9 +139,27 @@ export default function ClientsListPage() {
         const s = search.toLowerCase();
         return c.clientName.toLowerCase().includes(s) || (c.medicaidId || '').toLowerCase().includes(s);
     }).sort((a, b) => {
-        const nameA = (a.clientName || '').toLowerCase();
-        const nameB = (b.clientName || '').toLowerCase();
-        return sortOrder === 'az' ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
+        let cmp = 0;
+        switch (sortField) {
+            case 'clientName':
+                cmp = (a.clientName || '').localeCompare(b.clientName || '');
+                break;
+            case 'medicaidId':
+                cmp = (a.medicaidId || '').localeCompare(b.medicaidId || '');
+                break;
+            case 'gender':
+                cmp = (a.gender || '').localeCompare(b.gender || '');
+                break;
+            case 'dob':
+                cmp = (a.dob || '').localeCompare(b.dob || '');
+                break;
+            case 'status':
+                cmp = (getEffectiveStatus(a)).localeCompare(getEffectiveStatus(b));
+                break;
+            default:
+                cmp = (a.clientName || '').localeCompare(b.clientName || '');
+        }
+        return sortDir === 'asc' ? cmp : -cmp;
     });
 
     const getInitials = (name) => {
@@ -327,15 +355,53 @@ export default function ClientsListPage() {
                                             onChange={toggleSelectAll}
                                         />
                                     </th>
-                                    <th scope="col" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setSortOrder(sortOrder === 'az' ? 'za' : 'az')}>
-                                        <span className="th-content">Client <span className="th-sort th-sort--active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">{sortOrder === 'az' ? <path d="M7 9l5-5 5 5"/> : <path d="M7 15l5 5 5-5"/>}</svg></span></span>
+                                    <th scope="col" onClick={() => handleSort('clientName')} style={{ cursor: 'pointer' }}>
+                                        <span className="th-content">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                            Client Name
+                                            <span className={`th-sort${sortField === 'clientName' ? ' th-sort--active' : ''}`}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">{sortField === 'clientName' && sortDir === 'asc' ? <path d="M7 9l5-5 5 5"/> : sortField === 'clientName' && sortDir === 'desc' ? <path d="M7 15l5 5 5-5"/> : <path d="M7 15l5 5 5-5M7 9l5-5 5 5"/>}</svg></span>
+                                        </span>
                                     </th>
-                                    <th scope="col"><span className="th-content">Client ID</span></th>
-                                    <th scope="col"><span className="th-content">Gender</span></th>
-                                    <th scope="col"><span className="th-content">DOB</span></th>
-                                    <th scope="col"><span className="th-content">Services</span></th>
-                                    <th scope="col"><span className="th-content">Last Visit</span></th>
-                                    <th scope="col"><span className="th-content">Status</span></th>
+                                    <th scope="col" onClick={() => handleSort('medicaidId')} style={{ cursor: 'pointer' }}>
+                                        <span className="th-content">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="18" rx="2"/><path d="M8 7h8M8 12h8M8 17h4"/></svg>
+                                            Client ID
+                                            <span className={`th-sort${sortField === 'medicaidId' ? ' th-sort--active' : ''}`}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">{sortField === 'medicaidId' && sortDir === 'asc' ? <path d="M7 9l5-5 5 5"/> : sortField === 'medicaidId' && sortDir === 'desc' ? <path d="M7 15l5 5 5-5"/> : <path d="M7 15l5 5 5-5M7 9l5-5 5 5"/>}</svg></span>
+                                        </span>
+                                    </th>
+                                    <th scope="col" onClick={() => handleSort('gender')} style={{ cursor: 'pointer' }}>
+                                        <span className="th-content">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 10-16 0"/></svg>
+                                            Gender
+                                            <span className={`th-sort${sortField === 'gender' ? ' th-sort--active' : ''}`}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">{sortField === 'gender' && sortDir === 'asc' ? <path d="M7 9l5-5 5 5"/> : sortField === 'gender' && sortDir === 'desc' ? <path d="M7 15l5 5 5-5"/> : <path d="M7 15l5 5 5-5M7 9l5-5 5 5"/>}</svg></span>
+                                        </span>
+                                    </th>
+                                    <th scope="col" onClick={() => handleSort('dob')} style={{ cursor: 'pointer' }}>
+                                        <span className="th-content">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                                            DOB
+                                            <span className={`th-sort${sortField === 'dob' ? ' th-sort--active' : ''}`}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">{sortField === 'dob' && sortDir === 'asc' ? <path d="M7 9l5-5 5 5"/> : sortField === 'dob' && sortDir === 'desc' ? <path d="M7 15l5 5 5-5"/> : <path d="M7 15l5 5 5-5M7 9l5-5 5 5"/>}</svg></span>
+                                        </span>
+                                    </th>
+                                    <th scope="col">
+                                        <span className="th-content">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                            Services
+                                        </span>
+                                    </th>
+                                    <th scope="col">
+                                        <span className="th-content">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                                            Last Visit
+                                        </span>
+                                    </th>
+                                    <th scope="col" onClick={() => handleSort('status')} style={{ cursor: 'pointer' }}>
+                                        <span className="th-content">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                            Status
+                                            <span className={`th-sort${sortField === 'status' ? ' th-sort--active' : ''}`}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">{sortField === 'status' && sortDir === 'asc' ? <path d="M7 9l5-5 5 5"/> : sortField === 'status' && sortDir === 'desc' ? <path d="M7 15l5 5 5-5"/> : <path d="M7 15l5 5 5-5M7 9l5-5 5 5"/>}</svg></span>
+                                        </span>
+                                    </th>
                                     <th scope="col" style={{ width: 40 }}></th>
                                 </tr>
                             </thead>
