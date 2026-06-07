@@ -253,6 +253,27 @@ const SERVICE_CODE_COLORS = {
     TIMESHEETS: '#64748b',
 };
 
+const SERVICE_CODE_NAMES = {
+    PCS: 'Personal Care Services',
+    SDPC: 'Self Directed Personal Care',
+    S5125: 'Attendant Care',
+    S5130: 'Homemaker',
+    S5135: 'Companion',
+    S5150: 'Respite',
+    PAS: 'Personal Assistance Services',
+    COPE: 'Community Opportunities for Personal Empowerment',
+    S5120: 'Chore Services',
+    TIMESHEET_PCS: 'Timesheet PCS',
+    TIMESHEET_HOMEMAKER: 'Timesheet Homemaker',
+    TIMESHEET_RESPITE: 'Timesheet Respite',
+    TIMESHEET_COMPANION: 'Timesheet Companion',
+    TIMESHEET_CHORE: 'Timesheet Chore',
+};
+
+function getServiceName(auth) {
+    return auth.serviceName || SERVICE_CODE_NAMES[auth.serviceCode] || '';
+}
+
 function AuthFormModal({ auth, clientId, onSave, onClose, onRenewal, isRenewal }) {
     const [serviceCategory, setServiceCategory] = useState(auth?.serviceCategory || '');
     const [serviceCode, setServiceCode] = useState(auth?.serviceCode || 'PCS');
@@ -1270,7 +1291,7 @@ export default function AuthorizationsPage() {
                                                                 {activeAuths.map((auth) => (
                                                                     <tr key={`a-${auth.id}`} className="row-auth">
                                                                         <td></td>
-                                                                        <td style={{ fontSize: 12, fontWeight: 700, color: SERVICE_CODE_COLORS[auth.serviceCode] || '#64748b' }}>{auth.serviceCode}{auth.serviceName ? ` — ${auth.serviceName}` : ''}</td>
+                                                                        <td style={{ fontSize: 12, fontWeight: 700, color: SERVICE_CODE_COLORS[auth.serviceCode] || '#64748b' }}>{auth.serviceCode}{getServiceName(auth) ? ` — ${getServiceName(auth)}` : ''}</td>
                                                                         <td style={{ fontSize: 13, fontWeight: 500 }}>
                                                                             {auth.authorizationNumber || '—'}
                                                                         </td>
@@ -1477,7 +1498,7 @@ export default function AuthorizationsPage() {
                                         <tr key={auth.id}>
                                             <td>{auth.serviceCategory || '—'}</td>
                                             <td>{auth.serviceCode}</td>
-                                            <td>{auth.serviceName || '—'}</td>
+                                            <td>{getServiceName(auth) || '—'}</td>
                                             <td>{auth.authorizedUnits}</td>
                                             <td>{fmtDate(auth.authorizationStartDate)}</td>
                                             <td>{fmtDate(auth.authorizationEndDate)}</td>
