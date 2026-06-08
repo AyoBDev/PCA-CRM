@@ -5,7 +5,8 @@ import Modal from '../components/common/Modal';
 import { hhmm12 } from '../utils/time';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
-import { ActivityButton } from '../components/common/ActivityDrawer';
+import ActionBar from '../components/common/ActionBar';
+import { useUndoStack } from '../hooks/useUndoStack';
 import ScheduleDelivery from './scheduling/ScheduleDelivery';
 import MonthlyCalendarView from './scheduling/MonthlyCalendarView';
 import FutureShiftsView from './scheduling/FutureShiftsView';
@@ -2033,6 +2034,7 @@ function ScheduleMatrix({ shifts, weekStart, rowBy, onEditShift, overlapIds, cli
 export default function SchedulingPage() {
     const { isAdmin } = useAuth();
     const { showToast, showUndoToast } = useToast();
+    const undoState = useUndoStack();
     const [clients, setClients] = useState([]);
     const [employees, setEmployees] = useState([]);
 
@@ -2497,39 +2499,32 @@ export default function SchedulingPage() {
     return (
         <>
             {/* Header */}
-            <div className="page-hero">
-                <div className="page-hero__left">
-                    <div className="page-hero__icon">{Icons.calendar}</div>
-                    <div>
-                        <div className="page-hero__title">Scheduling</div>
-                        <div className="page-hero__subtitle">Plan and manage caregiver shifts</div>
-                    </div>
+            <ActionBar
+                title="Scheduling"
+                subtitle="Plan and manage caregiver shifts"
+                icon={Icons.calendar}
+                undoStack={undoState}
+                activityEntity="Shift"
+                bulkActions={isAdmin ? [
+                    { label: 'Bulk Edit', action: () => setModal({ type: 'bulkEdit' }) },
+                ] : undefined}
+                bulkCount={allShifts.length > 0 ? 1 : 0}
+                createLabel="Create Shift"
+                onCreate={() => setModal({ type: 'shift', shift: null, defaultClientId: viewMode === 'future' ? futureFilterContext.clientId : selectedClientId, defaultEmployeeId: viewMode === 'future' ? futureFilterContext.employeeId : selectedEmployeeId })}
+            />
+            <div className="filter-bar">
+                <div className="sched-view-switcher">
+                    <button className={`sched-view-switcher__btn ${viewMode === 'week' ? 'sched-view-switcher__btn--active' : ''}`} onClick={() => setViewMode('week')}>Week</button>
+                    <button className={`sched-view-switcher__btn ${viewMode === 'month' ? 'sched-view-switcher__btn--active' : ''}`} onClick={() => setViewMode('month')}>Month</button>
+                    <button className={`sched-view-switcher__btn ${viewMode === 'future' ? 'sched-view-switcher__btn--active' : ''}`} onClick={() => setViewMode('future')}>Future</button>
                 </div>
-                <div className="page-hero__right">
-                    <div className="sched-view-switcher">
-                        <button className={`sched-view-switcher__btn ${viewMode === 'week' ? 'sched-view-switcher__btn--active' : ''}`} onClick={() => setViewMode('week')}>Week</button>
-                        <button className={`sched-view-switcher__btn ${viewMode === 'month' ? 'sched-view-switcher__btn--active' : ''}`} onClick={() => setViewMode('month')}>Month</button>
-                        <button className={`sched-view-switcher__btn ${viewMode === 'future' ? 'sched-view-switcher__btn--active' : ''}`} onClick={() => setViewMode('future')}>Future</button>
-                    </div>
-                    <button
-                        className="btn btn--outline btn--sm"
-                        onClick={() => setTrashOpen(true)}
-                        title="View archived shifts"
-                    >
-                        {Icons.trash}
-                    </button>
-                    {isAdmin && <ActivityButton entityType="Shift" />}
-                    <button
-                        className="btn btn--outline"
-                        onClick={() => setModal({ type: 'bulkEdit' })}
-                        disabled={allShifts.length === 0}
-                    >
-                        {Icons.edit} Bulk Edit
-                    </button>
-                    <button className="btn btn--primary" onClick={() => setModal({ type: 'shift', shift: null, defaultClientId: viewMode === 'future' ? futureFilterContext.clientId : selectedClientId, defaultEmployeeId: viewMode === 'future' ? futureFilterContext.employeeId : selectedEmployeeId })}>
-                        {Icons.plus} Create Shift
-                    </button>
-                </div>
+                <button
+                    className="btn btn--outline btn--sm"
+                    onClick={() => setTrashOpen(true)}
+                    title="View archived shifts"
+                >
+                    {Icons.trash}
+                </button>
             </div>
 
             <div className="page-content">
