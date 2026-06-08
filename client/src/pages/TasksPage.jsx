@@ -6,6 +6,7 @@ import TaskModal from '../components/tasks/TaskModal';
 import Icons from '../components/common/Icons';
 import Pagination from '../components/common/Pagination';
 import LoadingState from '../components/common/LoadingState';
+import ActionBar from '../components/common/ActionBar';
 
 const STATUS_OPTIONS = ['all', 'open', 'in_progress', 'completed', 'cancelled'];
 const URGENCY_OPTIONS = ['all', 'low', 'medium', 'high'];
@@ -136,25 +137,21 @@ export default function TasksPage() {
 
     return (
         <>
-            <div className="page-hero">
-                <div className="page-hero__left">
-                    <div className="page-hero__icon">{Icons.checkSquare}</div>
-                    <div>
-                        <div className="page-hero__title">Tasks</div>
-                        <div className="page-hero__subtitle">Manage tasks and workflow automation</div>
-                    </div>
-                </div>
+            <ActionBar
+                title="Tasks"
+                subtitle="Manage tasks and workflow automation"
+                icon={Icons.checkSquare}
+                hideUndo
+                activityEntity="Task"
+                createLabel="Add Task"
+                onCreate={() => { setEditingTask(null); setModalOpen(true); }}
+            >
                 {isAdmin && (
-                    <div className="page-hero__right">
-                        <button className="btn btn--outline" onClick={() => setShowSettings(!showSettings)}>
-                            {Icons.settings} {showSettings ? 'Hide Settings' : 'Settings'}
-                        </button>
-                        <button className="btn btn--primary" onClick={() => { setEditingTask(null); setModalOpen(true); }}>
-                            {Icons.plus} New Task
-                        </button>
-                    </div>
+                    <button className="btn btn--outline" onClick={() => setShowSettings(!showSettings)}>
+                        {Icons.settings} {showSettings ? 'Hide Settings' : 'Settings'}
+                    </button>
                 )}
-            </div>
+            </ActionBar>
 
             <div className="page-content">
                 <div className="ts-summary-cards">

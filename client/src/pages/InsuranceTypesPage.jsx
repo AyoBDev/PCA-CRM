@@ -5,7 +5,7 @@ import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
-import { ActivityButton } from '../components/common/ActivityDrawer';
+import ActionBar from '../components/common/ActionBar';
 
 function InsuranceTypeFormModal({ insuranceType, onSave, onClose }) {
     const [name, setName] = useState(insuranceType?.name || '');
@@ -125,28 +125,22 @@ export default function InsuranceTypesPage() {
 
     return (
         <>
-            <div className="page-hero">
-                <div className="page-hero__left">
-                    <div className="page-hero__icon">{Icons.shieldCheck}</div>
-                    <div>
-                        <div className="page-hero__title">Insurance Types</div>
-                        <div className="page-hero__subtitle">Manage insurance payer types</div>
-                    </div>
+            <ActionBar
+                title="Insurance Types"
+                subtitle="Manage insurance payer types"
+                icon={Icons.shieldCheck}
+                hideUndo
+                activityEntity="InsuranceType"
+                createLabel="Add Type"
+                onCreate={() => setModal({ type: 'form' })}
+            />
+            {!showArchived && (
+                <div style={{ marginBottom: 12, paddingLeft: 24 }}>
+                    <button className="archive-toggle" onClick={() => setShowArchived(true)}>
+                        {Icons.archive} View Archived
+                    </button>
                 </div>
-                <div className="page-hero__right">
-                    {isAdmin && <ActivityButton entityType="InsuranceType" />}
-                    {!showArchived && (
-                        <button className="archive-toggle" onClick={() => setShowArchived(true)}>
-                            {Icons.archive} View Archived
-                        </button>
-                    )}
-                    {!showArchived && (
-                        <button className="btn btn--primary" onClick={() => setModal({ type: 'form' })}>
-                            {Icons.plus} Add Type
-                        </button>
-                    )}
-                </div>
-            </div>
+            )}
             <div className="page-content">
                 {showArchived && (
                     <div className="archived-banner">

@@ -5,7 +5,7 @@ import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
-import { ActivityButton } from '../components/common/ActivityDrawer';
+import ActionBar from '../components/common/ActionBar';
 
 function ServiceFormModal({ service, onSave, onClose }) {
     const [category, setCategory] = useState(service?.category || '');
@@ -120,28 +120,22 @@ export default function ServicesPage() {
 
     return (
         <>
-            <div className="page-hero">
-                <div className="page-hero__left">
-                    <div className="page-hero__icon">{Icons.shieldCheck}</div>
-                    <div>
-                        <div className="page-hero__title">Services</div>
-                        <div className="page-hero__subtitle">Manage service types and codes</div>
-                    </div>
+            <ActionBar
+                title="Services"
+                subtitle="Manage service types and codes"
+                icon={Icons.shieldCheck}
+                hideUndo
+                activityEntity="Service"
+                createLabel="Add Service"
+                onCreate={() => setModal({ type: 'form' })}
+            />
+            {!showArchived && (
+                <div style={{ marginBottom: 12, paddingLeft: 24 }}>
+                    <button className="archive-toggle" onClick={() => setShowArchived(true)}>
+                        {Icons.archive} View Archived
+                    </button>
                 </div>
-                <div className="page-hero__right">
-                    {isAdmin && <ActivityButton entityType="Service" />}
-                    {!showArchived && (
-                        <button className="archive-toggle" onClick={() => setShowArchived(true)}>
-                            {Icons.archive} View Archived
-                        </button>
-                    )}
-                    {!showArchived && (
-                        <button className="btn btn--primary" onClick={() => setModal({ type: 'form' })}>
-                            {Icons.plus} Add Service
-                        </button>
-                    )}
-                </div>
-            </div>
+            )}
             <div className="page-content">
                 {showArchived && (
                     <div className="archived-banner">

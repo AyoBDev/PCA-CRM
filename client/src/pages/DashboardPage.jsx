@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Icons from '../components/common/Icons';
 import * as api from '../api';
 import { useAuth } from '../hooks/useAuth';
-import { ActivityButton } from '../components/common/ActivityDrawer';
+import ActionBar from '../components/common/ActionBar';
 
 export default function DashboardPage() {
     const { isAdmin } = useAuth();
@@ -57,23 +57,20 @@ export default function DashboardPage() {
 
     return (
         <>
-            <div className="page-hero">
-                <div className="page-hero__left">
-                    <div className="page-hero__icon">{Icons.layoutDashboard}</div>
-                    <div>
-                        <div className="page-hero__title">Dashboard</div>
-                        <div className="page-hero__subtitle">Overview of agency operations</div>
-                    </div>
-                </div>
-                <div className="page-hero__right">
-                    <button className="btn btn--ghost btn--icon notification-bell" onClick={() => setDrawerOpen(true)}>
-                        {Icons.bell}
-                        {attentionItems.length > 0 && <span className="notification-bell__badge">{attentionItems.length}</span>}
-                    </button>
-                    {isAdmin && <button className="btn btn--outline" disabled={backingUp} onClick={async () => { setBackingUp(true); try { await api.downloadBackup(); } catch (e) { alert(e.message); } setBackingUp(false); }}>{Icons.download} {backingUp ? 'Exporting...' : 'Backup'}</button>}
-                    {isAdmin && <ActivityButton />}
-                </div>
-            </div>
+            <ActionBar
+                title="Dashboard"
+                subtitle="Overview of agency operations"
+                icon={Icons.layoutDashboard}
+                hideBack
+                hideUndo
+                activityEntity="Dashboard"
+            >
+                <button className="btn btn--ghost btn--icon notification-bell" onClick={() => setDrawerOpen(true)}>
+                    {Icons.bell}
+                    {attentionItems.length > 0 && <span className="notification-bell__badge">{attentionItems.length}</span>}
+                </button>
+                {isAdmin && <button className="btn btn--outline" disabled={backingUp} onClick={async () => { setBackingUp(true); try { await api.downloadBackup(); } catch (e) { alert(e.message); } setBackingUp(false); }}>{Icons.download} {backingUp ? 'Exporting...' : 'Backup'}</button>}
+            </ActionBar>
             <div className="page-content">
                 <div className="stats-grid">
                     <div className="card">

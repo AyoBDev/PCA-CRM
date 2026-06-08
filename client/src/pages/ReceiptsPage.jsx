@@ -3,6 +3,7 @@ import * as api from '../api';
 import Icons from '../components/common/Icons';
 import { useToast } from '../hooks/useToast';
 import Modal from '../components/common/Modal';
+import ActionBar from '../components/common/ActionBar';
 
 function fmtDate(d) {
     return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
@@ -97,21 +98,18 @@ export default function ReceiptsPage() {
 
     return (
         <>
-            <div className="page-hero">
-                <div className="page-hero__left">
-                    <div className="page-hero__icon">{Icons.dollarSign}</div>
-                    <div>
-                        <div className="page-hero__title">Receipts</div>
-                        <div className="page-hero__subtitle">Pay stubs for bi-weekly periods</div>
-                    </div>
-                </div>
-                <div className="page-hero__right">
-                    <input className="page-hero__search" placeholder="Search employee..." value={search} onChange={e => setSearch(e.target.value)} />
-                    <button className="btn btn--primary" onClick={() => setShowGenerate(true)}>{Icons.plus} Generate Receipts</button>
-                </div>
-            </div>
+            <ActionBar
+                title="Receipts"
+                subtitle="Pay stubs for bi-weekly periods"
+                icon={Icons.dollarSign}
+                hideUndo
+                activityEntity="Receipt"
+                createLabel="Generate"
+                onCreate={() => setShowGenerate(true)}
+            />
 
             <div className="filter-bar">
+                <input className="filter-bar__search" placeholder="Search employee..." value={search} onChange={e => setSearch(e.target.value)} />
                 {['all', 'draft', 'finalized', 'sent'].map(f => (
                     <button key={f} className={`filter-btn ${statusFilter === f ? 'filter-btn--active' : ''}`} onClick={() => setStatusFilter(f)}>
                         {f.charAt(0).toUpperCase() + f.slice(1)}
