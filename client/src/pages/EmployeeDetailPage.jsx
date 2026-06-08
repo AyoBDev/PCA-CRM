@@ -5,6 +5,7 @@ import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import Breadcrumbs from '../components/common/Breadcrumbs';
 import { EntityActivityButton } from '../components/common/ActivityDrawer';
+import ActionBar from '../components/common/ActionBar';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import PayrollTab from './employee-tabs/PayrollTab';
@@ -308,23 +309,18 @@ export default function EmployeeDetailPage() {
     return (
         <>
             {/* Page Header */}
-            <div className="content-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <button className="btn btn--ghost btn--icon" onClick={() => navigate('/employees')} title="Back to employees">
-                        {Icons.chevronLeft}
-                    </button>
-                    <div>
-                        <Breadcrumbs items={[{ label: 'Employees', path: '/employees' }, { label: employee.name }]} />
-                        <h1 className="content-header__title" style={{ margin: 0 }}>Employee Profile</h1>
-                    </div>
-                </div>
-                <div className="content-header__actions">
-                    <EntityActivityButton entityType="Employee" entityId={employee.id} />
-                    <button className="btn btn--outline btn--sm" onClick={() => setShowEditModal(true)}>
-                        {Icons.edit} Edit Employee
-                    </button>
-                </div>
-            </div>
+            <ActionBar
+                title={employee.name || 'Employee'}
+                subtitle="Employee Profile"
+                icon={Icons.users}
+                hideUndo
+                activityEntity="Employee"
+            >
+                <EntityActivityButton entityType="Employee" entityId={employee.id} />
+                <button className="btn btn--outline btn--sm" onClick={() => setShowEditModal(true)}>
+                    {Icons.edit} Edit Employee
+                </button>
+            </ActionBar>
 
             <div className="page-content cp-page">
 

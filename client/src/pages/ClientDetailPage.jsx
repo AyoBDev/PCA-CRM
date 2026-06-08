@@ -6,6 +6,7 @@ import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import Breadcrumbs from '../components/common/Breadcrumbs';
 import { EntityActivityButton } from '../components/common/ActivityDrawer';
+import ActionBar from '../components/common/ActionBar';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import ProfileInsuranceTab from './client-tabs/ProfileInsuranceTab';
@@ -654,26 +655,21 @@ export default function ClientDetailPage() {
     return (
         <>
             {/* Page Header */}
-            <div className="content-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <button className="btn btn--ghost btn--icon" onClick={() => navigate('/clients')} title="Back to clients">
-                        {Icons.chevronLeft}
-                    </button>
-                    <div>
-                        <Breadcrumbs items={[{ label: 'Clients', path: '/clients' }, { label: client.clientName }]} />
-                        <h1 className="content-header__title" style={{ margin: 0 }}>Care Plans</h1>
-                    </div>
-                </div>
-                <div className="content-header__actions">
-                    <EntityActivityButton entityType="Client" entityId={client.id} />
-                    <button className="btn btn--outline btn--sm" onClick={openEditClientModal}>
-                        {Icons.edit} Edit Client
-                    </button>
-                    <button className="btn btn--danger-ghost btn--sm" onClick={() => setConfirmArchiveClient(true)}>
-                        {Icons.trash} Archive
-                    </button>
-                </div>
-            </div>
+            <ActionBar
+                title={client.clientName || 'Client'}
+                subtitle="Care Plans"
+                icon={Icons.users}
+                hideUndo
+                activityEntity="Client"
+            >
+                <EntityActivityButton entityType="Client" entityId={client.id} />
+                <button className="btn btn--outline btn--sm" onClick={openEditClientModal}>
+                    {Icons.edit} Edit Client
+                </button>
+                <button className="btn btn--danger-ghost btn--sm" onClick={() => setConfirmArchiveClient(true)}>
+                    {Icons.trash} Archive
+                </button>
+            </ActionBar>
 
             <div className="page-content cp-page">
 
