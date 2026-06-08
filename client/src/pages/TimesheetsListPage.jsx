@@ -274,20 +274,17 @@ export default function TimesheetsListPage() {
                 bulkCount={selectedIds?.size || 0}
                 createLabel="New Timesheet"
                 onCreate={() => setShowNewModal(true)}
-            />
-
-            <div className="filter-bar">
-                {!showArchived && (
-                    <button className="btn btn--outline btn--sm" onClick={() => setShowArchived(true)}>
-                        {Icons.archive} View Archived
+            >
+                {!showArchived ? (
+                    <button className="btn btn--outline" onClick={() => setShowArchived(true)}>
+                        {Icons.archive} Archived
                     </button>
-                )}
-                {showArchived && (
-                    <button className="btn btn--outline btn--sm" onClick={() => setShowArchived(false)}>
+                ) : (
+                    <button className="btn btn--outline" onClick={() => setShowArchived(false)}>
                         Show Active
                     </button>
                 )}
-            </div>
+            </ActionBar>
 
             <div className="page-content">
                 {!showArchived && (

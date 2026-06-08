@@ -1007,24 +1007,12 @@ export default function AuthorizationsPage() {
                 icon={Icons.fileText}
                 hideUndo
                 activityEntity="Authorization"
-            />
-
-            <div className="filter-bar">
-                <input
-                    type="text"
-                    className="filter-bar__search"
-                    placeholder="Search by client name..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                />
+                createLabel="Add Client"
+                onCreate={!showArchived ? () => setShowCreateWizard(true) : undefined}
+            >
                 {!showArchived && (
                     <button className="btn btn--outline" onClick={() => { setShowArchived(true); setSelectedIds(new Set()); }}>
                         {Icons.archive} Archived
-                    </button>
-                )}
-                {!showArchived && selectedIds.size > 0 && (
-                    <button className="btn btn--danger btn--sm" onClick={() => setModal({ type: 'confirmBulkDelete' })}>
-                        {Icons.trash} Delete {selectedIds.size}
                     </button>
                 )}
                 {!showArchived && isAdmin && (
@@ -1032,9 +1020,19 @@ export default function AuthorizationsPage() {
                         {Icons.upload} Import
                     </button>
                 )}
-                {!showArchived && (
-                    <button className="btn btn--primary" onClick={() => setShowCreateWizard(true)}>
-                        {Icons.plus} Add Client
+            </ActionBar>
+
+            <div className="filter-bar">
+                <input
+                    type="text"
+                    className="filter-bar__search"
+                    placeholder="Search by client name, Medicaid ID, or status..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                />
+                {!showArchived && selectedIds.size > 0 && (
+                    <button className="btn btn--danger btn--sm" onClick={() => setModal({ type: 'confirmBulkDelete' })}>
+                        {Icons.trash} Delete {selectedIds.size}
                     </button>
                 )}
             </div>

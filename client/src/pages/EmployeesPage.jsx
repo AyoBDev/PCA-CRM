@@ -550,6 +550,15 @@ export default function EmployeesPage() {
                         </button>
                     </>
                 )}
+                {!showArchived ? (
+                    <button className="btn btn--outline" onClick={() => { setShowArchived(true); setSelectedIds(new Set()); }}>
+                        {Icons.archive} Archived
+                    </button>
+                ) : (
+                    <button className="btn btn--outline" onClick={() => setShowArchived(false)}>
+                        Show Active
+                    </button>
+                )}
             </ActionBar>
 
             <div className="filter-bar">
@@ -563,16 +572,6 @@ export default function EmployeesPage() {
                 <button className="btn btn--outline btn--sm" onClick={() => setTrashOpen(true)} title="View deleted employees">
                     {Icons.trash}
                 </button>
-                {showArchived && (
-                    <button className="btn btn--outline btn--sm" onClick={() => setShowArchived(false)}>
-                        Show Active
-                    </button>
-                )}
-                {!showArchived && (
-                    <button className="btn btn--outline btn--sm" onClick={() => { setShowArchived(true); setSelectedIds(new Set()); }}>
-                        {Icons.archive} View Archived
-                    </button>
-                )}
             </div>
 
             <div className="page-content">

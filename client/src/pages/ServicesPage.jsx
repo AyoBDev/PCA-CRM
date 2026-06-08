@@ -128,14 +128,13 @@ export default function ServicesPage() {
                 activityEntity="Service"
                 createLabel="Add Service"
                 onCreate={() => setModal({ type: 'form' })}
-            />
-            {!showArchived && (
-                <div style={{ marginBottom: 12, paddingLeft: 24 }}>
-                    <button className="archive-toggle" onClick={() => setShowArchived(true)}>
-                        {Icons.archive} View Archived
+            >
+                {!showArchived && (
+                    <button className="btn btn--outline" onClick={() => setShowArchived(true)}>
+                        {Icons.archive} Archived
                     </button>
-                </div>
-            )}
+                )}
+            </ActionBar>
             <div className="page-content">
                 {showArchived && (
                     <div className="archived-banner">
