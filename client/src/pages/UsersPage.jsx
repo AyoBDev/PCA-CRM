@@ -1,16 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as api from '../api';
+import { useUndoStack } from '../hooks/useUndoStack';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import ActionBar from '../components/common/ActionBar';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
-import { ActivityButton } from '../components/common/ActivityDrawer';
 
 export default function UsersPage() {
     const { isAdmin } = useAuth();
     const { showToast } = useToast();
+    const undoState = useUndoStack();
     const [users, setUsers] = useState([]);
+    const [search, setSearch] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [form, setForm] = useState({ name: '', email: '', password: '', role: 'pca' });
     const [saving, setSaving] = useState(false);
@@ -22,6 +25,7 @@ export default function UsersPage() {
     const [confirmArchive, setConfirmArchive] = useState(null);
     const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(null);
     const [confirmBulkPermanentDelete, setConfirmBulkPermanentDelete] = useState(false);
+    const [selectedIds, setSelectedIds] = useState(new Set());
 
     const fetchUsers = useCallback(async () => {
         try { setUsers(await api.getUsers({ archived: showArchived })); } catch (err) { showToast(err.message, 'error'); }
@@ -100,28 +104,55 @@ export default function UsersPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    const handleBulkDelete = async () => {
+        if (selectedIds.size === 0) { showToast('Select users first', 'error'); return; }
+        const selected = users.filter(u => selectedIds.has(u.id));
+        for (const user of selected) {
+            await api.deleteUser(user.id);
+        }
+        setSelectedIds(new Set());
+        showToast(`Archived ${selected.length} user(s)`);
+        fetchUsers();
+    };
+
+    const handleBulkArchive = async () => {
+        if (selectedIds.size === 0) { showToast('Select users first', 'error'); return; }
+        const selected = users.filter(u => selectedIds.has(u.id));
+        for (const user of selected) {
+            await api.deleteUser(user.id);
+        }
+        setSelectedIds(new Set());
+        showToast(`Archived ${selected.length} user(s)`);
+        fetchUsers();
+    };
+
     return (
         <>
-            <div className="page-hero">
-                <div className="page-hero__left">
-                    <div className="page-hero__icon">{Icons.users}</div>
-                    <div>
-                        <div className="page-hero__title">Users</div>
-                        <div className="page-hero__subtitle">Manage staff accounts and access</div>
-                    </div>
-                </div>
-                <div className="page-hero__right">
-                    {isAdmin && <ActivityButton entityType="User" />}
-                    {!showArchived && (
-                        <button className="archive-toggle" onClick={() => setShowArchived(true)}>
-                            {Icons.archive} View Archived
-                        </button>
-                    )}
-                    {!showArchived && (
-                        <button className="btn btn--primary" onClick={() => setShowModal(true)}>{Icons.plus} Add User</button>
-                    )}
-                </div>
+            <ActionBar
+                title="Users"
+                subtitle="Manage staff accounts and access"
+                icon={Icons.users}
+                undoStack={undoState}
+                activityEntity="User"
+                bulkActions={[
+                    { label: 'Delete Selected', action: () => handleBulkDelete(), variant: 'danger' },
+                    { label: 'Archive Selected', action: () => handleBulkArchive() },
+                ]}
+                bulkCount={selectedIds.size}
+                createLabel="Add User"
+                onCreate={() => setShowModal(true)}
+            />
+
+            <div className="filter-bar">
+                <input
+                    type="text"
+                    className="filter-bar__search"
+                    placeholder="Search users..."
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                />
             </div>
+
             <div className="page-content">
                 {showArchived && (
                     <div className="archived-banner">
