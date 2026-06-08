@@ -280,6 +280,52 @@ Employee
 7. Add to scheduling page service code selects
 8. If it maps to a new timesheet section: add DB fields, update controller totals, update PCA form + admin form + list page
 
+## Action Bar System
+
+All pages use a shared `<ActionBar>` component (`client/src/components/common/ActionBar.jsx`) that provides a professional, consistent top-level navigation and action interface.
+
+### Layout: Left (fixed) | Center (fixed) | Right (variable)
+- **Left**: Back button (smart hybrid navigation), page icon, title + subtitle
+- **Center**: Undo, Redo, History (session undo stack dropdown), Activity Log (existing audit drawer)
+- **Right**: Bulk Actions dropdown (enabled when items selected), Create button (page-specific)
+
+### Key Hooks
+- `useUndoStack()` — page-session undo/redo state. Max 50 actions, resets on navigation.
+- `useNavigationStack()` — tracks route history for Back button. Max 20 entries, falls back to logical parent.
+
+### Rules
+- Search inputs and filters live in a filter bar BELOW the action bar, not inside it
+- Bulk Actions replaces the old `.bulk-action-bar` — no separate blue bar
+- Delete lives inside Bulk Actions dropdown, not as a standalone button
+- Back button hidden on Dashboard; shows "Back to {label}" elsewhere
+- Undo/Redo disabled (greyed) when stack is empty
+- All destructive bulk actions require `ConfirmModal` confirmation
+- Undone actions show toast confirmation via `useToast()`
+
+### Pages Without Full Action Bar
+- Dashboard: no Back, no Undo/Redo/History, Activity Log only
+- PCA Form (public): no action bar at all
+- Detail pages: Back + Title + Undo/Redo/History + Activity Log (no bulk/create)
+
+### Full Spec
+See `docs/superpowers/specs/2026-06-08-action-bar-design.md`
+
+## Frontend Design System
+
+**All frontend work MUST follow the design system.** Before making any UI changes, read `docs/superpowers/specs/2026-06-01-design-system-design.md` for:
+- Color tokens (CSS custom properties)
+- Typography scale and weights
+- Spacing system (8px base unit)
+- Component patterns (buttons, tables, cards, modals)
+- Box shadows and transitions
+
+Key rules:
+- Use CSS custom properties (`hsl(var(--primary))`, etc.) — never hardcode colors
+- Follow the spacing scale (4/8/12/16/20/24/32px)
+- Buttons: `.btn--primary`, `.btn--outline`, `.btn--ghost`, `.btn--danger`
+- Tables: always use `.data-table--dark-header` unless compact variant needed
+- Page structure: `<ActionBar>` → filter bar → content area → pagination
+
 ## Spreadsheet Import Format (Client Data)
 The client XLSX uses a parent-child row layout:
 - **Parent row**: col A = row number, col B = client name, col C = Medicaid ID, col D = insurance type
