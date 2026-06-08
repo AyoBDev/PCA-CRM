@@ -9,7 +9,8 @@ import { hhmm12 } from '../utils/time';
 import { visitRowClass } from '../utils/status';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
-import { ActivityButton } from '../components/common/ActivityDrawer';
+import ActionBar from '../components/common/ActionBar';
+import { useUndoStack } from '../hooks/useUndoStack';
 
 // ────────────────────────────────────────
 // PayrollUploadModal
@@ -744,6 +745,7 @@ function PayrollRunDetail({ run, onVisitChange, authMap, readOnly }) {
 function PayrollPage() {
     const { isAdmin } = useAuth();
     const { showToast, showUndoToast } = useToast();
+    const undoState = useUndoStack();
     const { runId } = useParams();
     const navigate = useNavigate();
     const initialRunId = runId ? parseInt(runId, 10) : null;
@@ -890,56 +892,48 @@ function PayrollPage() {
     if (selectedRun) {
         return (
             <div>
-                <div className="content-header">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <button className="btn btn--ghost btn--icon" onClick={() => navigate('/payroll')} title="Back">←</button>
-                        <div>
-                            {editingRunName ? (
-                                <form onSubmit={async (e) => {
-                                    e.preventDefault();
-                                    if (!runNameValue.trim()) return;
-                                    try {
-                                        const updated = await api.updatePayrollRun(selectedRun.id, { name: runNameValue.trim() });
-                                        setSelectedRun(prev => ({ ...prev, name: updated.name }));
-                                        setRuns(prev => prev.map(r => r.id === selectedRun.id ? { ...r, name: updated.name } : r));
-                                        showToast('Run renamed');
-                                    } catch (err) { showToast(err.message, 'error'); }
-                                    setEditingRunName(false);
-                                }} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <input
-                                        type="text"
-                                        value={runNameValue}
-                                        onChange={(e) => setRunNameValue(e.target.value)}
-                                        style={{ fontSize: 18, fontWeight: 600, padding: '2px 8px', width: 300 }}
-                                        autoFocus
-                                    />
-                                    <button type="submit" className="btn btn--primary btn--xs">Save</button>
-                                    <button type="button" className="btn btn--outline btn--xs" onClick={() => setEditingRunName(false)}>Cancel</button>
-                                </form>
-                            ) : (
-                                <>
-                                    <h1 className="content-header__title" style={{ margin: 0, cursor: isAdmin ? 'pointer' : 'default' }} onClick={() => {
-                                        if (!isAdmin) return;
-                                        setRunNameValue(selectedRun.name);
-                                        setEditingRunName(true);
-                                    }} title={isAdmin ? 'Click to rename' : undefined}>
-                                        {selectedRun.name}
-                                        {isAdmin && <span style={{ marginLeft: 6, opacity: 0.4, display: 'inline-flex', width: 14, height: 14 }}>{Icons.edit}</span>}
-                                    </h1>
-                                    <p style={{ margin: 0, fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>
-                                        {selectedRun.totalVisits} visits · {selectedRun.totalPayable} payable units
-                                    </p>
-                                </>
+                <ActionBar
+                    title={editingRunName ? '' : (selectedRun.name || 'Payroll Run')}
+                    subtitle={editingRunName ? '' : `${selectedRun.totalVisits} visits · ${selectedRun.totalPayable} payable units`}
+                    icon={Icons.fileText}
+                    undoStack={undoState}
+                    activityEntity="PayrollRun"
+                >
+                    {editingRunName ? (
+                        <form onSubmit={async (e) => {
+                            e.preventDefault();
+                            if (!runNameValue.trim()) return;
+                            try {
+                                const updated = await api.updatePayrollRun(selectedRun.id, { name: runNameValue.trim() });
+                                setSelectedRun(prev => ({ ...prev, name: updated.name }));
+                                setRuns(prev => prev.map(r => r.id === selectedRun.id ? { ...r, name: updated.name } : r));
+                                showToast('Run renamed');
+                            } catch (err) { showToast(err.message, 'error'); }
+                            setEditingRunName(false);
+                        }} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <input
+                                type="text"
+                                value={runNameValue}
+                                onChange={(e) => setRunNameValue(e.target.value)}
+                                style={{ fontSize: 18, fontWeight: 600, padding: '2px 8px', width: 300 }}
+                                autoFocus
+                            />
+                            <button type="submit" className="btn btn--primary btn--xs">Save</button>
+                            <button type="button" className="btn btn--outline btn--xs" onClick={() => setEditingRunName(false)}>Cancel</button>
+                        </form>
+                    ) : (
+                        <>
+                            {isAdmin && (
+                                <button className="btn btn--outline btn--sm" onClick={() => { setRunNameValue(selectedRun.name); setEditingRunName(true); }} title="Rename">
+                                    {Icons.edit} Rename
+                                </button>
                             )}
-                        </div>
-                    </div>
-                    <div className="content-header__actions">
-                        {isAdmin && <ActivityButton entityType="PayrollRun" />}
-                        <button className="btn btn--primary" onClick={handleExport} disabled={exporting}>
-                            {Icons.download} {exporting ? 'Exporting...' : 'Export XLSX'}
-                        </button>
-                    </div>
-                </div>
+                            <button className="btn btn--primary" onClick={handleExport} disabled={exporting}>
+                                {Icons.download} {exporting ? 'Exporting...' : 'Export XLSX'}
+                            </button>
+                        </>
+                    )}
+                </ActionBar>
                 <div className="page-content">
                     <PayrollRunDetail run={selectedRun} onVisitChange={handleVisitChange} authMap={selectedRun.authMap || {}} readOnly={!isAdmin} />
                 </div>
@@ -949,28 +943,21 @@ function PayrollPage() {
 
     return (
         <div>
-            <div className="page-hero">
-                <div className="page-hero__left">
-                    <div className="page-hero__icon">{Icons.fileText}</div>
-                    <div>
-                        <div className="page-hero__title">Payroll Runs</div>
-                        <div className="page-hero__subtitle">Upload and process EVV payroll data</div>
-                    </div>
-                </div>
-                <div className="page-hero__right">
-                    {isAdmin && <ActivityButton entityType="PayrollRun" />}
-                    {!showArchived && isAdmin && (
-                        <button className="btn btn--outline" onClick={() => setShowArchived(true)}>
-                            {Icons.archive} Archived
-                        </button>
-                    )}
-                    {!showArchived && isAdmin && (
-                        <button className="btn btn--primary" onClick={() => setModal({ type: 'upload' })}>
-                            {Icons.upload} New Run
-                        </button>
-                    )}
-                </div>
-            </div>
+            <ActionBar
+                title="Payroll Runs"
+                subtitle="Upload and process EVV payroll data"
+                icon={Icons.fileText}
+                undoStack={undoState}
+                activityEntity="PayrollRun"
+                createLabel="New Run"
+                onCreate={!showArchived && isAdmin ? () => setModal({ type: 'upload' }) : undefined}
+            >
+                {!showArchived && isAdmin && (
+                    <button className="btn btn--outline" onClick={() => setShowArchived(true)}>
+                        {Icons.archive} Archived
+                    </button>
+                )}
+            </ActionBar>
             <div className="page-content">
                 {showArchived && (
                     <div className="archived-banner">
