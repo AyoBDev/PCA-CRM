@@ -1,15 +1,16 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import * as api from '../api';
+import { useUndoStack } from '../hooks/useUndoStack';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import ActionBar from '../components/common/ActionBar';
 import SearchableSelect from '../components/common/SearchableSelect';
 import TimesheetFormPage from './TimesheetFormPage';
 import { formatWeek } from '../utils/dates';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
-import { ActivityButton } from '../components/common/ActivityDrawer';
 import LoadingState from '../components/common/LoadingState';
 
 function getSunday(dateStr) {
@@ -35,6 +36,7 @@ function formatWeekEnding(weekStartStr) {
 export default function TimesheetsListPage() {
     const { isAdmin } = useAuth();
     const { showToast } = useToast();
+    const undoState = useUndoStack();
     const [searchParams, setSearchParams] = useSearchParams();
     const [clients, setClients] = useState([]);
     const [allTimesheets, setAllTimesheets] = useState([]);
@@ -243,32 +245,50 @@ export default function TimesheetsListPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    const handleBulkDelete = async () => {
+        if (selectedIds.size === 0) { showToast('Select timesheets first', 'error'); return; }
+        const selected = timesheets.filter(t => selectedIds.has(t.id));
+        for (const ts of selected) {
+            await api.deleteTimesheet(ts.id);
+        }
+        setSelectedIds(new Set());
+        showToast(`Archived ${selected.length} timesheet(s)`);
+        fetchTimesheets();
+    };
+
     if (activeTimesheetId) {
         return <TimesheetFormPage timesheetId={activeTimesheetId} clients={clients} onBack={() => { setActiveTimesheetId(null); setSearchParams({}); fetchTimesheets(); }} showToast={showToast} />;
     }
 
     return (
         <>
-            <div className="page-hero">
-                <div className="page-hero__left">
-                    <div className="page-hero__icon">{Icons.clipboard}</div>
-                    <div>
-                        <div className="page-hero__title">Timesheets</div>
-                        <div className="page-hero__subtitle">Track and manage weekly service records</div>
-                    </div>
-                </div>
-                <div className="page-hero__right">
-                    {isAdmin && <ActivityButton entityType="Timesheet" />}
-                    {!showArchived && (
-                        <button className="btn btn--outline" onClick={() => setShowArchived(true)}>
-                            {Icons.archive} Archived
-                        </button>
-                    )}
-                    {!showArchived && (
-                        <button className="btn btn--primary" onClick={() => setShowNewModal(true)}>{Icons.plus} New Timesheet</button>
-                    )}
-                </div>
+            <ActionBar
+                title="Timesheets"
+                subtitle="Track and manage weekly service records"
+                icon={Icons.clipboard}
+                undoStack={undoState}
+                activityEntity="Timesheet"
+                bulkActions={isAdmin ? [
+                    { label: 'Delete Selected', action: () => handleBulkDelete(), variant: 'danger' },
+                ] : undefined}
+                bulkCount={selectedIds?.size || 0}
+                createLabel="New Timesheet"
+                onCreate={() => setShowNewModal(true)}
+            />
+
+            <div className="filter-bar">
+                {!showArchived && (
+                    <button className="btn btn--outline btn--sm" onClick={() => setShowArchived(true)}>
+                        {Icons.archive} View Archived
+                    </button>
+                )}
+                {showArchived && (
+                    <button className="btn btn--outline btn--sm" onClick={() => setShowArchived(false)}>
+                        Show Active
+                    </button>
+                )}
             </div>
+
             <div className="page-content">
                 {!showArchived && (
                     <>

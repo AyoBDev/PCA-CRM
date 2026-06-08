@@ -1,14 +1,16 @@
 import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
 import * as api from '../api';
+import { useUndoStack } from '../hooks/useUndoStack';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import ActionBar from '../components/common/ActionBar';
 import DrawerPanel from '../components/common/DrawerPanel';
 import { fmtDate, daysClass } from '../utils/dates';
 import { statusLabel } from '../utils/status';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
-import { ActivityButton, EntityActivityButton } from '../components/common/ActivityDrawer';
+import { EntityActivityButton } from '../components/common/ActivityDrawer';
 
 // ── Client Form Modal ──
 function ClientFormModal({ client, onSave, onClose, insuranceTypeNames }) {
@@ -443,6 +445,7 @@ function ClientNotesSection({ client, onSaved }) {
 export default function ClientsPage() {
     const { isAdmin } = useAuth();
     const { showToast, showUndoToast } = useToast();
+    const undoState = useUndoStack();
     const [clients, setClients] = useState([]);
     const [insuranceTypes, setInsuranceTypes] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -504,11 +507,30 @@ export default function ClientsPage() {
     };
 
     const handleBulkDelete = async () => {
+        if (selectedIds.size === 0) { showToast('Select clients first', 'error'); return; }
+        setModal({ type: 'confirmBulkDelete' });
+    };
+
+    const executeBulkDelete = async () => {
         try {
             const ids = [...selectedIds];
             await api.bulkDeleteClients(ids);
             setSelectedIds(new Set());
             setModal(null);
+            fetchClients();
+            showUndoToast(`${ids.length} client(s) archived`, async () => {
+                for (const id of ids) await api.restoreClient(id);
+                fetchClients();
+            });
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleBulkArchive = async () => {
+        if (selectedIds.size === 0) { showToast('Select clients first', 'error'); return; }
+        try {
+            const ids = [...selectedIds];
+            await api.bulkDeleteClients(ids);
+            setSelectedIds(new Set());
             fetchClients();
             showUndoToast(`${ids.length} client(s) archived`, async () => {
                 for (const id of ids) await api.restoreClient(id);
@@ -622,38 +644,39 @@ export default function ClientsPage() {
 
     return (
         <>
-            <div className="content-header">
-                <h1 className="content-header__title">Clients</h1>
-                <div className="content-header__actions">
-                    {isAdmin && <ActivityButton entityType="Client" />}
-                    <input
-                        type="text"
-                        className="search-input"
-                        placeholder="Search clients…"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                    {!showArchived && (
-                        <button className="archive-toggle" onClick={() => { setShowArchived(true); setSelectedIds(new Set()); }}>
-                            {Icons.archive} View Archived
-                        </button>
-                    )}
-                    {!showArchived && selectedIds.size > 0 && (
-                        <button className="btn btn--danger btn--sm" onClick={() => setModal({ type: 'confirmBulkDelete' })}>
-                            {Icons.trash} Delete {selectedIds.size}
-                        </button>
-                    )}
-                    {!showArchived && isAdmin && (
-                        <button className="btn btn--outline btn--sm" onClick={() => setModal({ type: 'bulkImport' })}>
-                            {Icons.download} Import
-                        </button>
-                    )}
-                    {!showArchived && (
-                        <button className="btn btn--primary btn--sm" onClick={() => setModal({ type: 'client' })}>
-                            {Icons.plus} Add Client
-                        </button>
-                    )}
-                </div>
+            <ActionBar
+                title="Clients"
+                subtitle="Manage client profiles and care records"
+                icon={Icons.users}
+                undoStack={undoState}
+                activityEntity="Client"
+                bulkActions={isAdmin ? [
+                    { label: 'Delete Selected', action: () => handleBulkDelete(), variant: 'danger' },
+                    { label: 'Archive Selected', action: () => handleBulkArchive() },
+                ] : undefined}
+                bulkCount={selectedIds.size}
+                createLabel="Add Client"
+                onCreate={() => setModal({ type: 'client' })}
+            />
+
+            <div className="filter-bar">
+                <input
+                    type="text"
+                    className="filter-bar__search"
+                    placeholder="Search clients..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                {!showArchived && (
+                    <button className="btn btn--outline btn--sm" onClick={() => { setShowArchived(true); setSelectedIds(new Set()); }}>
+                        {Icons.archive} View Archived
+                    </button>
+                )}
+                {showArchived && (
+                    <button className="btn btn--outline btn--sm" onClick={() => setShowArchived(false)}>
+                        Show Active
+                    </button>
+                )}
             </div>
 
             <div className="page-content">
@@ -905,7 +928,7 @@ export default function ClientsPage() {
                 <ConfirmModal
                     title="Delete Selected Clients"
                     message={`This will permanently delete ${selectedIds.size} client(s) and all their associated authorizations. This action cannot be undone.`}
-                    onConfirm={handleBulkDelete}
+                    onConfirm={executeBulkDelete}
                     onClose={() => setModal(null)}
                 />
             )}

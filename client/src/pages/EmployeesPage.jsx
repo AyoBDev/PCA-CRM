@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../hooks/useToast';
+import { useUndoStack } from '../hooks/useUndoStack';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import ActionBar from '../components/common/ActionBar';
 import * as api from '../api';
 import { useAuth } from '../hooks/useAuth';
-import { ActivityButton } from '../components/common/ActivityDrawer';
 import TrashDrawer from '../components/common/TrashDrawer';
 
 function fmtDate(d) {
@@ -304,6 +305,7 @@ function getAvatarColor(name) {
 export default function EmployeesPage() {
     const { isAdmin } = useAuth();
     const { showToast, showUndoToast } = useToast();
+    const undoState = useUndoStack();
     const navigate = useNavigate();
     const [employees, setEmployees] = useState([]);
     const [users, setUsers] = useState([]);
@@ -457,6 +459,32 @@ export default function EmployeesPage() {
         }
     };
 
+    const handleBulkDelete = async () => {
+        if (selectedIds.size === 0) { showToast('Select employees first', 'error'); return; }
+        const selected = employees.filter(emp => selectedIds.has(emp.id));
+        const ids = selected.map(emp => emp.id);
+        await Promise.all(ids.map(id => api.deleteEmployee(id)));
+        setSelectedIds(new Set());
+        fetchData();
+        showUndoToast(`Archived ${selected.length} employee(s)`, async () => {
+            await Promise.all(ids.map(id => api.restoreEmployee(id)));
+            fetchData();
+        });
+    };
+
+    const handleBulkArchive = async () => {
+        if (selectedIds.size === 0) { showToast('Select employees first', 'error'); return; }
+        const selected = employees.filter(emp => selectedIds.has(emp.id));
+        const ids = selected.map(emp => emp.id);
+        await Promise.all(ids.map(id => api.deleteEmployee(id)));
+        setSelectedIds(new Set());
+        fetchData();
+        showUndoToast(`Archived ${selected.length} employee(s)`, async () => {
+            await Promise.all(ids.map(id => api.restoreEmployee(id)));
+            fetchData();
+        });
+    };
+
     // Counts for filter pills
     let expiredCount = 0, criticalCount = 0, okCount = 0;
     employees.forEach(emp => {
@@ -500,49 +528,51 @@ export default function EmployeesPage() {
 
     return (
         <>
-            <div className="page-hero">
-                <div className="page-hero__left">
-                    <div className="page-hero__icon">{Icons.users}</div>
-                    <div>
-                        <div className="page-hero__title">Employees</div>
-                        <div className="page-hero__subtitle">Manage caregiver profiles, certifications and compliance</div>
-                    </div>
-                </div>
-                <div className="page-hero__right">
-                    <button
-                        className="btn btn--outline btn--sm"
-                        onClick={() => setTrashOpen(true)}
-                        title="View deleted employees"
-                    >
-                        {Icons.trash}
+            <ActionBar
+                title="Employees"
+                subtitle="Manage caregiver profiles, certifications and compliance"
+                icon={Icons.users}
+                undoStack={undoState}
+                activityEntity="Employee"
+                bulkActions={isAdmin ? [
+                    { label: 'Delete Selected', action: () => handleBulkDelete(), variant: 'danger' },
+                    { label: 'Archive Selected', action: () => handleBulkArchive() },
+                ] : undefined}
+                bulkCount={selectedIds.size}
+                createLabel="Add Employee"
+                onCreate={() => setModal({ type: 'form' })}
+            >
+                {isAdmin && (
+                    <>
+                        <input type="file" ref={fileRef} accept=".xlsx,.xls" onChange={handleImport} style={{ display: 'none' }} />
+                        <button className="btn btn--outline" onClick={() => fileRef.current?.click()} disabled={importing}>
+                            {Icons.upload} {importing ? 'Importing...' : 'Import'}
+                        </button>
+                    </>
+                )}
+            </ActionBar>
+
+            <div className="filter-bar">
+                <input
+                    type="text"
+                    className="filter-bar__search"
+                    placeholder="Search employees..."
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                />
+                <button className="btn btn--outline btn--sm" onClick={() => setTrashOpen(true)} title="View deleted employees">
+                    {Icons.trash}
+                </button>
+                {showArchived && (
+                    <button className="btn btn--outline btn--sm" onClick={() => setShowArchived(false)}>
+                        Show Active
                     </button>
-                    <input
-                        type="text"
-                        className="page-hero__search"
-                        placeholder="Search employees..."
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                    />
-                    {isAdmin && <ActivityButton entityType="Employee" />}
-                    {!showArchived && isAdmin && (
-                        <>
-                            <input type="file" ref={fileRef} accept=".xlsx,.xls" onChange={handleImport} style={{ display: 'none' }} />
-                            <button className="btn btn--outline" onClick={() => fileRef.current?.click()} disabled={importing}>
-                                {Icons.upload} {importing ? 'Importing...' : 'Import'}
-                            </button>
-                        </>
-                    )}
-                    {!showArchived && (
-                        <button className="btn btn--outline" onClick={() => setShowArchived(true)}>
-                            {Icons.archive} Archived
-                        </button>
-                    )}
-                    {!showArchived && (
-                        <button className="btn btn--primary" onClick={() => setModal({ type: 'form' })}>
-                            {Icons.plus} Add Employee
-                        </button>
-                    )}
-                </div>
+                )}
+                {!showArchived && (
+                    <button className="btn btn--outline btn--sm" onClick={() => { setShowArchived(true); setSelectedIds(new Set()); }}>
+                        {Icons.archive} View Archived
+                    </button>
+                )}
             </div>
 
             <div className="page-content">
@@ -604,75 +634,6 @@ export default function EmployeesPage() {
                     </div>
                 ) : (
                     <div className="sheet-card">
-                        <div className="table-toolbar">
-                            <div className="table-toolbar__left">
-                                <input
-                                    type="checkbox"
-                                    className="bulk-checkbox"
-                                    checked={allSelected}
-                                    onChange={toggleSelectAll}
-                                />
-                                <span className="table-toolbar__selected">{selectedIds.size} selected</span>
-                                <select
-                                    className="table-toolbar__select"
-                                    value=""
-                                    onChange={async (e) => {
-                                        const action = e.target.value;
-                                        if (!action) return;
-                                        e.target.value = '';
-                                        if (selectedIds.size === 0) { showToast('Select employees first', 'error'); return; }
-                                        const selected = employees.filter(emp => selectedIds.has(emp.id));
-                                        if (action === 'toggle') {
-                                            const prevStates = selected.map(emp => ({ id: emp.id, active: emp.active }));
-                                            await Promise.all(selected.map(emp => api.updateEmployee(emp.id, { active: !emp.active })));
-                                            setSelectedIds(new Set());
-                                            fetchData();
-                                            showUndoToast(`Toggled status for ${selected.length} employee(s)`, async () => {
-                                                await Promise.all(prevStates.map(s => api.updateEmployee(s.id, { active: s.active })));
-                                                fetchData();
-                                            });
-                                        } else if (action === 'archive') {
-                                            const ids = selected.map(emp => emp.id);
-                                            await Promise.all(ids.map(id => api.deleteEmployee(id)));
-                                            setSelectedIds(new Set());
-                                            fetchData();
-                                            showUndoToast(`Archived ${selected.length} employee(s)`, async () => {
-                                                await Promise.all(ids.map(id => api.restoreEmployee(id)));
-                                                fetchData();
-                                            });
-                                        } else if (action === 'note') {
-                                            setBulkNoteModal(true);
-                                        }
-                                    }}
-                                >
-                                    <option value="">Bulk Actions</option>
-                                    <option value="toggle">Toggle Status</option>
-                                    <option value="note">Add Note</option>
-                                    <option value="archive">Archive</option>
-                                </select>
-                            </div>
-                            <div className="table-toolbar__right">
-                                <button className="table-toolbar__filter-btn">
-                                    {Icons.filter} Filters
-                                </button>
-                                <select
-                                    className="table-toolbar__filter"
-                                    value={statusFilter}
-                                    onChange={(e) => setStatusFilter(e.target.value)}
-                                >
-                                    <option value="All">All Status</option>
-                                    <option value="OK">OK</option>
-                                    <option value="Critical">Critical</option>
-                                    <option value="Expired">Expired</option>
-                                </select>
-                                {statusFilter !== 'All' && (
-                                    <button className="table-toolbar__reset" onClick={() => setStatusFilter('All')}>
-                                        {Icons.rotateCcw} Reset
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-
                         {filtered.length === 0 ? (
                             <div className="empty-state">
                                 <div className="empty-state__icon">{Icons.users}</div>

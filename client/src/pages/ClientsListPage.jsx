@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../api';
+import { useUndoStack } from '../hooks/useUndoStack';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import ActionBar from '../components/common/ActionBar';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import ClientCreationWizard from '../components/ClientCreationWizard';
@@ -30,6 +32,7 @@ function formatShortDate(d) {
 export default function ClientsListPage() {
     const { isAdmin } = useAuth();
     const { showToast, showUndoToast } = useToast();
+    const undoState = useUndoStack();
     const navigate = useNavigate();
     const [clients, setClients] = useState([]);
     const [search, setSearch] = useState('');
@@ -119,6 +122,18 @@ export default function ClientsListPage() {
         }
     };
 
+    const handleBulkDelete = async () => {
+        if (selectedIds.size === 0) { showToast('Select clients first', 'error'); return; }
+        const selected = clients.filter(c => selectedIds.has(c.id));
+        setConfirmArchive(selected);
+    };
+
+    const handleBulkArchive = async () => {
+        if (selectedIds.size === 0) { showToast('Select clients first', 'error'); return; }
+        const selected = clients.filter(c => selectedIds.has(c.id));
+        setConfirmArchive(selected);
+    };
+
     const getEffectiveStatus = (c) => c.clientStatus || 'active';
 
     const allServiceCodes = [...new Set(clients.flatMap(c => getServiceCodes(c)))].sort();
@@ -196,34 +211,34 @@ export default function ClientsListPage() {
 
     return (
         <>
-            <div className="page-hero">
-                <div className="page-hero__left">
-                    <div className="page-hero__icon">{Icons.users}</div>
-                    <div>
-                        <div className="page-hero__title">Clients</div>
-                        <div className="page-hero__subtitle">Manage client profiles and service records</div>
-                    </div>
-                </div>
-                <div className="page-hero__right">
-                    <button
-                        className="btn btn--outline btn--sm"
-                        onClick={() => setTrashOpen(true)}
-                        title="View deleted clients"
-                    >
-                        {Icons.trash}
-                    </button>
-                    <input
-                        type="text"
-                        className="page-hero__search"
-                        placeholder="Search by name or Medicaid ID..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
-                    <button className="btn btn--primary" onClick={() => setShowCreateWizard(true)}>
-                        {Icons.plus} Add Client
-                    </button>
-                </div>
+            <ActionBar
+                title="Clients"
+                subtitle="Manage client profiles and service records"
+                icon={Icons.users}
+                undoStack={undoState}
+                activityEntity="Client"
+                bulkActions={isAdmin ? [
+                    { label: 'Delete Selected', action: () => handleBulkDelete(), variant: 'danger' },
+                    { label: 'Archive Selected', action: () => handleBulkArchive() },
+                ] : undefined}
+                bulkCount={selectedIds.size}
+                createLabel="Add Client"
+                onCreate={() => navigate('/clients/new')}
+            />
+
+            <div className="filter-bar">
+                <input
+                    type="text"
+                    className="filter-bar__search"
+                    placeholder="Search clients..."
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                />
+                <button className="btn btn--outline btn--sm" onClick={() => setTrashOpen(true)} title="View deleted clients">
+                    {Icons.trash}
+                </button>
             </div>
+
             <div className="page-content">
                 <div className="sheet-card">
                     <div className="table-toolbar">
