@@ -2304,6 +2304,11 @@ export default function SchedulingPage() {
             setModal(null);
             refetchAll();
             if (!deleteGroup) {
+                undoState.pushAction(
+                    'Shift archived',
+                    async () => { await api.restoreShift(shiftId); refetchAll(); },
+                    async () => { await api.deleteShift(shiftId, { group: false }); refetchAll(); }
+                );
                 showUndoToast('Shift archived', async () => {
                     await api.restoreShift(shiftId);
                     refetchAll();
@@ -2355,13 +2360,20 @@ export default function SchedulingPage() {
         if (selectedShiftIds.size === 0) return;
         try {
             setBulkSaving(true);
-            const result = await api.bulkUpdateShifts([...selectedShiftIds], updates);
+            const ids = [...selectedShiftIds];
+            const result = await api.bulkUpdateShifts(ids, updates);
             setSelectedShiftIds(new Set());
             setBulkEditMode(false);
             setModal(null);
             refetchAll();
             fetchBatches();
-            addUndoBanner(`Updated ${result.count} shift${result.count !== 1 ? 's' : ''}`, result.batchId);
+            const msg = `Updated ${result.count} shift${result.count !== 1 ? 's' : ''}`;
+            addUndoBanner(msg, result.batchId);
+            undoState.pushAction(
+                msg,
+                async () => { await api.bulkUndoShifts(result.batchId); refetchAll(); fetchBatches(); },
+                async () => { await api.bulkUpdateShifts(ids, updates); refetchAll(); fetchBatches(); }
+            );
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
@@ -2383,6 +2395,11 @@ export default function SchedulingPage() {
                 ? `Updated ${result.count} shift${result.count !== 1 ? 's' : ''} + ${result.futureUpdated} future`
                 : `Updated ${result.count} shift${result.count !== 1 ? 's' : ''}`;
             addUndoBanner(msg, result.batchId);
+            undoState.pushAction(
+                msg,
+                async () => { await api.bulkUndoShifts(result.batchId); refetchAll(); fetchBatches(); },
+                async () => { await api.bulkUpdateShiftsPerShift(perShiftUpdates, applyToFuture); refetchAll(); fetchBatches(); }
+            );
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
@@ -2399,7 +2416,13 @@ export default function SchedulingPage() {
             setModal(null);
             refetchAll();
             fetchBatches();
-            addUndoBanner(`Archived ${result.archived} shift${result.archived !== 1 ? 's' : ''}`, result.batchId);
+            const msg = `Archived ${result.archived} shift${result.archived !== 1 ? 's' : ''}`;
+            addUndoBanner(msg, result.batchId);
+            undoState.pushAction(
+                msg,
+                async () => { await api.bulkUndoShifts(result.batchId); refetchAll(); fetchBatches(); },
+                async () => { await api.bulkDeleteShifts(shiftIds); refetchAll(); fetchBatches(); }
+            );
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
@@ -2418,7 +2441,13 @@ export default function SchedulingPage() {
             setBulkSaving(true);
             const result = await api.bulkDeleteShifts(shiftIds);
             fetchFutureShifts();
-            addUndoBanner(`Archived ${result.archived} shift${result.archived !== 1 ? 's' : ''}`, result.batchId);
+            const msg = `Archived ${result.archived} shift${result.archived !== 1 ? 's' : ''}`;
+            addUndoBanner(msg, result.batchId);
+            undoState.pushAction(
+                msg,
+                async () => { await api.bulkUndoShifts(result.batchId); refetchAll(); fetchBatches(); },
+                async () => { await api.bulkDeleteShifts(shiftIds); refetchAll(); fetchBatches(); }
+            );
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
