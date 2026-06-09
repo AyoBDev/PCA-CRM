@@ -3266,6 +3266,44 @@ body {
   color: hsl(var(--foreground));
 }
 
+.ts-week-picker {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ts-week-picker__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--background));
+  cursor: pointer;
+  color: hsl(var(--foreground));
+  transition: background 0.15s;
+}
+
+.ts-week-picker__btn:hover {
+  background: hsl(var(--muted));
+}
+
+.ts-week-picker__btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.ts-week-picker__label {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 0 8px;
+  white-space: nowrap;
+  min-width: 160px;
+  text-align: center;
+}
+
 .ts-filter-bar__actions {
   margin-left: auto;
   display: flex;

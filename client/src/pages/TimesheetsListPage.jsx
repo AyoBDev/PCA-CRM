@@ -288,27 +288,49 @@ export default function TimesheetsListPage() {
                         <div className="ts-filter-bar">
                             <div className="ts-filter-bar__field">
                                 <label>Week</label>
-                                <div className="ts-filter-bar__date-range">
-                                    <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} placeholder="From" />
-                                    <span className="ts-filter-bar__date-sep">–</span>
-                                    <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} placeholder="To" />
+                                <div className="ts-week-picker">
+                                    <button className="ts-week-picker__btn" onClick={() => {
+                                        const d = dateFrom ? new Date(dateFrom + 'T00:00:00') : new Date();
+                                        d.setDate(d.getDate() - 7);
+                                        d.setDate(d.getDate() - d.getDay());
+                                        const sun = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                                        const sat = new Date(d); sat.setDate(d.getDate() + 6);
+                                        const satStr = `${sat.getFullYear()}-${String(sat.getMonth() + 1).padStart(2, '0')}-${String(sat.getDate()).padStart(2, '0')}`;
+                                        setDateFrom(sun); setDateTo(satStr);
+                                    }}>{Icons.chevronLeft}</button>
+                                    <span className="ts-week-picker__label">
+                                        {dateFrom && dateTo
+                                            ? `${new Date(dateFrom + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${new Date(dateTo + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                                            : 'All Weeks'}
+                                    </span>
+                                    <button className="ts-week-picker__btn" onClick={() => {
+                                        const d = dateFrom ? new Date(dateFrom + 'T00:00:00') : new Date();
+                                        d.setDate(d.getDate() + 7);
+                                        d.setDate(d.getDate() - d.getDay());
+                                        const sun = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                                        const sat = new Date(d); sat.setDate(d.getDate() + 6);
+                                        const satStr = `${sat.getFullYear()}-${String(sat.getMonth() + 1).padStart(2, '0')}-${String(sat.getDate()).padStart(2, '0')}`;
+                                        setDateFrom(sun); setDateTo(satStr);
+                                    }}>{Icons.chevronRight}</button>
                                 </div>
                             </div>
                             <div className="ts-filter-bar__field">
                                 <label>Caregiver</label>
-                                <select value={pcaFilter} onChange={(e) => setPcaFilter(e.target.value)}>
-                                    <option value="">All Caregivers</option>
-                                    {pcaNames.map(name => <option key={name} value={name}>{name}</option>)}
-                                </select>
+                                <SearchableSelect
+                                    options={[{ value: '', label: 'All Caregivers' }, ...pcaNames.map(name => ({ value: name, label: name }))]}
+                                    value={pcaFilter}
+                                    onChange={setPcaFilter}
+                                    placeholder="Search caregivers…"
+                                />
                             </div>
                             <div className="ts-filter-bar__field">
                                 <label>Client</label>
-                                <select value={clientFilter} onChange={(e) => setClientFilter(e.target.value)}>
-                                    <option value="">All Clients</option>
-                                    {[...clients].sort((a, b) => a.clientName.localeCompare(b.clientName)).map(c => (
-                                        <option key={c.id} value={c.id}>{c.clientName}</option>
-                                    ))}
-                                </select>
+                                <SearchableSelect
+                                    options={[{ value: '', label: 'All Clients' }, ...[...clients].sort((a, b) => a.clientName.localeCompare(b.clientName)).map(c => ({ value: String(c.id), label: c.clientName }))]}
+                                    value={clientFilter}
+                                    onChange={setClientFilter}
+                                    placeholder="Search clients…"
+                                />
                             </div>
                             <div className="ts-filter-bar__field">
                                 <label>Service Type</label>
@@ -332,7 +354,6 @@ export default function TimesheetsListPage() {
                             </div>
                             <div className="ts-filter-bar__actions">
                                 <button className="btn btn--outline btn--sm" onClick={handleReset}>Reset</button>
-                                <button className="btn btn--primary btn--sm" onClick={handleSearch}>{Icons.search} Search</button>
                             </div>
                         </div>
 
