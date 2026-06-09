@@ -8,6 +8,8 @@ import Breadcrumbs from '../components/common/Breadcrumbs';
 import { EntityActivityButton } from '../components/common/ActivityDrawer';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
+import GlobalToolbar from '../components/common/GlobalToolbar';
+import ContextBar from '../components/common/ContextBar';
 import ProfileInsuranceTab from './client-tabs/ProfileInsuranceTab';
 import ProgramsAuthTab from './client-tabs/ProgramsAuthTab';
 import DocumentsTab from './client-tabs/DocumentsTab';
@@ -653,18 +655,14 @@ export default function ClientDetailPage() {
 
     return (
         <>
-            {/* Page Header */}
-            <div className="content-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <button className="btn btn--ghost btn--icon" onClick={() => navigate('/clients')} title="Back to clients">
-                        {Icons.chevronLeft}
-                    </button>
-                    <div>
-                        <Breadcrumbs items={[{ label: 'Clients', path: '/clients' }, { label: client.clientName }]} />
-                        <h1 className="content-header__title" style={{ margin: 0 }}>Care Plans</h1>
-                    </div>
-                </div>
-                <div className="content-header__actions">
+            <GlobalToolbar
+                title={client?.clientName || 'Client'}
+                subtitle="Client profile and care plans"
+                icon={Icons.users}
+                activityEntity="Client"
+            />
+            <ContextBar>
+                <ContextBar.Right>
                     <EntityActivityButton entityType="Client" entityId={client.id} />
                     <button className="btn btn--outline btn--sm" onClick={openEditClientModal}>
                         {Icons.edit} Edit Client
@@ -672,8 +670,8 @@ export default function ClientDetailPage() {
                     <button className="btn btn--danger-ghost btn--sm" onClick={() => setConfirmArchiveClient(true)}>
                         {Icons.trash} Archive
                     </button>
-                </div>
-            </div>
+                </ContextBar.Right>
+            </ContextBar>
 
             <div className="page-content cp-page">
 

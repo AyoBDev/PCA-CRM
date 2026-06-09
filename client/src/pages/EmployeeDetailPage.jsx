@@ -8,6 +8,8 @@ import { EntityActivityButton } from '../components/common/ActivityDrawer';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import PayrollTab from './employee-tabs/PayrollTab';
+import GlobalToolbar from '../components/common/GlobalToolbar';
+import ContextBar from '../components/common/ContextBar';
 
 const TABS = [
     { key: 'profile', label: 'Profile', icon: 'user' },
@@ -307,24 +309,20 @@ export default function EmployeeDetailPage() {
 
     return (
         <>
-            {/* Page Header */}
-            <div className="content-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <button className="btn btn--ghost btn--icon" onClick={() => navigate('/employees')} title="Back to employees">
-                        {Icons.chevronLeft}
-                    </button>
-                    <div>
-                        <Breadcrumbs items={[{ label: 'Employees', path: '/employees' }, { label: employee.name }]} />
-                        <h1 className="content-header__title" style={{ margin: 0 }}>Employee Profile</h1>
-                    </div>
-                </div>
-                <div className="content-header__actions">
+            <GlobalToolbar
+                title={employee?.name || 'Employee'}
+                subtitle="Employee Profile"
+                icon={Icons.users}
+                activityEntity="Employee"
+            />
+            <ContextBar>
+                <ContextBar.Right>
                     <EntityActivityButton entityType="Employee" entityId={employee.id} />
                     <button className="btn btn--outline btn--sm" onClick={() => setShowEditModal(true)}>
                         {Icons.edit} Edit Employee
                     </button>
-                </div>
-            </div>
+                </ContextBar.Right>
+            </ContextBar>
 
             <div className="page-content cp-page">
 
