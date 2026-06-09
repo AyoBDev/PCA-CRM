@@ -5,7 +5,8 @@ import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
-import { ActivityButton } from '../components/common/ActivityDrawer';
+import GlobalToolbar from '../components/common/GlobalToolbar';
+import ContextBar from '../components/common/ContextBar';
 
 function ServiceFormModal({ service, onSave, onClose }) {
     const [category, setCategory] = useState(service?.category || '');
@@ -120,28 +121,25 @@ export default function ServicesPage() {
 
     return (
         <>
-            <div className="page-hero">
-                <div className="page-hero__left">
-                    <div className="page-hero__icon">{Icons.shieldCheck}</div>
-                    <div>
-                        <div className="page-hero__title">Services</div>
-                        <div className="page-hero__subtitle">Manage service types and codes</div>
-                    </div>
-                </div>
-                <div className="page-hero__right">
-                    {isAdmin && <ActivityButton entityType="Service" />}
-                    {!showArchived && (
-                        <button className="archive-toggle" onClick={() => setShowArchived(true)}>
-                            {Icons.archive} View Archived
-                        </button>
-                    )}
+            <GlobalToolbar
+                title="Services"
+                subtitle="Manage service types and codes"
+                icon={Icons.shieldCheck}
+                activityEntity="Service"
+                archiveConfig={{
+                    isArchiveView: showArchived,
+                    onToggle: () => setShowArchived(!showArchived),
+                }}
+            />
+            <ContextBar>
+                <ContextBar.Right>
                     {!showArchived && (
                         <button className="btn btn--primary" onClick={() => setModal({ type: 'form' })}>
                             {Icons.plus} Add Service
                         </button>
                     )}
-                </div>
-            </div>
+                </ContextBar.Right>
+            </ContextBar>
             <div className="page-content">
                 {showArchived && (
                     <div className="archived-banner">

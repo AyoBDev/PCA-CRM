@@ -3,6 +3,8 @@ import * as api from '../api';
 import Icons from '../components/common/Icons';
 import { useToast } from '../hooks/useToast';
 import Modal from '../components/common/Modal';
+import GlobalToolbar from '../components/common/GlobalToolbar';
+import ContextBar from '../components/common/ContextBar';
 
 function fmtDate(d) {
     return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
@@ -97,27 +99,25 @@ export default function ReceiptsPage() {
 
     return (
         <>
-            <div className="page-hero">
-                <div className="page-hero__left">
-                    <div className="page-hero__icon">{Icons.dollarSign}</div>
-                    <div>
-                        <div className="page-hero__title">Receipts</div>
-                        <div className="page-hero__subtitle">Pay stubs for bi-weekly periods</div>
-                    </div>
-                </div>
-                <div className="page-hero__right">
-                    <input className="page-hero__search" placeholder="Search employee..." value={search} onChange={e => setSearch(e.target.value)} />
+            <GlobalToolbar
+                title="Receipts"
+                subtitle="Pay stubs for bi-weekly periods"
+                icon={Icons.dollarSign}
+                activityEntity="Receipt"
+            />
+            <ContextBar>
+                <ContextBar.Left>
+                    <input className="context-bar__search" placeholder="Search employee..." value={search} onChange={e => setSearch(e.target.value)} />
+                    {['all', 'draft', 'finalized', 'sent'].map(f => (
+                        <button key={f} className={`filter-btn ${statusFilter === f ? 'filter-btn--active' : ''}`} onClick={() => setStatusFilter(f)}>
+                            {f.charAt(0).toUpperCase() + f.slice(1)}
+                        </button>
+                    ))}
+                </ContextBar.Left>
+                <ContextBar.Right>
                     <button className="btn btn--primary" onClick={() => setShowGenerate(true)}>{Icons.plus} Generate Receipts</button>
-                </div>
-            </div>
-
-            <div className="filter-bar">
-                {['all', 'draft', 'finalized', 'sent'].map(f => (
-                    <button key={f} className={`filter-btn ${statusFilter === f ? 'filter-btn--active' : ''}`} onClick={() => setStatusFilter(f)}>
-                        {f.charAt(0).toUpperCase() + f.slice(1)}
-                    </button>
-                ))}
-            </div>
+                </ContextBar.Right>
+            </ContextBar>
 
             {selectedIds.size > 0 && (
                 <div className="table-toolbar">
