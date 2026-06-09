@@ -11,7 +11,9 @@ import { statusLabel } from '../utils/status';
 import { getAccountForCategory, ACCOUNT_NUMBER_OPTIONS } from '../utils/accountMapping';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
-import { ActivityButton, EntityActivityButton } from '../components/common/ActivityDrawer';
+import { EntityActivityButton } from '../components/common/ActivityDrawer';
+import GlobalToolbar from '../components/common/GlobalToolbar';
+import ContextBar from '../components/common/ContextBar';
 
 const SERVICE_CATEGORIES = ['PCS', 'SDPC', 'Waiver 58', 'Waiver 48', 'Timesheets', 'COPE', 'PAS'];
 
@@ -1000,39 +1002,33 @@ export default function AuthorizationsPage() {
 
     return (
         <>
-            {/* Page Hero Header */}
-            <div className="page-hero">
-                <div className="page-hero__left">
-                    <div className="page-hero__icon">
-                        {Icons.clipboard}
-                    </div>
-                    <div>
-                        <div className="page-hero__title">Master Sheet</div>
-                        <div className="page-hero__subtitle">Manage and track all client information</div>
-                    </div>
-                </div>
-                <div className="page-hero__right">
+            <GlobalToolbar
+                title="Master Sheet"
+                subtitle="Manage and track all client information"
+                icon={Icons.clipboard}
+                activityEntity="Client"
+                archiveConfig={{
+                    isArchiveView: showArchived,
+                    onToggle: () => { setShowArchived(!showArchived); setSelectedIds(new Set()); },
+                }}
+                overflowItems={isAdmin && !showArchived ? [
+                    { label: 'Import', icon: Icons.upload, action: () => setModal({ type: 'bulkImport' }) },
+                ] : []}
+            />
+            <ContextBar>
+                <ContextBar.Left>
                     <input
                         type="text"
-                        className="page-hero__search"
+                        className="context-bar__search"
                         placeholder="Search client name, Medicaid ID, or status..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
-                    {isAdmin && <ActivityButton entityType="Client" />}
-                    {!showArchived && (
-                        <button className="btn btn--outline" onClick={() => { setShowArchived(true); setSelectedIds(new Set()); }}>
-                            {Icons.archive} Archived
-                        </button>
-                    )}
+                </ContextBar.Left>
+                <ContextBar.Right>
                     {!showArchived && selectedIds.size > 0 && (
                         <button className="btn btn--danger btn--sm" onClick={() => setModal({ type: 'confirmBulkDelete' })}>
                             {Icons.trash} Delete {selectedIds.size}
-                        </button>
-                    )}
-                    {!showArchived && isAdmin && (
-                        <button className="btn btn--outline" onClick={() => setModal({ type: 'bulkImport' })}>
-                            {Icons.upload} Import
                         </button>
                     )}
                     {!showArchived && (
@@ -1040,8 +1036,8 @@ export default function AuthorizationsPage() {
                             {Icons.plus} Add Client
                         </button>
                     )}
-                </div>
-            </div>
+                </ContextBar.Right>
+            </ContextBar>
 
             <div className="page-content">
                 {showArchived && (
