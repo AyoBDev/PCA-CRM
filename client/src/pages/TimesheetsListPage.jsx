@@ -9,8 +9,10 @@ import TimesheetFormPage from './TimesheetFormPage';
 import { formatWeek } from '../utils/dates';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
-import { ActivityButton } from '../components/common/ActivityDrawer';
 import LoadingState from '../components/common/LoadingState';
+import GlobalToolbar from '../components/common/GlobalToolbar';
+import ContextBar from '../components/common/ContextBar';
+import { useUndoStack } from '../hooks/useUndoStack';
 
 function getSunday(dateStr) {
     const [y, m, d] = dateStr.split('-').map(Number);
@@ -35,6 +37,7 @@ function formatWeekEnding(weekStartStr) {
 export default function TimesheetsListPage() {
     const { isAdmin } = useAuth();
     const { showToast } = useToast();
+    const undoState = useUndoStack();
     const [searchParams, setSearchParams] = useSearchParams();
     const [clients, setClients] = useState([]);
     const [allTimesheets, setAllTimesheets] = useState([]);
@@ -249,26 +252,24 @@ export default function TimesheetsListPage() {
 
     return (
         <>
-            <div className="page-hero">
-                <div className="page-hero__left">
-                    <div className="page-hero__icon">{Icons.clipboard}</div>
-                    <div>
-                        <div className="page-hero__title">Timesheets</div>
-                        <div className="page-hero__subtitle">Track and manage weekly service records</div>
-                    </div>
-                </div>
-                <div className="page-hero__right">
-                    {isAdmin && <ActivityButton entityType="Timesheet" />}
-                    {!showArchived && (
-                        <button className="btn btn--outline" onClick={() => setShowArchived(true)}>
-                            {Icons.archive} Archived
-                        </button>
-                    )}
+            <GlobalToolbar
+                title="Timesheets"
+                subtitle="Track and manage weekly service records"
+                icon={Icons.clipboard}
+                undoState={undoState}
+                activityEntity="Timesheet"
+                archiveConfig={{
+                    isArchiveView: showArchived,
+                    onToggle: () => setShowArchived(!showArchived),
+                }}
+            />
+            <ContextBar>
+                <ContextBar.Right>
                     {!showArchived && (
                         <button className="btn btn--primary" onClick={() => setShowNewModal(true)}>{Icons.plus} New Timesheet</button>
                     )}
-                </div>
-            </div>
+                </ContextBar.Right>
+            </ContextBar>
             <div className="page-content">
                 {!showArchived && (
                     <>
