@@ -11652,11 +11652,29 @@ tr:hover .auth-note-icon--empty {
 }
 
 /* ─── Scheduling View Switcher ─── */
-.sched-controls-bar {
+.sched-header-controls {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 16px;
+    gap: 10px;
+}
+
+.sched-header-controls .sched-view-switcher {
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.sched-header-controls .sched-view-switcher__btn {
+    background: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.sched-header-controls .sched-view-switcher__btn--active {
+    background: white;
+    color: hsl(217 91% 50%);
+}
+
+.sched-header-controls .sched-view-switcher__btn:hover:not(.sched-view-switcher__btn--active) {
+    background: rgba(255, 255, 255, 0.25);
+    color: white;
 }
 
 .sched-view-switcher {
