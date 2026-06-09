@@ -7,7 +7,9 @@ import ConfirmModal from '../components/common/ConfirmModal';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import ClientCreationWizard from '../components/ClientCreationWizard';
-import TrashDrawer from '../components/common/TrashDrawer';
+import GlobalToolbar from '../components/common/GlobalToolbar';
+import ContextBar from '../components/common/ContextBar';
+import { useUndoStack } from '../hooks/useUndoStack';
 
 
 function getServiceCodes(client) {
@@ -30,6 +32,7 @@ function formatShortDate(d) {
 export default function ClientsListPage() {
     const { isAdmin } = useAuth();
     const { showToast, showUndoToast } = useToast();
+    const undoState = useUndoStack();
     const navigate = useNavigate();
     const [clients, setClients] = useState([]);
     const [search, setSearch] = useState('');
@@ -46,7 +49,6 @@ export default function ClientsListPage() {
     const [bulkNoteModal, setBulkNoteModal] = useState(false);
     const [bulkAssignModal, setBulkAssignModal] = useState(false);
     const [allEmployees, setAllEmployees] = useState([]);
-    const [trashOpen, setTrashOpen] = useState(false);
     const [archivedClients, setArchivedClients] = useState([]);
     const [confirmArchive, setConfirmArchive] = useState(null);
 
@@ -77,9 +79,7 @@ export default function ClientsListPage() {
         } catch {}
     }, []);
 
-    useEffect(() => {
-        if (trashOpen) fetchArchivedClients();
-    }, [trashOpen, fetchArchivedClients]);
+    useEffect(() => { fetchArchivedClients(); }, [fetchArchivedClients]);
 
     useEffect(() => {
         if (!menuOpenId) return;
@@ -196,34 +196,44 @@ export default function ClientsListPage() {
 
     return (
         <>
-            <div className="page-hero">
-                <div className="page-hero__left">
-                    <div className="page-hero__icon">{Icons.users}</div>
-                    <div>
-                        <div className="page-hero__title">Clients</div>
-                        <div className="page-hero__subtitle">Manage client profiles and service records</div>
-                    </div>
-                </div>
-                <div className="page-hero__right">
-                    <button
-                        className="btn btn--outline btn--sm"
-                        onClick={() => setTrashOpen(true)}
-                        title="View deleted clients"
-                    >
-                        {Icons.trash}
-                    </button>
+            <GlobalToolbar
+                title="Clients"
+                subtitle="Manage client profiles and service records"
+                icon={Icons.users}
+                undoState={undoState}
+                activityEntity="Client"
+                trashConfig={{
+                    items: archivedClients || [],
+                    onRestore: async (ids) => {
+                        await api.bulkRestoreClients(ids);
+                        fetchClients();
+                        fetchArchivedClients();
+                        showToast(`Restored ${ids.length} client${ids.length !== 1 ? 's' : ''}`);
+                    },
+                    onPermanentDelete: async (ids) => {
+                        await api.bulkPermanentlyDeleteClients(ids);
+                        fetchArchivedClients();
+                        showToast(`Permanently deleted ${ids.length} client${ids.length !== 1 ? 's' : ''}`);
+                    },
+                    entityLabel: 'clients',
+                }}
+            />
+            <ContextBar>
+                <ContextBar.Left>
                     <input
                         type="text"
-                        className="page-hero__search"
+                        className="context-bar__search"
                         placeholder="Search by name or Medicaid ID..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
+                </ContextBar.Left>
+                <ContextBar.Right>
                     <button className="btn btn--primary" onClick={() => setShowCreateWizard(true)}>
                         {Icons.plus} Add Client
                     </button>
-                </div>
-            </div>
+                </ContextBar.Right>
+            </ContextBar>
             <div className="page-content">
                 <div className="sheet-card">
                     <div className="table-toolbar">
@@ -610,22 +620,6 @@ export default function ClientsListPage() {
                     onClose={() => setConfirmArchive(null)}
                 />
             )}
-            <TrashDrawerWrapper
-                open={trashOpen}
-                archivedClients={archivedClients}
-                onClose={() => setTrashOpen(false)}
-                onRestore={async (ids) => {
-                    await api.bulkRestoreClients(ids);
-                    fetchClients();
-                    fetchArchivedClients();
-                    showToast(`Restored ${ids.length} client${ids.length !== 1 ? 's' : ''}`);
-                }}
-                onPermanentDelete={async (ids) => {
-                    await api.bulkPermanentlyDeleteClients(ids);
-                    fetchArchivedClients();
-                    showToast(`Permanently deleted ${ids.length} client${ids.length !== 1 ? 's' : ''}`);
-                }}
-            />
         </>
     );
 }
@@ -697,17 +691,3 @@ function BulkAssignModal({ employees, count, onSave, onClose }) {
     );
 }
 
-function TrashDrawerWrapper({ open, archivedClients, onClose, onRestore, onPermanentDelete }) {
-    if (!open) return null;
-    return (
-        <TrashDrawer
-            items={archivedClients}
-            batches={[]}
-            onRestore={onRestore}
-            onRestoreBatch={() => {}}
-            onPermanentDelete={onPermanentDelete}
-            onClose={onClose}
-            entityLabel="clients"
-        />
-    );
-}

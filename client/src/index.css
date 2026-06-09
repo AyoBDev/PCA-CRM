@@ -2466,6 +2466,28 @@ body {
   gap: 8px;
 }
 
+.context-bar__search {
+  padding: 7px 14px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: inherit;
+  min-width: 220px;
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.context-bar__search:focus {
+  outline: none;
+  border-color: hsl(var(--ring));
+  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.1);
+}
+
+.context-bar__search::placeholder {
+  color: hsl(var(--muted-foreground));
+}
+
 /* ─── Overflow Menu ─── */
 .overflow-menu {
   position: relative;
