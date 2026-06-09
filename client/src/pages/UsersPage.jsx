@@ -3,9 +3,10 @@ import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import GlobalToolbar from '../components/common/GlobalToolbar';
+import ContextBar from '../components/common/ContextBar';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
-import { ActivityButton } from '../components/common/ActivityDrawer';
 
 export default function UsersPage() {
     const { isAdmin } = useAuth();
@@ -102,26 +103,23 @@ export default function UsersPage() {
 
     return (
         <>
-            <div className="page-hero">
-                <div className="page-hero__left">
-                    <div className="page-hero__icon">{Icons.users}</div>
-                    <div>
-                        <div className="page-hero__title">Users</div>
-                        <div className="page-hero__subtitle">Manage staff accounts and access</div>
-                    </div>
-                </div>
-                <div className="page-hero__right">
-                    {isAdmin && <ActivityButton entityType="User" />}
-                    {!showArchived && (
-                        <button className="archive-toggle" onClick={() => setShowArchived(true)}>
-                            {Icons.archive} View Archived
-                        </button>
-                    )}
+            <GlobalToolbar
+                title="Users"
+                subtitle="Manage staff accounts and access"
+                icon={Icons.users}
+                activityEntity="User"
+                archiveConfig={{
+                    isArchiveView: showArchived,
+                    onToggle: () => setShowArchived(!showArchived),
+                }}
+            />
+            <ContextBar>
+                <ContextBar.Right>
                     {!showArchived && (
                         <button className="btn btn--primary" onClick={() => setShowModal(true)}>{Icons.plus} Add User</button>
                     )}
-                </div>
-            </div>
+                </ContextBar.Right>
+            </ContextBar>
             <div className="page-content">
                 {showArchived && (
                     <div className="archived-banner">

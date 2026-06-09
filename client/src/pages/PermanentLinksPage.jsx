@@ -3,6 +3,8 @@ import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import GlobalToolbar from '../components/common/GlobalToolbar';
+import ContextBar from '../components/common/ContextBar';
 import { useToast } from '../hooks/useToast';
 
 export default function PermanentLinksPage() {
@@ -68,18 +70,17 @@ export default function PermanentLinksPage() {
 
     return (
         <>
-            <div className="page-hero">
-                <div className="page-hero__left">
-                    <div className="page-hero__icon">{Icons.link}</div>
-                    <div>
-                        <div className="page-hero__title">Permanent Links</div>
-                        <div className="page-hero__subtitle">Manage PCA form links for caregivers</div>
-                    </div>
-                </div>
-                <div className="page-hero__right">
+            <GlobalToolbar
+                title="Permanent Links"
+                subtitle="Manage PCA form links for caregivers"
+                icon={Icons.link}
+                activityEntity="PermanentLink"
+            />
+            <ContextBar>
+                <ContextBar.Right>
                     <button className="btn btn--primary" onClick={() => setShowModal(true)}>{Icons.plus} Create Link</button>
-                </div>
-            </div>
+                </ContextBar.Right>
+            </ContextBar>
             <div className="page-content">
                 {loading ? (
                     <div style={{ padding: 40, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>Loading…</div>

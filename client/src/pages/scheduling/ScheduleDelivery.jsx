@@ -148,7 +148,7 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                             </p>
                             <input
                                 type="text"
-                                className="page-hero__search"
+                                className="context-bar__search"
                                 placeholder="Search employee..."
                                 value={empSearch}
                                 onChange={e => setEmpSearch(e.target.value)}
