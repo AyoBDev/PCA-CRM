@@ -47,3 +47,4 @@ server/uploads/
 # Backups & scripts
 backups/
 scripts/restore-backup.js
+.superpowers/
