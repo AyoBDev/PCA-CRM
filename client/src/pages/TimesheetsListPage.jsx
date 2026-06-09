@@ -217,6 +217,11 @@ export default function TimesheetsListPage() {
             setConfirmDelete(null);
             showToast('Timesheet archived');
             fetchTimesheets();
+            undoState.pushAction(
+                `Archived timesheet`,
+                async () => { await api.restoreTimesheet(ts.id); fetchTimesheets(); },
+                async () => { await api.deleteTimesheet(ts.id); fetchTimesheets(); }
+            );
         } catch (err) { showToast(err.message, 'error'); }
     };
 

@@ -827,6 +827,11 @@ function PayrollPage() {
                 await api.restorePayrollRun(run.id);
                 loadRuns();
             });
+            undoState.pushAction(
+                `Archived payroll run "${run.name}"`,
+                async () => { await api.restorePayrollRun(run.id); loadRuns(); },
+                async () => { await api.deletePayrollRun(run.id); loadRuns(); }
+            );
         } catch (err) {
             showToast(err.message, 'error');
             setModal(null);

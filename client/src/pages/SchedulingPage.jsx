@@ -2307,8 +2307,20 @@ export default function SchedulingPage() {
                     await api.restoreShift(shiftId);
                     refetchAll();
                 });
+                undoState.pushAction(
+                    'Archived shift',
+                    async () => { await api.restoreShifts([shiftId]); refetchAll(); },
+                    async () => { await api.deleteShift(shiftId); refetchAll(); }
+                );
             } else {
                 showToast(`${count} shift(s) archived`);
+                if (result?.batchId) {
+                    undoState.pushAction(
+                        `Archived ${count} shift${count !== 1 ? 's' : ''}`,
+                        async () => { await api.bulkUndoShifts(result.batchId); refetchAll(); fetchBatches(); },
+                        async () => {}
+                    );
+                }
             }
         } catch (err) { showToast(err.message, 'error'); }
     };
@@ -2361,6 +2373,11 @@ export default function SchedulingPage() {
             refetchAll();
             fetchBatches();
             addUndoBanner(`Updated ${result.count} shift${result.count !== 1 ? 's' : ''}`, result.batchId);
+            undoState.pushAction(
+                `Updated ${result.count} shift${result.count !== 1 ? 's' : ''}`,
+                async () => { await api.bulkUndoShifts(result.batchId); refetchAll(); fetchBatches(); },
+                async () => {}
+            );
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
@@ -2382,6 +2399,11 @@ export default function SchedulingPage() {
                 ? `Updated ${result.count} shift${result.count !== 1 ? 's' : ''} + ${result.futureUpdated} future`
                 : `Updated ${result.count} shift${result.count !== 1 ? 's' : ''}`;
             addUndoBanner(msg, result.batchId);
+            undoState.pushAction(
+                msg,
+                async () => { await api.bulkUndoShifts(result.batchId); refetchAll(); fetchBatches(); },
+                async () => {}
+            );
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
@@ -2399,6 +2421,11 @@ export default function SchedulingPage() {
             refetchAll();
             fetchBatches();
             addUndoBanner(`Archived ${result.archived} shift${result.archived !== 1 ? 's' : ''}`, result.batchId);
+            undoState.pushAction(
+                `Archived ${result.archived} shift${result.archived !== 1 ? 's' : ''}`,
+                async () => { await api.bulkUndoShifts(result.batchId); refetchAll(); fetchBatches(); },
+                async () => { await api.bulkDeleteShifts(shiftIds); refetchAll(); fetchBatches(); }
+            );
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
@@ -2418,6 +2445,11 @@ export default function SchedulingPage() {
             const result = await api.bulkDeleteShifts(shiftIds);
             fetchFutureShifts();
             addUndoBanner(`Archived ${result.archived} shift${result.archived !== 1 ? 's' : ''}`, result.batchId);
+            undoState.pushAction(
+                `Archived ${result.archived} shift${result.archived !== 1 ? 's' : ''}`,
+                async () => { await api.bulkUndoShifts(result.batchId); refetchAll(); fetchBatches(); },
+                async () => { await api.bulkDeleteShifts(shiftIds); refetchAll(); fetchBatches(); }
+            );
         } catch (err) {
             showToast(err.message, 'error');
         } finally {

@@ -397,6 +397,11 @@ export default function EmployeesPage() {
                 await api.restoreEmployee(emp.id);
                 fetchData();
             });
+            undoState.pushAction(
+                `Archived employee "${emp.name}"`,
+                async () => { await api.restoreEmployee(emp.id); fetchData(); },
+                async () => { await api.deleteEmployee(emp.id); fetchData(); }
+            );
         } catch (err) {
             showToast(err.message, 'error');
         }

@@ -98,22 +98,31 @@ export default function ClientsListPage() {
     const handleArchive = async () => {
         try {
             const toArchive = confirmArchive;
+            const ids = toArchive.map(c => c.id);
             if (toArchive.length === 1) {
                 await api.deleteClient(toArchive[0].id);
             } else {
-                await api.bulkDeleteClients(toArchive.map(c => c.id));
+                await api.bulkDeleteClients(ids);
             }
             setConfirmArchive(null);
             setSelectedIds(new Set());
             fetchClients();
+            fetchArchivedClients();
             showUndoToast(`Archived ${toArchive.length} client${toArchive.length > 1 ? 's' : ''}`, async () => {
                 if (toArchive.length === 1) {
                     await api.restoreClient(toArchive[0].id);
                 } else {
-                    await api.bulkRestoreClients(toArchive.map(c => c.id));
+                    await api.bulkRestoreClients(ids);
                 }
                 fetchClients();
+                fetchArchivedClients();
             });
+            const label = toArchive.length === 1 ? `Archived client "${toArchive[0].clientName}"` : `Archived ${toArchive.length} clients`;
+            undoState.pushAction(
+                label,
+                async () => { await api.bulkRestoreClients(ids); fetchClients(); fetchArchivedClients(); },
+                async () => { await api.bulkDeleteClients(ids); fetchClients(); fetchArchivedClients(); }
+            );
         } catch (err) {
             showToast(err.message, 'error');
         }
@@ -263,6 +272,11 @@ export default function ClientsListPage() {
                                             await Promise.all(prevStatuses.map(s => api.patchClient(s.id, { clientStatus: s.status })));
                                             fetchClients();
                                         });
+                                        undoState.pushAction(
+                                            `Discharged ${selected.length} client${selected.length !== 1 ? 's' : ''}`,
+                                            async () => { await Promise.all(prevStatuses.map(s => api.patchClient(s.id, { clientStatus: s.status }))); fetchClients(); },
+                                            async () => { await Promise.all(selected.map(c => api.patchClient(c.id, { clientStatus: 'discharged' }))); fetchClients(); }
+                                        );
                                     } else if (action === 'Transfer') {
                                         const prevStatuses = selected.map(c => ({ id: c.id, status: c.clientStatus || 'active' }));
                                         await Promise.all(selected.map(c => api.patchClient(c.id, { clientStatus: 'transferred' })));
@@ -272,6 +286,11 @@ export default function ClientsListPage() {
                                             await Promise.all(prevStatuses.map(s => api.patchClient(s.id, { clientStatus: s.status })));
                                             fetchClients();
                                         });
+                                        undoState.pushAction(
+                                            `Transferred ${selected.length} client${selected.length !== 1 ? 's' : ''}`,
+                                            async () => { await Promise.all(prevStatuses.map(s => api.patchClient(s.id, { clientStatus: s.status }))); fetchClients(); },
+                                            async () => { await Promise.all(selected.map(c => api.patchClient(c.id, { clientStatus: 'transferred' }))); fetchClients(); }
+                                        );
                                     } else if (action === 'Deactivate') {
                                         const prevStatuses = selected.map(c => ({ id: c.id, status: c.clientStatus || 'active' }));
                                         await Promise.all(selected.map(c => api.patchClient(c.id, { clientStatus: 'inactive' })));
@@ -281,6 +300,11 @@ export default function ClientsListPage() {
                                             await Promise.all(prevStatuses.map(s => api.patchClient(s.id, { clientStatus: s.status })));
                                             fetchClients();
                                         });
+                                        undoState.pushAction(
+                                            `Deactivated ${selected.length} client${selected.length !== 1 ? 's' : ''}`,
+                                            async () => { await Promise.all(prevStatuses.map(s => api.patchClient(s.id, { clientStatus: s.status }))); fetchClients(); },
+                                            async () => { await Promise.all(selected.map(c => api.patchClient(c.id, { clientStatus: 'inactive' }))); fetchClients(); }
+                                        );
                                     } else if (action === 'Activate') {
                                         const prevStatuses = selected.map(c => ({ id: c.id, status: c.clientStatus || 'active' }));
                                         await Promise.all(selected.map(c => api.patchClient(c.id, { clientStatus: 'active' })));
@@ -290,6 +314,11 @@ export default function ClientsListPage() {
                                             await Promise.all(prevStatuses.map(s => api.patchClient(s.id, { clientStatus: s.status })));
                                             fetchClients();
                                         });
+                                        undoState.pushAction(
+                                            `Activated ${selected.length} client${selected.length !== 1 ? 's' : ''}`,
+                                            async () => { await Promise.all(prevStatuses.map(s => api.patchClient(s.id, { clientStatus: s.status }))); fetchClients(); },
+                                            async () => { await Promise.all(selected.map(c => api.patchClient(c.id, { clientStatus: 'active' }))); fetchClients(); }
+                                        );
                                     } else if (action === 'Archive') {
                                         setConfirmArchive(selected);
                                     } else if (action === 'Add Note') {
