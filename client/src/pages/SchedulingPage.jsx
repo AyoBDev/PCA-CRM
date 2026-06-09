@@ -5,15 +5,16 @@ import Modal from '../components/common/Modal';
 import { hhmm12 } from '../utils/time';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
-import { ActivityButton } from '../components/common/ActivityDrawer';
 import ScheduleDelivery from './scheduling/ScheduleDelivery';
 import MonthlyCalendarView from './scheduling/MonthlyCalendarView';
 import FutureShiftsView from './scheduling/FutureShiftsView';
 import { getAccountForCategory, ACCOUNT_NUMBER_OPTIONS } from '../utils/accountMapping';
 import UndoBanner from '../components/common/UndoBanner';
-import TrashDrawer from '../components/common/TrashDrawer';
 import DeleteConfirmModal from '../components/common/DeleteConfirmModal';
 import DateSelectionPanel from './scheduling/DateSelectionPanel';
+import GlobalToolbar from '../components/common/GlobalToolbar';
+import ContextBar from '../components/common/ContextBar';
+import { useUndoStack } from '../hooks/useUndoStack';
 
 // Distinct colors for visually distinguishing multiple clients
 const CLIENT_COLORS = [
@@ -2033,6 +2034,7 @@ function ScheduleMatrix({ shifts, weekStart, rowBy, onEditShift, overlapIds, cli
 export default function SchedulingPage() {
     const { isAdmin } = useAuth();
     const { showToast, showUndoToast } = useToast();
+    const undoState = useUndoStack();
     const [clients, setClients] = useState([]);
     const [employees, setEmployees] = useState([]);
 
@@ -2087,8 +2089,7 @@ export default function SchedulingPage() {
     // Undo banners
     const [undoBanners, setUndoBanners] = useState([]);
 
-    // Trash drawer
-    const [trashOpen, setTrashOpen] = useState(false);
+    // Archived shifts (for trash in GlobalToolbar)
     const [archivedShifts, setArchivedShifts] = useState([]);
 
     // Delete confirmation modal
@@ -2257,7 +2258,7 @@ export default function SchedulingPage() {
     useEffect(() => { fetchEmployeeSchedule(); }, [fetchEmployeeSchedule]);
     useEffect(() => { if (modal?.type === 'bulkEdit') fetchBatches(); }, [modal, fetchBatches]);
     useEffect(() => { if (viewMode === 'month') fetchMonthShifts(); }, [viewMode, fetchMonthShifts]);
-    useEffect(() => { if (trashOpen) fetchArchivedShifts(); }, [trashOpen, fetchArchivedShifts]);
+    useEffect(() => { fetchArchivedShifts(); }, [fetchArchivedShifts]);
     useEffect(() => { if (viewMode === 'future') fetchFutureShifts(); }, [viewMode, fetchFutureShifts]);
 
 
@@ -2496,36 +2497,49 @@ export default function SchedulingPage() {
 
     return (
         <>
-            {/* Header */}
-            <div className="page-hero">
-                <div className="page-hero__left">
-                    <div className="page-hero__icon">{Icons.calendar}</div>
-                    <div>
-                        <div className="page-hero__title">Scheduling</div>
-                        <div className="page-hero__subtitle">Plan and manage caregiver shifts</div>
-                    </div>
-                </div>
-                <div className="page-hero__right">
-                    <button
-                        className="btn btn--outline btn--sm"
-                        onClick={() => setTrashOpen(true)}
-                        title="View archived shifts"
-                    >
-                        {Icons.trash}
-                    </button>
-                    {isAdmin && <ActivityButton entityType="Shift" />}
-                    <button
-                        className="btn btn--outline"
-                        onClick={() => setModal({ type: 'bulkEdit' })}
-                        disabled={allShifts.length === 0}
-                    >
-                        {Icons.edit} Bulk Edit
-                    </button>
+            <GlobalToolbar
+                title="Scheduling"
+                subtitle="Plan and manage caregiver shifts"
+                icon={Icons.calendar}
+                undoState={undoState}
+                activityEntity="Shift"
+                trashConfig={{
+                    items: archivedShifts || [],
+                    batches: bulkBatches.filter(b => b.action === 'ARCHIVE' && !b.undoneAt),
+                    onRestore: async (ids) => {
+                        await api.restoreShifts(ids);
+                        refetchAll();
+                        fetchArchivedShifts();
+                        fetchBatches();
+                        showToast(`Restored ${ids.length} shift${ids.length !== 1 ? 's' : ''}`);
+                    },
+                    onRestoreBatch: async (batchId) => {
+                        await api.bulkUndoShifts(batchId);
+                        refetchAll();
+                        fetchArchivedShifts();
+                        fetchBatches();
+                        showToast('Batch restored');
+                    },
+                    onPermanentDelete: async (ids) => {
+                        await api.permanentDeleteShifts(ids);
+                        fetchArchivedShifts();
+                        showToast(`Permanently deleted ${ids.length} shift${ids.length !== 1 ? 's' : ''}`);
+                    },
+                    entityLabel: 'shifts',
+                }}
+            />
+            <ContextBar>
+                <ContextBar.Right>
+                    {isAdmin && (
+                        <button className="btn btn--outline btn--sm" onClick={() => setModal({ type: 'bulkEdit' })} disabled={allShifts.length === 0}>
+                            {Icons.edit} Bulk Edit
+                        </button>
+                    )}
                     <button className="btn btn--primary" onClick={() => setModal({ type: 'shift', shift: null, defaultClientId: viewMode === 'future' ? futureFilterContext.clientId : selectedClientId, defaultEmployeeId: viewMode === 'future' ? futureFilterContext.employeeId : selectedEmployeeId })}>
                         {Icons.plus} Create Shift
                     </button>
-                </div>
-            </div>
+                </ContextBar.Right>
+            </ContextBar>
 
             <div className="page-content">
 
@@ -2985,34 +2999,6 @@ export default function SchedulingPage() {
                 />
             )}
 
-            {/* TrashDrawer */}
-            {trashOpen && (
-                <TrashDrawer
-                    items={archivedShifts}
-                    batches={bulkBatches.filter(b => b.action === 'ARCHIVE' && !b.undoneAt)}
-                    onRestore={async (ids) => {
-                        await api.restoreShifts(ids);
-                        refetchAll();
-                        fetchArchivedShifts();
-                        fetchBatches();
-                        showToast(`Restored ${ids.length} shift${ids.length !== 1 ? 's' : ''}`);
-                    }}
-                    onRestoreBatch={async (batchId) => {
-                        await api.bulkUndoShifts(batchId);
-                        refetchAll();
-                        fetchArchivedShifts();
-                        fetchBatches();
-                        showToast('Batch restored');
-                    }}
-                    onPermanentDelete={async (ids) => {
-                        await api.permanentDeleteShifts(ids);
-                        fetchArchivedShifts();
-                        showToast(`Permanently deleted ${ids.length} shift${ids.length !== 1 ? 's' : ''}`);
-                    }}
-                    onClose={() => setTrashOpen(false)}
-                    entityLabel="shifts"
-                />
-            )}
 
             {/* DeleteConfirmModal */}
             {deleteConfirm && (
