@@ -11652,6 +11652,13 @@ tr:hover .auth-note-icon--empty {
 }
 
 /* ─── Scheduling View Switcher ─── */
+.sched-controls-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
 .sched-view-switcher {
     display: inline-flex;
     border: 1px solid hsl(var(--border));

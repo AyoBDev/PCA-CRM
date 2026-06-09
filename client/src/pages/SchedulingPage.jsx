@@ -2506,11 +2506,6 @@ export default function SchedulingPage() {
                     </div>
                 </div>
                 <div className="page-hero__right">
-                    <div className="sched-view-switcher">
-                        <button className={`sched-view-switcher__btn ${viewMode === 'week' ? 'sched-view-switcher__btn--active' : ''}`} onClick={() => setViewMode('week')}>Week</button>
-                        <button className={`sched-view-switcher__btn ${viewMode === 'month' ? 'sched-view-switcher__btn--active' : ''}`} onClick={() => setViewMode('month')}>Month</button>
-                        <button className={`sched-view-switcher__btn ${viewMode === 'future' ? 'sched-view-switcher__btn--active' : ''}`} onClick={() => setViewMode('future')}>Future</button>
-                    </div>
                     <button
                         className="btn btn--outline btn--sm"
                         onClick={() => setTrashOpen(true)}
@@ -2533,6 +2528,20 @@ export default function SchedulingPage() {
             </div>
 
             <div className="page-content">
+
+                <div className="sched-controls-bar">
+                    <div className="sched-view-switcher">
+                        <button className={`sched-view-switcher__btn ${viewMode === 'week' ? 'sched-view-switcher__btn--active' : ''}`} onClick={() => setViewMode('week')}>Week</button>
+                        <button className={`sched-view-switcher__btn ${viewMode === 'month' ? 'sched-view-switcher__btn--active' : ''}`} onClick={() => setViewMode('month')}>Month</button>
+                        <button className={`sched-view-switcher__btn ${viewMode === 'future' ? 'sched-view-switcher__btn--active' : ''}`} onClick={() => setViewMode('future')}>Future</button>
+                    </div>
+                    {viewMode === 'week' && (
+                        <div className="sched-view-switcher">
+                            <button className={`sched-view-switcher__btn ${summaryViewBy === 'client' ? 'sched-view-switcher__btn--active' : ''}`} onClick={() => setSummaryViewBy('client')}>Client</button>
+                            <button className={`sched-view-switcher__btn ${summaryViewBy === 'employee' ? 'sched-view-switcher__btn--active' : ''}`} onClick={() => setSummaryViewBy('employee')}>Employee</button>
+                        </div>
+                    )}
+                </div>
 
                 {/* Undo Banners */}
                 {undoBanners.map(banner => (
@@ -2753,17 +2762,6 @@ export default function SchedulingPage() {
                     pdfShifts={allShifts}
                     pdfWeekStart={weekStart}
                     pdfRowBy={summaryViewBy}
-                    headerActions={
-                        <div className="sched-view-toggle">
-                            <span className="sched-view-toggle__label">View:</span>
-                            <button className={`sched-view-toggle__btn ${summaryViewBy === 'client' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setSummaryViewBy('client')}>
-                                {Icons.table} Client
-                            </button>
-                            <button className={`sched-view-toggle__btn ${summaryViewBy === 'employee' ? 'sched-view-toggle__btn--active' : ''}`} onClick={() => setSummaryViewBy('employee')}>
-                                {Icons.table} Employee
-                            </button>
-                        </div>
-                    }
                 >
                     <InlineWeekPicker weekStart={weekStart} setWeekStart={setWeekStart} />
                     {loadingAll ? (
