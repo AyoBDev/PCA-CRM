@@ -5,6 +5,7 @@ import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
+import { useUndoStack } from '../hooks/useUndoStack';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 
@@ -59,6 +60,7 @@ function InsuranceTypeFormModal({ insuranceType, onSave, onClose }) {
 export default function InsuranceTypesPage() {
     const { isAdmin } = useAuth();
     const { showToast, showUndoToast } = useToast();
+    const undoState = useUndoStack();
     const [insuranceTypes, setInsuranceTypes] = useState([]);
     const [modal, setModal] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
@@ -75,11 +77,21 @@ export default function InsuranceTypesPage() {
     const handleSave = async (data) => {
         try {
             if (modal.insuranceType) {
+                const oldData = { name: modal.insuranceType.name, color: modal.insuranceType.color };
                 await api.updateInsuranceType(modal.insuranceType.id, data);
                 showToast('Insurance type updated');
+                const id = modal.insuranceType.id;
+                undoState.pushAction(`Updated "${data.name}"`,
+                    async () => { await api.updateInsuranceType(id, oldData); fetchInsuranceTypes(); },
+                    async () => { await api.updateInsuranceType(id, data); fetchInsuranceTypes(); }
+                );
             } else {
-                await api.createInsuranceType(data);
+                const created = await api.createInsuranceType(data);
                 showToast('Insurance type created');
+                undoState.pushAction(`Created "${data.name}"`,
+                    async () => { await api.deleteInsuranceType(created.id); fetchInsuranceTypes(); },
+                    async () => { await api.createInsuranceType(data); fetchInsuranceTypes(); }
+                );
             }
             setModal(null);
             fetchInsuranceTypes();
@@ -91,6 +103,10 @@ export default function InsuranceTypesPage() {
             await api.deleteInsuranceType(type.id);
             setModal(null);
             fetchInsuranceTypes();
+            undoState.pushAction(`Archived "${type.name}"`,
+                async () => { await api.restoreInsuranceType(type.id); fetchInsuranceTypes(); },
+                async () => { await api.deleteInsuranceType(type.id); fetchInsuranceTypes(); }
+            );
             showUndoToast(`"${type.name}" archived`, async () => {
                 await api.restoreInsuranceType(type.id);
                 fetchInsuranceTypes();
@@ -103,6 +119,10 @@ export default function InsuranceTypesPage() {
             await api.restoreInsuranceType(type.id);
             showToast(`"${type.name}" restored`);
             fetchInsuranceTypes();
+            undoState.pushAction(`Restored "${type.name}"`,
+                async () => { await api.deleteInsuranceType(type.id); fetchInsuranceTypes(); },
+                async () => { await api.restoreInsuranceType(type.id); fetchInsuranceTypes(); }
+            );
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -131,6 +151,7 @@ export default function InsuranceTypesPage() {
                 subtitle="Manage insurance payer types"
                 icon={Icons.shieldCheck}
                 activityEntity="InsuranceType"
+                undoState={undoState}
                 archiveConfig={{
                     isArchiveView: showArchived,
                     onToggle: () => setShowArchived(!showArchived),

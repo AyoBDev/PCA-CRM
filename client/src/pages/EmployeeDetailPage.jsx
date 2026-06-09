@@ -7,6 +7,7 @@ import Breadcrumbs from '../components/common/Breadcrumbs';
 import { EntityActivityButton } from '../components/common/ActivityDrawer';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
+import { useUndoStack } from '../hooks/useUndoStack';
 import PayrollTab from './employee-tabs/PayrollTab';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
@@ -216,6 +217,7 @@ export default function EmployeeDetailPage() {
     const navigate = useNavigate();
     const { showToast } = useToast();
     const { isAdmin } = useAuth();
+    const undoState = useUndoStack();
 
     const [employee, setEmployee] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -258,19 +260,29 @@ export default function EmployeeDetailPage() {
 
     const handleSaveEmployee = async (data) => {
         try {
+            const oldData = { name: employee.name, phone: employee.phone, email: employee.email, address: employee.address, npi: employee.npi, clientAssignment: employee.clientAssignment, notes: employee.notes };
             await api.updateEmployee(Number(employeeId), data);
             showToast('Employee updated');
             setShowEditModal(false);
             fetchEmployee();
+            undoState.pushAction(`Updated "${data.name || employee.name}"`,
+                async () => { await api.updateEmployee(Number(employeeId), oldData); fetchEmployee(); },
+                async () => { await api.updateEmployee(Number(employeeId), data); fetchEmployee(); }
+            );
         } catch (err) { showToast(err.message, 'error'); }
     };
 
     const handleSaveCerts = async (data) => {
         try {
+            const oldData = { tbDueDate: employee.tbDueDate, cprDueDate: employee.cprDueDate, trainingDueDate: employee.trainingDueDate, backgroundCheckDueDate: employee.backgroundCheckDueDate, idExpDate: employee.idExpDate };
             await api.updateEmployee(Number(employeeId), data);
             showToast('Certifications updated');
             setShowCertModal(false);
             fetchEmployee();
+            undoState.pushAction('Updated certifications',
+                async () => { await api.updateEmployee(Number(employeeId), oldData); fetchEmployee(); },
+                async () => { await api.updateEmployee(Number(employeeId), data); fetchEmployee(); }
+            );
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -314,6 +326,7 @@ export default function EmployeeDetailPage() {
                 subtitle="Employee Profile"
                 icon={Icons.users}
                 activityEntity="Employee"
+                undoState={undoState}
             />
             <ContextBar>
                 <ContextBar.Right>

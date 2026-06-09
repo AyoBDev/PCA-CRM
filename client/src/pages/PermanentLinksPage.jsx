@@ -6,9 +6,11 @@ import ConfirmModal from '../components/common/ConfirmModal';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import { useToast } from '../hooks/useToast';
+import { useUndoStack } from '../hooks/useUndoStack';
 
 export default function PermanentLinksPage() {
     const { showToast } = useToast();
+    const undoState = useUndoStack();
     const [links, setLinks] = useState([]);
     const [clients, setClients] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -39,12 +41,19 @@ export default function PermanentLinksPage() {
             return;
         }
         try {
-            await api.createPermanentLink({ clientId: Number(newClientId), pcaName: newPcaName.trim() });
+            const created = await api.createPermanentLink({ clientId: Number(newClientId), pcaName: newPcaName.trim() });
             showToast('Link created');
             setShowModal(false);
+            const savedPcaName = newPcaName.trim();
             setNewClientId('');
             setNewPcaName('');
             load();
+            if (created?.id) {
+                undoState.pushAction(`Created link for "${savedPcaName}"`,
+                    async () => { await api.deletePermanentLink(created.id); load(); },
+                    async () => { await api.createPermanentLink({ clientId: Number(newClientId), pcaName: savedPcaName }); load(); }
+                );
+            }
         } catch (err) {
             showToast(err.message, 'error');
         }
@@ -56,6 +65,10 @@ export default function PermanentLinksPage() {
             setConfirmDeactivate(null);
             showToast('Link deactivated');
             load();
+            undoState.pushAction(`Deactivated link for "${link.pcaName}"`,
+                async () => { /* reactivation not supported */ load(); },
+                async () => { await api.deletePermanentLink(link.id); load(); }
+            );
         } catch (err) {
             showToast(err.message, 'error');
         }
@@ -75,6 +88,7 @@ export default function PermanentLinksPage() {
                 subtitle="Manage PCA form links for caregivers"
                 icon={Icons.link}
                 activityEntity="PermanentLink"
+                undoState={undoState}
             />
             <ContextBar>
                 <ContextBar.Right>

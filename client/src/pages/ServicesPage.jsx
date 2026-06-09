@@ -5,6 +5,7 @@ import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
+import { useUndoStack } from '../hooks/useUndoStack';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 
@@ -48,6 +49,7 @@ function ServiceFormModal({ service, onSave, onClose }) {
 export default function ServicesPage() {
     const { isAdmin } = useAuth();
     const { showToast, showUndoToast } = useToast();
+    const undoState = useUndoStack();
     const [services, setServices] = useState([]);
     const [modal, setModal] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
@@ -64,11 +66,21 @@ export default function ServicesPage() {
     const handleSave = async (data) => {
         try {
             if (modal.service) {
+                const oldData = { category: modal.service.category, code: modal.service.code, name: modal.service.name };
                 await api.updateService(modal.service.id, data);
                 showToast('Service updated');
+                const id = modal.service.id;
+                undoState.pushAction(`Updated "${data.code}"`,
+                    async () => { await api.updateService(id, oldData); fetchServices(); },
+                    async () => { await api.updateService(id, data); fetchServices(); }
+                );
             } else {
-                await api.createService(data);
+                const created = await api.createService(data);
                 showToast('Service created');
+                undoState.pushAction(`Created "${data.code}"`,
+                    async () => { await api.deleteService(created.id); fetchServices(); },
+                    async () => { await api.createService(data); fetchServices(); }
+                );
             }
             setModal(null);
             fetchServices();
@@ -80,6 +92,10 @@ export default function ServicesPage() {
             await api.deleteService(svc.id);
             setModal(null);
             fetchServices();
+            undoState.pushAction(`Archived "${svc.code}"`,
+                async () => { await api.restoreService(svc.id); fetchServices(); },
+                async () => { await api.deleteService(svc.id); fetchServices(); }
+            );
             showUndoToast(`"${svc.code}" archived`, async () => {
                 await api.restoreService(svc.id);
                 fetchServices();
@@ -92,6 +108,10 @@ export default function ServicesPage() {
             await api.restoreService(svc.id);
             showToast(`"${svc.code}" restored`);
             fetchServices();
+            undoState.pushAction(`Restored "${svc.code}"`,
+                async () => { await api.deleteService(svc.id); fetchServices(); },
+                async () => { await api.restoreService(svc.id); fetchServices(); }
+            );
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -126,6 +146,7 @@ export default function ServicesPage() {
                 subtitle="Manage service types and codes"
                 icon={Icons.shieldCheck}
                 activityEntity="Service"
+                undoState={undoState}
                 archiveConfig={{
                     isArchiveView: showArchived,
                     onToggle: () => setShowArchived(!showArchived),

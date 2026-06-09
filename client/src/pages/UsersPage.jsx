@@ -7,10 +7,12 @@ import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
+import { useUndoStack } from '../hooks/useUndoStack';
 
 export default function UsersPage() {
     const { isAdmin } = useAuth();
     const { showToast } = useToast();
+    const undoState = useUndoStack();
     const [users, setUsers] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [form, setForm] = useState({ name: '', email: '', password: '', role: 'pca' });
@@ -35,11 +37,17 @@ export default function UsersPage() {
         if (!form.name || !form.email || !form.password) return;
         setSaving(true);
         try {
-            await api.registerUser(form);
+            const created = await api.registerUser(form);
             showToast('User created');
             setShowModal(false);
             setForm({ name: '', email: '', password: '', role: 'pca' });
             fetchUsers();
+            if (created?.id) {
+                undoState.pushAction(`Created user "${form.name}"`,
+                    async () => { await api.deleteUser(created.id); fetchUsers(); },
+                    async () => { await api.registerUser(form); fetchUsers(); }
+                );
+            }
         } catch (err) { showToast(err.message, 'error'); }
         finally { setSaving(false); }
     };
@@ -50,6 +58,10 @@ export default function UsersPage() {
             setConfirmArchive(null);
             showToast(`"${user.name}" archived`);
             fetchUsers();
+            undoState.pushAction(`Archived "${user.name}"`,
+                async () => { await api.restoreUser(user.id); fetchUsers(); },
+                async () => { await api.deleteUser(user.id); fetchUsers(); }
+            );
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -58,6 +70,10 @@ export default function UsersPage() {
             await api.restoreUser(user.id);
             showToast(`"${user.name}" restored`);
             fetchUsers();
+            undoState.pushAction(`Restored "${user.name}"`,
+                async () => { await api.deleteUser(user.id); fetchUsers(); },
+                async () => { await api.restoreUser(user.id); fetchUsers(); }
+            );
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -98,6 +114,10 @@ export default function UsersPage() {
             await api.toggleUserActive(user.id);
             showToast(user.active ? `"${user.name}" deactivated` : `"${user.name}" activated`);
             fetchUsers();
+            undoState.pushAction(`${user.active ? 'Deactivated' : 'Activated'} "${user.name}"`,
+                async () => { await api.toggleUserActive(user.id); fetchUsers(); },
+                async () => { await api.toggleUserActive(user.id); fetchUsers(); }
+            );
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -108,6 +128,7 @@ export default function UsersPage() {
                 subtitle="Manage staff accounts and access"
                 icon={Icons.users}
                 activityEntity="User"
+                undoState={undoState}
                 archiveConfig={{
                     isArchiveView: showArchived,
                     onToggle: () => setShowArchived(!showArchived),

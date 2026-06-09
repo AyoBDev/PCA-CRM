@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { listTasks, getTaskSummary, updateTask, deleteTask, bulkUpdateTasks, getUsers, listWorkflowTriggers, updateWorkflowTrigger } from '../api';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
+import { useUndoStack } from '../hooks/useUndoStack';
 import TaskModal from '../components/tasks/TaskModal';
 import Icons from '../components/common/Icons';
 import Pagination from '../components/common/Pagination';
@@ -18,6 +19,7 @@ const URGENCY_LABELS = { low: 'Low', medium: 'Medium', high: 'High' };
 export default function TasksPage() {
     const { showToast } = useToast();
     const { isAdmin } = useAuth();
+    const undoState = useUndoStack();
     const [tasks, setTasks] = useState([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
@@ -78,9 +80,14 @@ export default function TasksPage() {
 
     const handleStatusChange = async (task, newStatus) => {
         try {
+            const oldStatus = task.status;
             const updated = await updateTask(task.id, { status: newStatus });
             setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
             showToast(`Task marked as ${STATUS_LABELS[newStatus]}`);
+            undoState.pushAction(`Changed "${task.title}" to ${STATUS_LABELS[newStatus]}`,
+                async () => { await updateTask(task.id, { status: oldStatus }); fetchTasks(); },
+                async () => { await updateTask(task.id, { status: newStatus }); fetchTasks(); }
+            );
         } catch (err) {
             showToast(err.message, 'error');
         }
@@ -88,9 +95,14 @@ export default function TasksPage() {
 
     const handleDelete = async (task) => {
         try {
+            const oldStatus = task.status;
             await deleteTask(task.id);
             setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: 'cancelled' } : t)));
             showToast('Task cancelled');
+            undoState.pushAction(`Cancelled "${task.title}"`,
+                async () => { await updateTask(task.id, { status: oldStatus }); fetchTasks(); },
+                async () => { await deleteTask(task.id); fetchTasks(); }
+            );
         } catch (err) {
             showToast(err.message, 'error');
         }
@@ -143,6 +155,7 @@ export default function TasksPage() {
                 subtitle="Manage tasks and workflow automation"
                 icon={Icons.checkSquare}
                 activityEntity="Task"
+                undoState={undoState}
                 overflowItems={isAdmin ? [
                     { label: showSettings ? 'Hide Settings' : 'Settings', icon: Icons.settings, action: () => setShowSettings(!showSettings) },
                 ] : []}

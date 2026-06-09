@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
 import { useToast } from '../hooks/useToast';
+import { useUndoStack } from '../hooks/useUndoStack';
 import Modal from '../components/common/Modal';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
@@ -31,6 +32,7 @@ function addDays(dateStr, days) {
 
 export default function ReceiptsPage() {
     const { showToast } = useToast();
+    const undoState = useUndoStack();
     const [receipts, setReceipts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState('all');
@@ -63,6 +65,10 @@ export default function ReceiptsPage() {
             showToast(`${ids.length} receipt(s) finalized`, 'success');
             setSelectedIds(new Set());
             fetchReceipts();
+            undoState.pushAction(`Finalized ${ids.length} receipt(s)`,
+                async () => { /* finalize cannot be easily reversed */ fetchReceipts(); },
+                async () => { await api.finalizeReceipts(ids); fetchReceipts(); }
+            );
         } catch (err) {
             showToast('Failed to finalize', 'error');
         }
@@ -104,6 +110,7 @@ export default function ReceiptsPage() {
                 subtitle="Pay stubs for bi-weekly periods"
                 icon={Icons.dollarSign}
                 activityEntity="Receipt"
+                undoState={undoState}
             />
             <ContextBar>
                 <ContextBar.Left>

@@ -8,6 +8,7 @@ import Breadcrumbs from '../components/common/Breadcrumbs';
 import { EntityActivityButton } from '../components/common/ActivityDrawer';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
+import { useUndoStack } from '../hooks/useUndoStack';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import ProfileInsuranceTab from './client-tabs/ProfileInsuranceTab';
@@ -90,6 +91,7 @@ export default function ClientDetailPage() {
     const navigate = useNavigate();
     const { showToast } = useToast();
     const { isAdmin } = useAuth();
+    const undoState = useUndoStack();
 
     const [client, setClient] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -405,11 +407,16 @@ export default function ClientDetailPage() {
         e.preventDefault();
         setSaving(true);
         try {
+            const oldData = { clientName: client.clientName, medicaidId: client.medicaidId, insuranceType: client.insuranceType, address: client.address, phone: client.phone };
             const { clientName, ...rest } = editClientForm;
             await api.updateClient(client.id, clientName, rest);
             showToast('Client updated');
             setShowEditClientModal(false);
             fetchClient();
+            undoState.pushAction(`Updated "${clientName}"`,
+                async () => { await api.updateClient(client.id, oldData.clientName, oldData); fetchClient(); },
+                async () => { await api.updateClient(client.id, clientName, rest); fetchClient(); }
+            );
         } catch (err) { showToast(err.message, 'error'); }
         finally { setSaving(false); }
     };
@@ -527,6 +534,10 @@ export default function ClientDetailPage() {
             await api.archiveAuthorization(authId);
             showToast('Authorization archived');
             fetchClient();
+            undoState.pushAction('Archived authorization',
+                async () => { await api.restoreAuthorization(authId); fetchClient(); },
+                async () => { await api.archiveAuthorization(authId); fetchClient(); }
+            );
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -535,15 +546,25 @@ export default function ClientDetailPage() {
             await api.restoreAuthorization(authId);
             showToast('Authorization restored');
             fetchClient();
+            undoState.pushAction('Restored authorization',
+                async () => { await api.archiveAuthorization(authId); fetchClient(); },
+                async () => { await api.restoreAuthorization(authId); fetchClient(); }
+            );
         } catch (err) { showToast(err.message, 'error'); }
     };
 
     const handleArchiveClient = async () => {
         try {
-            await api.deleteClient(client.id);
+            const clientName = client.clientName;
+            const clientIdVal = client.id;
+            await api.deleteClient(clientIdVal);
             setConfirmArchiveClient(false);
             navigate('/clients');
-            showToast(`"${client.clientName}" archived`);
+            showToast(`"${clientName}" archived`);
+            undoState.pushAction(`Archived "${clientName}"`,
+                async () => { await api.restoreClient(clientIdVal); },
+                async () => { await api.deleteClient(clientIdVal); }
+            );
         } catch (err) {
             showToast(err.message, 'error');
         }
@@ -660,6 +681,7 @@ export default function ClientDetailPage() {
                 subtitle="Client profile and care plans"
                 icon={Icons.users}
                 activityEntity="Client"
+                undoState={undoState}
             />
             <ContextBar>
                 <ContextBar.Right>

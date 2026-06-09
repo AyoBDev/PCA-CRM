@@ -11,6 +11,7 @@ import { statusLabel } from '../utils/status';
 import { getAccountForCategory, ACCOUNT_NUMBER_OPTIONS } from '../utils/accountMapping';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
+import { useUndoStack } from '../hooks/useUndoStack';
 import { EntityActivityButton } from '../components/common/ActivityDrawer';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
@@ -683,6 +684,7 @@ function NoteDrawer({ client, onClose, onSaved }) {
 export default function AuthorizationsPage() {
     const { isAdmin } = useAuth();
     const { showToast, showUndoToast } = useToast();
+    const undoState = useUndoStack();
     const navigate = useNavigate();
     const [showCreateWizard, setShowCreateWizard] = useState(false);
     const [clients, setClients] = useState([]);
@@ -738,12 +740,24 @@ export default function AuthorizationsPage() {
     const handleSaveClient = async (data) => {
         try {
             if (modal.client) {
+                const oldData = { clientName: modal.client.clientName, medicaidId: modal.client.medicaidId, insuranceType: modal.client.insuranceType };
                 const updated = await api.updateClient(modal.client.id, data.clientName, data);
                 showToast('Client updated');
                 if (drawerClient?.id === modal.client.id) setDrawerClient(updated);
+                const id = modal.client.id;
+                undoState.pushAction(`Updated "${data.clientName}"`,
+                    async () => { await api.updateClient(id, oldData.clientName, oldData); fetchClients(); },
+                    async () => { await api.updateClient(id, data.clientName, data); fetchClients(); }
+                );
             } else {
-                await api.createClient(data.clientName, data);
+                const created = await api.createClient(data.clientName, data);
                 showToast('Client created');
+                if (created?.id) {
+                    undoState.pushAction(`Created "${data.clientName}"`,
+                        async () => { await api.deleteClient(created.id); fetchClients(); },
+                        async () => { await api.createClient(data.clientName, data); fetchClients(); }
+                    );
+                }
             }
             setModal(null);
             fetchClients();
@@ -755,6 +769,10 @@ export default function AuthorizationsPage() {
             await api.deleteClient(client.id);
             setModal(null);
             fetchClients();
+            undoState.pushAction(`Archived "${client.clientName}"`,
+                async () => { await api.restoreClient(client.id); fetchClients(); },
+                async () => { await api.deleteClient(client.id); fetchClients(); }
+            );
             showUndoToast(`"${client.clientName}" archived`, async () => {
                 await api.restoreClient(client.id);
                 fetchClients();
@@ -815,9 +833,18 @@ export default function AuthorizationsPage() {
             if (modal.auth) {
                 savedAuth = await api.updateAuthorization(modal.auth.id, authData);
                 showToast('Authorization updated');
+                const oldAuthData = { serviceCode: modal.auth.serviceCode, authorizedUnits: modal.auth.authorizedUnits, authorizationStartDate: modal.auth.authorizationStartDate, authorizationEndDate: modal.auth.authorizationEndDate };
+                undoState.pushAction(`Updated ${authData.serviceCode || 'authorization'}`,
+                    async () => { await api.updateAuthorization(modal.auth.id, oldAuthData); fetchClients(); },
+                    async () => { await api.updateAuthorization(modal.auth.id, authData); fetchClients(); }
+                );
             } else {
                 savedAuth = await api.createAuthorization(modal.clientId, authData);
                 showToast('Authorization added');
+                undoState.pushAction(`Created ${authData.serviceCode || 'authorization'}`,
+                    async () => { await api.deleteAuthorization(savedAuth.id); fetchClients(); },
+                    async () => { await api.createAuthorization(modal.clientId, authData); fetchClients(); }
+                );
             }
             if (files && files.length > 0) {
                 for (const file of files) {
@@ -866,6 +893,7 @@ export default function AuthorizationsPage() {
 
     const handleClientStatus = async (client, newStatus) => {
         try {
+            const oldStatus = client.clientStatus || 'active';
             await api.patchClient(client.id, { clientStatus: newStatus });
             showToast(`Client marked as ${newStatus}`);
             const refreshed = await api.getClients();
@@ -874,6 +902,10 @@ export default function AuthorizationsPage() {
                 const updated = refreshed.find(c => c.id === drawerClient.id);
                 if (updated) setDrawerClient(updated);
             }
+            undoState.pushAction(`Changed "${client.clientName}" to ${newStatus}`,
+                async () => { await api.patchClient(client.id, { clientStatus: oldStatus }); fetchClients(); },
+                async () => { await api.patchClient(client.id, { clientStatus: newStatus }); fetchClients(); }
+            );
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -1007,6 +1039,7 @@ export default function AuthorizationsPage() {
                 subtitle="Manage and track all client information"
                 icon={Icons.clipboard}
                 activityEntity="Client"
+                undoState={undoState}
                 archiveConfig={{
                     isArchiveView: showArchived,
                     onToggle: () => { setShowArchived(!showArchived); setSelectedIds(new Set()); },
