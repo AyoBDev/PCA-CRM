@@ -1,12 +1,15 @@
 const auditService = require('../services/auditService');
 
-// GET /api/audit-logs?entityType=Client&page=1&limit=25
+// GET /api/audit-logs?entityType=Client&action=CREATE&dateFrom=2026-01-01&dateTo=2026-01-31&page=1&limit=25
 async function getAuditLogs(req, res, next) {
     try {
-        const { entityType, page = 1, limit = 25 } = req.query;
+        const { entityType, action, dateFrom, dateTo, page = 1, limit = 25 } = req.query;
         const result = await auditService.getPageLogs(entityType, {
             page: Number(page),
             limit: Math.min(Number(limit), 100),
+            action,
+            dateFrom,
+            dateTo,
         });
         res.json(result);
     } catch (err) { next(err); }

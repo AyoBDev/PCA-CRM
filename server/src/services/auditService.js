@@ -64,8 +64,19 @@ async function getEntityLogs(entityType, entityId, { page = 1, limit = 25 } = {}
 /**
  * Get audit logs for an entity type (page-level view).
  */
-async function getPageLogs(entityType, { page = 1, limit = 25 } = {}) {
-    const where = entityType ? { entityType } : {};
+async function getPageLogs(entityType, { page = 1, limit = 25, action, dateFrom, dateTo } = {}) {
+    const where = {};
+    if (entityType) where.entityType = entityType;
+    if (action) where.action = action;
+    if (dateFrom || dateTo) {
+        where.createdAt = {};
+        if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+        if (dateTo) {
+            const end = new Date(dateTo);
+            end.setHours(23, 59, 59, 999);
+            where.createdAt.lte = end;
+        }
+    }
     const [logs, total] = await Promise.all([
         prisma.auditLog.findMany({
             where,

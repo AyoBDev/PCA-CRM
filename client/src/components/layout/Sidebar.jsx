@@ -18,6 +18,7 @@ const PATH_TO_PAGE = {
     '/insurance-types': 'insuranceTypes',
     '/services': 'services',
     '/users': 'users',
+    '/history': 'history',
 };
 
 export default function Sidebar({ onMobileClose }) {
@@ -131,6 +132,9 @@ export default function Sidebar({ onMobileClose }) {
                                 {Icons.user} Users
                             </button>
                         )}
+                        <button className={`sidebar__nav-item ${activePage === 'history' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/history')} title="History">
+                            {Icons.clock} History
+                        </button>
                     </>
                 )}
                 <div className="separator" style={{ margin: '8px 12px' }} />

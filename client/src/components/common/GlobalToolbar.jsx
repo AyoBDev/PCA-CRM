@@ -1,6 +1,6 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Icons from './Icons';
-import HistoryPanel from './HistoryPanel';
 import OverflowMenu from './OverflowMenu';
 import { ActivityButton } from './ActivityDrawer';
 import TrashDrawer from './TrashDrawer';
@@ -21,7 +21,7 @@ export default function GlobalToolbar({
 }) {
     const { goBack, getBackInfo } = useNavigationStack();
     const { showToast } = useToast();
-    const [historyOpen, setHistoryOpen] = useState(false);
+    const navigate = useNavigate();
     const [trashOpen, setTrashOpen] = useState(false);
     const backInfo = getBackInfo();
 
@@ -79,23 +79,13 @@ export default function GlobalToolbar({
                             >
                                 {Icons.redo} <span>Redo</span>
                             </button>
-                            <div className="connected-btn-group__btn-wrapper">
-                                <button
-                                    className={`connected-btn-group__btn ${!undoState || undoState.undoStack.length === 0 ? 'connected-btn-group__btn--disabled' : ''}`}
-                                    onClick={() => setHistoryOpen(!historyOpen)}
-                                    disabled={!undoState || undoState.undoStack.length === 0}
-                                    title="View session history"
-                                >
-                                    {Icons.history} <span>History</span>
-                                </button>
-                                {historyOpen && undoState && (
-                                    <HistoryPanel
-                                        undoStack={undoState.undoStack}
-                                        onUndoTo={undoState.undoTo}
-                                        onClose={() => setHistoryOpen(false)}
-                                    />
-                                )}
-                            </div>
+                            <button
+                                className="connected-btn-group__btn"
+                                onClick={() => navigate('/history')}
+                                title="View full activity history"
+                            >
+                                {Icons.history} <span>History</span>
+                            </button>
                             {activityEntity && (
                                 <ActivityButton entityType={activityEntity} className="connected-btn-group__btn connected-btn-group__btn--last" />
                             )}

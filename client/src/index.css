@@ -2381,6 +2381,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-left: auto;
 }
 
 .context-bar__search {
@@ -2403,6 +2404,54 @@ body {
 
 .context-bar__search::placeholder {
   color: hsl(var(--muted-foreground));
+}
+
+.context-bar__select,
+.context-bar__input {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-size: 13px;
+}
+
+.context-bar__select:focus,
+.context-bar__input:focus {
+  outline: none;
+  border-color: hsl(var(--ring));
+  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.1);
+}
+
+/* ─── History Pagination ─── */
+.history-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0;
+  gap: 16px;
+}
+
+.history-pagination__info {
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
+}
+
+.history-pagination__buttons {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+/* ─── History Details Cell ─── */
+.history-details-cell {
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ─── Overflow Menu ─── */

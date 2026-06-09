@@ -27,6 +27,7 @@ const ScheduleConfirmPage = lazy(() => import('./pages/scheduling/ScheduleConfir
 const ScheduleViewPage = lazy(() => import('./pages/scheduling/ScheduleViewPage'));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
+const HistoryPage = lazy(() => import('./pages/HistoryPage'));
 
 function ProtectedRoute({ children, adminOnly = false, staffOnly = false }) {
     const { user, isAdmin, isStaff, loading } = useAuth();
@@ -72,6 +73,7 @@ function AppRoutes() {
                 <Route path="/employees" element={<ProtectedRoute staffOnly><Layout><EmployeesPage /></Layout></ProtectedRoute>} />
                 <Route path="/employees/:employeeId" element={<ProtectedRoute staffOnly><Layout><EmployeeDetailPage /></Layout></ProtectedRoute>} />
                 <Route path="/users" element={<ProtectedRoute adminOnly><Layout><UsersPage /></Layout></ProtectedRoute>} />
+                <Route path="/history" element={<ProtectedRoute staffOnly><Layout><HistoryPage /></Layout></ProtectedRoute>} />
 
                 {/* Default redirect */}
                 <Route path="*" element={<Navigate to={user ? (isStaff ? '/dashboard' : '/timesheets') : '/login'} replace />} />
