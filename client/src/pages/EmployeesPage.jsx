@@ -359,11 +359,24 @@ export default function EmployeesPage() {
 
             let emp;
             if (modal.employee) {
+                const oldData = { ...modal.employee };
                 emp = await api.updateEmployee(modal.employee.id, data);
                 showToast('Employee updated');
+                undoState.pushAction(
+                    `Updated ${oldData.name || 'employee'}`,
+                    async () => { await api.updateEmployee(oldData.id, { name: oldData.name, email: oldData.email, phone: oldData.phone, address: oldData.address, notes: oldData.notes }); fetchData(); },
+                    async () => { await api.updateEmployee(oldData.id, data); fetchData(); }
+                );
             } else {
                 emp = await api.createEmployee(data);
                 showToast('Employee created');
+                if (emp?.id) {
+                    undoState.pushAction(
+                        `Created ${emp.name || 'employee'}`,
+                        async () => { await api.deleteEmployee(emp.id); fetchData(); },
+                        async () => { await api.createEmployee(data); fetchData(); }
+                    );
+                }
             }
 
             const empId = emp?.id || modal.employee?.id;

@@ -915,10 +915,16 @@ function PayrollPage() {
                                 e.preventDefault();
                                 if (!runNameValue.trim()) return;
                                 try {
+                                    const oldName = selectedRun.name;
                                     const updated = await api.updatePayrollRun(selectedRun.id, { name: runNameValue.trim() });
                                     setSelectedRun(prev => ({ ...prev, name: updated.name }));
                                     setRuns(prev => prev.map(r => r.id === selectedRun.id ? { ...r, name: updated.name } : r));
                                     showToast('Run renamed');
+                                    undoState.pushAction(
+                                        `Renamed run to "${updated.name}"`,
+                                        async () => { const r = await api.updatePayrollRun(selectedRun.id, { name: oldName }); setSelectedRun(prev => ({ ...prev, name: r.name })); setRuns(prev => prev.map(x => x.id === selectedRun.id ? { ...x, name: r.name } : x)); },
+                                        async () => { const r = await api.updatePayrollRun(selectedRun.id, { name: runNameValue.trim() }); setSelectedRun(prev => ({ ...prev, name: r.name })); setRuns(prev => prev.map(x => x.id === selectedRun.id ? { ...x, name: r.name } : x)); }
+                                    );
                                 } catch (err) { showToast(err.message, 'error'); }
                                 setEditingRunName(false);
                             }} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

@@ -208,6 +208,13 @@ export default function TimesheetsListPage() {
             setShowNewModal(false); setNewPcaName(''); setNewClientPhone(''); setNewClientIdNumber('');
             setActiveTimesheetId(ts.id);
             showToast('Timesheet created');
+            if (ts?.id) {
+                undoState.pushAction(
+                    'Created timesheet',
+                    async () => { await api.deleteTimesheet(ts.id); fetchTimesheets(); },
+                    async () => { await api.createTimesheet({ pcaName: ts.pcaName, clientId: ts.clientId, weekStart: ts.weekStart }); fetchTimesheets(); }
+                );
+            }
         } catch (err) { showToast(err.message, 'error'); }
     };
 

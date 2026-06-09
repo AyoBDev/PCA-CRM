@@ -2265,13 +2265,27 @@ export default function SchedulingPage() {
     const handleSaveShift = async (data) => {
         try {
             if (modal.shift) {
+                const oldShift = { ...modal.shift };
                 await api.updateShift(modal.shift.id, data);
                 showToast('Shift updated');
+                undoState.pushAction(
+                    `Updated shift`,
+                    async () => { await api.updateShift(oldShift.id, { clientId: oldShift.clientId, employeeId: oldShift.employeeId, shiftDate: oldShift.shiftDate, startTime: oldShift.startTime, endTime: oldShift.endTime, serviceCode: oldShift.serviceCode, notes: oldShift.notes }); refetchAll(); },
+                    async () => { await api.updateShift(oldShift.id, data); refetchAll(); }
+                );
             } else {
                 const result = await api.createShift(data);
                 const count = result.count || (result.shifts ? result.shifts.length : 0);
+                const createdIds = result.shifts ? result.shifts.map(s => s.id) : result.id ? [result.id] : [];
                 if (count > 1) showToast(`${count} shifts created`);
                 else showToast('Shift created');
+                if (createdIds.length > 0) {
+                    undoState.pushAction(
+                        `Created ${count > 1 ? count + ' shifts' : 'shift'}`,
+                        async () => { await api.bulkDeleteShifts(createdIds); refetchAll(); },
+                        async () => { await api.createShift(data); refetchAll(); }
+                    );
+                }
             }
             setModal(null);
             createDraftRef.current = null;
