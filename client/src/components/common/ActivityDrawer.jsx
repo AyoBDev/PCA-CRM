@@ -176,13 +176,13 @@ function ActivityDrawerPanel({ entityType, entityId, onClose }) {
  * Page-level activity button — place inside content-header__actions.
  * Opens a drawer showing logs filtered by entityType.
  */
-export function ActivityButton({ entityType }) {
+export function ActivityButton({ entityType, className }) {
     const [open, setOpen] = useState(false);
 
     return (
         <>
-            <button className="btn btn--outline btn--sm" onClick={() => setOpen(true)} title="Activity Log">
-                {Icons.clock} Activity
+            <button className={className || "btn btn--outline btn--sm"} onClick={() => setOpen(true)} title="Activity Log">
+                {Icons.clock} <span>Activity</span>
             </button>
             {open && <ActivityDrawerPanel entityType={entityType} onClose={() => setOpen(false)} />}
         </>

@@ -97,9 +97,7 @@ export default function GlobalToolbar({
                                 )}
                             </div>
                             {activityEntity && (
-                                <div className="connected-btn-group__btn connected-btn-group__btn--last connected-btn-group__btn--activity">
-                                    <ActivityButton entityType={activityEntity} />
-                                </div>
+                                <ActivityButton entityType={activityEntity} className="connected-btn-group__btn connected-btn-group__btn--last" />
                             )}
                         </div>
                     </div>
