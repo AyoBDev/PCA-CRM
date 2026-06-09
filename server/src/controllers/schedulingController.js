@@ -1055,6 +1055,7 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
             oldValues: {
                 startTime: s.startTime, endTime: s.endTime,
                 serviceCode: s.serviceCode, accountNumber: s.accountNumber,
+                sandataClientId: s.sandataClientId,
                 hours: s.hours, units: s.units,
             }
         }));
@@ -1081,6 +1082,7 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
                     oldValues: {
                         startTime: s.startTime, endTime: s.endTime,
                         serviceCode: s.serviceCode, accountNumber: s.accountNumber,
+                        sandataClientId: s.sandataClientId,
                         hours: s.hours, units: s.units,
                     }
                 }));
@@ -1108,6 +1110,7 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
             if (updates.endTime !== undefined) data.endTime = updates.endTime;
             if (updates.serviceCode !== undefined) data.serviceCode = updates.serviceCode;
             if (updates.accountNumber !== undefined) data.accountNumber = updates.accountNumber;
+            if (updates.sandataClientId !== undefined) data.sandataClientId = updates.sandataClientId;
 
             if (updates.accountNumber && !VALID_ACCOUNT_NUMBERS.includes(updates.accountNumber)) {
                 errors.push({ id: existing.id, error: 'Invalid account number' });
@@ -1172,6 +1175,7 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
                 if (match.updates.endTime) data.endTime = match.updates.endTime;
                 if (match.updates.serviceCode) data.serviceCode = match.updates.serviceCode;
                 if (match.updates.accountNumber !== undefined) data.accountNumber = match.updates.accountNumber;
+                if (match.updates.sandataClientId !== undefined) data.sandataClientId = match.updates.sandataClientId;
 
                 if (Object.keys(data).length === 0) continue;
 
