@@ -6,8 +6,9 @@ import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import * as api from '../api';
 import { useAuth } from '../hooks/useAuth';
-import { ActivityButton } from '../components/common/ActivityDrawer';
-import TrashDrawer from '../components/common/TrashDrawer';
+import GlobalToolbar from '../components/common/GlobalToolbar';
+import ContextBar from '../components/common/ContextBar';
+import { useUndoStack } from '../hooks/useUndoStack';
 
 function fmtDate(d) {
     if (!d) return '—';
@@ -304,6 +305,7 @@ function getAvatarColor(name) {
 export default function EmployeesPage() {
     const { isAdmin } = useAuth();
     const { showToast, showUndoToast } = useToast();
+    const undoState = useUndoStack();
     const navigate = useNavigate();
     const [employees, setEmployees] = useState([]);
     const [users, setUsers] = useState([]);
@@ -317,7 +319,6 @@ export default function EmployeesPage() {
     const [importing, setImporting] = useState(false);
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [bulkNoteModal, setBulkNoteModal] = useState(false);
-    const [trashOpen, setTrashOpen] = useState(false);
     const [archivedEmployees, setArchivedEmployees] = useState([]);
     const fileRef = useRef();
 
@@ -347,9 +348,7 @@ export default function EmployeesPage() {
         } catch {}
     }, []);
 
-    useEffect(() => {
-        if (trashOpen) fetchArchivedEmployees();
-    }, [trashOpen, fetchArchivedEmployees]);
+    useEffect(() => { fetchArchivedEmployees(); }, [fetchArchivedEmployees]);
 
     const handleSave = async (data) => {
         try {
@@ -500,50 +499,54 @@ export default function EmployeesPage() {
 
     return (
         <>
-            <div className="page-hero">
-                <div className="page-hero__left">
-                    <div className="page-hero__icon">{Icons.users}</div>
-                    <div>
-                        <div className="page-hero__title">Employees</div>
-                        <div className="page-hero__subtitle">Manage caregiver profiles, certifications and compliance</div>
-                    </div>
-                </div>
-                <div className="page-hero__right">
-                    <button
-                        className="btn btn--outline btn--sm"
-                        onClick={() => setTrashOpen(true)}
-                        title="View deleted employees"
-                    >
-                        {Icons.trash}
-                    </button>
+            <input type="file" ref={fileRef} accept=".xlsx,.xls" onChange={handleImport} style={{ display: 'none' }} />
+            <GlobalToolbar
+                title="Employees"
+                subtitle="Manage caregiver profiles, certifications and compliance"
+                icon={Icons.users}
+                undoState={undoState}
+                activityEntity="Employee"
+                trashConfig={{
+                    items: archivedEmployees || [],
+                    onRestore: async (ids) => {
+                        await api.bulkRestoreEmployees(ids);
+                        fetchData();
+                        fetchArchivedEmployees();
+                        showToast(`Restored ${ids.length} employee${ids.length !== 1 ? 's' : ''}`);
+                    },
+                    onPermanentDelete: async (ids) => {
+                        await api.bulkPermanentlyDeleteEmployees(ids);
+                        fetchArchivedEmployees();
+                        showToast(`Permanently deleted ${ids.length} employee${ids.length !== 1 ? 's' : ''}`);
+                    },
+                    entityLabel: 'employees',
+                }}
+                archiveConfig={{
+                    isArchiveView: showArchived,
+                    onToggle: () => { setShowArchived(!showArchived); setSelectedIds(new Set()); },
+                }}
+                overflowItems={isAdmin && !showArchived ? [
+                    { label: importing ? 'Importing...' : 'Import', icon: Icons.upload, action: () => fileRef.current?.click(), disabled: importing },
+                ] : []}
+            />
+            <ContextBar>
+                <ContextBar.Left>
                     <input
                         type="text"
-                        className="page-hero__search"
+                        className="context-bar__search"
                         placeholder="Search employees..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                     />
-                    {isAdmin && <ActivityButton entityType="Employee" />}
-                    {!showArchived && isAdmin && (
-                        <>
-                            <input type="file" ref={fileRef} accept=".xlsx,.xls" onChange={handleImport} style={{ display: 'none' }} />
-                            <button className="btn btn--outline" onClick={() => fileRef.current?.click()} disabled={importing}>
-                                {Icons.upload} {importing ? 'Importing...' : 'Import'}
-                            </button>
-                        </>
-                    )}
-                    {!showArchived && (
-                        <button className="btn btn--outline" onClick={() => setShowArchived(true)}>
-                            {Icons.archive} Archived
-                        </button>
-                    )}
+                </ContextBar.Left>
+                <ContextBar.Right>
                     {!showArchived && (
                         <button className="btn btn--primary" onClick={() => setModal({ type: 'form' })}>
                             {Icons.plus} Add Employee
                         </button>
                     )}
-                </div>
-            </div>
+                </ContextBar.Right>
+            </ContextBar>
 
             <div className="page-content">
                 {showArchived && (
@@ -826,26 +829,6 @@ export default function EmployeesPage() {
                         onClose={() => setBulkNoteModal(false)}
                     />
                 </Modal>
-            )}
-            {trashOpen && (
-                <TrashDrawer
-                    items={archivedEmployees}
-                    batches={[]}
-                    onRestore={async (ids) => {
-                        await api.bulkRestoreEmployees(ids);
-                        fetchData();
-                        fetchArchivedEmployees();
-                        showToast(`Restored ${ids.length} employee${ids.length !== 1 ? 's' : ''}`);
-                    }}
-                    onRestoreBatch={() => {}}
-                    onPermanentDelete={async (ids) => {
-                        await api.bulkPermanentlyDeleteEmployees(ids);
-                        fetchArchivedEmployees();
-                        showToast(`Permanently deleted ${ids.length} employee${ids.length !== 1 ? 's' : ''}`);
-                    }}
-                    onClose={() => setTrashOpen(false)}
-                    entityLabel="employees"
-                />
             )}
         </>
     );
