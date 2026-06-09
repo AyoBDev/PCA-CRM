@@ -296,14 +296,28 @@ Always placed below the table, shows record counts:
   border-bottom: 2px solid transparent;
   cursor: pointer;
 }
+.cp-tab:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: 20%;
+  height: 60%;
+  width: 1px;
+  background: #D8DDE6;
+  opacity: 0.35;
+}
 .cp-tab:hover {
-  color: hsl(0 0% 95%);
+  background: hsl(0 0% 100%);
+  color: hsl(0 0% 0%);
 }
 .cp-tab--active {
-  color: hsl(0 0% 100%);
-  border-bottom-color: hsl(var(--primary));
+  background: hsl(0 0% 100%);
+  color: hsl(0 0% 0%);
+  font-weight: 600;
 }
 ```
+
+**Tab separator:** Uses `#D8DDE6` at 35% opacity for a soft, subtle divider between tabs on the dark background. Avoid sharp/bright separators.
 
 ### Filter Button Tabs
 

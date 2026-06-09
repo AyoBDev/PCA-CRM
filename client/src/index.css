@@ -9757,7 +9757,8 @@ button.sdr-section-tag:hover:not(:disabled) {
   top: 20%;
   height: 60%;
   width: 1px;
-  background: hsl(240 5.9% 90%);
+  background: #D8DDE6;
+  opacity: 0.35;
 }
 .cp-tab__icon {
   display: inline-flex;
