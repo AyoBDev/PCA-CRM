@@ -63,6 +63,11 @@ Pages are split into individual files under `client/src/pages/`:
 
 Shared components under `client/src/components/`:
 - `common/Icons.jsx` — 25+ inline SVG icon components
+- `common/GlobalToolbar.jsx` — Tier 1 system toolbar (Back, Title, Undo/Redo/History/Activity, Trash, Archive, Overflow)
+- `common/ContextBar.jsx` — Tier 2 page-specific toolbar (compound: `ContextBar.Left` + `ContextBar.Right`)
+- `common/HistoryPanel.jsx` — Session history dropdown (shows undo stack)
+- `common/OverflowMenu.jsx` — Three-dot "⋯" overflow menu
+- `common/DropdownMenu.jsx` — Reusable dropdown (trigger + panel)
 - `common/ActivityDrawer.jsx` — `ActivityButton` (page-level) and `EntityActivityButton` (entity-level) audit log viewers
 - `common/Modal.jsx`, `common/ConfirmModal.jsx`, `common/SignaturePad.jsx`
 - `layout/Layout.jsx`, `layout/Sidebar.jsx`, `layout/Toast.jsx`
@@ -70,6 +75,8 @@ Shared components under `client/src/components/`:
 Hooks under `client/src/hooks/`:
 - `useAuth.js` — auth context with `isAdmin`, `authUser`
 - `useToast.js` — toast notification context
+- `useUndoStack.js` — undo/redo stack state management (pushAction, undo, redo, undoTo, clear)
+- `useNavigationStack.js` — smart Back button navigation with logical parent fallbacks
 
 Utils under `client/src/utils/`:
 - `dates.js` — `fmtDate()`, `formatWeek()`
@@ -110,6 +117,52 @@ Public-facing timesheet form accessed via permanent link (`/pca-form/:token`). F
 
 ### React Hook Rule — Critical
 All `useState`/`useCallback`/`useEffect` hooks must be declared **before** any conditional early returns (`if (authChecking) return ...`, `if (!authUser) return ...`). Violating this causes a silent blank-screen crash in production.
+
+### Two-Tier Toolbar Pattern (GlobalToolbar + ContextBar)
+Every page uses a two-tier enterprise command bar. **All new pages MUST implement this pattern.**
+
+**Tier 1 — GlobalToolbar** (sticky top, z-index 11): System-level actions identical across pages.
+- Back button (smart navigation via `useNavigationStack`)
+- Page title + subtitle + icon
+- Connected button group: Undo | Redo | History | Activity (Fluent UI style)
+- Right group: Trash, Archive toggle, Overflow "⋯" menu
+
+**Tier 2 — ContextBar** (sticky below Tier 1, z-index 10): Page-specific controls.
+- Left: search, filters, view switchers
+- Right: bulk actions, create buttons
+
+**Required setup for any page with mutations (create/update/delete):**
+```jsx
+import GlobalToolbar from '../components/common/GlobalToolbar';
+import ContextBar from '../components/common/ContextBar';
+import { useUndoStack } from '../hooks/useUndoStack';
+
+// Inside component, BEFORE any early returns:
+const undoState = useUndoStack();
+
+// After each successful mutation:
+undoState.pushAction('Description of action',
+    async () => { /* undo function — reverse the action */ },
+    async () => { /* redo function — repeat the action */ }
+);
+
+// In JSX:
+<GlobalToolbar title="Page" subtitle="..." icon={Icons.xxx} undoState={undoState} activityEntity="EntityType" />
+<ContextBar>
+    <ContextBar.Left>{/* filters */}</ContextBar.Left>
+    <ContextBar.Right>{/* actions */}</ContextBar.Right>
+</ContextBar>
+```
+
+**GlobalToolbar props:** `title`, `subtitle`, `icon`, `hideBack` (Dashboard only), `hideUndo` (Dashboard only), `undoState`, `activityEntity`, `trashConfig`, `archiveConfig`, `overflowItems`
+
+**Undo/redo wiring rules:**
+- Wire ALL mutations: create, update, delete/archive, bulk operations
+- For creates: undo = delete/archive the created item
+- For updates: snapshot old data before API call, undo = revert to old data
+- For deletes/archives: undo = restore, redo = re-archive
+- For bulk operations with batchId: undo = `api.bulkUndo*(batchId)`
+- Skip permanent deletes (irreversible)
 
 ### Data Flow
 1. Frontend calls `api.js` helper → Express route → controller
