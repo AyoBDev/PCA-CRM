@@ -378,6 +378,16 @@ export const exportTimesheetPdf = (id) =>
         return res.blob();
     });
 
+export const exportBulkTimesheetPdf = (ids) =>
+    fetch(`${BASE}/timesheets/bulk-export-pdf`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+    }).then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+    });
+
 // ── Payroll ──
 export const getPayrollRuns   = ({ archived } = {})    => request(`/payroll/runs${archived ? '?archived=true' : ''}`);
 export const getPayrollRun    = (id)  => request(`/payroll/runs/${id}`);
@@ -619,6 +629,18 @@ export const downloadReceiptPdf = (id) =>
 export const getPayrollProfile = (employeeId) => request(`/employees/${employeeId}/payroll-profile`);
 export const upsertPayrollProfile = (employeeId, data) => request(`/employees/${employeeId}/payroll-profile`, { method: 'PUT', body: JSON.stringify(data) });
 export const revealPayrollField = (employeeId, field) => request(`/employees/${employeeId}/payroll-profile/reveal?field=${field}`);
+
+// ── SANDATA Import ──
+export const previewSandata = (file, accountNumber) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('accountNumber', accountNumber);
+    return fetch(`${BASE}/sandata/preview`, { method: 'POST', headers: { Authorization: `Bearer ${getToken()}` }, body: fd }).then(handleRes);
+};
+export const applySandata = (accountNumber, entries) =>
+    request('/sandata/apply', { method: 'POST', body: JSON.stringify({ accountNumber, entries }) });
+export const undoSandata = (previousValues) =>
+    request('/sandata/undo', { method: 'POST', body: JSON.stringify({ previousValues }) });
 
 // ── Backup ──
 export async function downloadBackup() {

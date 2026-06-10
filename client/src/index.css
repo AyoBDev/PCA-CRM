@@ -12656,3 +12656,258 @@ tr:hover .auth-note-icon--empty {
   color: hsl(var(--muted-foreground));
   white-space: nowrap;
 }
+
+/* ── SANDATA Import Page ── */
+.sandata-stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.sandata-stat-card {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  text-align: center;
+}
+.sandata-stat-card--success { border-color: hsl(var(--success) / 0.3); background: hsl(var(--success-bg)); }
+.sandata-stat-card--primary { border-color: hsl(var(--primary) / 0.3); background: hsl(var(--accent)); }
+.sandata-stat-card--danger { border-color: hsl(var(--danger) / 0.3); background: hsl(var(--danger-bg)); }
+.sandata-stat-card--warning { border-color: hsl(var(--warning) / 0.3); background: hsl(var(--warning-bg)); }
+.sandata-stat-card__value {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.sandata-stat-card--success .sandata-stat-card__value { color: hsl(var(--success)); }
+.sandata-stat-card--primary .sandata-stat-card__value { color: hsl(var(--primary)); }
+.sandata-stat-card--danger .sandata-stat-card__value { color: hsl(var(--danger)); }
+.sandata-stat-card--warning .sandata-stat-card__value { color: hsl(var(--warning)); }
+.sandata-stat-card__label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: hsl(var(--muted-foreground));
+  margin-top: 4px;
+}
+
+/* Inline edit */
+.sandata-inline-edit {
+  width: 100%;
+  max-width: 110px;
+  padding: 4px 8px;
+  font-size: 13px;
+  font-family: 'SF Mono', 'Fira Code', 'Menlo', monospace;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--background));
+  transition: border-color 0.15s;
+}
+.sandata-inline-edit:focus {
+  outline: none;
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.1);
+}
+
+/* Selected row */
+.tr--selected { background: hsl(var(--accent)); }
+
+/* Select all in toolbar */
+.sandata-select-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+.sandata-select-all input { cursor: pointer; }
+.table-toolbar__count {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+
+/* File input in context bar */
+.context-bar__file-label { cursor: pointer; }
+.context-bar__file-input { display: none; }
+
+/* Empty state */
+.sandata-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+}
+.sandata-empty__icon {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: hsl(var(--secondary));
+  color: hsl(var(--muted-foreground));
+  margin-bottom: 1.25rem;
+}
+.sandata-empty__icon svg { width: 28px; height: 28px; }
+.sandata-empty__title {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+.sandata-empty__desc {
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
+  max-width: 420px;
+  margin: 0 0 2rem;
+  line-height: 1.5;
+}
+.sandata-empty__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+.sandata-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.sandata-step__num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.sandata-empty__history {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid hsl(var(--border));
+  width: 100%;
+  max-width: 400px;
+}
+.sandata-empty__history-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+  margin: 0 0 0.75rem;
+  letter-spacing: 0.03em;
+}
+.sandata-history-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 12px;
+}
+.sandata-history-item__account {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.sandata-history-item__stats {
+  color: hsl(var(--muted-foreground));
+  flex: 1;
+}
+.sandata-history-item__time {
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
+}
+
+/* Tab badge */
+.cp-tab__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: hsl(var(--secondary));
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 4px;
+}
+.cp-tab--active .cp-tab__badge {
+  background: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+}
+
+/* Badge variants */
+.badge--blue {
+  background: hsl(217 91% 95%);
+  color: hsl(217 91% 40%);
+}
+.badge--purple {
+  background: hsl(270 60% 95%);
+  color: hsl(270 60% 35%);
+}
+
+/* Spinner */
+.spinner-sm {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid hsl(var(--primary-foreground) / 0.3);
+  border-top-color: hsl(var(--primary-foreground));
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Sandata mismatch update styles */
+.tr--done {
+  background: hsl(142 71% 96%);
+}
+.tr--warning {
+  background: hsl(38 92% 96%);
+}
+.tr--done td { color: hsl(var(--muted-foreground)); }
+.sandata-check {
+  display: inline-flex;
+  align-items: center;
+  color: hsl(142 71% 35%);
+}
+.sandata-check svg { width: 16px; height: 16px; }
+.sandata-done-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: hsl(142 71% 35%);
+}
+.sandata-success-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: hsl(142 71% 96%);
+  border: 1px solid hsl(142 71% 85%);
+  margin-bottom: 16px;
+}
+.sandata-success-banner__icon {
+  display: flex;
+  color: hsl(142 71% 35%);
+}
+.sandata-success-banner__icon svg { width: 20px; height: 20px; }
+.sandata-success-banner__text {
+  font-size: 13px;
+  color: hsl(142 71% 20%);
+  line-height: 1.4;
+}

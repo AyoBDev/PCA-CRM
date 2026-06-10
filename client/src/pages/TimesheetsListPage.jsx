@@ -173,8 +173,23 @@ export default function TimesheetsListPage() {
         showToast(`Exported ${toExport.length} timesheet(s) to CSV`);
     };
 
-    const handlePrint = () => {
-        window.print();
+    const handlePrint = async () => {
+        try {
+            let blob;
+            if (selectedIds.size > 1) {
+                blob = await api.exportBulkTimesheetPdf([...selectedIds]);
+            } else if (selectedIds.size === 1) {
+                blob = await api.exportTimesheetPdf([...selectedIds][0]);
+            } else {
+                const ids = timesheets.map(t => t.id);
+                if (ids.length === 0) { showToast('No timesheets to print', 'error'); return; }
+                blob = ids.length === 1
+                    ? await api.exportTimesheetPdf(ids[0])
+                    : await api.exportBulkTimesheetPdf(ids);
+            }
+            const url = URL.createObjectURL(blob);
+            window.open(url, '_blank');
+        } catch (err) { showToast(err.message, 'error'); }
     };
 
     const handleSendSharedLink = async () => {

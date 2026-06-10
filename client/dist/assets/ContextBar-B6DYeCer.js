@@ -1,0 +1,1 @@
+import{j as r}from"./index-DpSU8fgd.js";function n({children:t}){return r.jsx("div",{className:"context-bar",children:t})}n.Left=function({children:e}){return r.jsx("div",{className:"context-bar__left",children:e})};n.Right=function({children:e}){return r.jsx("div",{className:"context-bar__right",children:e})};export{n as C};

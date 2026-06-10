@@ -57,6 +57,7 @@ const {
     permanentlyDeleteTimesheet,
     bulkPermanentlyDeleteTimesheets,
     exportTimesheetPdf,
+    exportBulkTimesheetPdf,
     updateTimesheetStatus,
     sendTimesheetReminders,
 } = require('../controllers/timesheetController');
@@ -152,6 +153,7 @@ const { listTasks, getTask, createTask, updateTask, deleteTask, bulkUpdateTasks,
 const { listWorkflowTriggers, updateWorkflowTrigger } = require('../controllers/workflowTriggerController');
 const { getPayrollProfile, upsertPayrollProfile, revealSensitiveField } = require('../controllers/payrollProfileController');
 const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalizeReceipts, sendReceipts, downloadReceiptPdf } = require('../controllers/receiptController');
+const { previewSandata, applySandata, undoSandata } = require('../controllers/sandataController');
 const { authenticate, requireRole } = require('../middleware/authMiddleware');
 
 const router = express.Router();
@@ -281,6 +283,7 @@ router.get('/timesheets/activities', getActivities);
 router.get('/timesheets', listTimesheets);
 router.delete('/timesheets/bulk-permanent', requireRole('admin'), bulkPermanentlyDeleteTimesheets);
 router.post('/timesheets/send-reminders', requireRole('admin'), sendTimesheetReminders);
+router.post('/timesheets/bulk-export-pdf', requireRole('admin', 'user', 'pca'), exportBulkTimesheetPdf);
 router.get('/timesheets/:id', getTimesheet);
 router.post('/timesheets', createTimesheet);
 router.put('/timesheets/:id/restore', restoreTimesheet);
@@ -395,5 +398,10 @@ router.patch('/receipts/:id', requireRole('admin'), updateReceipt);
 router.post('/receipts/finalize', requireRole('admin'), finalizeReceipts);
 router.post('/receipts/send', requireRole('admin'), sendReceipts);
 router.get('/receipts/:id/pdf', requireRole('admin'), downloadReceiptPdf);
+
+// SANDATA Import (admin only)
+router.post('/sandata/preview', requireRole('admin'), upload.single('file'), previewSandata);
+router.post('/sandata/apply', requireRole('admin'), applySandata);
+router.post('/sandata/undo', requireRole('admin'), undoSandata);
 
 module.exports = router;

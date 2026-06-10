@@ -428,24 +428,7 @@ function parseBlocks(json) {
     try { return JSON.parse(json || '[]'); } catch { return []; }
 }
 
-async function exportTimesheetPdf(req, res, next) {
-    try {
-        const id = Number(req.params.id);
-        const ts = await prisma.timesheet.findUnique({
-            where: { id },
-            include: {
-                client: true,
-                entries: { orderBy: { dayOfWeek: 'asc' } },
-            },
-        });
-        if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
-
-        const doc = new PDFDocument({ size: 'LETTER', layout: 'landscape', margins: { top: 14, bottom: 14, left: 14, right: 14 } });
-
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `inline; filename="timesheet-${ts.id}.pdf"`);
-        doc.pipe(res);
-
+function renderTimesheetPage(doc, ts) {
         const mL = 14;
         const pageW = doc.page.width - 28;
         const pageBottom = doc.page.height - 14;
@@ -766,6 +749,48 @@ async function exportTimesheetPdf(req, res, next) {
         doc.text('Accepted By: ______________________________     Date: ______________', cols[3], gridY + 20);
         doc.text('Comments: _______________________________________________________________', cols[3], gridY + 38);
 
+}
+
+async function exportTimesheetPdf(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const ts = await prisma.timesheet.findUnique({
+            where: { id },
+            include: { client: true, entries: { orderBy: { dayOfWeek: 'asc' } } },
+        });
+        if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
+
+        const doc = new PDFDocument({ size: 'LETTER', layout: 'landscape', margins: { top: 14, bottom: 14, left: 14, right: 14 } });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="timesheet-${ts.id}.pdf"`);
+        doc.pipe(res);
+        renderTimesheetPage(doc, ts);
+        doc.end();
+    } catch (err) { next(err); }
+}
+
+async function exportBulkTimesheetPdf(req, res, next) {
+    try {
+        const { ids } = req.body;
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ error: 'Provide an array of timesheet ids' });
+        }
+        const timesheets = await prisma.timesheet.findMany({
+            where: { id: { in: ids.map(Number) } },
+            include: { client: true, entries: { orderBy: { dayOfWeek: 'asc' } } },
+            orderBy: [{ pcaName: 'asc' }, { weekStart: 'asc' }],
+        });
+        if (timesheets.length === 0) return res.status(404).json({ error: 'No timesheets found' });
+
+        const doc = new PDFDocument({ size: 'LETTER', layout: 'landscape', margins: { top: 14, bottom: 14, left: 14, right: 14 } });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="timesheets-bulk.pdf"`);
+        doc.pipe(res);
+
+        for (let i = 0; i < timesheets.length; i++) {
+            if (i > 0) doc.addPage();
+            renderTimesheetPage(doc, timesheets[i]);
+        }
         doc.end();
     } catch (err) { next(err); }
 }
@@ -833,4 +858,4 @@ async function sendTimesheetReminders(req, res) {
     }
 }
 
-module.exports = { listTimesheets, getTimesheet, getActivities, createTimesheet, updateTimesheet, submitTimesheet, deleteTimesheet, restoreTimesheet, permanentlyDeleteTimesheet, bulkPermanentlyDeleteTimesheets, exportTimesheetPdf, updateTimesheetStatus, sendTimesheetReminders };
+module.exports = { listTimesheets, getTimesheet, getActivities, createTimesheet, updateTimesheet, submitTimesheet, deleteTimesheet, restoreTimesheet, permanentlyDeleteTimesheet, bulkPermanentlyDeleteTimesheets, exportTimesheetPdf, exportBulkTimesheetPdf, updateTimesheetStatus, sendTimesheetReminders };
