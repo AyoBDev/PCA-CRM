@@ -19,6 +19,7 @@ const PATH_TO_PAGE = {
     '/services': 'services',
     '/users': 'users',
     '/history': 'history',
+    '/sandata': 'sandata',
 };
 
 export default function Sidebar({ onMobileClose }) {
@@ -135,6 +136,11 @@ export default function Sidebar({ onMobileClose }) {
                         <button className={`sidebar__nav-item ${activePage === 'history' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/history')} title="History">
                             {Icons.clock} History
                         </button>
+                        {isAdmin && (
+                            <button className={`sidebar__nav-item ${activePage === 'sandata' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/sandata')} title="SANDATA Import">
+                                {Icons.upload} SANDATA
+                            </button>
+                        )}
                     </>
                 )}
                 <div className="separator" style={{ margin: '8px 12px' }} />

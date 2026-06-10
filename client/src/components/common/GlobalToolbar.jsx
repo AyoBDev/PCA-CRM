@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import Icons from './Icons';
 import OverflowMenu from './OverflowMenu';
 import { ActivityButton } from './ActivityDrawer';
@@ -79,13 +79,13 @@ export default function GlobalToolbar({
                             >
                                 {Icons.redo} <span>Redo</span>
                             </button>
-                            <button
+                            <Link
+                                to="/history"
                                 className="connected-btn-group__btn"
-                                onClick={() => navigate('/history')}
                                 title="View full activity history"
                             >
                                 {Icons.history} <span>History</span>
-                            </button>
+                            </Link>
                             {activityEntity && (
                                 <ActivityButton entityType={activityEntity} className="connected-btn-group__btn connected-btn-group__btn--last" />
                             )}

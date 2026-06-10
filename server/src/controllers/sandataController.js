@@ -227,12 +227,29 @@ async function undoSandata(req, res, next) {
 
 function parseXlsx(buffer) {
     const wb = xlsx.read(buffer, { type: 'buffer' });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
 
-    if (rows.length < 2) return [];
+    // Find the sheet containing the data headers (may be first or second sheet)
+    let rows = null;
+    let headerRowIdx = -1;
+    for (const name of wb.SheetNames) {
+        const sheet = wb.Sheets[name];
+        const sheetRows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+        for (let i = 0; i < Math.min(10, sheetRows.length); i++) {
+            const row = sheetRows[i];
+            if (!row) continue;
+            const cells = row.map(c => (c || '').toString().trim().toUpperCase());
+            if (cells.includes('CLIENT ID') && cells.includes('CLIENT MEDICAID ID')) {
+                rows = sheetRows;
+                headerRowIdx = i;
+                break;
+            }
+        }
+        if (rows) break;
+    }
 
-    const headers = rows[0].map(h => (h || '').toString().trim().toUpperCase());
+    if (!rows || headerRowIdx === -1) return null;
+
+    const headers = rows[headerRowIdx].map(h => (h || '').toString().trim().toUpperCase());
     const colIdx = {
         clientId: headers.indexOf('CLIENT ID'),
         medicaidId: headers.indexOf('CLIENT MEDICAID ID'),
@@ -249,10 +266,12 @@ function parseXlsx(buffer) {
     if (colIdx.clientId === -1 || colIdx.medicaidId === -1) return null;
 
     const sandataRows = [];
-    for (let i = 1; i < rows.length; i++) {
+    for (let i = headerRowIdx + 1; i < rows.length; i++) {
         const row = rows[i];
+        if (!row) continue;
         const clientId = row[colIdx.clientId];
         const medicaidId = row[colIdx.medicaidId];
+        // Skip continuation rows (no CLIENT ID) and footer rows
         if (!clientId || !medicaidId) continue;
 
         const sandataAddress = [
