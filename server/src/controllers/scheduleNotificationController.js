@@ -1,9 +1,9 @@
 const prisma = require('../lib/prisma');
 const { getWeekRange } = require('../services/schedulingService');
 const {
-    isSmsConfigured, isEmailConfigured,
-    sendSms, sendEmail,
-    formatScheduleSms, formatScheduleEmailHtml,
+    isEmailConfigured,
+    sendEmail,
+    formatScheduleEmailHtml,
 } = require('../services/notificationService');
 
 async function sendSchedules(req, res) {
@@ -44,11 +44,10 @@ async function sendSchedules(req, res) {
     const baseUrl = `${req.protocol}://${req.get('host')}`;
 
     for (const [empId, { employee, shifts: empShifts }] of byEmployee) {
-        const hasSms = isSmsConfigured() && employee.phone;
         const hasEmail = isEmailConfigured() && employee.email;
 
-        if (!hasSms && !hasEmail) {
-            results.push({ employeeId: empId, name: employee.name, status: 'skipped', reason: 'no contact info' });
+        if (!hasEmail) {
+            results.push({ employeeId: empId, name: employee.name, status: 'skipped', reason: 'no email' });
             continue;
         }
 
@@ -61,35 +60,7 @@ async function sendSchedules(req, res) {
         }
         const scheduleUrl = `${baseUrl}/schedule/view/${scheduleLink.token}`;
 
-        // Create notification records and send
-        if (hasSms) {
-            const notification = await prisma.scheduleNotification.create({
-                data: {
-                    employeeId: empId,
-                    weekStart: new Date(ws),
-                    method: 'sms',
-                    destination: employee.phone,
-                    message: message || '',
-                    sentById: req.user?.id || null,
-                },
-            });
-            try {
-                const body = formatScheduleSms(employee.name, empShifts, weekLabel, scheduleUrl, message);
-                await sendSms(employee.phone, body);
-                await prisma.scheduleNotification.update({
-                    where: { id: notification.id },
-                    data: { status: 'sent', sentAt: new Date() },
-                });
-                results.push({ employeeId: empId, name: employee.name, method: 'sms', status: 'sent' });
-            } catch (err) {
-                await prisma.scheduleNotification.update({
-                    where: { id: notification.id },
-                    data: { status: 'failed', failureReason: err.message },
-                });
-                results.push({ employeeId: empId, name: employee.name, method: 'sms', status: 'failed', reason: err.message });
-            }
-        }
-
+        // Create notification record and send
         if (hasEmail) {
             const notification = await prisma.scheduleNotification.create({
                 data: {

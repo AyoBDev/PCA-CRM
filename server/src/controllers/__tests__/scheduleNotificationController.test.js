@@ -5,11 +5,8 @@ jest.mock('../../lib/prisma', () => ({
 }));
 
 jest.mock('../../services/notificationService', () => ({
-    isSmsConfigured: jest.fn(() => false),
     isEmailConfigured: jest.fn(() => true),
-    sendSms: jest.fn(),
     sendEmail: jest.fn(),
-    formatScheduleSms: jest.fn(() => 'sms body'),
     formatScheduleEmailHtml: jest.fn(() => '<html>email</html>'),
 }));
 

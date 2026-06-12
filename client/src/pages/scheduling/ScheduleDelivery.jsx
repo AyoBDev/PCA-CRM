@@ -87,7 +87,7 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
     };
 
     const toggleSelectAll = () => {
-        const withContact = filteredEmployees.filter(e => e.email || e.phone);
+        const withContact = filteredEmployees.filter(e => e.email);
         if (selectedIds.size === withContact.length) {
             setSelectedIds(new Set());
         } else {
@@ -119,7 +119,7 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
     };
 
     const handleSendAll = () => {
-        const withContact = filteredEmployees.filter(e => e.email || e.phone);
+        const withContact = filteredEmployees.filter(e => e.email);
         setSelectedIds(new Set(withContact.map(e => e.id)));
         setShowBulkModal(true);
     };
@@ -179,7 +179,7 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                             <thead>
                                 <tr>
                                     <th scope="col" style={{ width: 36 }}>
-                                        <input type="checkbox" checked={selectedIds.size > 0 && selectedIds.size === filteredEmployees.filter(e => e.email || e.phone).length} onChange={toggleSelectAll} />
+                                        <input type="checkbox" checked={selectedIds.size > 0 && selectedIds.size === filteredEmployees.filter(e => e.email).length} onChange={toggleSelectAll} />
                                     </th>
                                     <th scope="col">Employee</th>
                                     <th scope="col">Contact</th>
@@ -192,7 +192,7 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                             </thead>
                             <tbody>
                                 {filteredEmployees.map(emp => {
-                                    const hasContact = !!(emp.email || emp.phone);
+                                    const hasContact = !!emp.email;
                                     const isSending = sendingId === emp.id;
                                     const isSent = sentIds.has(emp.id);
                                     const status = statusByEmp.get(emp.id);
@@ -203,10 +203,8 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                                             <td>
                                                 {emp.email ? (
                                                     <span style={{ fontSize: 12 }} title={emp.email}>{emp.email.length > 20 ? emp.email.slice(0, 20) + '...' : emp.email}</span>
-                                                ) : emp.phone ? (
-                                                    <span style={{ fontSize: 12 }}>{emp.phone}</span>
                                                 ) : (
-                                                    <span style={{ fontSize: 12, color: 'hsl(var(--destructive))', fontStyle: 'italic' }}>No contact</span>
+                                                    <span style={{ fontSize: 12, color: 'hsl(var(--destructive))', fontStyle: 'italic' }}>No email</span>
                                                 )}
                                             </td>
                                             <td>
@@ -283,7 +281,7 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                             <strong>Recipients:</strong>
                             <ul style={{ margin: '4px 0 0', paddingLeft: 16 }}>
                                 {employees.filter(e => selectedIds.has(e.id)).map(e => (
-                                    <li key={e.id}>{e.name} ({e.email ? 'email' : 'SMS'})</li>
+                                    <li key={e.id}>{e.name} ({e.email || 'No email'})</li>
                                 ))}
                             </ul>
                         </div>

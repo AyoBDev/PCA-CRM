@@ -1243,7 +1243,6 @@ function ScheduleHistoryTab({ employeeId }) {
                                 <th>Sent By</th>
                                 <th>Status</th>
                                 <th>Date Confirmed</th>
-                                <th>Method</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1257,11 +1256,6 @@ function ScheduleHistoryTab({ employeeId }) {
                                     <td>{getStatusBadge(n)}</td>
                                     <td style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
                                         {n.respondedAt ? new Date(n.respondedAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'}
-                                    </td>
-                                    <td style={{ fontSize: 12 }}>
-                                        <span style={{ display: 'inline-block', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600, background: n.method === 'email' ? '#e0f2fe' : '#f0fdf4', color: n.method === 'email' ? '#075985' : '#166534', textTransform: 'uppercase' }}>
-                                            {n.method}
-                                        </span>
                                     </td>
                                 </tr>
                             ))}

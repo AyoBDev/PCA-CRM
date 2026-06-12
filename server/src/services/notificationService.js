@@ -1,24 +1,8 @@
 // Notification delivery service
-// Twilio and email integrations are optional — check env vars before use
-
-function isSmsConfigured() {
-    return !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER);
-}
+// Email integration via Brevo
 
 function isEmailConfigured() {
     return !!process.env.BREVO_API_KEY;
-}
-
-async function sendSms(to, body) {
-    if (!isSmsConfigured()) throw new Error('SMS not configured');
-    // Twilio integration — require twilio only when needed
-    const twilio = require('twilio');
-    const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-    return client.messages.create({
-        body,
-        from: process.env.TWILIO_PHONE_NUMBER,
-        to,
-    });
 }
 
 async function sendEmail(to, subject, html, text, attachments) {
@@ -50,20 +34,6 @@ function hhmm12(t) {
     const [h, m] = t.split(':').map(Number);
     const hr = h % 12 || 12;
     return `${hr}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
-}
-
-function formatScheduleSms(employeeName, shifts, weekLabel, scheduleUrl, message) {
-    let msg = `NV Best PCA - Schedule for ${weekLabel}:\n`;
-    const dayAbbr = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    for (const shift of shifts) {
-        const d = new Date(shift.shiftDate);
-        const day = dayAbbr[d.getUTCDay()];
-        const date = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
-        msg += `[${day} ${date}] ${hhmm12(shift.startTime)}-${hhmm12(shift.endTime)} - ${shift.client.clientName} (${shift.serviceCode})\n`;
-    }
-    if (message) msg += `\nNote from scheduler: ${message}\n`;
-    msg += `\nView full schedule: ${scheduleUrl}`;
-    return msg;
 }
 
 function formatScheduleEmailHtml(employeeName, shifts, weekLabel, scheduleUrl, message) {
@@ -138,10 +108,7 @@ function formatScheduleEmailHtml(employeeName, shifts, weekLabel, scheduleUrl, m
 }
 
 module.exports = {
-    isSmsConfigured,
     isEmailConfigured,
-    sendSms,
     sendEmail,
-    formatScheduleSms,
     formatScheduleEmailHtml,
 };
