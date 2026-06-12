@@ -131,7 +131,10 @@ async function getNotificationStatus(req, res) {
 
     const notifications = await prisma.scheduleNotification.findMany({
         where: { weekStart: new Date(ws) },
-        include: { employee: { select: { id: true, name: true } } },
+        include: {
+            employee: { select: { id: true, name: true } },
+            sentByUser: { select: { name: true } },
+        },
         orderBy: { createdAt: 'desc' },
     });
 
