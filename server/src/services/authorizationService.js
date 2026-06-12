@@ -121,6 +121,7 @@ function enrichAuthorization(auth) {
     notes: auth.notes || '',
     archivedAt: auth.archivedAt || null,
     accountNumber: auth.accountNumber || '',
+    sandataClientId: auth.sandataClientId || '',
     manualStatus: auth.manualStatus || 'active',
     daysToExpire,
     status,
