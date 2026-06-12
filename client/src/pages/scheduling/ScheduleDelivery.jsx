@@ -13,6 +13,7 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
     const [showBulkModal, setShowBulkModal] = useState(false);
     const [bulkMessage, setBulkMessage] = useState('');
     const [notifStatus, setNotifStatus] = useState([]);
+    const [scheduleLinks, setScheduleLinks] = useState([]);
     const [empSearch, setEmpSearch] = useState('');
     const { showToast } = useToast();
 
@@ -32,6 +33,10 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
     }, [weekStart]);
 
     useEffect(() => { loadStatus(); }, [loadStatus]);
+
+    useEffect(() => {
+        api.getEmployeeScheduleLinks().then(setScheduleLinks).catch(() => {});
+    }, []);
 
     const employees = useMemo(() => {
         const map = new Map();
@@ -250,6 +255,23 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                         <p style={{ margin: '0 0 12px', fontSize: 13, color: '#6b7280' }}>
                             Week of {weekStart}
                         </p>
+                        {selectedIds.size === 1 && (() => {
+                            const empId = [...selectedIds][0];
+                            const link = scheduleLinks.find(l => l.employeeId === empId);
+                            if (!link) return null;
+                            const url = `${window.location.origin}/schedule/view/${link.token}`;
+                            return (
+                                <div style={{ marginBottom: 12 }}>
+                                    <label style={{ display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' }}>Schedule Link:</label>
+                                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                        <input readOnly value={url} style={{ flex: 1, fontSize: 12, padding: '6px 8px', borderRadius: 6, border: '1px solid #e4e4e7', background: '#f9fafb', color: '#374151' }} />
+                                        <button className="btn btn--outline btn--sm" style={{ fontSize: 11, whiteSpace: 'nowrap' }} onClick={() => { navigator.clipboard.writeText(url); showToast('Link copied'); }}>
+                                            Copy Link
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                         <label style={{ display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' }}>Message (optional):</label>
                         <textarea
                             value={bulkMessage}

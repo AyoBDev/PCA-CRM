@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
@@ -17,6 +17,7 @@ const TABS = [
     { key: 'certifications', label: 'Certifications', icon: 'shieldCheck' },
     { key: 'timesheets', label: 'Timesheets', icon: 'clock' },
     { key: 'schedule', label: 'Schedule', icon: 'calendar' },
+    { key: 'scheduleHistory', label: 'Schedule History', icon: 'share' },
     { key: 'payroll', label: 'Payroll', icon: 'dollarSign', adminOnly: true },
     { key: 'activity', label: 'Activity Log', icon: 'clipboard' },
 ];
@@ -447,6 +448,9 @@ export default function EmployeeDetailPage() {
                     )}
                     {activeTab === 'schedule' && (
                         <ScheduleTab shifts={shifts} loading={shiftsLoading} navigate={navigate} />
+                    )}
+                    {activeTab === 'scheduleHistory' && (
+                        <ScheduleHistoryTab employeeId={employee.id} />
                     )}
                     {activeTab === 'payroll' && (
                         <PayrollTab employeeId={employee.id} />
@@ -1169,6 +1173,102 @@ function ActivityTab({ employeeId }) {
                     </div>
                 </div>
             </div>
+        </div>
+    );
+}
+
+function ScheduleHistoryTab({ employeeId }) {
+    const [history, setHistory] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [filter, setFilter] = useState('all');
+
+    useEffect(() => {
+        api.getEmployeeNotificationHistory(employeeId)
+            .then(setHistory)
+            .catch(() => setHistory([]))
+            .finally(() => setLoading(false));
+    }, [employeeId]);
+
+    const filtered = useMemo(() => {
+        if (filter === 'all') return history;
+        return history.filter(n => {
+            if (filter === 'accepted') return n.response === 'accepted';
+            if (filter === 'pending') return !n.response && n.status === 'sent';
+            if (filter === 'failed') return n.status === 'failed';
+            return true;
+        });
+    }, [history, filter]);
+
+    const formatPeriod = (weekStart) => {
+        if (!weekStart) return '—';
+        const ws = new Date(weekStart);
+        const we = new Date(ws);
+        we.setDate(ws.getDate() + 6);
+        return `${ws.toLocaleDateString([], { month: 'short', day: 'numeric' })} – ${we.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    };
+
+    const getStatusBadge = (n) => {
+        if (n.status === 'failed') return <span style={{ display: 'inline-block', padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: '#fee2e2', color: '#991b1b' }}>Failed</span>;
+        if (n.response === 'accepted') return <span style={{ display: 'inline-block', padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: '#dcfce7', color: '#166534' }}>Accepted</span>;
+        if (n.response === 'rejected') return <span style={{ display: 'inline-block', padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: '#fee2e2', color: '#991b1b' }}>Rejected</span>;
+        if (n.response === 'changes_requested') return <span style={{ display: 'inline-block', padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: '#fef3c7', color: '#92400e' }}>Review</span>;
+        if (n.status === 'sent') return <span style={{ display: 'inline-block', padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: '#e0f2fe', color: '#075985' }}>Sent</span>;
+        return <span style={{ display: 'inline-block', padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: '#f3f4f6', color: '#374151' }}>{n.status}</span>;
+    };
+
+    if (loading) return <div className="cp-tab-panel"><p style={{ color: 'hsl(var(--muted-foreground))' }}>Loading...</p></div>;
+
+    return (
+        <div className="cp-tab-panel">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Schedule History</h3>
+                <select value={filter} onChange={e => setFilter(e.target.value)} style={{ fontSize: 12, padding: '4px 8px', borderRadius: 6, border: '1px solid hsl(var(--border))' }}>
+                    <option value="all">All Statuses</option>
+                    <option value="accepted">Accepted</option>
+                    <option value="pending">Pending</option>
+                    <option value="failed">Failed</option>
+                </select>
+            </div>
+            {filtered.length === 0 ? (
+                <div className="cp-empty-state-card">
+                    <p style={{ margin: 0, color: 'hsl(var(--muted-foreground))' }}>No schedule notifications found.</p>
+                </div>
+            ) : (
+                <div className="table-scroll">
+                    <table className="data-table data-table--sheet data-table--dark-header">
+                        <thead>
+                            <tr>
+                                <th>Schedule Period</th>
+                                <th>Date Sent</th>
+                                <th>Sent By</th>
+                                <th>Status</th>
+                                <th>Date Confirmed</th>
+                                <th>Method</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filtered.map(n => (
+                                <tr key={n.id}>
+                                    <td style={{ fontWeight: 500 }}>{formatPeriod(n.weekStart)}</td>
+                                    <td style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
+                                        {n.sentAt ? new Date(n.sentAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'}
+                                    </td>
+                                    <td style={{ fontSize: 12 }}>{n.sentByUser?.name || '—'}</td>
+                                    <td>{getStatusBadge(n)}</td>
+                                    <td style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
+                                        {n.respondedAt ? new Date(n.respondedAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'}
+                                    </td>
+                                    <td style={{ fontSize: 12 }}>
+                                        <span style={{ display: 'inline-block', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600, background: n.method === 'email' ? '#e0f2fe' : '#f0fdf4', color: n.method === 'email' ? '#075985' : '#166534', textTransform: 'uppercase' }}>
+                                            {n.method}
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
     );
 }
