@@ -491,6 +491,18 @@ export async function getScheduleView(token, weekStart) {
     return res.json();
 }
 
+export function recordScheduleOpen(token, weekStart) {
+    const qs = weekStart ? `?weekStart=${weekStart}` : '';
+    fetch(`${BASE}/schedule/view/${token}/open${qs}`, { method: 'POST' }).catch(() => {});
+}
+
+export async function getScheduleNotification(token, weekStart) {
+    const qs = weekStart ? `?weekStart=${weekStart}` : '';
+    const res = await fetch(`${BASE}/schedule/view/${token}/notification${qs}`);
+    if (!res.ok) return null;
+    return res.json();
+}
+
 // ── Dashboard ──
 export const getDashboardStats = () => request('/dashboard/stats');
 
