@@ -74,6 +74,10 @@ export default function ScheduleViewPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [weekStart, setWeekStart] = useState(() => getSunday(localToday()));
+    const [notification, setNotification] = useState(null);
+    const [responding, setResponding] = useState(false);
+    const [responseNotes, setResponseNotes] = useState('');
+    const [showResponseForm, setShowResponseForm] = useState(false);
 
     useEffect(() => {
         setLoading(true);
@@ -82,6 +86,19 @@ export default function ScheduleViewPage() {
             .then(setData)
             .catch(err => setError(err.message))
             .finally(() => setLoading(false));
+    }, [token, weekStart]);
+
+    useEffect(() => {
+        if (!data || !token) return;
+        api.recordScheduleOpen(token, weekStart);
+    }, [data, token, weekStart]);
+
+    useEffect(() => {
+        if (!token || !weekStart) return;
+        api.getScheduleNotification(token, weekStart).then(n => {
+            if (n && n.confirmationToken) setNotification(n);
+            else setNotification(null);
+        }).catch(() => setNotification(null));
     }, [token, weekStart]);
 
     // Use the server's weekStart to ensure dates align with shift dates
@@ -135,6 +152,21 @@ export default function ScheduleViewPage() {
     const handlePrevWeek = () => setWeekStart(addDays(weekStart, -7));
     const handleNextWeek = () => setWeekStart(addDays(weekStart, 7));
     const handleThisWeek = () => setWeekStart(getSunday(localToday()));
+
+    const handleRespond = async (response) => {
+        if (!notification?.confirmationToken) return;
+        setResponding(true);
+        try {
+            await api.respondToSchedule(notification.confirmationToken, response, responseNotes);
+            setNotification(prev => ({ ...prev, response, responseNotes, respondedAt: new Date().toISOString() }));
+            setShowResponseForm(false);
+            setResponseNotes('');
+        } catch (err) {
+            // silently fail — employee can retry
+        } finally {
+            setResponding(false);
+        }
+    };
 
     if (error) {
         return (
@@ -303,6 +335,57 @@ export default function ScheduleViewPage() {
                                         </div>
                                     );
                                 })}
+                            </div>
+                        )}
+
+                        {notification && (
+                            <div style={{ marginTop: 20, padding: 16, border: '1px solid hsl(var(--border))', borderRadius: 12, background: 'hsl(var(--card))' }}>
+                                {notification.response && !showResponseForm ? (
+                                    <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                            <span style={{ fontSize: 16 }}>
+                                                {notification.response === 'accepted' ? '✓' : notification.response === 'rejected' ? '✗' : '⚠'}
+                                            </span>
+                                            <span style={{ fontWeight: 600, fontSize: 14, color: notification.response === 'accepted' ? '#166534' : notification.response === 'rejected' ? '#991b1b' : '#92400e' }}>
+                                                {notification.response === 'accepted' ? 'Schedule Accepted' : notification.response === 'rejected' ? 'Schedule Rejected' : 'Changes Requested'}
+                                            </span>
+                                            <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
+                                                — {new Date(notification.respondedAt).toLocaleString()}
+                                            </span>
+                                        </div>
+                                        <button className="btn btn--outline btn--sm" style={{ fontSize: 12 }} onClick={() => setShowResponseForm(true)}>Change Response</button>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <h3 style={{ margin: '0 0 8px', fontSize: 15, fontWeight: 600 }}>Schedule Acknowledgement</h3>
+                                        {notification.message && (
+                                            <div style={{ background: '#f0f7ff', borderLeft: '3px solid #3b82f6', padding: '10px 14px', borderRadius: 4, marginBottom: 12 }}>
+                                                <p style={{ margin: 0, fontSize: 13, color: '#1e3a5f', fontWeight: 500 }}>Message from your scheduler:</p>
+                                                <p style={{ margin: '4px 0 0', fontSize: 13, color: '#374151' }}>{notification.message}</p>
+                                            </div>
+                                        )}
+                                        <p style={{ margin: '0 0 12px', fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>
+                                            Please confirm you've reviewed your schedule:
+                                        </p>
+                                        <textarea
+                                            placeholder="Notes (optional)"
+                                            value={responseNotes}
+                                            onChange={e => setResponseNotes(e.target.value)}
+                                            style={{ width: '100%', minHeight: 60, padding: 8, borderRadius: 6, border: '1px solid hsl(var(--border))', fontSize: 13, marginBottom: 12, resize: 'vertical' }}
+                                        />
+                                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                            <button className="btn btn--primary btn--sm" disabled={responding} onClick={() => handleRespond('accepted')}>
+                                                Accept Schedule
+                                            </button>
+                                            <button className="btn btn--outline btn--sm" disabled={responding} onClick={() => handleRespond('changes_requested')} style={{ borderColor: '#f59e0b', color: '#92400e' }}>
+                                                Request Changes
+                                            </button>
+                                            <button className="btn btn--outline btn--sm" disabled={responding} onClick={() => handleRespond('rejected')} style={{ borderColor: '#ef4444', color: '#991b1b' }}>
+                                                Reject
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
 
