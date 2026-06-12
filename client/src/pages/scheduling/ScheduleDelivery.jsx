@@ -7,9 +7,12 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
     const [expanded, setExpanded] = useState(true);
     const [fullscreen, setFullscreen] = useState(false);
     const [sendingId, setSendingId] = useState(null);
+    const [bulkSending, setBulkSending] = useState(false);
     const [sentIds, setSentIds] = useState(new Set());
-    const [confirmEmp, setConfirmEmp] = useState(null);
-    const [responses, setResponses] = useState([]);
+    const [selectedIds, setSelectedIds] = useState(new Set());
+    const [showBulkModal, setShowBulkModal] = useState(false);
+    const [bulkMessage, setBulkMessage] = useState('');
+    const [notifStatus, setNotifStatus] = useState([]);
     const [empSearch, setEmpSearch] = useState('');
     const { showToast } = useToast();
 
@@ -20,12 +23,15 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
         return () => document.removeEventListener('keydown', onKey);
     }, [fullscreen]);
 
-    useEffect(() => {
+    const loadStatus = useCallback(async () => {
         if (!weekStart) return;
-        api.getScheduleResponses(weekStart)
-            .then(setResponses)
-            .catch(() => {});
+        try {
+            const data = await api.getNotificationStatus(weekStart);
+            setNotifStatus(data);
+        } catch {}
     }, [weekStart]);
+
+    useEffect(() => { loadStatus(); }, [loadStatus]);
 
     const employees = useMemo(() => {
         const map = new Map();
@@ -46,15 +52,16 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
         return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
     }, [shifts]);
 
-    const responsesByEmp = useMemo(() => {
+    const statusByEmp = useMemo(() => {
         const map = new Map();
-        for (const r of responses) {
-            if (!map.has(r.employeeId) || new Date(r.respondedAt) > new Date(map.get(r.employeeId).respondedAt)) {
-                map.set(r.employeeId, r);
+        for (const n of notifStatus) {
+            const empId = n.employee?.id || n.employeeId;
+            if (!map.has(empId)) {
+                map.set(empId, n);
             }
         }
         return map;
-    }, [responses]);
+    }, [notifStatus]);
 
     const filteredEmployees = useMemo(() => {
         if (!empSearch.trim()) return employees;
@@ -65,51 +72,51 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
         );
     }, [employees, empSearch]);
 
-    const handleSendSchedule = async (emp) => {
-        if (!emp.email && !emp.phone) {
-            showToast('No email or phone on file for this employee', 'error');
-            return;
-        }
-        setConfirmEmp(null);
-        setSendingId(emp.id);
-        try {
-            const result = await api.sendScheduleNotifications({
-                weekStart,
-                employeeIds: [emp.id],
-            });
-            const r = result.results?.[0];
-            if (r?.status === 'sent') {
-                setSentIds(prev => new Set([...prev, emp.id]));
-                showToast(`Schedule sent to ${emp.name} via ${r.method}`);
-                setTimeout(() => setSentIds(prev => { const next = new Set(prev); next.delete(emp.id); return next; }), 3000);
-            } else if (r?.status === 'skipped') {
-                showToast(`Skipped: ${r.reason}`, 'error');
-            } else if (r?.status === 'failed') {
-                showToast(`Failed to send: ${r.reason}`, 'error');
-            } else {
-                showToast('No notification sent — check employee contact info', 'error');
-            }
-        } catch (err) {
-            showToast(err.message || 'Failed to send schedule', 'error');
-        } finally {
-            setSendingId(null);
+    const toggleSelect = (id) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        const withContact = filteredEmployees.filter(e => e.email || e.phone);
+        if (selectedIds.size === withContact.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(withContact.map(e => e.id)));
         }
     };
 
-    const getResponseBadge = (empId) => {
-        const r = responsesByEmp.get(empId);
-        if (!r) return null;
-        const colors = {
-            accepted: { bg: '#dcfce7', color: '#166534', label: 'Accepted' },
-            rejected: { bg: '#fee2e2', color: '#991b1b', label: 'Rejected' },
-            changes_requested: { bg: '#fef3c7', color: '#92400e', label: 'Changes Requested' },
-        };
-        const c = colors[r.response] || { bg: '#f3f4f6', color: '#374151', label: r.response };
-        return (
-            <span title={r.responseNotes || ''} style={{ display: 'inline-block', padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: c.bg, color: c.color }}>
-                {c.label}
-            </span>
-        );
+    const handleBulkSend = async () => {
+        const ids = [...selectedIds];
+        if (ids.length === 0) return;
+        setBulkSending(true);
+        try {
+            const result = await api.sendScheduleNotifications({
+                weekStart,
+                employeeIds: ids,
+                message: bulkMessage,
+            });
+            const sentCount = result.results?.filter(r => r.status === 'sent').length || 0;
+            showToast(`Schedule sent to ${sentCount} employee${sentCount !== 1 ? 's' : ''}`);
+            setSelectedIds(new Set());
+            setShowBulkModal(false);
+            setBulkMessage('');
+            loadStatus();
+        } catch (err) {
+            showToast(err.message || 'Failed to send schedules', 'error');
+        } finally {
+            setBulkSending(false);
+        }
+    };
+
+    const handleSendAll = () => {
+        const withContact = filteredEmployees.filter(e => e.email || e.phone);
+        setSelectedIds(new Set(withContact.map(e => e.id)));
+        setShowBulkModal(true);
     };
 
     return (
@@ -142,10 +149,17 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                     <p style={{ color: 'hsl(var(--muted-foreground))' }}>No shifts scheduled for this week.</p>
                 ) : (
                     <>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                            <p style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', margin: 0, flex: 1 }}>
-                                Review and finalize schedules, then send to each employee.
-                            </p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                            <button className="btn btn--outline btn--sm" style={{ fontSize: 11 }} onClick={toggleSelectAll}>
+                                {selectedIds.size > 0 ? 'Deselect All' : 'Select All'}
+                            </button>
+                            <button className="btn btn--primary btn--sm" style={{ fontSize: 11 }} disabled={selectedIds.size === 0} onClick={() => setShowBulkModal(true)}>
+                                Send Selected ({selectedIds.size})
+                            </button>
+                            <button className="btn btn--outline btn--sm" style={{ fontSize: 11 }} onClick={handleSendAll}>
+                                Send All
+                            </button>
+                            <div style={{ flex: 1 }} />
                             <input
                                 type="text"
                                 className="context-bar__search"
@@ -159,11 +173,16 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                         <table className="data-table data-table--sheet data-table--dark-header">
                             <thead>
                                 <tr>
+                                    <th scope="col" style={{ width: 36 }}>
+                                        <input type="checkbox" checked={selectedIds.size > 0 && selectedIds.size === filteredEmployees.filter(e => e.email || e.phone).length} onChange={toggleSelectAll} />
+                                    </th>
                                     <th scope="col">Employee</th>
-                                    <th scope="col">Email</th>
+                                    <th scope="col">Contact</th>
                                     <th scope="col">Shifts</th>
+                                    <th scope="col">Sent</th>
+                                    <th scope="col">Opened</th>
                                     <th scope="col">Response</th>
-                                    <th scope="col" style={{ width: 160 }}>Actions</th>
+                                    <th scope="col" style={{ width: 100 }}>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -171,15 +190,18 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                                     const hasContact = !!(emp.email || emp.phone);
                                     const isSending = sendingId === emp.id;
                                     const isSent = sentIds.has(emp.id);
-                                    const empResponse = responsesByEmp.get(emp.id);
+                                    const status = statusByEmp.get(emp.id);
                                     return (
                                         <tr key={emp.id}>
+                                            <td><input type="checkbox" checked={selectedIds.has(emp.id)} onChange={() => toggleSelect(emp.id)} disabled={!hasContact} /></td>
                                             <td style={{ fontWeight: 500 }}>{emp.name}</td>
                                             <td>
                                                 {emp.email ? (
-                                                    <span style={{ fontSize: 12 }}>{emp.email}</span>
+                                                    <span style={{ fontSize: 12 }} title={emp.email}>{emp.email.length > 20 ? emp.email.slice(0, 20) + '...' : emp.email}</span>
+                                                ) : emp.phone ? (
+                                                    <span style={{ fontSize: 12 }}>{emp.phone}</span>
                                                 ) : (
-                                                    <span style={{ fontSize: 12, color: 'hsl(var(--destructive))', fontStyle: 'italic' }}>No email</span>
+                                                    <span style={{ fontSize: 12, color: 'hsl(var(--destructive))', fontStyle: 'italic' }}>No contact</span>
                                                 )}
                                             </td>
                                             <td>
@@ -187,29 +209,27 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                                                     {emp.shiftCount}
                                                 </span>
                                             </td>
+                                            <td style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
+                                                {status?.sentAt ? new Date(status.sentAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'}
+                                            </td>
+                                            <td style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
+                                                {status?.openedAt ? new Date(status.openedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'}
+                                            </td>
                                             <td>
-                                                {getResponseBadge(emp.id) || <span style={{ fontSize: 12, color: '#9ca3af' }}>—</span>}
-                                                {empResponse?.responseNotes && (
-                                                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={empResponse.responseNotes}>
-                                                        Note: {empResponse.responseNotes}
-                                                    </div>
-                                                )}
+                                                {status?.response ? (() => {
+                                                    const colors = { accepted: { bg: '#dcfce7', color: '#166534', label: 'Accepted' }, rejected: { bg: '#fee2e2', color: '#991b1b', label: 'Rejected' }, changes_requested: { bg: '#fef3c7', color: '#92400e', label: 'Changes Req.' } };
+                                                    const c = colors[status.response] || { bg: '#f3f4f6', color: '#374151', label: status.response };
+                                                    return <span title={status.respondedAt ? new Date(status.respondedAt).toLocaleString() : ''} style={{ display: 'inline-block', padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: c.bg, color: c.color }}>{c.label}</span>;
+                                                })() : <span style={{ fontSize: 12, color: '#9ca3af' }}>—</span>}
                                             </td>
                                             <td>
                                                 <button
-                                                    className={`btn btn--sm ${isSent ? 'btn--outline' : 'btn--primary'}`}
-                                                    style={{ fontSize: 11, padding: '3px 8px', gap: 4 }}
-                                                    onClick={() => setConfirmEmp(emp)}
+                                                    className="btn btn--outline btn--sm"
+                                                    style={{ fontSize: 11, padding: '3px 8px' }}
+                                                    onClick={() => { setSelectedIds(new Set([emp.id])); setShowBulkModal(true); }}
                                                     disabled={!hasContact || isSending}
-                                                    title={!hasContact ? 'Add email or phone to this employee first' : 'Send schedule notification'}
                                                 >
-                                                    {isSending ? (
-                                                        <>Sending...</>
-                                                    ) : isSent ? (
-                                                        <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="hsl(142 71% 45%)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Sent!</>
-                                                    ) : (
-                                                        <>{Icons.share} Send Schedule</>
-                                                    )}
+                                                    {isSending ? 'Sending...' : isSent ? 'Sent!' : status?.sentAt ? 'Resend' : 'Send'}
                                                 </button>
                                             </td>
                                         </tr>
@@ -223,18 +243,32 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
             </div>}
             {fullscreen && <div className="sched-card__backdrop" onClick={() => setFullscreen(false)} />}
 
-            {confirmEmp && (
+            {showBulkModal && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-                    <div style={{ background: 'white', borderRadius: 12, padding: 24, maxWidth: 420, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
-                        <h3 style={{ margin: '0 0 8px', fontSize: 16 }}>Confirm Send Schedule</h3>
-                        <p style={{ margin: '0 0 16px', fontSize: 13, color: '#6b7280' }}>
-                            This will send the schedule notification to <strong>{confirmEmp.name}</strong> via {confirmEmp.email ? 'email' : 'SMS'}.
-                            They will be able to view their schedule, accept, reject, or request changes.
+                    <div style={{ background: 'white', borderRadius: 12, padding: 24, maxWidth: 480, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+                        <h3 style={{ margin: '0 0 4px', fontSize: 16 }}>Send Schedule to {selectedIds.size} employee{selectedIds.size !== 1 ? 's' : ''}</h3>
+                        <p style={{ margin: '0 0 12px', fontSize: 13, color: '#6b7280' }}>
+                            Week of {weekStart}
                         </p>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' }}>Message (optional):</label>
+                        <textarea
+                            value={bulkMessage}
+                            onChange={e => setBulkMessage(e.target.value)}
+                            placeholder="e.g. Please review your weekend shifts carefully."
+                            style={{ width: '100%', minHeight: 60, padding: 8, borderRadius: 6, border: '1px solid #e4e4e7', fontSize: 13, marginBottom: 12, resize: 'vertical' }}
+                        />
+                        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 12, maxHeight: 120, overflowY: 'auto' }}>
+                            <strong>Recipients:</strong>
+                            <ul style={{ margin: '4px 0 0', paddingLeft: 16 }}>
+                                {employees.filter(e => selectedIds.has(e.id)).map(e => (
+                                    <li key={e.id}>{e.name} ({e.email ? 'email' : 'SMS'})</li>
+                                ))}
+                            </ul>
+                        </div>
                         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                            <button className="btn btn--outline btn--sm" onClick={() => setConfirmEmp(null)}>Cancel</button>
-                            <button className="btn btn--primary btn--sm" onClick={() => handleSendSchedule(confirmEmp)}>
-                                Confirm & Send
+                            <button className="btn btn--outline btn--sm" onClick={() => { setShowBulkModal(false); setBulkMessage(''); }} disabled={bulkSending}>Cancel</button>
+                            <button className="btn btn--primary btn--sm" onClick={handleBulkSend} disabled={bulkSending}>
+                                {bulkSending ? 'Sending...' : 'Send Schedules'}
                             </button>
                         </div>
                     </div>
