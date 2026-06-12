@@ -7,7 +7,7 @@ const {
 } = require('../services/notificationService');
 
 async function sendSchedules(req, res) {
-    const { weekStart, employeeIds } = req.body;
+    const { weekStart, employeeIds, message } = req.body;
     if (!weekStart) return res.status(400).json({ error: 'weekStart required' });
 
     const { weekStart: ws, weekEnd: we } = getWeekRange(weekStart);
@@ -69,10 +69,12 @@ async function sendSchedules(req, res) {
                     weekStart: new Date(ws),
                     method: 'sms',
                     destination: employee.phone,
+                    message: message || '',
+                    sentById: req.user?.id || null,
                 },
             });
             try {
-                const body = formatScheduleSms(employee.name, empShifts, weekLabel, scheduleUrl);
+                const body = formatScheduleSms(employee.name, empShifts, weekLabel, scheduleUrl, message);
                 await sendSms(employee.phone, body);
                 await prisma.scheduleNotification.update({
                     where: { id: notification.id },
@@ -95,10 +97,12 @@ async function sendSchedules(req, res) {
                     weekStart: new Date(ws),
                     method: 'email',
                     destination: employee.email,
+                    message: message || '',
+                    sentById: req.user?.id || null,
                 },
             });
             try {
-                const html = formatScheduleEmailHtml(employee.name, empShifts, weekLabel, scheduleUrl);
+                const html = formatScheduleEmailHtml(employee.name, empShifts, weekLabel, scheduleUrl, message);
                 const text = `Schedule for ${weekLabel}. View: ${scheduleUrl}`;
                 await sendEmail(employee.email, `Your Schedule - ${weekLabel}`, html, text);
                 await prisma.scheduleNotification.update({

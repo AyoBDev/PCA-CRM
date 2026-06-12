@@ -52,7 +52,7 @@ function hhmm12(t) {
     return `${hr}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
 }
 
-function formatScheduleSms(employeeName, shifts, weekLabel, scheduleUrl) {
+function formatScheduleSms(employeeName, shifts, weekLabel, scheduleUrl, message) {
     let msg = `NV Best PCA - Schedule for ${weekLabel}:\n`;
     const dayAbbr = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     for (const shift of shifts) {
@@ -61,11 +61,12 @@ function formatScheduleSms(employeeName, shifts, weekLabel, scheduleUrl) {
         const date = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
         msg += `[${day} ${date}] ${hhmm12(shift.startTime)}-${hhmm12(shift.endTime)} - ${shift.client.clientName} (${shift.serviceCode})\n`;
     }
+    if (message) msg += `\nNote from scheduler: ${message}\n`;
     msg += `\nView full schedule: ${scheduleUrl}`;
     return msg;
 }
 
-function formatScheduleEmailHtml(employeeName, shifts, weekLabel, scheduleUrl) {
+function formatScheduleEmailHtml(employeeName, shifts, weekLabel, scheduleUrl, message) {
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
     // Group shifts by date, only include days with shifts
@@ -102,10 +103,17 @@ function formatScheduleEmailHtml(employeeName, shifts, weekLabel, scheduleUrl) {
         rowIdx++;
     }
 
+    const messageBlock = message ? `
+            <div style="background:#f0f7ff;border-left:3px solid #3b82f6;padding:12px 16px;margin:16px 0;border-radius:4px">
+                <p style="margin:0;font-size:14px;color:#1e3a5f;font-weight:500">Message from your scheduler:</p>
+                <p style="margin:8px 0 0;font-size:14px;color:#374151">${message}</p>
+            </div>` : '';
+
     return `
         <div style="font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:700px;margin:0 auto;color:#09090b">
             <h2 style="margin:0 0 4px;font-size:20px;color:#09090b">Schedule for ${weekLabel}</h2>
             <p style="margin:0 0 16px;color:#71717a;font-size:14px">Hi ${employeeName},</p>
+            ${messageBlock}
             <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #e4e4e7;font-size:13px">
                 <tr style="background:rgba(59,130,246,0.04)">
                     <th style="padding:10px 16px;color:#71717a;font-weight:600;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;border-bottom:2px solid #e4e4e7">Day</th>
