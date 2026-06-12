@@ -232,4 +232,63 @@ async function getScheduleResponses(req, res) {
     res.json(notifications);
 }
 
-module.exports = { sendSchedules, getNotificationStatus, getScheduleConfirm, confirmSchedule, respondToSchedule, getScheduleResponses };
+async function recordOpen(req, res) {
+    const { token } = req.params;
+    const { weekStart } = req.query;
+
+    const link = await prisma.employeeScheduleLink.findUnique({ where: { token } });
+    if (!link || !link.active) return res.status(404).json({ error: 'Invalid link' });
+
+    const { weekStart: ws } = getWeekRange(weekStart || new Date().toISOString().slice(0, 10));
+
+    const notification = await prisma.scheduleNotification.findFirst({
+        where: {
+            employeeId: link.employeeId,
+            weekStart: new Date(ws),
+            openedAt: null,
+        },
+        orderBy: { createdAt: 'desc' },
+    });
+
+    if (notification) {
+        await prisma.scheduleNotification.update({
+            where: { id: notification.id },
+            data: { openedAt: new Date() },
+        });
+    }
+
+    res.json({ success: true });
+}
+
+async function getNotificationForView(req, res) {
+    const { token } = req.params;
+    const { weekStart } = req.query;
+
+    const link = await prisma.employeeScheduleLink.findUnique({ where: { token } });
+    if (!link || !link.active) return res.status(404).json({ error: 'Invalid link' });
+
+    const { weekStart: ws } = getWeekRange(weekStart || new Date().toISOString().slice(0, 10));
+
+    const notification = await prisma.scheduleNotification.findFirst({
+        where: {
+            employeeId: link.employeeId,
+            weekStart: new Date(ws),
+            status: { not: 'failed' },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: {
+            confirmationToken: true,
+            message: true,
+            response: true,
+            responseNotes: true,
+            respondedAt: true,
+            openedAt: true,
+            sentAt: true,
+        },
+    });
+
+    if (!notification) return res.json({ notification: null });
+    res.json(notification);
+}
+
+module.exports = { sendSchedules, getNotificationStatus, getScheduleConfirm, confirmSchedule, respondToSchedule, getScheduleResponses, recordOpen, getNotificationForView };

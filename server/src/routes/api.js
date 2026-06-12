@@ -130,7 +130,7 @@ const {
 } = require('../controllers/employeeController');
 const { listCertifications, createCertification, updateCertification, deleteCertification, downloadCertification } = require('../controllers/employeeCertController');
 const { getDashboardStats } = require('../controllers/dashboardController');
-const { sendSchedules, getNotificationStatus, getScheduleConfirm, confirmSchedule, respondToSchedule, getScheduleResponses } = require('../controllers/scheduleNotificationController');
+const { sendSchedules, getNotificationStatus, getScheduleConfirm, confirmSchedule, respondToSchedule, getScheduleResponses, recordOpen, getNotificationForView } = require('../controllers/scheduleNotificationController');
 const { createLink, listLinks, deleteLink, getScheduleView } = require('../controllers/employeeScheduleLinkController');
 const { getAuditLogs, getEntityAuditLogs } = require('../controllers/auditController');
 const { exportBackup } = require('../controllers/backupController');
@@ -168,6 +168,8 @@ router.get('/schedule/confirm/:token', getScheduleConfirm);
 router.put('/schedule/confirm/:token', confirmSchedule);
 router.put('/schedule/respond/:token', respondToSchedule);
 router.get('/schedule/view/:token', getScheduleView);
+router.post('/schedule/view/:token/open', recordOpen);
+router.get('/schedule/view/:token/notification', getNotificationForView);
 router.get('/pca-form/:token', getPcaForm);
 router.put('/pca-form/:token', updatePcaForm);
 
