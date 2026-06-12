@@ -830,7 +830,23 @@ export default function AuthorizationsPage() {
         try {
             const { files, ...authData } = data;
             let savedAuth;
-            if (modal.auth) {
+            if (modal.auth?._renewFromId) {
+                // Atomic renewal — creates new + deactivates old in one transaction
+                savedAuth = await api.renewAuthorization(modal.auth._renewFromId, authData);
+                showToast('Authorization renewed');
+                undoState.pushAction(`Renewed ${authData.serviceCode || 'authorization'}`,
+                    async () => {
+                        await api.updateAuthManualStatus(modal.auth._renewFromId, 'active');
+                        await api.deleteAuthorization(savedAuth.id);
+                        fetchClients();
+                    },
+                    async () => {
+                        await api.renewAuthorization(modal.auth._renewFromId, authData);
+                        fetchClients();
+                    }
+                );
+            } else if (modal.auth?.id) {
+                // Regular edit
                 savedAuth = await api.updateAuthorization(modal.auth.id, authData);
                 showToast('Authorization updated');
                 const oldAuthData = { serviceCode: modal.auth.serviceCode, authorizedUnits: modal.auth.authorizedUnits, authorizationStartDate: modal.auth.authorizationStartDate, authorizationEndDate: modal.auth.authorizationEndDate };
@@ -839,6 +855,7 @@ export default function AuthorizationsPage() {
                     async () => { await api.updateAuthorization(modal.auth.id, authData); fetchClients(); }
                 );
             } else {
+                // New create
                 savedAuth = await api.createAuthorization(modal.clientId, authData);
                 showToast('Authorization added');
                 undoState.pushAction(`Created ${authData.serviceCode || 'authorization'}`,
@@ -1422,22 +1439,12 @@ export default function AuthorizationsPage() {
                     onSave={handleSaveAuth}
                     onClose={() => setModal(null)}
                     onRenewal={async ({ oldAuthId, clientId: cId, serviceCategory, serviceCode, serviceName, accountNumber }) => {
-                        try {
-                            await api.updateAuthManualStatus(oldAuthId, 'inactive');
-                            showToast('Previous authorization moved to history');
-                            const refreshed = await api.getClients();
-                            setClients(refreshed);
-                            if (drawerClient) {
-                                const updated = refreshed.find(c => c.id === drawerClient.id);
-                                if (updated) setDrawerClient(updated);
-                            }
-                            setModal({
-                                type: 'auth',
-                                auth: { serviceCategory, serviceCode, serviceName, accountNumber, manualStatus: 'active' },
-                                clientId: cId,
-                                isRenewal: true,
-                            });
-                        } catch (err) { showToast(err.message, 'error'); }
+                        setModal({
+                            type: 'auth',
+                            auth: { serviceCategory, serviceCode, serviceName, accountNumber, manualStatus: 'active', _renewFromId: oldAuthId },
+                            clientId: cId,
+                            isRenewal: true,
+                        });
                     }}
                 />
             )}
