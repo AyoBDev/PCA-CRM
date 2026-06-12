@@ -217,7 +217,7 @@ function ProgramSection({ title, subtitle, icon, colorClass, activities, section
 export default function TimesheetFormPage({ timesheetId, clients, onBack, showToast: showToastProp }) {
     const { showToast: toastHook } = useToast();
     const showToast = showToastProp || toastHook;
-    const { isAdmin } = useAuth();
+    const { isAdmin, authUser } = useAuth();
     const [ts, setTs] = useState(null);
     const [entries, setEntries] = useState([]);
     const [recipientSig, setRecipientSig] = useState('');
@@ -243,7 +243,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
     const companionEnabled = enabledServices.includes('Companion');
 
     const toggleService = async (svc) => {
-        if (!isAdmin || !ts?.client?.id) return;
+        if ((!isAdmin && authUser?.role !== 'user') || !ts?.client?.id) return;
         const next = enabledServices.includes(svc)
             ? enabledServices.filter((s) => s !== svc)
             : [...enabledServices, svc];
@@ -469,7 +469,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                 </div>
 
                 {/* Program Cards (admin toggle) */}
-                {isAdmin && (
+                {(isAdmin || authUser?.role === 'user') && (
                     <div className="tsv2-programs">
                         <div className="tsv2-programs__title">Service Types (Programs)</div>
                         <div className="tsv2-programs__subtitle">Select the programs provided for this client.</div>
