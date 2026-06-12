@@ -24,6 +24,7 @@ model User {
   employee                Employee?
   assignedTasks           Task[]            @relation("TaskAssignee")
   triggerDefaults         WorkflowTrigger[] @relation("TriggerAssignee")
+  sentScheduleNotifications ScheduleNotification[] @relation("ScheduleSentBy")
 
   @@map("users")
 }
@@ -122,8 +123,12 @@ model ScheduleNotification {
   response          String    @default("") @map("response")
   responseNotes     String    @default("") @map("response_notes")
   respondedAt       DateTime? @map("responded_at")
+  openedAt          DateTime? @map("opened_at")
+  message           String    @default("") @map("message")
+  sentById          Int?      @map("sent_by_id")
   createdAt         DateTime  @default(now()) @map("created_at")
   employee          Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  sentByUser        User?     @relation("ScheduleSentBy", fields: [sentById], references: [id])
 
   @@index([employeeId])
   @@index([weekStart])
