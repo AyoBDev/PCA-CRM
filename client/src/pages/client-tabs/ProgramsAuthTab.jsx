@@ -21,7 +21,7 @@ const AUTH_COLORS = {
 };
 const DEFAULT_AUTH_COLOR = { accent: '#64748b', bg: 'hsl(215 20% 96%)', border: '#64748b', label: 'SERVICE AUTHORIZATION', icon: 'clipboard' };
 
-const LEFT_CODES = ['PCS', 'SDPC', 'S5120', 'S5125', 'S5130', 'S5135', 'S5150', 'COPE', 'PAS'];
+const LEFT_CODES = ['PCS', 'SDPC', 'COPE', 'PAS'];
 
 const STATUS_SORT_ORDER = { active: 0, pending: 1, inactive: 2 };
 
@@ -94,9 +94,9 @@ export default function ProgramsAuthTab({
 
     const filterAuths = (auths) => {
         if (authFilterStatus === 'all') return auths;
-        if (authFilterStatus === 'active') return auths.filter(a => !a.archivedAt && (a.manualStatus || 'active') === 'active');
+        if (authFilterStatus === 'active') return auths.filter(a => !a.archivedAt && (a.manualStatus || 'active') === 'active' && a.status !== 'Expired');
         if (authFilterStatus === 'pending') return auths.filter(a => (a.manualStatus || 'active') === 'pending');
-        if (authFilterStatus === 'inactive') return auths.filter(a => (a.manualStatus || 'active') === 'inactive');
+        if (authFilterStatus === 'inactive') return auths.filter(a => (a.manualStatus || 'active') === 'inactive' || a.status === 'Expired');
         return auths;
     };
 
