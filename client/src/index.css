@@ -10744,6 +10744,18 @@ button.sdr-section-tag:hover:not(:disabled) {
   color: hsl(var(--foreground));
   cursor: pointer;
 }
+.pa-service-card__account-input {
+  font-size: 13px;
+  padding: 4px 8px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  width: 100px;
+}
+.pa-service-card__account-input::placeholder {
+  color: hsl(var(--muted-foreground));
+}
 .pa-service-card__body {
   display: flex;
   flex-direction: column;

@@ -24,6 +24,7 @@ const {
     restoreAuthorization,
     deleteAuthorization,
     updateAccountNumber,
+    updateSandataClientId,
     updateAuthManualStatus,
     renewAuthorization,
     dedupAuthorizations,
@@ -234,6 +235,7 @@ router.put('/authorizations/:id/archive', requireRole('admin', 'user', 'pca'), a
 router.put('/authorizations/:id/restore', requireRole('admin', 'user', 'pca'), restoreAuthorization);
 router.delete('/authorizations/:id', requireRole('admin', 'user', 'pca'), deleteAuthorization);
 router.patch('/authorizations/:id/account-number', requireRole('admin', 'user', 'pca'), updateAccountNumber);
+router.patch('/authorizations/:id/sandata-client-id', requireRole('admin', 'user', 'pca'), updateSandataClientId);
 router.patch('/authorizations/:id/status', requireRole('admin', 'user', 'pca'), updateAuthManualStatus);
 router.post('/authorizations/:id/renew', requireRole('admin', 'user', 'pca'), renewAuthorization);
 router.post('/authorizations/dedup', requireRole('admin'), dedupAuthorizations);

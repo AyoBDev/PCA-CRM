@@ -135,6 +135,17 @@ export default function ProgramsAuthTab({
         }
     }
 
+    async function handleSandataClientIdChange(code, value) {
+        const { current, archived } = authGroupsForInsurance[code];
+        const allAuths = [...current, ...archived];
+        try {
+            await Promise.all(allAuths.map(a => api.updateAuthSandataClientId(a.id, value)));
+            if (fetchClient) fetchClient();
+        } catch (err) {
+            if (showToast) showToast('Failed to update Client ID', 'error');
+        }
+    }
+
     async function handleStatusChange(authId, newStatus) {
         try {
             await api.updateAuthManualStatus(authId, newStatus);
@@ -154,6 +165,7 @@ export default function ProgramsAuthTab({
         const latestAuth = activeAuths[0] || current[0] || allAuths[0];
         const attachCount = latestAuth ? (latestAuth.documents || []).length : 0;
         const currentAccountNumber = latestAuth?.accountNumber || '';
+        const currentSandataClientId = latestAuth?.sandataClientId || '';
 
         const isExpanded = expandedServiceCode === code;
 
@@ -167,6 +179,20 @@ export default function ProgramsAuthTab({
                         <h4 className="pa-service-card__title">{colors.label}</h4>
                         {latestAuth?.authorizationNumber && <span className="pa-badge pa-badge--auth-num">#{latestAuth.authorizationNumber}</span>}
                         {activeAuths.length > 0 && <span className="pa-badge pa-badge--active">Active</span>}
+                    </div>
+                    <div className="pa-service-card__account">
+                        <span className="pa-service-card__account-label">Client ID</span>
+                        <input
+                            type="text"
+                            className="pa-service-card__account-input"
+                            defaultValue={currentSandataClientId}
+                            placeholder="—"
+                            onBlur={(e) => {
+                                if (e.target.value !== currentSandataClientId) {
+                                    handleSandataClientIdChange(code, e.target.value);
+                                }
+                            }}
+                        />
                     </div>
                     <div className="pa-service-card__account">
                         <span className="pa-service-card__account-label">Account Number</span>

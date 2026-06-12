@@ -204,6 +204,22 @@ async function updateAccountNumber(req, res, next) {
     }
 }
 
+// PATCH /api/authorizations/:id/sandata-client-id
+async function updateSandataClientId(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const { sandataClientId } = req.body;
+        const auth = await prisma.authorization.update({
+            where: { id },
+            data: { sandataClientId: (sandataClientId || '').trim() },
+        });
+        res.json(enrichAuthorization(auth));
+    } catch (err) {
+        if (err.code === 'P2025') return res.status(404).json({ error: 'Authorization not found' });
+        next(err);
+    }
+}
+
 async function updateAuthManualStatus(req, res, next) {
     try {
         const id = Number(req.params.id);
@@ -354,4 +370,4 @@ async function dedupAuthorizations(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { createAuthorization, updateAuthorization, archiveAuthorization, restoreAuthorization, deleteAuthorization, updateAccountNumber, updateAuthManualStatus, renewAuthorization, dedupAuthorizations };
+module.exports = { createAuthorization, updateAuthorization, archiveAuthorization, restoreAuthorization, deleteAuthorization, updateAccountNumber, updateSandataClientId, updateAuthManualStatus, renewAuthorization, dedupAuthorizations };

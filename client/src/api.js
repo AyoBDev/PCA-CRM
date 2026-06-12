@@ -159,6 +159,8 @@ export const deleteAuthorization = (id) =>
     request(`/authorizations/${id}`, { method: 'DELETE' });
 export const updateAuthAccountNumber = (id, accountNumber) =>
     request(`/authorizations/${id}/account-number`, { method: 'PATCH', body: JSON.stringify({ accountNumber }) });
+export const updateAuthSandataClientId = (id, sandataClientId) =>
+    request(`/authorizations/${id}/sandata-client-id`, { method: 'PATCH', body: JSON.stringify({ sandataClientId }) });
 export const updateAuthManualStatus = (id, manualStatus) =>
     request(`/authorizations/${id}/status`, { method: 'PATCH', body: JSON.stringify({ manualStatus }) });
 export const renewAuthorization = (oldAuthId, data) =>
