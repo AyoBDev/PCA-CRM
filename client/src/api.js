@@ -515,6 +515,8 @@ export const getAuthCheck = (params) => {
 // ── Schedule Notifications ──
 export const sendScheduleNotifications = (data) => request('/schedule-notifications/send', { method: 'POST', body: JSON.stringify(data) });
 export const getNotificationStatus = (weekStart) => request(`/schedule-notifications/status?weekStart=${weekStart}`);
+export const getEmployeeNotificationHistory = (employeeId) =>
+    request(`/schedule-notifications/employee/${employeeId}`);
 
 export const getScheduleConfirm = (token) =>
     fetch(`${BASE}/schedule/confirm/${token}`).then(async (res) => {

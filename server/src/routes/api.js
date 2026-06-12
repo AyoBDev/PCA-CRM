@@ -130,7 +130,7 @@ const {
 } = require('../controllers/employeeController');
 const { listCertifications, createCertification, updateCertification, deleteCertification, downloadCertification } = require('../controllers/employeeCertController');
 const { getDashboardStats } = require('../controllers/dashboardController');
-const { sendSchedules, getNotificationStatus, getScheduleConfirm, confirmSchedule, respondToSchedule, getScheduleResponses, recordOpen, getNotificationForView } = require('../controllers/scheduleNotificationController');
+const { sendSchedules, getNotificationStatus, getScheduleConfirm, confirmSchedule, respondToSchedule, getScheduleResponses, recordOpen, getNotificationForView, getEmployeeNotificationHistory } = require('../controllers/scheduleNotificationController');
 const { createLink, listLinks, deleteLink, getScheduleView } = require('../controllers/employeeScheduleLinkController');
 const { getAuditLogs, getEntityAuditLogs } = require('../controllers/auditController');
 const { exportBackup } = require('../controllers/backupController');
@@ -359,6 +359,7 @@ router.delete('/shifts/:id',                requireRole('admin', 'user', 'pca'),
 router.post('/schedule-notifications/send',       requireRole('admin', 'user', 'pca'), sendSchedules);
 router.get('/schedule-notifications/status',      requireRole('admin', 'user', 'pca'), getNotificationStatus);
 router.get('/schedule-notifications/responses',   requireRole('admin', 'user', 'pca'), getScheduleResponses);
+router.get('/schedule-notifications/employee/:employeeId', requireRole('admin', 'user', 'pca'), getEmployeeNotificationHistory);
 
 // Employee Schedule Links
 router.get('/employee-schedule-links',        requireRole('admin', 'user', 'pca'), listLinks);

@@ -298,4 +298,18 @@ async function getNotificationForView(req, res) {
     res.json(notification);
 }
 
-module.exports = { sendSchedules, getNotificationStatus, getScheduleConfirm, confirmSchedule, respondToSchedule, getScheduleResponses, recordOpen, getNotificationForView };
+async function getEmployeeNotificationHistory(req, res) {
+    const { employeeId } = req.params;
+
+    const notifications = await prisma.scheduleNotification.findMany({
+        where: { employeeId: Number(employeeId) },
+        include: {
+            sentByUser: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+    });
+
+    res.json(notifications);
+}
+
+module.exports = { sendSchedules, getNotificationStatus, getScheduleConfirm, confirmSchedule, respondToSchedule, getScheduleResponses, recordOpen, getNotificationForView, getEmployeeNotificationHistory };
