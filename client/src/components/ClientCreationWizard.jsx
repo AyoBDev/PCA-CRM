@@ -163,13 +163,27 @@ function AuthCard({ index, auth, onChange, onRemove }) {
                 <div className="form-group">
                     <label>Service Code <span style={{ color: '#dc2626' }}>*</span></label>
                     <select value={auth.serviceCode} onChange={(e) => update('serviceCode', e.target.value)}>
-                        <option value="PCS">PCS</option>
-                        <option value="SDPC">SDPC</option>
-                        <option value="TIMESHEETS">TIMESHEETS</option>
-                        <option value="S5125">S5125 — Attendant Care</option>
-                        <option value="S5130">S5130 — Homemaker</option>
-                        <option value="S5135">S5135 — Companion</option>
-                        <option value="S5150">S5150 — Respite</option>
+                        <optgroup label="EVV Services">
+                            <option value="PCS">PCS</option>
+                            <option value="SDPC">SDPC</option>
+                            <option value="S5120">S5120 — Chore Services</option>
+                            <option value="S5125">S5125 — Attendant Care</option>
+                            <option value="S5130">S5130 — Homemaker</option>
+                            <option value="S5135">S5135 — Companion</option>
+                            <option value="S5150">S5150 — Respite</option>
+                        </optgroup>
+                        <optgroup label="Timesheet Services">
+                            <option value="TIMESHEETS">Timesheets (Private)</option>
+                            <option value="TIMESHEET_PCS">Timesheets-PCS</option>
+                            <option value="TIMESHEET_HOMEMAKER">Timesheets-Homemaker</option>
+                            <option value="TIMESHEET_RESPITE">Timesheets-Respite</option>
+                            <option value="TIMESHEET_COMPANION">Timesheets-Companion Care</option>
+                            <option value="TIMESHEET_CHORE">Timesheets-Chore</option>
+                        </optgroup>
+                        <optgroup label="Programs">
+                            <option value="PAS">PAS</option>
+                            <option value="COPE">COPE</option>
+                        </optgroup>
                     </select>
                 </div>
             </div>
