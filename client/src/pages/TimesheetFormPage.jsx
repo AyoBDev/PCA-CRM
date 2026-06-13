@@ -43,13 +43,21 @@ function totalHoursWithBlocks(entry, section) {
     return Math.round(total * 100) / 100;
 }
 
-function parseEnabledServices(client) {
-    if (!client?.enabledServices) return ['PAS', 'Homemaker'];
-    try {
-        const parsed = JSON.parse(client.enabledServices);
-        if (Array.isArray(parsed)) return parsed;
-    } catch {}
-    return ['PAS', 'Homemaker'];
+function parseEnabledServices(client, authLimits) {
+    let services = ['PAS', 'Homemaker'];
+    if (client?.enabledServices) {
+        try {
+            const parsed = JSON.parse(client.enabledServices);
+            if (Array.isArray(parsed)) services = parsed;
+        } catch {}
+    }
+    // Auto-expand from active authorizations (single source of truth)
+    if (authLimits) {
+        for (const svc of Object.keys(authLimits)) {
+            if (!services.includes(svc)) services.push(svc);
+        }
+    }
+    return services;
 }
 
 function ProgramSection({ title, subtitle, icon, colorClass, activities, section, entries, updateEntry, disabled, dailyHoursFn, onAddShift, onRemoveShift, sectionDisabled }) {
@@ -268,7 +276,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                 setRecipientName(data.recipientName || '');
                 setPcaFullName(data.pcaFullName || '');
                 setCompletionDate(data.completionDate || '');
-                setEnabledServices(parseEnabledServices(data.client));
+                setEnabledServices(parseEnabledServices(data.client, data.authLimits));
             }).catch((err) => showToast(err.message, 'error'));
         }
     }, [timesheetId, showToast]);

@@ -135,7 +135,12 @@ async function archiveAuthorization(req, res, next) {
             data: { archivedAt: new Date() },
         });
 
-        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'ARCHIVE', entityType: 'Authorization', entityId: id, entityName: auth.serviceCode });
+        // Log affected shifts for visibility
+        const affectedShifts = await prisma.shift.count({
+            where: { clientId: auth.clientId, serviceCode: auth.serviceCode, archivedAt: null },
+        });
+
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'ARCHIVE', entityType: 'Authorization', entityId: id, entityName: auth.serviceCode, metadata: { affectedShifts } });
         res.json(enrichAuthorization(archived));
     } catch (err) {
         next(err);
@@ -197,6 +202,11 @@ async function updateAccountNumber(req, res, next) {
             where: { id },
             data: { accountNumber: (accountNumber || '').trim() },
         });
+        // Propagate to active shifts for this client + serviceCode
+        await prisma.shift.updateMany({
+            where: { clientId: auth.clientId, serviceCode: auth.serviceCode, archivedAt: null },
+            data: { accountNumber: (accountNumber || '').trim() },
+        });
         res.json(enrichAuthorization(auth));
     } catch (err) {
         if (err.code === 'P2025') return res.status(404).json({ error: 'Authorization not found' });
@@ -211,6 +221,11 @@ async function updateSandataClientId(req, res, next) {
         const { sandataClientId } = req.body;
         const auth = await prisma.authorization.update({
             where: { id },
+            data: { sandataClientId: (sandataClientId || '').trim() },
+        });
+        // Propagate to active shifts for this client + serviceCode
+        await prisma.shift.updateMany({
+            where: { clientId: auth.clientId, serviceCode: auth.serviceCode, archivedAt: null },
             data: { sandataClientId: (sandataClientId || '').trim() },
         });
         res.json(enrichAuthorization(auth));
