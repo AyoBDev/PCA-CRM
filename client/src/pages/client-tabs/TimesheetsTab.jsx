@@ -1,12 +1,9 @@
 import { useState, useEffect } from 'react';
 import * as api from '../../api';
 import Icons from '../../components/common/Icons';
+import { TIMESHEET_STATUS_STYLES } from '../../utils/constants';
 
-const STATUS_STYLES = {
-    draft: { bg: '#f3f4f6', color: '#6b7280', label: 'Draft' },
-    submitted: { bg: '#dbeafe', color: '#2563eb', label: 'Submitted' },
-    accepted: { bg: '#dcfce7', color: '#16a34a', label: 'Accepted' },
-};
+const STATUS_STYLES = TIMESHEET_STATUS_STYLES;
 
 function formatWeekLabel(weekStart) {
     if (!weekStart) return '—';

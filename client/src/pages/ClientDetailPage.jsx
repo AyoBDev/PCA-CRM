@@ -20,6 +20,7 @@ import ActivityLogTab from './client-tabs/ActivityLogTab';
 import IncidentReportsTab from './client-tabs/IncidentReportsTab';
 import TimesheetsTab from './client-tabs/TimesheetsTab';
 import { ServiceCodeSelect } from '../utils/serviceCodes';
+import { AUTH_COLORS, DEFAULT_AUTH_COLOR } from '../utils/constants';
 
 const DOC_CATEGORIES = [
     { value: 'admission_packet', label: 'Client Admission Packets', color: '#3b82f6' },
@@ -33,16 +34,6 @@ const DOC_CATEGORIES = [
     { value: 'supervisor_review', label: 'Supervisor Review Documents', color: '#64748b' },
     { value: 'other', label: 'Other', color: '#94a3b8' },
 ];
-
-const AUTH_COLORS = {
-    PCS: { accent: '#22c55e', bg: 'hsl(142 76% 96%)', label: 'PCA Service Authorization' },
-    SDPC: { accent: '#8b5cf6', bg: 'hsl(270 76% 96%)', label: 'SDPC Service Authorization' },
-    S5130: { accent: '#f59e0b', bg: 'hsl(38 100% 96%)', label: 'Homemaker Service Authorization' },
-    S5150: { accent: '#06b6d4', bg: 'hsl(188 80% 96%)', label: 'Respite Service Authorization' },
-    S5125: { accent: '#3b82f6', bg: 'hsl(217 91% 96%)', label: 'Attendant Care Authorization' },
-    S5135: { accent: '#ec4899', bg: 'hsl(330 80% 96%)', label: 'Companion Service Authorization' },
-};
-const DEFAULT_AUTH_COLOR = { accent: '#64748b', bg: 'hsl(215 20% 96%)', label: 'Service Authorization' };
 
 const TABS = [
     { key: 'profile', label: 'Profile', icon: 'user' },

@@ -10,6 +10,7 @@ import { fmtDate, daysClass } from '../utils/dates';
 import { statusLabel } from '../utils/status';
 import { getAccountForCategory, ACCOUNT_NUMBER_OPTIONS } from '../utils/accountMapping';
 import { ServiceCodeSelect } from '../utils/serviceCodes';
+import { SERVICE_CODE_COLORS, SERVICE_CODE_NAMES } from '../utils/constants';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import { useUndoStack } from '../hooks/useUndoStack';
@@ -247,32 +248,6 @@ function ClientFormModal({ client, onSave, onClose, insuranceTypeNames }) {
 }
 
 // ── Authorization Form Modal ──
-const SERVICE_CODE_COLORS = {
-    PCS: '#22c55e',
-    SDPC: '#8b5cf6',
-    S5125: '#3b82f6',
-    S5130: '#f59e0b',
-    S5135: '#ec4899',
-    S5150: '#06b6d4',
-    TIMESHEETS: '#64748b',
-};
-
-const SERVICE_CODE_NAMES = {
-    PCS: 'Personal Care Services',
-    SDPC: 'Self Directed Personal Care',
-    S5125: 'Attendant Care',
-    S5130: 'Homemaker',
-    S5135: 'Companion',
-    S5150: 'Respite',
-    PAS: 'Personal Assistance Services',
-    COPE: 'Community Opportunities for Personal Empowerment',
-    S5120: 'Chore Services',
-    TIMESHEET_PCS: 'Timesheet PCS',
-    TIMESHEET_HOMEMAKER: 'Timesheet Homemaker',
-    TIMESHEET_RESPITE: 'Timesheet Respite',
-    TIMESHEET_COMPANION: 'Timesheet Companion',
-    TIMESHEET_CHORE: 'Timesheet Chore',
-};
 
 function getServiceName(auth) {
     return auth.serviceName || SERVICE_CODE_NAMES[auth.serviceCode] || '';

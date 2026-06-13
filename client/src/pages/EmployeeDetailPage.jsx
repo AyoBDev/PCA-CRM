@@ -11,6 +11,7 @@ import { useUndoStack } from '../hooks/useUndoStack';
 import PayrollTab from './employee-tabs/PayrollTab';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
+import { TIMESHEET_STATUS_STYLES } from '../utils/constants';
 
 const TABS = [
     { key: 'profile', label: 'Profile', icon: 'user' },
@@ -913,11 +914,7 @@ function CertUploadModal({ certType, certLabel, onUpload, onClose }) {
     );
 }
 
-const TS_STATUS_STYLES = {
-    draft: { bg: '#f3f4f6', color: '#6b7280', label: 'Draft' },
-    submitted: { bg: '#dbeafe', color: '#2563eb', label: 'Submitted' },
-    accepted: { bg: '#dcfce7', color: '#16a34a', label: 'Accepted' },
-};
+const TS_STATUS_STYLES = TIMESHEET_STATUS_STYLES;
 
 function formatWeekLabel(weekStart) {
     if (!weekStart) return '—';

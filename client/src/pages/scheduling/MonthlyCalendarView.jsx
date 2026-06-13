@@ -1,15 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { hhmm12 } from '../../utils/time';
-
-const SERVICE_COLORS = {
-    PCS:        { color: '#3B82F6', bg: '#EFF6FF', label: 'PCA' },
-    S5125:      { color: '#22C55E', bg: '#F0FDF4', label: 'Attendant Care' },
-    S5130:      { color: '#8B5CF6', bg: '#F5F3FF', label: 'Homemaker' },
-    SDPC:       { color: '#F59E0B', bg: '#FFFBEB', label: 'SDPC' },
-    S5135:      { color: '#EC4899', bg: '#FDF2F8', label: 'Companion' },
-    S5150:      { color: '#06B6D4', bg: '#ECFEFF', label: 'Respite' },
-    TIMESHEETS: { color: '#14B8A6', bg: '#F0FDFA', label: 'Timesheets' },
-};
+import { SERVICE_COLORS } from '../../utils/constants';
 
 function toLocalDateStr(d) {
     if (!d) return '';

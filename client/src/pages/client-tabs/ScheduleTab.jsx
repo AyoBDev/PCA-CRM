@@ -2,17 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import * as api from '../../api';
 import Icons from '../../components/common/Icons';
 import { hhmm12 } from '../../utils/time';
+import { SERVICE_COLORS, DAY_NAMES_SHORT } from '../../utils/constants';
 
-const SERVICE_COLORS = {
-    PCS:   { color: '#3B82F6', bg: '#EFF6FF', label: 'PCA' },
-    S5125: { color: '#22C55E', bg: '#F0FDF4', label: 'Attendant Care' },
-    S5130: { color: '#8B5CF6', bg: '#F5F3FF', label: 'Homemaker' },
-    SDPC:  { color: '#F59E0B', bg: '#FFFBEB', label: 'SDPC' },
-    S5135: { color: '#EC4899', bg: '#FDF2F8', label: 'Companion' },
-    S5150: { color: '#06B6D4', bg: '#ECFEFF', label: 'Respite' },
-};
-
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_NAMES = DAY_NAMES_SHORT;
 
 function getSunday(date) {
     const d = new Date(date);

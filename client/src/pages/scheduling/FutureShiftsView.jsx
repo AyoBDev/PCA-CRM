@@ -2,19 +2,10 @@ import { useState, useMemo, useEffect } from 'react';
 import Icons from '../../components/common/Icons';
 import SearchableSelect from '../../components/common/SearchableSelect';
 import { hhmm12 } from '../../utils/time';
-
-const SERVICE_COLORS = {
-    PCS:        { color: '#3B82F6', bg: '#EFF6FF', label: 'PCA' },
-    S5125:      { color: '#22C55E', bg: '#F0FDF4', label: 'Attendant Care' },
-    S5130:      { color: '#8B5CF6', bg: '#F5F3FF', label: 'Homemaker' },
-    SDPC:       { color: '#F59E0B', bg: '#FFFBEB', label: 'SDPC' },
-    S5135:      { color: '#EC4899', bg: '#FDF2F8', label: 'Companion' },
-    S5150:      { color: '#06B6D4', bg: '#ECFEFF', label: 'Respite' },
-    TIMESHEETS: { color: '#14B8A6', bg: '#F0FDFA', label: 'Timesheets' },
-};
+import { SERVICE_COLORS, DAY_NAMES_SHORT, DAY_NAMES_FULL } from '../../utils/constants';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAYS = DAY_NAMES_SHORT;
 
 export default function FutureShiftsView({ shifts, clients, employees, onEditShift, onBulkDelete, loading, onFilterChange }) {
     const [filterClient, setFilterClient] = useState('');

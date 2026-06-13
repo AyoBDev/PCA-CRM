@@ -9,12 +9,9 @@ import MobileDayTabs from '../components/pca-form/MobileDayTabs';
 import MobileDayCard from '../components/pca-form/MobileDayCard';
 import MobileSummaryTab from '../components/pca-form/MobileSummaryTab';
 import MobileAuthBar from '../components/pca-form/MobileAuthBar';
+import { ADL_ACTIVITIES, IADL_ACTIVITIES, RESPITE_ACTIVITIES, COMPANION_ACTIVITIES } from '../utils/constants';
 
 const DAY_SHORT = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-const ADL_ACTIVITIES = ['Bathing', 'Dressing', 'Grooming', 'Continence', 'Toileting', 'Ambulation/Mobility', 'Transfer', 'Eating/Feeding'];
-const IADL_ACTIVITIES = ['Light Housekeeping', 'Medication Reminders', 'Laundry', 'Shopping', 'Meal Preparation B.L.D.', 'Eating/Feeding', 'Other'];
-const RESPITE_ACTIVITIES = ['Companionship', 'Safety Supervision', 'Community Activities', 'Other Approved Respite Tasks'];
-const COMPANION_ACTIVITIES = ['Companionship', 'Safety Supervision', 'Social Activities', 'Light Errands', 'Other'];
 
 function roundTo15(timeStr) {
     if (!timeStr) return '';
