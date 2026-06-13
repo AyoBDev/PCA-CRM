@@ -4,6 +4,7 @@ import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import { useToast } from '../hooks/useToast';
+import { ServiceCodeSelect } from '../utils/serviceCodes';
 
 const AUTH_COLORS = {
     PCS: { accent: '#22c55e', bg: 'hsl(142 76% 96%)', label: 'PCS — Personal Care Services' },
@@ -398,15 +399,7 @@ export default function ClientServicePage() {
                     <form onSubmit={handleSaveAuth}>
                         <div className="form-group">
                             <label>Service Code</label>
-                            <select value={authForm.serviceCode} onChange={(e) => setAuthForm({ ...authForm, serviceCode: e.target.value })} disabled required>
-                                <option value="">Select service code...</option>
-                                <option value="PCS">PCS - Personal Care</option>
-                                <option value="SDPC">SDPC - Self Directed</option>
-                                <option value="S5125">S5125 - Attendant Care</option>
-                                <option value="S5130">S5130 - Homemaker</option>
-                                <option value="S5150">S5150 - Respite</option>
-                                <option value="S5135">S5135 - Companion</option>
-                            </select>
+                            <ServiceCodeSelect value={authForm.serviceCode} onChange={(e) => setAuthForm({ ...authForm, serviceCode: e.target.value })} disabled required />
                         </div>
                         <div className="form-group">
                             <label>Authorization Number</label>

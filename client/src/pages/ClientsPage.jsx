@@ -8,6 +8,7 @@ import { fmtDate, daysClass } from '../utils/dates';
 import { statusLabel } from '../utils/status';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
+import { ServiceCodeSelect } from '../utils/serviceCodes';
 import { ActivityButton, EntityActivityButton } from '../components/common/ActivityDrawer';
 
 // ── Client Form Modal ──
@@ -178,15 +179,7 @@ function AuthFormModal({ auth, clientId, onSave, onClose }) {
                     </div>
                     <div className="form-group">
                         <label>Service Code</label>
-                        <select value={serviceCode} onChange={(e) => setServiceCode(e.target.value)}>
-                            <option value="PCS">PCS</option>
-                            <option value="SDPC">SDPC</option>
-                            <option value="TIMESHEETS">TIMESHEETS</option>
-                            <option value="S5125">S5125 — Attendant Care</option>
-                            <option value="S5130">S5130 — Homemaker</option>
-                            <option value="S5135">S5135 — Companion</option>
-                            <option value="S5150">S5150 — Respite</option>
-                        </select>
+                        <ServiceCodeSelect value={serviceCode} onChange={(e) => setServiceCode(e.target.value)} />
                     </div>
                 </div>
                 <div className="form-group">

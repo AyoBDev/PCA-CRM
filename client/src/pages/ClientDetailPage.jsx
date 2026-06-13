@@ -19,6 +19,7 @@ import ScheduleTab from './client-tabs/ScheduleTab';
 import ActivityLogTab from './client-tabs/ActivityLogTab';
 import IncidentReportsTab from './client-tabs/IncidentReportsTab';
 import TimesheetsTab from './client-tabs/TimesheetsTab';
+import { ServiceCodeSelect } from '../utils/serviceCodes';
 
 const DOC_CATEGORIES = [
     { value: 'admission_packet', label: 'Client Admission Packets', color: '#3b82f6' },
@@ -1266,20 +1267,7 @@ export default function ClientDetailPage() {
                     <form onSubmit={handleSaveAuth}>
                         <div className="form-group">
                             <label>Service Code</label>
-                            <select
-                                value={authForm.serviceCode}
-                                onChange={(e) => setAuthForm({ ...authForm, serviceCode: e.target.value })}
-                                disabled={!!editingAuth}
-                                required
-                            >
-                                <option value="">Select service code...</option>
-                                <option value="PCS">PCS - Personal Care</option>
-                                <option value="SDPC">SDPC - Self Directed</option>
-                                <option value="S5125">S5125 - Attendant Care</option>
-                                <option value="S5130">S5130 - Homemaker</option>
-                                <option value="S5150">S5150 - Respite</option>
-                                <option value="S5135">S5135 - Companion</option>
-                            </select>
+                            <ServiceCodeSelect value={authForm.serviceCode} onChange={(e) => setAuthForm({ ...authForm, serviceCode: e.target.value })} disabled={!!editingAuth} required />
                         </div>
                         <div className="form-group">
                             <label>Authorization Number</label>
