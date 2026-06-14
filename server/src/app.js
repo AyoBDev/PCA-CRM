@@ -8,7 +8,15 @@ const app = express();
 
 // ── Middleware ──
 app.use(compression());
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    process.env.EMPLOYEE_APP_ORIGIN,
+    process.env.ADMIN_APP_ORIGIN,
+  ].filter(Boolean),
+  credentials: true,
+}));
 app.use(express.json());
 
 // ── Routes ──

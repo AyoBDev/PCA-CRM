@@ -156,6 +156,7 @@ const { listWorkflowTriggers, updateWorkflowTrigger } = require('../controllers/
 const { getPayrollProfile, upsertPayrollProfile, revealSensitiveField } = require('../controllers/payrollProfileController');
 const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalizeReceipts, sendReceipts, downloadReceiptPdf } = require('../controllers/receiptController');
 const { previewSandata, applySandata, undoSandata } = require('../controllers/sandataController');
+const { listConversations, getConversationMessages, adminSendMessage } = require('../controllers/employeePortal/adminChatController');
 const { authenticate, requireRole } = require('../middleware/authMiddleware');
 const employeeRoutes = require('./employee');
 
@@ -414,5 +415,10 @@ router.get('/receipts/:id/pdf', requireRole('admin'), downloadReceiptPdf);
 router.post('/sandata/preview', requireRole('admin'), upload.single('file'), previewSandata);
 router.post('/sandata/apply', requireRole('admin'), applySandata);
 router.post('/sandata/undo', requireRole('admin'), undoSandata);
+
+// Employee chat (admin)
+router.get('/conversations', requireRole('admin', 'user'), listConversations);
+router.get('/conversations/:id/messages', requireRole('admin', 'user'), getConversationMessages);
+router.post('/conversations/:id/messages', requireRole('admin', 'user'), adminSendMessage);
 
 module.exports = router;
