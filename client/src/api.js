@@ -679,3 +679,50 @@ export async function downloadBackup() {
     a.click();
     URL.revokeObjectURL(url);
 }
+
+// ── Admin File Manager ──
+export function listFolders(parentId) {
+    const q = parentId ? `?parentId=${parentId}` : '';
+    return request(`/files/folders${q}`);
+}
+export function getFolder(id) { return request(`/files/folders/${id}`); }
+export function createFolder(name, parentId) {
+    return request('/files/folders', { method: 'POST', body: JSON.stringify({ name, parentId }) });
+}
+export function renameFolder(id, name) {
+    return request(`/files/folders/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+}
+export function moveFolder(id, parentId) {
+    return request(`/files/folders/${id}`, { method: 'PATCH', body: JSON.stringify({ parentId }) });
+}
+export function deleteFolder(id) {
+    return request(`/files/folders/${id}`, { method: 'DELETE' });
+}
+export async function uploadAdminFile(folderId, file) {
+    const form = new FormData();
+    form.append('folderId', folderId);
+    form.append('file', file);
+    const headers = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    const res = await fetch(`${BASE}/files/upload`, { method: 'POST', headers, body: form });
+    if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error || `HTTP ${res.status}`); }
+    return res.json();
+}
+export function downloadAdminFile(id) {
+    return `${BASE}/files/${id}/download`;
+}
+export function renameFile(id, name) {
+    return request(`/files/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+}
+export function moveFile(id, folderId) {
+    return request(`/files/${id}`, { method: 'PATCH', body: JSON.stringify({ folderId }) });
+}
+export function deleteAdminFile(id) {
+    return request(`/files/${id}`, { method: 'DELETE' });
+}
+export function copyFiles(fileIds, targetFolderId) {
+    return request('/files/copy', { method: 'POST', body: JSON.stringify({ fileIds, targetFolderId }) });
+}
+export function searchAdminFiles(q) {
+    return request(`/files/search?q=${encodeURIComponent(q)}`);
+}
