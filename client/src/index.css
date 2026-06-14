@@ -918,7 +918,11 @@ body {
   color: hsl(var(--muted-foreground));
   background: hsl(var(--primary) / 0.04);
   border-bottom: 2px solid hsl(var(--border));
+  border-right: 1px solid hsl(var(--border));
   white-space: nowrap;
+}
+.data-table th:last-child {
+  border-right: none;
 }
 .data-table td {
   padding: 12px 16px;
@@ -954,9 +958,13 @@ body {
   padding: 6px 8px;
   background: none;
   border-bottom: 2px solid hsl(var(--border));
+  border-right: 1px solid hsl(var(--border));
   text-transform: none;
   letter-spacing: normal;
   font-weight: 600;
+}
+.data-table--compact th:last-child {
+  border-right: none;
 }
 .data-table--compact td { padding: 6px 8px; }
 .data-table--compact tbody tr:hover { background: hsl(var(--muted) / 0.5); }
@@ -2008,6 +2016,10 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 12px 16px;
+  border-right: 1px solid hsl(230 20% 30%);
+}
+.data-table--dark-header thead th:last-child {
+  border-right: none;
   border-bottom: none;
 }
 .bulk-checkbox--light {
