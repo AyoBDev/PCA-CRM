@@ -157,8 +157,12 @@ const { getPayrollProfile, upsertPayrollProfile, revealSensitiveField } = requir
 const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalizeReceipts, sendReceipts, downloadReceiptPdf } = require('../controllers/receiptController');
 const { previewSandata, applySandata, undoSandata } = require('../controllers/sandataController');
 const { authenticate, requireRole } = require('../middleware/authMiddleware');
+const employeeRoutes = require('./employee');
 
 const router = express.Router();
+
+// ── Employee Portal routes (own auth middleware) ──
+router.use('/employee', employeeRoutes);
 
 // ── Public routes (no auth) ──
 router.post('/auth/login', login);
