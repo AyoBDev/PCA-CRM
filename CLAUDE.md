@@ -8,7 +8,7 @@ Full-stack web app for a PCA (Personal Care Attendant) agency to manage client a
 ## Tech Stack
 - **Frontend**: React 19 + Vite, page-per-file under `client/src/pages/`
 - **Backend**: Express.js + Prisma ORM + PostgreSQL
-- **Auth**: JWT with role-based access (`admin` / `pca`)
+- **Auth**: JWT with role-based access (`admin` / `user` / `pca`)
 - **Styling**: Custom CSS (`client/src/index.css`) using shadcn/ui zinc design tokens
 
 ## Key Commands
@@ -65,6 +65,7 @@ Shared components under `client/src/components/`:
 - `common/Icons.jsx` — 25+ inline SVG icon components
 - `common/GlobalToolbar.jsx` — Tier 1 system toolbar (Back, Title, Undo/Redo/History/Activity, Trash, Archive, Overflow)
 - `common/ContextBar.jsx` — Tier 2 page-specific toolbar (compound: `ContextBar.Left` + `ContextBar.Right`)
+- `common/AutocompleteInput.jsx` — Reusable autocomplete text input (used for Service Category, Service Name)
 - `common/HistoryPanel.jsx` — Session history dropdown (shows undo stack)
 - `common/OverflowMenu.jsx` — Three-dot "⋯" overflow menu
 - `common/DropdownMenu.jsx` — Reusable dropdown (trigger + panel)
@@ -79,6 +80,9 @@ Hooks under `client/src/hooks/`:
 - `useNavigationStack.js` — smart Back button navigation with logical parent fallbacks
 
 Utils under `client/src/utils/`:
+- `constants.js` — **Single source of truth** for all shared constants (AUTH_COLORS, SERVICE_COLORS, SERVICE_CODE_NAMES, activity lists, status styles, day names, PAGE_SIZE)
+- `serviceCodes.jsx` — `SERVICE_CODE_OPTIONS`, `SERVICE_CATEGORIES`, `SERVICE_NAME_SUGGESTIONS`, `ServiceCodeSelect` component
+- `accountMapping.js` — `ACCOUNT_NUMBER_OPTIONS`, `getAccountForCategory()`, `getAccountForServiceCode()`, `CATEGORY_ACCOUNT_MAP`, `SERVICE_CODE_ACCOUNT_MAP`
 - `dates.js` — `fmtDate()`, `formatWeek()`
 - `time.js` — `hhmm12()` (24h→12h display)
 - `status.js` — `visitRowClass()`, status labels
@@ -169,8 +173,47 @@ undoState.pushAction('Description of action',
 2. Controller calls service layer for business logic
 3. Enriched data returned to frontend; filtering/sorting done client-side
 
+## DRY Principle — Centralized Constants
+
+**All shared constants live in `client/src/utils/constants.js` and `client/src/utils/serviceCodes.jsx`.** Never hardcode service codes, colors, activity lists, or account mappings inline. Import from these files.
+
+When adding a new value (e.g., new service code), update the centralized file and all consumers automatically get it.
+
+| Constant | File | Used By |
+|----------|------|---------|
+| `AUTH_COLORS` | `constants.js` | ProgramsAuthTab, ProfileInsuranceTab, ClientServicePage, ClientDetailPage |
+| `SERVICE_COLORS` | `constants.js` | SchedulingPage, FutureShiftsView, MonthlyCalendarView, ScheduleTab |
+| `SERVICE_CODE_NAMES` | `constants.js` | AuthorizationsPage, ProfileInsuranceTab, auth form auto-fill |
+| `ADL/IADL/RESPITE/COMPANION_ACTIVITIES` | `constants.js` | PcaFormPage, TimesheetFormPage |
+| `TIMESHEET_STATUS_STYLES` | `constants.js` | EmployeeDetailPage, TimesheetsTab |
+| `DAY_NAMES_SHORT/FULL/UPPER` | `constants.js` | SchedulingPage, FutureShiftsView, ScheduleTab, PcaFormPage |
+| `SERVICE_CODE_OPTIONS` | `serviceCodes.jsx` | All auth form dropdowns (via `ServiceCodeSelect`) |
+| `SERVICE_CATEGORIES` | `serviceCodes.jsx` | Auth form autocomplete |
+| `SERVICE_NAME_SUGGESTIONS` | `serviceCodes.jsx` | Auth form autocomplete |
+| `ACCOUNT_NUMBER_OPTIONS` | `accountMapping.js` | All account number selects |
+| `SERVICE_CODE_ACCOUNT_MAP` | `accountMapping.js` | Auto-select account from service code |
+
+### Auto-Fill Behavior in Authorization Forms
+When a user changes the **Service Code** dropdown:
+1. `serviceName` auto-fills from `SERVICE_CODE_NAMES[code]` (if currently empty)
+2. `accountNumber` auto-selects from `SERVICE_CODE_ACCOUNT_MAP[code]` (if not manually set)
+
+When a user changes the **Service Category** (autocomplete):
+1. `accountNumber` auto-selects from `CATEGORY_ACCOUNT_MAP[category]` (if not manually set)
+
+This behavior is implemented via `handleServiceCodeChange` and `handleServiceCategoryChange` in both AuthorizationsPage and ClientCreationWizard.
+
+## Single Source of Truth — Client + Authorization
+
+The **Client** and **Authorization** tables are the single source of truth for the entire system. All operational modules (Timesheets, Scheduling, Payroll) read from Authorization at query time.
+
+**Key rules:**
+- When `accountNumber` or `sandataClientId` changes on an Authorization, it propagates to all active Shifts for that client + serviceCode
+- The admin timesheet form auto-expands `enabledServices` from active authorizations (not just the stored client field)
+- Archiving an authorization logs the count of affected shifts in the audit trail
+
 ## Data Model
-- **Users** — staff accounts (admin/pca roles), `active` boolean, `archivedAt` soft delete
+- **Users** — staff accounts (admin/user/pca roles), `active` boolean, `archivedAt` soft delete
 - **Employees** — caregivers with optional `userId` link, schedule links
 - **Clients** — care recipients with Medicaid ID, insurance type, `enabledServices` JSON
 - **Authorizations** — per client (PCS, SDPC, S5130, S5150, etc.) with start/end dates and `authorizedUnits` (15-min units, not hours)
@@ -281,15 +324,9 @@ Service codes are the connective tissue of the app. A change to service codes mu
 | `server/src/services/authorizationService.js` → `REMINDER_WINDOWS`, `RENEWAL_COLORS` | Expiry reminder config per code |
 | `server/prisma/seed-services.js` → `DEFAULT_SERVICES` | Reference data seeder |
 | `server/src/controllers/pcaFormController.js` → `deriveTimesheetService()` | Maps auth service codes → PCA form sections (PAS/Homemaker/Respite/Companion) |
-| `client/src/pages/AuthorizationsPage.jsx` → service code `<select>` | Admin dropdown when creating/editing authorizations |
-| `client/src/pages/client-tabs/ProgramsAuthTab.jsx` → `AUTH_COLORS` | Card labels/colors on client Programs tab |
-| `client/src/pages/client-tabs/ProfileInsuranceTab.jsx` → `AUTH_COLORS`, `SERVICE_CODE_NAMES` | Profile tab table display |
-| `client/src/pages/ClientServicePage.jsx` → `AUTH_COLORS` | Per-service detail page header |
-| `client/src/pages/ClientDetailPage.jsx` → auth grouping logic | Groups authorizations by code (remaps legacy `TIMESHEETS` → `TIMESHEET_PCS`) |
-| `client/src/pages/SchedulingPage.jsx` → service code selects in shift forms | Scheduling shift creation/editing |
-| `client/src/pages/PcaFormPage.jsx` → `enabledSectionsForCard` | Which service sections show on the timesheet form |
-| `client/src/pages/TimesheetsListPage.jsx` → service filter + table columns | Service type filter and per-program hour columns |
-| `client/src/pages/TimesheetFormPage.jsx` → program cards + weekly totals | Admin timesheet view |
+| `client/src/utils/serviceCodes.jsx` → `SERVICE_CODE_OPTIONS` | **Single source** for all frontend service code dropdowns |
+| `client/src/utils/constants.js` → `AUTH_COLORS`, `SERVICE_CODE_NAMES` | **Single source** for all frontend display colors/names |
+| `client/src/utils/accountMapping.js` → `SERVICE_CODE_ACCOUNT_MAP` | Service code → account number auto-fill |
 | `server/src/services/payrollService.js` → `SERVICE_CODE_RULES` | Maps EVV service names → codes for payroll |
 
 ### Entity Relationship Flow
@@ -324,13 +361,13 @@ Employee
 | S5135, TIMESHEET_COMPANION | Companion |
 
 ### Impact Checklist (when adding/changing a service code)
-1. Add to `VALID_SERVICE_CODES` in authorization controller
-2. Add to `REMINDER_WINDOWS` and `RENEWAL_COLORS` in authorizationService
-3. Add to `seed-services.js`
-4. Update `deriveTimesheetService()` mapping in pcaFormController
-5. Add to authorization form dropdown (AuthorizationsPage)
-6. Add to `AUTH_COLORS` in ProgramsAuthTab, ProfileInsuranceTab, ClientServicePage
-7. Add to scheduling page service code selects
+1. Add to `VALID_SERVICE_CODES` in `server/src/controllers/authorizationController.js`
+2. Add to `REMINDER_WINDOWS` and `RENEWAL_COLORS` in `server/src/services/authorizationService.js`
+3. Add to `server/prisma/seed-services.js`
+4. Update `deriveTimesheetService()` mapping in `server/src/controllers/pcaFormController.js`
+5. Add to `SERVICE_CODE_OPTIONS` in `client/src/utils/serviceCodes.jsx` (all dropdowns update automatically)
+6. Add to `AUTH_COLORS` and `SERVICE_CODE_NAMES` in `client/src/utils/constants.js` (all pages update automatically)
+7. Add to `SERVICE_CODE_ACCOUNT_MAP` in `client/src/utils/accountMapping.js` (auto-fill updates automatically)
 8. If it maps to a new timesheet section: add DB fields, update controller totals, update PCA form + admin form + list page
 
 ## Spreadsheet Import Format (Client Data)
