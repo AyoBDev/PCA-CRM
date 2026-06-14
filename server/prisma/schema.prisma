@@ -25,6 +25,8 @@ model User {
   assignedTasks           Task[]            @relation("TaskAssignee")
   triggerDefaults         WorkflowTrigger[] @relation("TriggerAssignee")
   sentScheduleNotifications ScheduleNotification[] @relation("ScheduleSentBy")
+  messages                  Message[]
+  pushSubscriptions         PushSubscription[]
 
   @@map("users")
 }
@@ -66,6 +68,8 @@ model Employee {
   status                  String                 @default("active") @map("status")
   notes                   String                 @default("") @map("notes")
   critical                Boolean                @default(false) @map("critical")
+  complianceStatus        String                 @default("ok") @map("compliance_status")
+  availability            Json?                  @map("availability")
   careTeamAssignments     ClientCareTeam[]
   certifications          EmployeeCertification[]
   scheduleLink            EmployeeScheduleLink?
@@ -74,6 +78,11 @@ model Employee {
   shifts                  Shift[]
   payrollProfile          PayrollProfile?
   receipts                PayReceipt[]
+  availabilityRequests    AvailabilityRequest[]
+  timeOffRequests         TimeOffRequest[]
+  conversation            Conversation?
+  employeeTasks           EmployeeTask[]
+  portalNotifications     Notification[]
 
   @@map("employees")
 }
@@ -93,9 +102,25 @@ model EmployeeCertification {
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
   employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  uploads      CertificationUpload[]
 
   @@index([employeeId, certType])
   @@map("employee_certifications")
+}
+
+model CertificationUpload {
+  id              Int                   @id @default(autoincrement())
+  certificationId Int                   @map("certification_id")
+  bucketKey       String                @map("bucket_key")
+  fileName        String                @map("file_name")
+  fileSize        Int                   @map("file_size")
+  fileType        String                @map("file_type")
+  note            String                @default("") @map("note")
+  submittedAt     DateTime              @default(now()) @map("submitted_at")
+  certification   EmployeeCertification @relation(fields: [certificationId], references: [id], onDelete: Cascade)
+
+  @@index([certificationId])
+  @@map("certification_uploads")
 }
 
 model EmployeeScheduleLink {
@@ -693,4 +718,104 @@ model TaskReminder {
 
   @@index([taskId])
   @@map("task_reminders")
+}
+
+model AvailabilityRequest {
+  id               Int       @id @default(autoincrement())
+  employeeId       Int       @map("employee_id")
+  requestedChanges Json      @map("requested_changes")
+  status           String    @default("pending") @map("status")
+  adminNote        String    @default("") @map("admin_note")
+  reviewedBy       Int?      @map("reviewed_by")
+  reviewedAt       DateTime? @map("reviewed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  employee         Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("availability_requests")
+}
+
+model TimeOffRequest {
+  id          Int       @id @default(autoincrement())
+  employeeId  Int       @map("employee_id")
+  dateFrom    DateTime  @map("date_from")
+  dateTo      DateTime  @map("date_to")
+  reason      String
+  status      String    @default("pending") @map("status")
+  adminNote   String    @default("") @map("admin_note")
+  reviewedBy  Int?      @map("reviewed_by")
+  reviewedAt  DateTime? @map("reviewed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("time_off_requests")
+}
+
+model Conversation {
+  id            Int       @id @default(autoincrement())
+  employeeId    Int       @unique @map("employee_id")
+  lastMessageAt DateTime  @default(now()) @map("last_message_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  employee      Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  messages      Message[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id             Int          @id @default(autoincrement())
+  conversationId Int          @map("conversation_id")
+  senderId       Int          @map("sender_id")
+  senderRole     String       @map("sender_role")
+  content        String
+  readAt         DateTime?    @map("read_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId])
+  @@map("messages")
+}
+
+model EmployeeTask {
+  id           Int       @id @default(autoincrement())
+  employeeId   Int       @map("employee_id")
+  title        String
+  description  String    @default("")
+  source       String
+  linkedCertId Int?      @map("linked_cert_id")
+  completedAt  DateTime? @map("completed_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("employee_tasks")
+}
+
+model Notification {
+  id         Int       @id @default(autoincrement())
+  employeeId Int       @map("employee_id")
+  type       String
+  title      String
+  body       String
+  readAt     DateTime? @map("read_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("notifications")
+}
+
+model PushSubscription {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  endpoint  String
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
