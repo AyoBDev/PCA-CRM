@@ -150,6 +150,10 @@ const {
 } = require('../controllers/carePlanController');
 const { uploadDocument, downloadDocument, deleteDocument } = require('../controllers/documentController');
 const { uploadAuthDocument, downloadAuthDocument, deleteAuthDocument } = require('../controllers/authDocumentController');
+const {
+    listFolders, getFolder, createFolder, updateFolder, deleteFolder,
+    uploadFile, downloadFile, updateFile, deleteFile, copyFile, searchFiles,
+} = require('../controllers/fileManagerController');
 const { listActivities, createActivity, deleteActivity } = require('../controllers/activityController');
 const { listTasks, getTask, createTask, updateTask, deleteTask, bulkUpdateTasks, getTaskSummary } = require('../controllers/taskController');
 const { listWorkflowTriggers, updateWorkflowTrigger } = require('../controllers/workflowTriggerController');
@@ -253,6 +257,20 @@ router.delete('/documents/:id', requireRole('admin', 'user', 'pca'), deleteDocum
 router.post('/authorizations/:authId/documents', requireRole('admin', 'user', 'pca'), upload.single('file'), uploadAuthDocument);
 router.get('/auth-documents/:id/download', requireRole('admin', 'user', 'pca'), downloadAuthDocument);
 router.delete('/auth-documents/:id', requireRole('admin', 'user', 'pca'), deleteAuthDocument);
+
+// Admin File Manager
+const uploadLarge = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+router.get('/files/folders', requireRole('admin'), listFolders);
+router.get('/files/search', requireRole('admin'), searchFiles);
+router.get('/files/folders/:id', requireRole('admin'), getFolder);
+router.post('/files/folders', requireRole('admin'), createFolder);
+router.patch('/files/folders/:id', requireRole('admin'), updateFolder);
+router.delete('/files/folders/:id', requireRole('admin'), deleteFolder);
+router.post('/files/upload', requireRole('admin'), uploadLarge.single('file'), uploadFile);
+router.get('/files/:id/download', requireRole('admin'), downloadFile);
+router.patch('/files/:id', requireRole('admin'), updateFile);
+router.delete('/files/:id', requireRole('admin'), deleteFile);
+router.post('/files/copy', requireRole('admin'), copyFile);
 
 // Hospital Visits
 router.get('/clients/:clientId/hospital-visits', requireRole('admin', 'user', 'pca'), listHospitalVisits);
