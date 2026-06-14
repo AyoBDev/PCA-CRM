@@ -7517,7 +7517,7 @@ button.sdr-section-tag:hover:not(:disabled) {
     justify-content: space-between;
     gap: 12px;
     padding: 12px 16px;
-    background: hsl(217 91% 50%);
+    background: var(--sidebar-bg);
     color: #fff;
 }
 .sched-card__header-left {
