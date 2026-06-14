@@ -886,15 +886,17 @@ export default function AuthorizationsPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
-    // Stats
-    const totalAuths = clients.reduce((s, c) => s + c.authorizations.length, 0);
-    const expiredCount = clients.filter((c) => c.overallStatus === 'Expired').length;
-    const renewalCount = clients.filter((c) => c.overallStatus === 'Renewal Reminder').length;
-    const okCount = clients.filter((c) => c.overallStatus === 'OK').length;
+    // Stats (exclude inactive clients)
+    const activeClients = clients.filter(c => (c.clientStatus || 'active') !== 'inactive');
+    const totalAuths = activeClients.reduce((s, c) => s + c.authorizations.length, 0);
+    const expiredCount = activeClients.filter((c) => c.overallStatus === 'Expired').length;
+    const renewalCount = activeClients.filter((c) => c.overallStatus === 'Renewal Reminder').length;
+    const okCount = activeClients.filter((c) => c.overallStatus === 'OK').length;
 
     // Filter + Search
     const searchLower = searchQuery.toLowerCase().trim();
     const filteredClients = clients.filter((c) => {
+        if ((c.clientStatus || 'active') === 'inactive') return false;
         const matchesStatus = statusFilter === 'All' || c.overallStatus === statusFilter;
         const matchesSearch = !searchLower || c.clientName.toLowerCase().includes(searchLower) || (c.medicaidId || '').toLowerCase().includes(searchLower);
         return matchesStatus && matchesSearch;

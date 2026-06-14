@@ -222,7 +222,16 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                                                 {status?.response ? (() => {
                                                     const colors = { accepted: { bg: '#dcfce7', color: '#166534', label: 'Accepted' }, rejected: { bg: '#fee2e2', color: '#991b1b', label: 'Rejected' }, changes_requested: { bg: '#fef3c7', color: '#92400e', label: 'Changes Req.' } };
                                                     const c = colors[status.response] || { bg: '#f3f4f6', color: '#374151', label: status.response };
-                                                    return <span title={status.respondedAt ? new Date(status.respondedAt).toLocaleString() : ''} style={{ display: 'inline-block', padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: c.bg, color: c.color }}>{c.label}</span>;
+                                                    return (
+                                                        <div>
+                                                            <span title={status.respondedAt ? new Date(status.respondedAt).toLocaleString() : ''} style={{ display: 'inline-block', padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: c.bg, color: c.color }}>{c.label}</span>
+                                                            {status.responseNotes && (
+                                                                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 3, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={status.responseNotes}>
+                                                                    {status.responseNotes}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
                                                 })() : <span style={{ fontSize: 12, color: '#9ca3af' }}>—</span>}
                                             </td>
                                             <td>
