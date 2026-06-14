@@ -9,6 +9,8 @@ const { getWeekSchedule, getScheduleHistory } = require('../controllers/employee
 const { getAvailability, submitAvailabilityRequest, getTimeOffRequests, submitTimeOff } = require('../controllers/employeePortal/availabilityController');
 const { getPayrollSummary, getPaystubs, downloadPaystub } = require('../controllers/employeePortal/payrollController');
 const { getTasks, completeTask } = require('../controllers/employeePortal/tasksController');
+const { getMessages, sendMessage, markRead } = require('../controllers/employeePortal/chatController');
+const { getNotifications, markNotificationsRead } = require('../controllers/employeePortal/notificationController');
 
 const certUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -48,5 +50,14 @@ router.get('/payroll/stubs/:id/download', downloadPaystub);
 // Tasks
 router.get('/tasks', getTasks);
 router.patch('/tasks/:id/complete', completeTask);
+
+// Chat
+router.get('/chat/messages', getMessages);
+router.post('/chat/messages', sendMessage);
+router.patch('/chat/read', markRead);
+
+// Notifications
+router.get('/notifications', getNotifications);
+router.patch('/notifications/read', markNotificationsRead);
 
 module.exports = router;
