@@ -12,6 +12,8 @@ import PayrollTab from './employee-tabs/PayrollTab';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import { TIMESHEET_STATUS_STYLES } from '../utils/constants';
+import { formatDate } from '../utils/dates';
+import { hhmm12 } from '../utils/time';
 
 const TABS = [
     { key: 'profile', label: 'Profile', icon: 'user' },
@@ -42,11 +44,6 @@ const CERT_TYPES = [
     { type: 'other', label: 'Other', legacyKey: null, renewalYears: null },
 ];
 
-function formatDate(d) {
-    if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
-}
-
 function computeAge(dob) {
     return Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
 }
@@ -59,15 +56,6 @@ function getCertStatus(dateStr) {
     if (days < 0) return { status: 'expired', label: `Expired ${Math.abs(days)}d ago`, days };
     if (days <= 30) return { status: 'expiring', label: `Expires in ${days}d`, days };
     return { status: 'valid', label: `Valid (${days}d)`, days };
-}
-
-function hhmm12(time) {
-    if (!time) return '—';
-    const [h, m] = time.split(':');
-    const hr = parseInt(h, 10);
-    const ampm = hr >= 12 ? 'PM' : 'AM';
-    const hr12 = hr % 12 || 12;
-    return `${hr12}:${m} ${ampm}`;
 }
 
 function EditEmployeeModal({ employee, users, onSave, onClose }) {

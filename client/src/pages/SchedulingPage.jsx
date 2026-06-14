@@ -16,20 +16,7 @@ import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import { useUndoStack } from '../hooks/useUndoStack';
 import { SERVICE_COLORS, DAY_NAMES_SHORT } from '../utils/constants';
-
-// Distinct colors for visually distinguishing multiple clients
-const CLIENT_COLORS = [
-    { color: '#3B82F6', bg: '#EFF6FF' },   // Blue
-    { color: '#8B5CF6', bg: '#F5F3FF' },   // Purple
-    { color: '#06B6D4', bg: '#ECFEFF' },   // Cyan
-    { color: '#F59E0B', bg: '#FFFBEB' },   // Amber
-    { color: '#EC4899', bg: '#FDF2F8' },   // Pink
-    { color: '#22C55E', bg: '#F0FDF4' },   // Green
-    { color: '#EF4444', bg: '#FEF2F2' },   // Red
-    { color: '#6366F1', bg: '#EEF2FF' },   // Indigo
-    { color: '#14B8A6', bg: '#F0FDFA' },   // Teal
-    { color: '#F97316', bg: '#FFF7ED' },   // Orange
-];
+import { CLIENT_COLORS } from '../utils/ui';
 
 function buildClientColorMap(shifts) {
     const names = [...new Set(shifts.map(s => s.client?.clientName).filter(Boolean))].sort();

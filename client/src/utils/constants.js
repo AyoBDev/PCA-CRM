@@ -85,3 +85,33 @@ export const DAY_NAMES_UPPER = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 // ─── Pagination ───
 
 export const PAGE_SIZE = 25;
+
+// ─── Service Code Sort Order (payroll banner, scheduling) ───
+
+export const SERVICE_CODE_SORT_ORDER = { PCS: 0, S5125: 1, S5130: 1, S5150: 2, S5135: 3, SDPC: 4 };
+
+// ─── Action Colors (audit log, activity drawer) ───
+
+export const ACTION_COLORS = {
+    CREATE: { bg: 'hsl(142 76% 94%)', text: '#16a34a', hex: '#22c55e' },
+    UPDATE: { bg: 'hsl(217 91% 94%)', text: '#2563eb', hex: '#3b82f6' },
+    DELETE: { bg: 'hsl(0 84% 94%)', text: '#dc2626', hex: '#ef4444' },
+    ARCHIVE: { bg: 'hsl(38 92% 94%)', text: '#d97706', hex: '#f59e0b' },
+    RESTORE: { bg: 'hsl(173 80% 94%)', text: '#0d9488', hex: '#14b8a6' },
+    SUBMIT: { bg: 'hsl(270 60% 94%)', text: '#7c3aed', hex: '#8b5cf6' },
+    PERMANENT_DELETE: { bg: 'hsl(0 84% 94%)', text: '#dc2626', hex: '#ef4444' },
+    BULK_DELETE: { bg: 'hsl(0 84% 94%)', text: '#dc2626', hex: '#ef4444' },
+    TOGGLE_ACTIVE: { bg: 'hsl(38 92% 94%)', text: '#d97706', hex: '#f59e0b' },
+    RESET_PASSWORD: { bg: 'hsl(217 91% 94%)', text: '#2563eb', hex: '#3b82f6' },
+};
+
+// ─── Certification Colors (employee) ───
+
+export const CERT_COLORS = {
+    id: '#3b82f6',
+    tb: '#22c55e',
+    cpr: '#f59e0b',
+    training: '#8b5cf6',
+    background_check: '#06b6d4',
+    other: '#64748b',
+};

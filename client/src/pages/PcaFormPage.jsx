@@ -4,6 +4,7 @@ import * as api from '../api';
 import Icons from '../components/common/Icons';
 import SignaturePad from '../components/common/SignaturePad';
 import { formatWeek } from '../utils/dates';
+import { roundTo15, computeHours } from '../utils/time';
 import { useIsMobile } from '../hooks/useIsMobile';
 import MobileDayTabs from '../components/pca-form/MobileDayTabs';
 import MobileDayCard from '../components/pca-form/MobileDayCard';
@@ -12,27 +13,6 @@ import MobileAuthBar from '../components/pca-form/MobileAuthBar';
 import { ADL_ACTIVITIES, IADL_ACTIVITIES, RESPITE_ACTIVITIES, COMPANION_ACTIVITIES } from '../utils/constants';
 
 const DAY_SHORT = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-
-function roundTo15(timeStr) {
-    if (!timeStr) return '';
-    const [h, m] = timeStr.split(':').map(Number);
-    let rh = h, rm;
-    if (m <= 7) rm = 0;
-    else if (m <= 22) rm = 15;
-    else if (m <= 37) rm = 30;
-    else if (m <= 52) rm = 45;
-    else { rh = h + 1; rm = 0; }
-    return `${String(rh).padStart(2, '0')}:${String(rm).padStart(2, '0')}`;
-}
-
-function computeHours(timeIn, timeOut) {
-    if (!timeIn || !timeOut) return 0;
-    const ri = roundTo15(timeIn), ro = roundTo15(timeOut);
-    const [hI, mI] = ri.split(':').map(Number);
-    const [hO, mO] = ro.split(':').map(Number);
-    const diff = (hO * 60 + mO) - (hI * 60 + mI);
-    return diff > 0 ? Math.round((diff / 60) * 100) / 100 : 0;
-}
 
 function totalHoursWithBlocks(entry, section) {
     let total = computeHours(entry[`${section}TimeIn`], entry[`${section}TimeOut`]);

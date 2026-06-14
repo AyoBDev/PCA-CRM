@@ -10,6 +10,7 @@ import ClientCreationWizard from '../components/ClientCreationWizard';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import { useUndoStack } from '../hooks/useUndoStack';
+import { getInitials, getAvatarColor } from '../utils/ui';
 
 
 function getServiceCodes(client) {
@@ -170,19 +171,6 @@ export default function ClientsListPage() {
         }
         return sortDir === 'asc' ? cmp : -cmp;
     });
-
-    const getInitials = (name) => {
-        if (!name) return '?';
-        const parts = name.trim().split(/\s+/);
-        if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-        return name.slice(0, 2).toUpperCase();
-    };
-    const AVATAR_COLORS = ['#3b82f6', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#6366f1', '#14b8a6', '#f97316'];
-    const getAvatarColor = (name) => {
-        let hash = 0;
-        for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-        return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-    };
 
     const allSelected = filtered.length > 0 && filtered.every(c => selectedIds.has(c.id));
 

@@ -49,3 +49,21 @@ export function ServiceCodeSelect({ value, onChange, ...props }) {
         </select>
     );
 }
+
+const SERVICE_CODE_RULES = [
+    { pattern: /personal care/i, code: 'PCS' },
+    { pattern: /self[- ]?directed/i, code: 'SDPC' },
+    { pattern: /attendant/i, code: 'S5125' },
+    { pattern: /homemaker/i, code: 'S5130' },
+    { pattern: /chore/i, code: 'S5120' },
+    { pattern: /companion/i, code: 'S5135' },
+    { pattern: /respite/i, code: 'S5150' },
+];
+
+export function deriveServiceCode(serviceName) {
+    if (!serviceName) return '';
+    for (const rule of SERVICE_CODE_RULES) {
+        if (rule.pattern.test(serviceName)) return rule.code;
+    }
+    return '';
+}

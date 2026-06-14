@@ -18,6 +18,7 @@ import { useUndoStack } from '../hooks/useUndoStack';
 import { EntityActivityButton } from '../components/common/ActivityDrawer';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
+import { getInitials, getAvatarColor } from '../utils/ui';
 
 
 // ── Client Row 3-dot Menu (status + actions) ──
@@ -938,20 +939,6 @@ export default function AuthorizationsPage() {
     // Pagination
     const totalPages = Math.ceil(sortedClients.length / rowsPerPage);
     const paginatedClients = sortedClients.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
-
-    const getInitials = (name) => {
-        if (!name) return '?';
-        const parts = name.trim().split(/\s+/);
-        if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-        return name.slice(0, 2).toUpperCase();
-    };
-
-    const AVATAR_COLORS = ['#3b82f6', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#6366f1', '#14b8a6', '#f97316'];
-    const getAvatarColor = (name) => {
-        let hash = 0;
-        for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-        return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-    };
 
     const renderPageNumbers = () => {
         const pages = [];

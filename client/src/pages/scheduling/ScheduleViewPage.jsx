@@ -1,20 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import * as api from '../../api';
+import { CLIENT_COLORS } from '../../utils/ui';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-// Distinct colors for visually distinguishing multiple clients
-const CLIENT_COLORS = [
-    { color: '#3B82F6', bg: '#EFF6FF', border: '#93C5FD' },   // Blue
-    { color: '#8B5CF6', bg: '#F5F3FF', border: '#C4B5FD' },   // Purple
-    { color: '#06B6D4', bg: '#ECFEFF', border: '#67E8F9' },   // Cyan
-    { color: '#F59E0B', bg: '#FFFBEB', border: '#FCD34D' },   // Amber
-    { color: '#EC4899', bg: '#FDF2F8', border: '#F9A8D4' },   // Pink
-    { color: '#22C55E', bg: '#F0FDF4', border: '#86EFAC' },   // Green
-    { color: '#EF4444', bg: '#FEF2F2', border: '#FCA5A5' },   // Red
-    { color: '#6366F1', bg: '#EEF2FF', border: '#A5B4FC' },   // Indigo
-];
 
 function hhmm12(t) {
     if (!t) return '';

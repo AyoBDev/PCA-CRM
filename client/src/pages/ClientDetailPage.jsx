@@ -21,6 +21,8 @@ import IncidentReportsTab from './client-tabs/IncidentReportsTab';
 import TimesheetsTab from './client-tabs/TimesheetsTab';
 import { ServiceCodeSelect } from '../utils/serviceCodes';
 import { AUTH_COLORS, DEFAULT_AUTH_COLOR } from '../utils/constants';
+import { formatDate, formatDateTime } from '../utils/dates';
+import { unitsToHours } from '../utils/time';
 
 const DOC_CATEGORIES = [
     { value: 'admission_packet', label: 'Client Admission Packets', color: '#3b82f6' },
@@ -48,21 +50,6 @@ const TABS = [
     { key: 'incidents', label: 'Incidents', icon: 'alertOctagon' },
 ];
 
-function formatDate(d) {
-    if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
-}
-
-function formatDateTime(d, t) {
-    const date = formatDate(d);
-    if (!t) return date;
-    const [h, m] = t.split(':');
-    const hr = parseInt(h, 10);
-    const ampm = hr >= 12 ? 'PM' : 'AM';
-    const hr12 = hr % 12 || 12;
-    return `${date} at ${hr12}:${m} ${ampm}`;
-}
-
 function formatFileSize(bytes) {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -71,11 +58,6 @@ function formatFileSize(bytes) {
 
 function computeAge(dob) {
     return Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-}
-
-function unitsToHours(units) {
-    if (!units) return '—';
-    return (units / 4).toFixed(1);
 }
 
 export default function ClientDetailPage() {

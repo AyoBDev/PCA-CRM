@@ -6,16 +6,8 @@ import Modal from '../components/common/Modal';
 import { useToast } from '../hooks/useToast';
 import { ServiceCodeSelect } from '../utils/serviceCodes';
 import { AUTH_COLORS, DEFAULT_AUTH_COLOR } from '../utils/constants';
-
-function formatDate(d) {
-    if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
-}
-
-function unitsToHours(units) {
-    if (!units) return '—';
-    return (units / 4).toFixed(1);
-}
+import { formatDate } from '../utils/dates';
+import { unitsToHours } from '../utils/time';
 
 export default function ClientServicePage() {
     const { clientId, serviceCode } = useParams();
