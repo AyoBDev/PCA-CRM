@@ -284,6 +284,53 @@ Client groups themselves are sorted alphabetically, with unknown/numeric names a
 ## Sidebar
 Collapsible: `256px` expanded → `52px` collapsed. State persisted in `localStorage('sidebarCollapsed')`. The `<aside>` element must **not** have an inline `style={{ position: 'relative' }}` — that overrides CSS `position: fixed` and breaks the layout gap. The collapse toggle button uses `position: fixed` tied to `--sidebar-width`/`--sidebar-collapsed-width` CSS variables.
 
+## UI Design System — Tables
+
+All tables use the `.data-table` class system. **Every new table MUST follow this pattern.**
+
+### Table Variants
+| Class | Use Case | Header Style |
+|-------|----------|-------------|
+| `.data-table` | Default | Light background, muted text |
+| `.data-table--sheet` | Master sheet pages (Authorizations, Clients list) | Dark navy sticky header |
+| `.data-table--dark-header` | Same as sheet but with gradient | Dark gradient background |
+| `.data-table--compact` | Drawers, inline detail panels | No background, smaller padding |
+
+### Required Table Structure
+```html
+<div class="table-scroll">
+  <table class="data-table data-table--dark-header">
+    <thead>
+      <tr>
+        <th scope="col">Column Name</th>
+        ...
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Cell value</td>
+        ...
+      </tr>
+    </tbody>
+  </table>
+</div>
+```
+
+### Table Design Rules
+- **Vertical dividers between header columns** — All variants include `border-right: 1px solid` on `<th>` (last column excluded). Dark headers use `hsl(230 20% 30%)`, light headers use `hsl(var(--border))`.
+- **Horizontal row separators** — `border-bottom: 1px solid hsl(var(--border))` on `<td>`, last row excluded.
+- **Row hover** — `background: hsl(var(--primary) / 0.04)` on tbody `tr:hover`.
+- **Sticky headers** — Sheet variant uses `position: sticky; top: 0; z-index: 2`.
+- **Sort indicators** — Use `.th-content` wrapper with `.th-sort` icon inside `<th>`.
+- **Text styling** — Headers: 11px, uppercase, 600 weight, 0.06em letter-spacing. Cells: 14px normal.
+- **No wrapping** — Sheet/dark headers use `white-space: nowrap` on both `<th>` and `<td>`.
+- **Padding** — Standard: 12px 16px. Compact: 6px 8px.
+
+### When to Use Each Variant
+- **Main list pages** (Authorizations, Employees, Timesheets list): `data-table--sheet` or `data-table--dark-header`
+- **Drawer/modal content** (auth detail, employee certs): `data-table--compact`
+- **Settings pages** (Insurance Types, Services): `data-table` (default)
+
 ## Conventions
 - All API routes under `/api`; admin-only routes use `requireRole('admin')` middleware
 - Pagination: 25 rows per page; page state resets on filter change

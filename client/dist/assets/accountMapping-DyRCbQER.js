@@ -1,1 +1,0 @@
-const r={pcs:"71040","waiver 58":"71120","waiver 48":"71119",iso:"71635",sdpc:"71635","self-directed services":"71635"},s=["71040","71120","71119","71635"];function t(e){return e&&r[e.trim().toLowerCase()]||""}export{s as A,t as g};
