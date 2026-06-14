@@ -29,6 +29,7 @@ const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 const HistoryPage = lazy(() => import('./pages/HistoryPage'));
 const SandataImportPage = lazy(() => import('./pages/SandataImportPage'));
+const FilesPage = lazy(() => import('./pages/FilesPage'));
 
 function ProtectedRoute({ children, adminOnly = false, staffOnly = false }) {
     const { user, isAdmin, isStaff, loading } = useAuth();
@@ -76,6 +77,7 @@ function AppRoutes() {
                 <Route path="/users" element={<ProtectedRoute adminOnly><Layout><UsersPage /></Layout></ProtectedRoute>} />
                 <Route path="/history" element={<ProtectedRoute staffOnly><Layout><HistoryPage /></Layout></ProtectedRoute>} />
                 <Route path="/sandata" element={<ProtectedRoute adminOnly><Layout><SandataImportPage /></Layout></ProtectedRoute>} />
+                <Route path="/files" element={<ProtectedRoute adminOnly><Layout><FilesPage /></Layout></ProtectedRoute>} />
 
                 {/* Default redirect */}
                 <Route path="*" element={<Navigate to={user ? (isStaff ? '/dashboard' : '/timesheets') : '/login'} replace />} />
