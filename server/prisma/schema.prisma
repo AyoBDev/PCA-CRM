@@ -25,6 +25,7 @@ model User {
   assignedTasks           Task[]            @relation("TaskAssignee")
   triggerDefaults         WorkflowTrigger[] @relation("TriggerAssignee")
   sentScheduleNotifications ScheduleNotification[] @relation("ScheduleSentBy")
+  adminFiles              AdminFile[]
 
   @@map("users")
 }
@@ -693,4 +694,38 @@ model TaskReminder {
 
   @@index([taskId])
   @@map("task_reminders")
+}
+
+model AdminFolder {
+  id        Int           @id @default(autoincrement())
+  name      String
+  parentId  Int?          @map("parent_id")
+  path      String        @default("/")
+  parent    AdminFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children  AdminFolder[] @relation("FolderTree")
+  files     AdminFile[]
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  @@unique([parentId, name])
+  @@index([parentId])
+  @@map("admin_folders")
+}
+
+model AdminFile {
+  id         Int         @id @default(autoincrement())
+  name       String
+  folderId   Int         @map("folder_id")
+  storageKey String      @map("storage_key")
+  fileSize   Int         @map("file_size")
+  mimeType   String      @default("") @map("mime_type")
+  uploadedBy Int?        @map("uploaded_by")
+  folder     AdminFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  uploader   User?       @relation(fields: [uploadedBy], references: [id])
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+
+  @@unique([folderId, name])
+  @@index([folderId])
+  @@map("admin_files")
 }
