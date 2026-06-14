@@ -80,11 +80,12 @@ Hooks under `client/src/hooks/`:
 - `useNavigationStack.js` — smart Back button navigation with logical parent fallbacks
 
 Utils under `client/src/utils/`:
-- `constants.js` — **Single source of truth** for all shared constants (AUTH_COLORS, SERVICE_COLORS, SERVICE_CODE_NAMES, activity lists, status styles, day names, PAGE_SIZE)
-- `serviceCodes.jsx` — `SERVICE_CODE_OPTIONS`, `SERVICE_CATEGORIES`, `SERVICE_NAME_SUGGESTIONS`, `ServiceCodeSelect` component
+- `constants.js` — **Single source of truth** for all shared constants (AUTH_COLORS, SERVICE_COLORS, SERVICE_CODE_NAMES, SERVICE_CODE_COLORS, activity lists, TIMESHEET_STATUS_STYLES, DAY_NAMES, PAGE_SIZE, SERVICE_CODE_SORT_ORDER, ACTION_COLORS, CERT_COLORS)
+- `serviceCodes.jsx` — `SERVICE_CODE_OPTIONS`, `SERVICE_CATEGORIES`, `SERVICE_NAME_SUGGESTIONS`, `ServiceCodeSelect` component, `deriveServiceCode()` (pattern-match service name → code)
 - `accountMapping.js` — `ACCOUNT_NUMBER_OPTIONS`, `getAccountForCategory()`, `getAccountForServiceCode()`, `CATEGORY_ACCOUNT_MAP`, `SERVICE_CODE_ACCOUNT_MAP`
-- `dates.js` — `fmtDate()`, `formatWeek()`
-- `time.js` — `hhmm12()` (24h→12h display)
+- `dates.js` — `fmtDate()`, `formatWeek()`, `formatDate()`, `formatDateTime()`, `getSunday()`, `toLocalDateStr()`, `getWeekRange()`
+- `time.js` — `hhmm12()` (24h→12h display), `roundTo15()` (15-min rounding), `computeHours()` (time diff in quarter-hours), `unitsToHours()` (units÷4)
+- `ui.js` — `getInitials()`, `getAvatarColor()`, `CLIENT_COLORS`, `getClientColor()` (avatar/color helpers used across list pages)
 - `status.js` — `visitRowClass()`, status labels
 
 `client/src/api.js`: one named export per endpoint. Token stored in `localStorage('token')`; 401 responses dispatch `auth:logout` event and clear token. File uploads (`uploadPayrollRun`) use raw `fetch` to avoid setting `Content-Type` (lets browser set multipart boundary).
@@ -173,25 +174,63 @@ undoState.pushAction('Description of action',
 2. Controller calls service layer for business logic
 3. Enriched data returned to frontend; filtering/sorting done client-side
 
-## DRY Principle — Centralized Constants
+## DRY Principle — Centralized Constants & Functions
 
-**All shared constants live in `client/src/utils/constants.js` and `client/src/utils/serviceCodes.jsx`.** Never hardcode service codes, colors, activity lists, or account mappings inline. Import from these files.
+**All shared constants and utility functions live in `client/src/utils/`.** Never hardcode service codes, colors, activity lists, date/time formatting, or avatar logic inline. Import from the shared files.
 
 When adding a new value (e.g., new service code), update the centralized file and all consumers automatically get it.
 
-| Constant | File | Used By |
+### Constants (`constants.js`)
+| Constant | Used By |
+|----------|---------|
+| `AUTH_COLORS` | ProgramsAuthTab, ProfileInsuranceTab, ClientServicePage, ClientDetailPage |
+| `SERVICE_COLORS` | SchedulingPage, FutureShiftsView, MonthlyCalendarView, ScheduleTab |
+| `SERVICE_CODE_NAMES` | AuthorizationsPage, ProfileInsuranceTab, auth form auto-fill |
+| `SERVICE_CODE_COLORS` | AuthorizationsPage badges |
+| `ADL/IADL/RESPITE/COMPANION_ACTIVITIES` | PcaFormPage, TimesheetFormPage |
+| `TIMESHEET_STATUS_STYLES` | EmployeeDetailPage, TimesheetsTab |
+| `DAY_NAMES_SHORT/FULL/UPPER` | SchedulingPage, FutureShiftsView, ScheduleTab, PcaFormPage |
+| `SERVICE_CODE_SORT_ORDER` | PayrollPage (banner + visit sorting) |
+| `ACTION_COLORS` | ActivityDrawer, HistoryPage |
+| `CERT_COLORS` | EmployeeDetailPage certifications |
+| `PAGE_SIZE` | All paginated lists |
+
+### Service Codes (`serviceCodes.jsx`)
+| Export | Purpose |
+|--------|---------|
+| `SERVICE_CODE_OPTIONS` | All auth form dropdowns (via `ServiceCodeSelect`) |
+| `SERVICE_CATEGORIES` | Auth form autocomplete suggestions |
+| `SERVICE_NAME_SUGGESTIONS` | Service name autocomplete |
+| `ServiceCodeSelect` | Shared dropdown component |
+| `deriveServiceCode(name)` | Pattern-match service name → code (payroll, scheduling) |
+
+### Account Mapping (`accountMapping.js`)
+| Export | Purpose |
+|--------|---------|
+| `ACCOUNT_NUMBER_OPTIONS` | All account number selects |
+| `getAccountForCategory(cat)` | Auto-fill account from service category |
+| `getAccountForServiceCode(code)` | Auto-fill account from service code |
+
+### Date/Time (`dates.js`, `time.js`)
+| Function | File | Purpose |
 |----------|------|---------|
-| `AUTH_COLORS` | `constants.js` | ProgramsAuthTab, ProfileInsuranceTab, ClientServicePage, ClientDetailPage |
-| `SERVICE_COLORS` | `constants.js` | SchedulingPage, FutureShiftsView, MonthlyCalendarView, ScheduleTab |
-| `SERVICE_CODE_NAMES` | `constants.js` | AuthorizationsPage, ProfileInsuranceTab, auth form auto-fill |
-| `ADL/IADL/RESPITE/COMPANION_ACTIVITIES` | `constants.js` | PcaFormPage, TimesheetFormPage |
-| `TIMESHEET_STATUS_STYLES` | `constants.js` | EmployeeDetailPage, TimesheetsTab |
-| `DAY_NAMES_SHORT/FULL/UPPER` | `constants.js` | SchedulingPage, FutureShiftsView, ScheduleTab, PcaFormPage |
-| `SERVICE_CODE_OPTIONS` | `serviceCodes.jsx` | All auth form dropdowns (via `ServiceCodeSelect`) |
-| `SERVICE_CATEGORIES` | `serviceCodes.jsx` | Auth form autocomplete |
-| `SERVICE_NAME_SUGGESTIONS` | `serviceCodes.jsx` | Auth form autocomplete |
-| `ACCOUNT_NUMBER_OPTIONS` | `accountMapping.js` | All account number selects |
-| `SERVICE_CODE_ACCOUNT_MAP` | `accountMapping.js` | Auto-select account from service code |
+| `formatDate(d)` | `dates.js` | "Jun 14, 2026" display format |
+| `formatDateTime(d, t)` | `dates.js` | "Jun 14, 2026 at 3:00 PM" |
+| `getSunday(date)` | `dates.js` | Get week-start Sunday for any date |
+| `toLocalDateStr(d)` | `dates.js` | Convert Date/string to YYYY-MM-DD |
+| `getWeekRange(dateStr)` | `dates.js` | Get {weekStart, weekEnd} for a date |
+| `hhmm12(t)` | `time.js` | "14:30" → "2:30 PM" |
+| `roundTo15(timeStr)` | `time.js` | Round time to nearest 15 minutes |
+| `computeHours(in, out)` | `time.js` | Time diff in quarter-hour increments |
+| `unitsToHours(units)` | `time.js` | Authorization units ÷ 4 |
+
+### UI Helpers (`ui.js`)
+| Function | Purpose |
+|----------|---------|
+| `getInitials(name)` | "John Smith" → "JS" |
+| `getAvatarColor(name)` | Deterministic color from name hash |
+| `CLIENT_COLORS` | 10-color palette for client badges/avatars |
+| `getClientColor(index)` | Get color by index (wraps around) |
 
 ### Auto-Fill Behavior in Authorization Forms
 When a user changes the **Service Code** dropdown:
