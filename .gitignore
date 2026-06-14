@@ -42,6 +42,7 @@ worktrees/
 
 # Uploads
 server/uploads/
+server/uploads/admin-files/
 .gstack/
 
 # Backups & scripts
