@@ -8,9 +8,10 @@ import DrawerPanel from '../components/common/DrawerPanel';
 import ClientCreationWizard from '../components/ClientCreationWizard';
 import { fmtDate, daysClass } from '../utils/dates';
 import { statusLabel } from '../utils/status';
-import { getAccountForCategory, ACCOUNT_NUMBER_OPTIONS } from '../utils/accountMapping';
-import { ServiceCodeSelect } from '../utils/serviceCodes';
+import { getAccountForCategory, getAccountForServiceCode, ACCOUNT_NUMBER_OPTIONS } from '../utils/accountMapping';
+import { ServiceCodeSelect, SERVICE_CATEGORIES, SERVICE_NAME_SUGGESTIONS } from '../utils/serviceCodes';
 import { SERVICE_CODE_COLORS, SERVICE_CODE_NAMES } from '../utils/constants';
+import AutocompleteInput from '../components/common/AutocompleteInput';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import { useUndoStack } from '../hooks/useUndoStack';
@@ -18,46 +19,6 @@ import { EntityActivityButton } from '../components/common/ActivityDrawer';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 
-const SERVICE_CATEGORIES = ['PCS', 'SDPC', 'Waiver 58', 'Waiver 48', 'Timesheets', 'COPE', 'PAS'];
-
-function ServiceCategoryInput({ value, onChange }) {
-    const [open, setOpen] = useState(false);
-    const [focused, setFocused] = useState(false);
-    const ref = useRef(null);
-    const filtered = value
-        ? SERVICE_CATEGORIES.filter(c => c.toLowerCase().startsWith(value.toLowerCase()))
-        : SERVICE_CATEGORIES;
-
-    useEffect(() => {
-        if (!open) return;
-        const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-        document.addEventListener('mousedown', close);
-        return () => document.removeEventListener('mousedown', close);
-    }, [open]);
-
-    return (
-        <div ref={ref} style={{ position: 'relative' }}>
-            <input
-                type="text"
-                value={value}
-                onChange={(e) => { onChange(e.target.value); setOpen(true); }}
-                onFocus={() => { setFocused(true); setOpen(true); }}
-                onBlur={() => setFocused(false)}
-                placeholder="PCS, SDPC, Waiver 58…"
-                autoComplete="off"
-            />
-            {open && filtered.length > 0 && (
-                <div className="autocomplete-dropdown">
-                    {filtered.map(cat => (
-                        <div key={cat} className="autocomplete-dropdown__item" onMouseDown={() => { onChange(cat); setOpen(false); }}>
-                            {cat}
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-}
 
 // ── Client Row 3-dot Menu (status + actions) ──
 function ClientRowMenu({ client, onSetActive, onSetPending, onSetInactive, onEdit, onDelete }) {
@@ -307,6 +268,16 @@ function AuthFormModal({ auth, clientId, onSave, onClose, onRenewal, isRenewal }
         }
     };
 
+    const handleServiceCodeChange = (newCode) => {
+        setServiceCode(newCode);
+        const defaultName = SERVICE_CODE_NAMES[newCode] || '';
+        if (defaultName && !serviceName) setServiceName(defaultName);
+        const defaultAcc = getAccountForServiceCode(newCode);
+        if (defaultAcc && (!accountNumber || ACCOUNT_NUMBER_OPTIONS.includes(accountNumber))) {
+            setAccountNumber(defaultAcc);
+        }
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
         if (manualStatus === 'renewal' && isEdit && onRenewal) {
@@ -344,17 +315,17 @@ function AuthFormModal({ auth, clientId, onSave, onClose, onRenewal, isRenewal }
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-group" style={{ position: 'relative' }}>
                         <label>Service Category</label>
-                        <ServiceCategoryInput value={serviceCategory} onChange={handleServiceCategoryChange} />
+                        <AutocompleteInput value={serviceCategory} onChange={handleServiceCategoryChange} options={SERVICE_CATEGORIES} placeholder="PCS, SDPC, Waiver 58…" />
                     </div>
                     <div className="form-group">
                         <label>Service Code</label>
-                        <ServiceCodeSelect value={serviceCode} onChange={(e) => setServiceCode(e.target.value)} />
+                        <ServiceCodeSelect value={serviceCode} onChange={(e) => handleServiceCodeChange(e.target.value)} />
                     </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-group">
                         <label>Service Name</label>
-                        <input type="text" value={serviceName} onChange={(e) => setServiceName(e.target.value)} placeholder="Personal Care Services" />
+                        <AutocompleteInput value={serviceName} onChange={setServiceName} options={SERVICE_NAME_SUGGESTIONS} placeholder="Personal Care Services" filterMode="includes" />
                     </div>
                     <div className="form-group">
                         <label>Account Number</label>

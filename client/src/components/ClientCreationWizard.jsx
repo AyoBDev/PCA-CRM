@@ -2,8 +2,10 @@ import { useState, useCallback } from 'react';
 import Modal from './common/Modal';
 import * as api from '../api';
 import { useToast } from '../hooks/useToast';
-import { getAccountForCategory, ACCOUNT_NUMBER_OPTIONS } from '../utils/accountMapping';
-import { ServiceCodeSelect } from '../utils/serviceCodes';
+import { getAccountForCategory, getAccountForServiceCode, ACCOUNT_NUMBER_OPTIONS } from '../utils/accountMapping';
+import { ServiceCodeSelect, SERVICE_CATEGORIES, SERVICE_NAME_SUGGESTIONS } from '../utils/serviceCodes';
+import { SERVICE_CODE_NAMES } from '../utils/constants';
+import AutocompleteInput from './common/AutocompleteInput';
 
 const EMPTY_AUTH = {
     serviceCategory: '',
@@ -148,6 +150,17 @@ function AuthCard({ index, auth, onChange, onRemove }) {
         onChange(index, { ...auth, ...updates });
     };
 
+    const handleServiceCodeChange = (newCode) => {
+        const updates = { serviceCode: newCode };
+        const defaultName = SERVICE_CODE_NAMES[newCode] || '';
+        if (defaultName && !auth.serviceName) updates.serviceName = defaultName;
+        const defaultAcc = getAccountForServiceCode(newCode);
+        if (defaultAcc && (!auth.accountNumber || ACCOUNT_NUMBER_OPTIONS.includes(auth.accountNumber))) {
+            updates.accountNumber = defaultAcc;
+        }
+        onChange(index, { ...auth, ...updates });
+    };
+
     return (
         <div className="wizard-auth-card">
             <div className="wizard-auth-card__header">
@@ -159,17 +172,17 @@ function AuthCard({ index, auth, onChange, onRemove }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group">
                     <label>Service Category</label>
-                    <input type="text" value={auth.serviceCategory} onChange={(e) => handleServiceCategoryChange(e.target.value)} placeholder="PCS, WAIVER 58…" />
+                    <AutocompleteInput value={auth.serviceCategory} onChange={handleServiceCategoryChange} options={SERVICE_CATEGORIES} placeholder="PCS, SDPC, Waiver 58…" />
                 </div>
                 <div className="form-group">
                     <label>Service Code <span style={{ color: '#dc2626' }}>*</span></label>
-                    <ServiceCodeSelect value={auth.serviceCode} onChange={(e) => update('serviceCode', e.target.value)} />
+                    <ServiceCodeSelect value={auth.serviceCode} onChange={(e) => handleServiceCodeChange(e.target.value)} />
                 </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group">
                     <label>Service Name</label>
-                    <input type="text" value={auth.serviceName} onChange={(e) => update('serviceName', e.target.value)} placeholder="Personal Care Services" />
+                    <AutocompleteInput value={auth.serviceName} onChange={(v) => update('serviceName', v)} options={SERVICE_NAME_SUGGESTIONS} placeholder="Personal Care Services" filterMode="includes" />
                 </div>
                 <div className="form-group">
                     <label>Account Number</label>
