@@ -77,6 +77,21 @@ export default function FilesPage() {
 
     useEffect(() => { loadFolder(null); }, [loadFolder]);
 
+    const handlePreview = useCallback(async (file) => {
+        try {
+            const token = api.getToken();
+            const res = await fetch(`/api/files/${file.id}/download`, {
+                headers: { 'Authorization': `Bearer ${token}` },
+            });
+            if (!res.ok) throw new Error('Preview failed');
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            window.open(url, '_blank');
+        } catch (err) {
+            console.error('Preview failed:', err);
+        }
+    }, []);
+
     const handleDownload = useCallback(async (file) => {
         try {
             const token = api.getToken();
@@ -103,9 +118,9 @@ export default function FilesPage() {
             setFolderStack(prev => [...prev, currentFolder]);
             loadFolder(file.id);
         } else {
-            handleDownload(file);
+            handlePreview(file);
         }
-    }, [currentFolder, loadFolder, handleDownload]);
+    }, [currentFolder, loadFolder, handlePreview]);
 
     const handleNavigateBack = useCallback(() => {
         const prev = folderStack[folderStack.length - 1];
@@ -297,6 +312,18 @@ export default function FilesPage() {
                                 </div>
                             )}
                             <div className="files-page__item-actions">
+                                {!item.isDirectory && (
+                                    <button
+                                        className="btn--icon"
+                                        title="Download"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDownload(item);
+                                        }}
+                                    >
+                                        {Icons.download}
+                                    </button>
+                                )}
                                 <button
                                     className="btn--icon"
                                     title="Rename"
