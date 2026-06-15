@@ -13043,11 +13043,13 @@ tr:hover .auth-note-icon--empty {
 }
 
 .files-page__item-actions {
-    position: absolute;
-    top: 4px;
-    right: 4px;
     display: none;
-    gap: 2px;
+    gap: 4px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid hsl(var(--border));
+    width: 100%;
+    justify-content: center;
 }
 
 .files-page__item:hover .files-page__item-actions {
@@ -13057,14 +13059,18 @@ tr:hover .auth-note-icon--empty {
 .files-page__item-actions .btn--icon {
     background: none;
     border: none;
-    font-size: 14px;
     cursor: pointer;
-    padding: 2px 4px;
+    padding: 4px 6px;
     border-radius: 4px;
-    opacity: 0.6;
+    color: hsl(var(--muted-foreground));
+}
+
+.files-page__item-actions .btn--icon svg {
+    width: 14px;
+    height: 14px;
 }
 
 .files-page__item-actions .btn--icon:hover {
-    opacity: 1;
+    color: hsl(var(--foreground));
     background: hsl(var(--muted) / 0.5);
 }
