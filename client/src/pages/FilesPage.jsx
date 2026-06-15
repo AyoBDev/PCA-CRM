@@ -4,9 +4,11 @@ import ContextBar from '../components/common/ContextBar';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import Icons from '../components/common/Icons';
+import { useUndoStack } from '../hooks/useUndoStack';
 import * as api from '../api';
 
 export default function FilesPage() {
+    const undoState = useUndoStack();
     const [currentFolder, setCurrentFolder] = useState(null);
     const [folderStack, setFolderStack] = useState([]);
     const [items, setItems] = useState([]);
@@ -171,7 +173,8 @@ export default function FilesPage() {
                 title="Files"
                 subtitle="Administrative Documents"
                 icon={Icons.folder}
-                hideUndo
+                undoState={undoState}
+                activityEntity="AdminFile"
             />
             <div className="files-page__breadcrumbs">
                 {breadcrumbs.map((b, i) => (
@@ -202,7 +205,7 @@ export default function FilesPage() {
                 </ContextBar.Left>
                 <ContextBar.Right>
                     <button
-                        className="btn btn--secondary btn--sm"
+                        className="btn btn--primary btn--sm"
                         onClick={() => setNameModal({ mode: 'create', item: null, defaultValue: '' })}
                     >
                         + New Folder
