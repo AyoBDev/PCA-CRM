@@ -18,10 +18,14 @@ export default function FilesPage() {
     const [nameModal, setNameModal] = useState(null);
     const [deleteModal, setDeleteModal] = useState(null);
     const [conflictModal, setConflictModal] = useState(null);
+    const [selected, setSelected] = useState(new Set());
+    const lastClickedRef = useRef(null);
     const nameInputRef = useRef(null);
 
     const loadFolder = useCallback(async (folderId) => {
         setLoading(true);
+        setSelected(new Set());
+        lastClickedRef.current = null;
         try {
             if (folderId) {
                 const data = await api.getFolder(folderId);
@@ -201,8 +205,51 @@ export default function FilesPage() {
             }
         }
         setDeleteModal(null);
+        setSelected(new Set());
         loadFolder(currentFolder?.id || null);
     }, [currentFolder, loadFolder]);
+
+    const itemKey = (item) => `${item.isDirectory ? 'f' : 'd'}-${item.id}`;
+
+    const handleItemClick = useCallback((e, item) => {
+        const key = itemKey(item);
+        if (e.metaKey || e.ctrlKey) {
+            setSelected(prev => {
+                const next = new Set(prev);
+                if (next.has(key)) next.delete(key);
+                else next.add(key);
+                return next;
+            });
+        } else if (e.shiftKey && lastClickedRef.current !== null) {
+            const lastIdx = items.findIndex(i => itemKey(i) === lastClickedRef.current);
+            const currIdx = items.findIndex(i => itemKey(i) === key);
+            if (lastIdx !== -1 && currIdx !== -1) {
+                const start = Math.min(lastIdx, currIdx);
+                const end = Math.max(lastIdx, currIdx);
+                const range = new Set(selected);
+                for (let i = start; i <= end; i++) {
+                    range.add(itemKey(items[i]));
+                }
+                setSelected(range);
+            }
+        } else {
+            setSelected(new Set([key]));
+        }
+        lastClickedRef.current = key;
+    }, [items, selected]);
+
+    const selectedItems = items.filter(i => selected.has(itemKey(i)));
+
+    const handleBulkDelete = useCallback(() => {
+        if (selectedItems.length) setDeleteModal(selectedItems);
+    }, [selectedItems]);
+
+    const handleBulkDownload = useCallback(async () => {
+        const files = selectedItems.filter(i => !i.isDirectory);
+        for (const file of files) {
+            await handleDownload(file);
+        }
+    }, [selectedItems, handleDownload]);
 
     const handleNameSubmit = useCallback((e) => {
         e.preventDefault();
@@ -262,6 +309,26 @@ export default function FilesPage() {
                             {Icons.chevronLeft} Back
                         </button>
                     )}
+                    {selected.size > 0 && (
+                        <span className="files-page__selection-count">
+                            {selected.size} selected
+                        </span>
+                    )}
+                    {selected.size > 0 && (
+                        <>
+                            <button className="btn btn--danger btn--sm" onClick={handleBulkDelete}>
+                                {Icons.trash} Delete
+                            </button>
+                            {selectedItems.some(i => !i.isDirectory) && (
+                                <button className="btn btn--secondary btn--sm" onClick={handleBulkDownload}>
+                                    {Icons.download} Download
+                                </button>
+                            )}
+                            <button className="btn btn--outline btn--sm" onClick={() => setSelected(new Set())}>
+                                Clear
+                            </button>
+                        </>
+                    )}
                 </ContextBar.Left>
                 <ContextBar.Right>
                     <button
@@ -296,8 +363,9 @@ export default function FilesPage() {
                 <div className="files-page__grid">
                     {items.map(item => (
                         <div
-                            key={`${item.isDirectory ? 'f' : 'd'}-${item.id}`}
-                            className="files-page__item"
+                            key={itemKey(item)}
+                            className={`files-page__item${selected.has(itemKey(item)) ? ' files-page__item--selected' : ''}`}
+                            onClick={(e) => handleItemClick(e, item)}
                             onDoubleClick={() => handleFileOpen(item)}
                         >
                             <div className="files-page__item-icon">
