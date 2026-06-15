@@ -3,21 +3,32 @@ const fs = require('fs');
 const path = require('path');
 
 const LOCAL_DIR = path.join(__dirname, '..', '..', 'uploads', 'admin-files');
-const isS3 = Boolean(process.env.ENDPOINT);
+
+// Railway injects bucket vars — detect which naming convention is used
+const endpoint = process.env.ENDPOINT || process.env.AWS_ENDPOINT_URL_S3 || '';
+const bucket = process.env.BUCKET || process.env.BUCKET_NAME || '';
+const accessKey = process.env.ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID || '';
+const secretKey = process.env.SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY || '';
+const region = process.env.REGION || process.env.AWS_REGION || 'auto';
+
+const isS3 = Boolean(endpoint);
 
 let s3 = null;
 let BUCKET = null;
 
 if (isS3) {
     s3 = new S3Client({
-        region: process.env.REGION || 'auto',
-        endpoint: process.env.ENDPOINT,
+        region,
+        endpoint,
         credentials: {
-            accessKeyId: process.env.ACCESS_KEY_ID,
-            secretAccessKey: process.env.SECRET_ACCESS_KEY,
+            accessKeyId: accessKey,
+            secretAccessKey: secretKey,
         },
     });
-    BUCKET = process.env.BUCKET;
+    BUCKET = bucket;
+    console.log(`[Storage] S3 mode — endpoint: ${endpoint}, bucket: ${bucket}`);
+} else {
+    console.log('[Storage] Local filesystem mode — no ENDPOINT env var detected');
 }
 
 async function upload(key, buffer, contentType) {
