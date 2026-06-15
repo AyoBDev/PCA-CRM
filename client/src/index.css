@@ -12981,15 +12981,6 @@ tr:hover .auth-note-icon--empty {
     margin: 0 2px;
 }
 
-.files-page__toolbar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 24px;
-    border-bottom: 1px solid hsl(var(--border));
-    background: hsl(var(--background));
-}
-
 .files-page__loading,
 .files-page__empty {
     display: flex;

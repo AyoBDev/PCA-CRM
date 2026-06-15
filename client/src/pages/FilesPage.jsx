@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import GlobalToolbar from '../components/common/GlobalToolbar';
+import ContextBar from '../components/common/ContextBar';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import Icons from '../components/common/Icons';
@@ -191,33 +192,37 @@ export default function FilesPage() {
                     </span>
                 ))}
             </div>
-            <div className="files-page__toolbar">
-                {currentFolder && (
-                    <button className="btn btn--secondary btn--sm" onClick={handleNavigateBack}>
-                        {Icons.chevronLeft} Back
+            <ContextBar>
+                <ContextBar.Left>
+                    {currentFolder && (
+                        <button className="btn btn--secondary btn--sm" onClick={handleNavigateBack}>
+                            {Icons.chevronLeft} Back
+                        </button>
+                    )}
+                </ContextBar.Left>
+                <ContextBar.Right>
+                    <button
+                        className="btn btn--secondary btn--sm"
+                        onClick={() => setNameModal({ mode: 'create', item: null, defaultValue: '' })}
+                    >
+                        + New Folder
                     </button>
-                )}
-                <button
-                    className="btn btn--secondary btn--sm"
-                    onClick={() => setNameModal({ mode: 'create', item: null, defaultValue: '' })}
-                >
-                    + New Folder
-                </button>
-                {currentFolder && (
-                    <label className="btn btn--primary btn--sm" style={{ cursor: 'pointer' }}>
-                        {Icons.upload} Upload
-                        <input
-                            type="file"
-                            multiple
-                            hidden
-                            onChange={(e) => {
-                                if (e.target.files.length) handleUpload(Array.from(e.target.files));
-                                e.target.value = '';
-                            }}
-                        />
-                    </label>
-                )}
-            </div>
+                    {currentFolder && (
+                        <label className="btn btn--primary btn--sm" style={{ cursor: 'pointer' }}>
+                            {Icons.upload} Upload
+                            <input
+                                type="file"
+                                multiple
+                                hidden
+                                onChange={(e) => {
+                                    if (e.target.files.length) handleUpload(Array.from(e.target.files));
+                                    e.target.value = '';
+                                }}
+                            />
+                        </label>
+                    )}
+                </ContextBar.Right>
+            </ContextBar>
             {loading ? (
                 <div className="files-page__loading">Loading...</div>
             ) : items.length === 0 ? (
