@@ -13028,6 +13028,43 @@ tr:hover .auth-note-icon--empty {
     color: hsl(var(--primary));
 }
 
+.files-page__select-all {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+}
+
+.files-page__select-all input {
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+    accent-color: hsl(var(--primary));
+}
+
+.files-page__item-checkbox {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.files-page__item:hover .files-page__item-checkbox,
+.files-page__item--selected .files-page__item-checkbox {
+    opacity: 1;
+}
+
+.files-page__item-checkbox input {
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+    accent-color: hsl(var(--primary));
+}
+
 .files-page__item-icon {
     margin-bottom: 8px;
     color: hsl(var(--muted-foreground));

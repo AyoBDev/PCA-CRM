@@ -19,13 +19,11 @@ export default function FilesPage() {
     const [deleteModal, setDeleteModal] = useState(null);
     const [conflictModal, setConflictModal] = useState(null);
     const [selected, setSelected] = useState(new Set());
-    const lastClickedRef = useRef(null);
     const nameInputRef = useRef(null);
 
     const loadFolder = useCallback(async (folderId) => {
         setLoading(true);
         setSelected(new Set());
-        lastClickedRef.current = null;
         try {
             if (folderId) {
                 const data = await api.getFolder(folderId);
@@ -211,31 +209,12 @@ export default function FilesPage() {
 
     const itemKey = (item) => `${item.isDirectory ? 'f' : 'd'}-${item.id}`;
 
-    const handleItemClick = useCallback((e, item) => {
-        const key = itemKey(item);
-        if (e.metaKey || e.ctrlKey) {
-            setSelected(prev => {
-                const next = new Set(prev);
-                if (next.has(key)) next.delete(key);
-                else next.add(key);
-                return next;
-            });
-        } else if (e.shiftKey && lastClickedRef.current !== null) {
-            const lastIdx = items.findIndex(i => itemKey(i) === lastClickedRef.current);
-            const currIdx = items.findIndex(i => itemKey(i) === key);
-            if (lastIdx !== -1 && currIdx !== -1) {
-                const start = Math.min(lastIdx, currIdx);
-                const end = Math.max(lastIdx, currIdx);
-                const range = new Set(selected);
-                for (let i = start; i <= end; i++) {
-                    range.add(itemKey(items[i]));
-                }
-                setSelected(range);
-            }
+    const handleSelectAll = useCallback(() => {
+        if (selected.size === items.length) {
+            setSelected(new Set());
         } else {
-            setSelected(new Set([key]));
+            setSelected(new Set(items.map(i => itemKey(i))));
         }
-        lastClickedRef.current = key;
     }, [items, selected]);
 
     const selectedItems = items.filter(i => selected.has(itemKey(i)));
@@ -309,6 +288,17 @@ export default function FilesPage() {
                             {Icons.chevronLeft} Back
                         </button>
                     )}
+                    {items.length > 0 && (
+                        <label className="files-page__select-all" onClick={(e) => e.stopPropagation()}>
+                            <input
+                                type="checkbox"
+                                checked={items.length > 0 && selected.size === items.length}
+                                ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < items.length; }}
+                                onChange={handleSelectAll}
+                            />
+                            <span>Select All</span>
+                        </label>
+                    )}
                     {selected.size > 0 && (
                         <span className="files-page__selection-count">
                             {selected.size} selected
@@ -365,9 +355,23 @@ export default function FilesPage() {
                         <div
                             key={itemKey(item)}
                             className={`files-page__item${selected.has(itemKey(item)) ? ' files-page__item--selected' : ''}`}
-                            onClick={(e) => handleItemClick(e, item)}
                             onDoubleClick={() => handleFileOpen(item)}
                         >
+                            <label className="files-page__item-checkbox" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                    type="checkbox"
+                                    checked={selected.has(itemKey(item))}
+                                    onChange={() => {
+                                        const key = itemKey(item);
+                                        setSelected(prev => {
+                                            const next = new Set(prev);
+                                            if (next.has(key)) next.delete(key);
+                                            else next.add(key);
+                                            return next;
+                                        });
+                                    }}
+                                />
+                            </label>
                             <div className="files-page__item-icon">
                                 {item.isDirectory ? Icons.folder : Icons.fileText}
                             </div>
