@@ -379,7 +379,7 @@ export default function FilesPage() {
                         <div
                             key={itemKey(item)}
                             className={`files-page__item${selected.has(itemKey(item)) ? ' files-page__item--selected' : ''}`}
-                            onDoubleClick={() => handleFileOpen(item)}
+                            onClick={() => handleFileOpen(item)}
                         >
                             <label className="files-page__item-checkbox" onClick={(e) => e.stopPropagation()}>
                                 <input
