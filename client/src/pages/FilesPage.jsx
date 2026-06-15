@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import GlobalToolbar from '../components/common/GlobalToolbar';
+import Modal from '../components/common/Modal';
+import ConfirmModal from '../components/common/ConfirmModal';
 import Icons from '../components/common/Icons';
 import * as api from '../api';
 
@@ -8,6 +10,9 @@ export default function FilesPage() {
     const [folderStack, setFolderStack] = useState([]);
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [nameModal, setNameModal] = useState(null);
+    const [deleteModal, setDeleteModal] = useState(null);
+    const nameInputRef = useRef(null);
 
     const loadFolder = useCallback(async (folderId) => {
         setLoading(true);
@@ -124,17 +129,31 @@ export default function FilesPage() {
         loadFolder(currentFolder?.id || null);
     }, [currentFolder, loadFolder]);
 
-    const handleDelete = useCallback(async (items) => {
-        if (!window.confirm(`Delete ${items.length} item(s)? This cannot be undone.`)) return;
-        for (const item of items) {
+    const handleDeleteConfirmed = useCallback(async (itemsToDelete) => {
+        for (const item of itemsToDelete) {
             if (item.isDirectory) {
                 await api.deleteFolder(item.id);
             } else {
                 await api.deleteAdminFile(item.id);
             }
         }
+        setDeleteModal(null);
         loadFolder(currentFolder?.id || null);
     }, [currentFolder, loadFolder]);
+
+    const handleNameSubmit = useCallback((e) => {
+        e.preventDefault();
+        const value = nameInputRef.current?.value?.trim();
+        if (!value) return;
+        if (nameModal.mode === 'create') {
+            handleCreateFolder(value);
+        } else if (nameModal.mode === 'rename') {
+            if (value !== nameModal.item.name) {
+                handleRename(nameModal.item, value);
+            }
+        }
+        setNameModal(null);
+    }, [nameModal, handleCreateFolder, handleRename]);
 
     // Build breadcrumb path
     const breadcrumbs = [{ name: 'Root', id: null }];
@@ -156,7 +175,7 @@ export default function FilesPage() {
             <div className="files-page__breadcrumbs">
                 {breadcrumbs.map((b, i) => (
                     <span key={b.id ?? 'root'}>
-                        {i > 0 && <span className="files-page__breadcrumb-sep">›</span>}
+                        {i > 0 && <span className="files-page__breadcrumb-sep">&rsaquo;</span>}
                         <button
                             className={`files-page__breadcrumb${i === breadcrumbs.length - 1 ? ' files-page__breadcrumb--active' : ''}`}
                             onClick={() => {
@@ -175,21 +194,18 @@ export default function FilesPage() {
             <div className="files-page__toolbar">
                 {currentFolder && (
                     <button className="btn btn--secondary btn--sm" onClick={handleNavigateBack}>
-                        ← Back
+                        {Icons.chevronLeft} Back
                     </button>
                 )}
                 <button
                     className="btn btn--secondary btn--sm"
-                    onClick={() => {
-                        const name = prompt('New folder name:');
-                        if (name) handleCreateFolder(name);
-                    }}
+                    onClick={() => setNameModal({ mode: 'create', item: null, defaultValue: '' })}
                 >
                     + New Folder
                 </button>
                 {currentFolder && (
                     <label className="btn btn--primary btn--sm" style={{ cursor: 'pointer' }}>
-                        ⬆ Upload
+                        {Icons.upload} Upload
                         <input
                             type="file"
                             multiple
@@ -203,7 +219,7 @@ export default function FilesPage() {
                 )}
             </div>
             {loading ? (
-                <div className="files-page__loading">Loading…</div>
+                <div className="files-page__loading">Loading...</div>
             ) : items.length === 0 ? (
                 <div className="files-page__empty">
                     {currentFolder ? 'This folder is empty. Upload files or create subfolders.' : 'No folders yet.'}
@@ -217,7 +233,7 @@ export default function FilesPage() {
                             onDoubleClick={() => handleFileOpen(item)}
                         >
                             <div className="files-page__item-icon">
-                                {item.isDirectory ? '📁' : '📄'}
+                                {item.isDirectory ? Icons.folder : Icons.fileText}
                             </div>
                             <div className="files-page__item-name" title={item.name}>
                                 {item.name}
@@ -233,22 +249,70 @@ export default function FilesPage() {
                                     title="Rename"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        const newName = prompt('Rename to:', item.name);
-                                        if (newName && newName !== item.name) handleRename(item, newName);
+                                        setNameModal({ mode: 'rename', item, defaultValue: item.name });
                                     }}
-                                >✏️</button>
+                                >
+                                    {Icons.edit}
+                                </button>
                                 <button
                                     className="btn--icon"
                                     title="Delete"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        handleDelete([item]);
+                                        setDeleteModal([item]);
                                     }}
-                                >🗑️</button>
+                                >
+                                    {Icons.trash}
+                                </button>
                             </div>
                         </div>
                     ))}
                 </div>
+            )}
+
+            {nameModal && (
+                <Modal onClose={() => setNameModal(null)}>
+                    <h2 className="modal__title">
+                        {nameModal.mode === 'create' ? 'New Folder' : 'Rename'}
+                    </h2>
+                    <form onSubmit={handleNameSubmit}>
+                        <div className="form-group">
+                            <label className="form-label">
+                                {nameModal.mode === 'create' ? 'Folder name' : 'New name'}
+                            </label>
+                            <input
+                                ref={nameInputRef}
+                                className="form-input"
+                                type="text"
+                                defaultValue={nameModal.defaultValue}
+                                autoFocus
+                                placeholder={nameModal.mode === 'create' ? 'Enter folder name' : 'Enter new name'}
+                            />
+                        </div>
+                        <div className="form-actions">
+                            <button type="button" className="btn btn--outline" onClick={() => setNameModal(null)}>
+                                Cancel
+                            </button>
+                            <button type="submit" className="btn btn--primary">
+                                {nameModal.mode === 'create' ? 'Create' : 'Rename'}
+                            </button>
+                        </div>
+                    </form>
+                </Modal>
+            )}
+
+            {deleteModal && (
+                <ConfirmModal
+                    title={`Delete ${deleteModal.length === 1 ? (deleteModal[0].isDirectory ? 'folder' : 'file') : `${deleteModal.length} items`}`}
+                    message={deleteModal.length === 1
+                        ? `Are you sure you want to delete "${deleteModal[0].name}"? ${deleteModal[0].isDirectory ? 'All contents will be permanently removed.' : 'This cannot be undone.'}`
+                        : `Are you sure you want to delete ${deleteModal.length} items? This cannot be undone.`
+                    }
+                    confirmLabel="Delete"
+                    confirmVariant="danger"
+                    onConfirm={() => handleDeleteConfirmed(deleteModal)}
+                    onClose={() => setDeleteModal(null)}
+                />
             )}
         </div>
     );
