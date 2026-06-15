@@ -45,17 +45,23 @@ async function createFolder(req, res, next) {
         const { name, parentId } = req.body;
         if (!name || !name.trim()) return res.status(400).json({ error: 'Folder name is required' });
 
+        const pid = parentId ? Number(parentId) : null;
         let parentPath = '';
-        if (parentId) {
-            const parent = await prisma.adminFolder.findUnique({ where: { id: Number(parentId) } });
+        if (pid) {
+            const parent = await prisma.adminFolder.findUnique({ where: { id: pid } });
             if (!parent) return res.status(404).json({ error: 'Parent folder not found' });
             parentPath = parent.path;
         }
 
+        const duplicate = await prisma.adminFolder.findFirst({
+            where: { name: name.trim(), parentId: pid },
+        });
+        if (duplicate) return res.status(409).json({ error: 'A folder with that name already exists here' });
+
         const folder = await prisma.adminFolder.create({
             data: {
                 name: name.trim(),
-                parentId: parentId ? Number(parentId) : null,
+                parentId: pid,
                 path: `${parentPath}/${name.trim()}`,
             },
         });

@@ -5,10 +5,12 @@ import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import Icons from '../components/common/Icons';
 import { useUndoStack } from '../hooks/useUndoStack';
+import { useToast } from '../hooks/useToast';
 import * as api from '../api';
 
 export default function FilesPage() {
     const undoState = useUndoStack();
+    const { showToast } = useToast();
     const [currentFolder, setCurrentFolder] = useState(null);
     const [folderStack, setFolderStack] = useState([]);
     const [items, setItems] = useState([]);
@@ -112,9 +114,13 @@ export default function FilesPage() {
     }, [folderStack, loadFolder]);
 
     const handleCreateFolder = useCallback(async (name) => {
-        await api.createFolder(name, currentFolder?.id || null);
-        loadFolder(currentFolder?.id || null);
-    }, [currentFolder, loadFolder]);
+        try {
+            await api.createFolder(name, currentFolder?.id || null);
+            loadFolder(currentFolder?.id || null);
+        } catch (err) {
+            showToast(err.message || 'Failed to create folder', 'error');
+        }
+    }, [currentFolder, loadFolder, showToast]);
 
     const handleUpload = useCallback(async (files) => {
         if (!currentFolder) return;
