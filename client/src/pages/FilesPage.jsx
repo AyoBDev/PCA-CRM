@@ -15,6 +15,7 @@ export default function FilesPage() {
     const [loading, setLoading] = useState(true);
     const [nameModal, setNameModal] = useState(null);
     const [deleteModal, setDeleteModal] = useState(null);
+    const [conflictModal, setConflictModal] = useState(null);
     const nameInputRef = useRef(null);
 
     const loadFolder = useCallback(async (folderId) => {
@@ -118,10 +119,48 @@ export default function FilesPage() {
     const handleUpload = useCallback(async (files) => {
         if (!currentFolder) return;
         for (const file of files) {
-            await api.uploadAdminFile(currentFolder.id, file);
+            try {
+                await api.uploadAdminFile(currentFolder.id, file);
+            } catch (err) {
+                if (err.message.includes('already exists')) {
+                    setConflictModal({ file, folderId: currentFolder.id });
+                    return;
+                }
+            }
         }
         loadFolder(currentFolder.id);
     }, [currentFolder, loadFolder]);
+
+    const handleConflictReplace = useCallback(async () => {
+        if (!conflictModal) return;
+        const { file, folderId } = conflictModal;
+        const existing = items.find(i => !i.isDirectory && i.name === file.name);
+        if (existing) {
+            await api.deleteAdminFile(existing.id);
+        }
+        await api.uploadAdminFile(folderId, file);
+        setConflictModal(null);
+        loadFolder(folderId);
+    }, [conflictModal, items, loadFolder]);
+
+    const handleConflictKeepBoth = useCallback(async () => {
+        if (!conflictModal) return;
+        const { file, folderId } = conflictModal;
+        const nameParts = file.name.split('.');
+        const ext = nameParts.length > 1 ? '.' + nameParts.pop() : '';
+        const baseName = nameParts.join('.');
+        let counter = 1;
+        let newName = `${baseName} (${counter})${ext}`;
+        const existingNames = items.filter(i => !i.isDirectory).map(i => i.name);
+        while (existingNames.includes(newName)) {
+            counter++;
+            newName = `${baseName} (${counter})${ext}`;
+        }
+        const renamedFile = new File([file], newName, { type: file.type });
+        await api.uploadAdminFile(folderId, renamedFile);
+        setConflictModal(null);
+        loadFolder(folderId);
+    }, [conflictModal, items, loadFolder]);
 
     const handleRename = useCallback(async (item, newName) => {
         if (item.isDirectory) {
@@ -321,6 +360,26 @@ export default function FilesPage() {
                     onConfirm={() => handleDeleteConfirmed(deleteModal)}
                     onClose={() => setDeleteModal(null)}
                 />
+            )}
+
+            {conflictModal && (
+                <Modal onClose={() => setConflictModal(null)}>
+                    <h2 className="modal__title">File Already Exists</h2>
+                    <p className="modal__desc">
+                        A file named "{conflictModal.file.name}" already exists in this folder.
+                    </p>
+                    <div className="form-actions">
+                        <button className="btn btn--outline" onClick={() => setConflictModal(null)}>
+                            Cancel
+                        </button>
+                        <button className="btn btn--secondary" onClick={handleConflictKeepBoth}>
+                            Keep Both
+                        </button>
+                        <button className="btn btn--danger" onClick={handleConflictReplace}>
+                            Replace
+                        </button>
+                    </div>
+                </Modal>
             )}
         </div>
     );
