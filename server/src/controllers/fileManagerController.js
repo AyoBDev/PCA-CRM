@@ -68,7 +68,7 @@ async function createFolder(req, res, next) {
 
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
-            action: 'CREATE', entityType: 'AdminFolder', entityId: folder.id,
+            action: 'CREATE', entityType: 'AdminFile', entityId: folder.id,
             entityName: folder.path,
         });
 
@@ -108,7 +108,7 @@ async function updateFolder(req, res, next) {
 
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
-            action: 'UPDATE', entityType: 'AdminFolder', entityId: id,
+            action: 'UPDATE', entityType: 'AdminFile', entityId: id,
             entityName: updated.path,
             changes: audit.diffFields(folder, updated, ['name', 'path', 'parentId']),
         });
@@ -144,7 +144,7 @@ async function deleteFolder(req, res, next) {
 
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
-            action: 'DELETE', entityType: 'AdminFolder', entityId: id,
+            action: 'DELETE', entityType: 'AdminFile', entityId: id,
             entityName: folder.path,
             metadata: { filesDeleted: storageKeys.length },
         });
