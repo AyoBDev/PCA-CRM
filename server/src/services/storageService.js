@@ -3,22 +3,21 @@ const fs = require('fs');
 const path = require('path');
 
 const LOCAL_DIR = path.join(__dirname, '..', '..', 'uploads', 'admin-files');
-const isS3 = Boolean(process.env.STORAGE_ENDPOINT);
+const isS3 = Boolean(process.env.ENDPOINT);
 
 let s3 = null;
 let BUCKET = null;
 
 if (isS3) {
     s3 = new S3Client({
-        region: process.env.STORAGE_REGION || 'auto',
-        endpoint: process.env.STORAGE_ENDPOINT,
+        region: process.env.REGION || 'auto',
+        endpoint: process.env.ENDPOINT,
         credentials: {
-            accessKeyId: process.env.STORAGE_ACCESS_KEY_ID,
-            secretAccessKey: process.env.STORAGE_SECRET_ACCESS_KEY,
+            accessKeyId: process.env.ACCESS_KEY_ID,
+            secretAccessKey: process.env.SECRET_ACCESS_KEY,
         },
-        forcePathStyle: true,
     });
-    BUCKET = process.env.STORAGE_BUCKET;
+    BUCKET = process.env.BUCKET;
 }
 
 async function upload(key, buffer, contentType) {
