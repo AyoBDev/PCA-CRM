@@ -282,6 +282,9 @@ export default function FilesPage() {
                 icon={Icons.folder}
                 undoState={undoState}
                 activityEntity="AdminFile"
+                overflowItems={[
+                    { label: 'Export All Files', icon: Icons.download, action: handleExportAll },
+                ]}
             />
             <div className="files-page__breadcrumbs">
                 {breadcrumbs.map((b, i) => (
@@ -362,9 +365,6 @@ export default function FilesPage() {
                             />
                         </label>
                     )}
-                    <button className="btn btn--secondary btn--sm" onClick={handleExportAll}>
-                        {Icons.download} Export All
-                    </button>
                 </ContextBar.Right>
             </ContextBar>
             {loading ? (
