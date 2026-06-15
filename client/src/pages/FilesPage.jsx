@@ -230,6 +230,27 @@ export default function FilesPage() {
         }
     }, [selectedItems, handleDownload]);
 
+    const handleExportAll = useCallback(async () => {
+        try {
+            const token = api.getToken();
+            const res = await fetch('/api/files/export', {
+                headers: { 'Authorization': `Bearer ${token}` },
+            });
+            if (!res.ok) throw new Error('Export failed');
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'admin-files-export.zip';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            showToast('Export failed: ' + err.message, 'error');
+        }
+    }, [showToast]);
+
     const handleNameSubmit = useCallback((e) => {
         e.preventDefault();
         const value = nameInputRef.current?.value?.trim();
@@ -341,6 +362,9 @@ export default function FilesPage() {
                             />
                         </label>
                     )}
+                    <button className="btn btn--secondary btn--sm" onClick={handleExportAll}>
+                        {Icons.download} Export All
+                    </button>
                 </ContextBar.Right>
             </ContextBar>
             {loading ? (

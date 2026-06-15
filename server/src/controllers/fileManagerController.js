@@ -358,6 +358,31 @@ async function searchFiles(req, res, next) {
     } catch (err) { next(err); }
 }
 
+// GET /api/files/export — stream all files as a zip
+async function exportFiles(req, res, next) {
+    try {
+        const archiver = require('archiver');
+        const allFiles = await prisma.adminFile.findMany({
+            include: { folder: { select: { path: true } } },
+        });
+
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', `attachment; filename="admin-files-export.zip"`);
+
+        const archive = archiver('zip', { zlib: { level: 5 } });
+        archive.pipe(res);
+
+        for (const file of allFiles) {
+            const stream = await storage.download(file.storageKey);
+            if (!stream) continue;
+            const filePath = `${file.folder.path}/${file.name}`.replace(/^\//, '');
+            archive.append(stream, { name: filePath });
+        }
+
+        await archive.finalize();
+    } catch (err) { next(err); }
+}
+
 module.exports = {
     listFolders,
     getFolder,
@@ -370,4 +395,5 @@ module.exports = {
     deleteFile,
     copyFile,
     searchFiles,
+    exportFiles,
 };
