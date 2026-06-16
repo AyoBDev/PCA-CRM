@@ -1623,6 +1623,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                     <div className="sched-day-row__field">
                                                         <label className="sched-day-row__field-label">Employee</label>
                                                         <SearchableSelect
+                                                            className="sched-day-row__input"
                                                             options={employees.map(emp => ({ value: emp.id, label: emp.name }))}
                                                             value={edit.employeeId ? Number(edit.employeeId) : ''}
                                                             onChange={v => updateShiftField(shift.id, 'employeeId', v)}

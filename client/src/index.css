@@ -8810,6 +8810,12 @@ button.sdr-section-tag:hover:not(:disabled) {
     border-color: hsl(217 91% 50%);
     box-shadow: 0 0 0 2px hsl(217 91% 50% / 0.15);
 }
+.sched-day-row__field .searchable-select {
+    width: 100%;
+}
+.sched-day-row__field .searchable-select__dropdown {
+    min-width: 180px;
+}
 .sched-day-row__apply {
     font-size: 11px;
     padding: 6px 12px;
