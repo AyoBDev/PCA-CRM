@@ -1286,6 +1286,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                 endTime: s.endTime || '13:00',
                 accountNumber: s.accountNumber || '',
                 sandataClientId: s.sandataClientId || '',
+                employeeId: s.employeeId || '',
             };
         }
         return map;
@@ -1406,6 +1407,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
             if (edit.endTime !== (s.endTime || '13:00')) updates.endTime = edit.endTime;
             if (edit.accountNumber !== (s.accountNumber || '')) updates.accountNumber = edit.accountNumber;
             if (edit.sandataClientId !== (s.sandataClientId || '')) updates.sandataClientId = edit.sandataClientId;
+            if (String(edit.employeeId) !== String(s.employeeId || '')) updates.employeeId = edit.employeeId;
             if (Object.keys(updates).length > 0) perShiftUpdates[s.id] = updates;
         }
         if (Object.keys(perShiftUpdates).length === 0) return;
@@ -1610,6 +1612,13 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                         <select value={edit.accountNumber} onChange={e => updateShiftField(shift.id, 'accountNumber', e.target.value)} className="sched-day-row__input">
                                                             <option value="">—</option>
                                                             {ACCOUNT_NUMBER_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+                                                        </select>
+                                                    </div>
+                                                    <div className="sched-day-row__field">
+                                                        <label className="sched-day-row__field-label">Employee</label>
+                                                        <select value={edit.employeeId} onChange={e => updateShiftField(shift.id, 'employeeId', e.target.value)} className="sched-day-row__input">
+                                                            <option value="">—</option>
+                                                            {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
                                                         </select>
                                                     </div>
                                                     <div className="sched-day-row__field">

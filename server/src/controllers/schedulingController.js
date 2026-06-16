@@ -1111,6 +1111,7 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
             if (updates.serviceCode !== undefined) data.serviceCode = updates.serviceCode;
             if (updates.accountNumber !== undefined) data.accountNumber = updates.accountNumber;
             if (updates.sandataClientId !== undefined) data.sandataClientId = updates.sandataClientId;
+            if (updates.employeeId !== undefined) data.employeeId = Number(updates.employeeId);
 
             if (updates.accountNumber && !VALID_ACCOUNT_NUMBERS.includes(updates.accountNumber)) {
                 errors.push({ id: existing.id, error: 'Invalid account number' });
@@ -1137,7 +1138,7 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
                 audit.logAction({
                     userId: req.user.id, userName: req.user.name, userRole: req.user.role,
                     action: 'UPDATE', entityType: 'Shift', entityId: shift.id,
-                    changes: audit.diffFields(existing, shift, ['serviceCode', 'startTime', 'endTime', 'accountNumber']),
+                    changes: audit.diffFields(existing, shift, ['serviceCode', 'startTime', 'endTime', 'accountNumber', 'employeeId']),
                     metadata: { bulkEdit: true, batchId: batch.id, perShift: true },
                 });
             } catch (err) {
