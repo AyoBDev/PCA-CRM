@@ -2560,11 +2560,9 @@ export default function SchedulingPage() {
             />
             <ContextBar>
                 <ContextBar.Right>
-                    {isAdmin && (
-                        <button className="btn btn--outline btn--sm" onClick={() => setModal({ type: 'bulkEdit' })} disabled={allShifts.length === 0}>
-                            {Icons.edit} Bulk Edit
-                        </button>
-                    )}
+                    <button className="btn btn--outline btn--sm" onClick={() => setModal({ type: 'bulkEdit' })} disabled={allShifts.length === 0}>
+                        {Icons.edit} Bulk Edit
+                    </button>
                     <button className="btn btn--primary" onClick={() => setModal({ type: 'shift', shift: null, defaultClientId: viewMode === 'future' ? futureFilterContext.clientId : selectedClientId, defaultEmployeeId: viewMode === 'future' ? futureFilterContext.employeeId : selectedEmployeeId })}>
                         {Icons.plus} Create Shift
                     </button>
