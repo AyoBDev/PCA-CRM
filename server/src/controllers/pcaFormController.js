@@ -324,7 +324,33 @@ async function updatePcaForm(req, res, next) {
     if (timesheet.status === 'submitted') return res.status(400).json({ error: 'Timesheet already submitted' });
 
     const { action, entries, pcaFullName, pcaSignature, recipientName, recipientSignature } = req.body;
-    const enabledServices = JSON.parse(link.client.enabledServices || '["PAS","Homemaker"]');
+    let enabledServices = JSON.parse(link.client.enabledServices || '["PAS","Homemaker"]');
+
+    // Auto-expand enabledServices from active authorizations (same as GET handler)
+    const weekEnd = new Date(weekStart);
+    weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
+    const wsMs = Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate());
+    const weMs = Date.UTC(weekEnd.getUTCFullYear(), weekEnd.getUTCMonth(), weekEnd.getUTCDate());
+    const allAuths = await prisma.authorization.findMany({
+      where: { clientId: link.clientId },
+      select: { serviceCode: true, serviceName: true, serviceCategory: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true, manualStatus: true, archivedAt: true },
+    });
+    for (const auth of allAuths) {
+      if ((auth.manualStatus || 'active') !== 'active') continue;
+      if (auth.archivedAt) continue;
+      if (auth.authorizationStartDate) {
+        const sd = new Date(auth.authorizationStartDate);
+        if (Date.UTC(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate()) > weMs) continue;
+      }
+      if (auth.authorizationEndDate) {
+        const ed = new Date(auth.authorizationEndDate);
+        if (Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate()) < wsMs) continue;
+      }
+      const service = deriveTimesheetService(auth);
+      if (service && !enabledServices.includes(service)) {
+        enabledServices.push(service);
+      }
+    }
 
     // Validate on submit
     if (action === 'submit') {
