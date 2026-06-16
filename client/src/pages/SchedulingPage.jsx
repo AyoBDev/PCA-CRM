@@ -1594,45 +1594,38 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                             <span>Shift {si + 1}</span>
                                                         </div>
                                                     )}
-                                                    <div className="sched-day-row__field">
-                                                        <label className="sched-day-row__field-label">Service</label>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                            <span style={{ width: 10, height: 10, borderRadius: '50%', background: shColorInfo.color, flexShrink: 0 }} />
-                                                            <select value={edit.serviceCode} onChange={e => updateShiftField(shift.id, 'serviceCode', e.target.value)} className="sched-day-row__input">
-                                                                {Object.entries(SERVICE_COLORS).map(([code, info]) => (
-                                                                    <option key={code} value={code}>{info.label}</option>
-                                                                ))}
-                                                            </select>
-                                                        </div>
+                                                    <div className="sched-day-row__field sched-day-row__field--service">
+                                                        <span className="sched-day-row__dot" style={{ background: shColorInfo.color }} />
+                                                        <select value={edit.serviceCode} onChange={e => updateShiftField(shift.id, 'serviceCode', e.target.value)} className="sched-day-row__input">
+                                                            {Object.entries(SERVICE_COLORS).map(([code, info]) => (
+                                                                <option key={code} value={code}>{info.label}</option>
+                                                            ))}
+                                                        </select>
                                                     </div>
-                                                    <div className="sched-day-row__field">
-                                                        <label className="sched-day-row__field-label">Start</label>
+                                                    <div className="sched-day-row__field sched-day-row__field--time">
                                                         <input type="time" value={edit.startTime} onChange={e => updateShiftField(shift.id, 'startTime', e.target.value)} className="sched-day-row__input" />
                                                     </div>
-                                                    <div className="sched-day-row__field">
-                                                        <label className="sched-day-row__field-label">End</label>
+                                                    <span className="sched-day-row__time-sep">–</span>
+                                                    <div className="sched-day-row__field sched-day-row__field--time">
                                                         <input type="time" value={edit.endTime} onChange={e => updateShiftField(shift.id, 'endTime', e.target.value)} className="sched-day-row__input" />
                                                     </div>
-                                                    <div className="sched-day-row__field">
-                                                        <label className="sched-day-row__field-label">Account</label>
+                                                    <div className="sched-day-row__field sched-day-row__field--account">
                                                         <select value={edit.accountNumber} onChange={e => updateShiftField(shift.id, 'accountNumber', e.target.value)} className="sched-day-row__input">
-                                                            <option value="">—</option>
+                                                            <option value="">Acct</option>
                                                             {ACCOUNT_NUMBER_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
                                                         </select>
                                                     </div>
-                                                    <div className="sched-day-row__field">
-                                                        <label className="sched-day-row__field-label">Employee</label>
+                                                    <div className="sched-day-row__field sched-day-row__field--employee">
                                                         <SearchableSelect
                                                             className="sched-day-row__input"
                                                             options={employees.map(emp => ({ value: emp.id, label: emp.name }))}
                                                             value={edit.employeeId ? Number(edit.employeeId) : ''}
                                                             onChange={v => updateShiftField(shift.id, 'employeeId', v)}
-                                                            placeholder="Select employee…"
+                                                            placeholder="Employee"
                                                         />
                                                     </div>
-                                                    <div className="sched-day-row__field">
-                                                        <label className="sched-day-row__field-label">Client ID</label>
-                                                        <input value={edit.sandataClientId} onChange={e => updateShiftField(shift.id, 'sandataClientId', e.target.value)} className="sched-day-row__input" placeholder="—" />
+                                                    <div className="sched-day-row__field sched-day-row__field--clientid">
+                                                        <input value={edit.sandataClientId} onChange={e => updateShiftField(shift.id, 'sandataClientId', e.target.value)} className="sched-day-row__input" placeholder="Client ID" />
                                                     </div>
                                                     {si === 0 && shiftsByDay.length > 1 && (
                                                         <button type="button" className="sched-day-row__apply" title="Apply this day's settings to all days" onClick={() => applyDayToAll(dateStr)}>
