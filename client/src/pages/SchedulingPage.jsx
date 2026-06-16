@@ -1226,12 +1226,13 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
     const [filterEmployeeId, setFilterEmployeeId] = useState(defaultEmployeeId || '');
 
     // Filtered shifts — empty until user picks a client or employee
+    // When a client is selected, show ALL shifts for that client (employee filter is for reassignment target only)
     const filteredShifts = useMemo(() => {
         if (!filterClientId && !filterEmployeeId) return [];
         return allShifts.filter(s => {
-            if (filterClientId && s.clientId !== Number(filterClientId)) return false;
-            if (filterEmployeeId && (s.employeeId || s.employee?.id) !== Number(filterEmployeeId)) return false;
-            return true;
+            if (filterClientId) return s.clientId === Number(filterClientId);
+            if (filterEmployeeId) return (s.employeeId || s.employee?.id) === Number(filterEmployeeId);
+            return false;
         });
     }, [allShifts, filterClientId, filterEmployeeId]);
 
@@ -1476,12 +1477,23 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                         />
                     </div>
                     <div className="form-group">
-                        <label>Employee</label>
+                        <label>{filterClientId ? 'Reassign to Employee' : 'Filter by Employee'}</label>
                         <SearchableSelect
                             options={employeeOptions}
                             value={filterEmployeeId}
-                            onChange={v => { setFilterEmployeeId(v); }}
-                            placeholder="Search employees…"
+                            onChange={v => {
+                                setFilterEmployeeId(v);
+                                if (filterClientId && v) {
+                                    setEdits(prev => {
+                                        const next = { ...prev };
+                                        for (const s of filteredShifts) {
+                                            if (next[s.id]) next[s.id] = { ...next[s.id], employeeId: v };
+                                        }
+                                        return next;
+                                    });
+                                }
+                            }}
+                            placeholder={filterClientId ? 'Select new employee…' : 'Search employees…'}
                         />
                     </div>
                 </div>
