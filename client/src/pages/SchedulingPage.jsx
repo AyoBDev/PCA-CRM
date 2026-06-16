@@ -1421,14 +1421,8 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
         return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([id, name]) => ({ value: id, label: name }));
     }, [allShifts]);
     const employeeOptions = useMemo(() => {
-        const map = new Map();
-        for (const s of allShifts) {
-            const name = s.displayEmployeeName || s.employee?.name;
-            const id = s.employeeId || s.employee?.id;
-            if (id && name) map.set(id, name);
-        }
-        return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([id, name]) => ({ value: id, label: name }));
-    }, [allShifts]);
+        return employees.map(emp => ({ value: emp.id, label: emp.name }));
+    }, [employees]);
 
     // Authorization table for the selected client
     const selectedClient = useMemo(() => {
