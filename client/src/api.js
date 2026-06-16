@@ -448,8 +448,8 @@ export const deleteAllShifts = () =>
     request('/shifts/all', { method: 'DELETE' });
 export const getClientSchedule = (clientId, weekStart) =>
     request(`/shifts/client/${clientId}${weekStart ? '?weekStart=' + weekStart : ''}`);
-export const getEmployeeSchedule = (employeeId, weekStart) =>
-    request(`/shifts/employee/${employeeId}${weekStart ? '?weekStart=' + weekStart : ''}`);
+export const getEmployeeSchedule = (employeeId, weekStart, { all } = {}) =>
+    request(`/shifts/employee/${employeeId}${all ? '?all=true' : weekStart ? '?weekStart=' + weekStart : ''}`);
 // ── Employees ──
 export const getEmployees = (params = {}, { archived } = {}) => {
     if (archived) params.archived = 'true';

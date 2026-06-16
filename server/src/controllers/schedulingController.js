@@ -854,20 +854,22 @@ async function getClientSchedule(req, res, next) {
 async function getEmployeeSchedule(req, res, next) {
     try {
         const employeeId = Number(req.params.employeeId);
-        const range = getWeekRange(req.query.weekStart || undefined);
+        const allShifts = req.query.all === 'true';
 
         const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
         if (!employee) return res.status(404).json({ error: 'Employee not found' });
 
+        const where = { employeeId, archivedAt: null };
+        if (!allShifts) {
+            const range = getWeekRange(req.query.weekStart || undefined);
+            where.shiftDate = {
+                gte: new Date(range.weekStart + 'T00:00:00.000Z'),
+                lte: new Date(range.weekEnd + 'T23:59:59.999Z'),
+            };
+        }
+
         const shifts = await prisma.shift.findMany({
-            where: {
-                employeeId,
-                archivedAt: null,
-                shiftDate: {
-                    gte: new Date(range.weekStart + 'T00:00:00.000Z'),
-                    lte: new Date(range.weekEnd + 'T23:59:59.999Z'),
-                },
-            },
+            where,
             include: shiftInclude,
             orderBy: [{ shiftDate: 'asc' }, { startTime: 'asc' }],
         });
@@ -875,13 +877,18 @@ async function getEmployeeSchedule(req, res, next) {
         const enriched = shifts.map(enrichShift);
         const overlaps = detectOverlaps(shifts);
 
-        res.json({
+        const response = {
             employee: { id: employee.id, name: employee.name, email: employee.email, phone: employee.phone },
             shifts: enriched,
             overlaps,
-            weekStart: range.weekStart,
-            weekEnd: range.weekEnd,
-        });
+        };
+        if (!allShifts) {
+            const range = getWeekRange(req.query.weekStart || undefined);
+            response.weekStart = range.weekStart;
+            response.weekEnd = range.weekEnd;
+        }
+
+        res.json(response);
     } catch (err) { next(err); }
 }
 

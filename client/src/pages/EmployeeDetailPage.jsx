@@ -239,7 +239,7 @@ export default function EmployeeDetailPage() {
     const fetchShifts = useCallback(async () => {
         try {
             setShiftsLoading(true);
-            const data = await api.getEmployeeSchedule(Number(employeeId));
+            const data = await api.getEmployeeSchedule(Number(employeeId), null, { all: true });
             setShifts(Array.isArray(data) ? data : data.shifts || []);
         } catch (err) { /* ignore */ }
         finally { setShiftsLoading(false); }
@@ -1065,10 +1065,10 @@ function ScheduleTab({ shifts, loading, navigate }) {
         );
     }
 
-    const sortedShifts = [...shifts].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const sortedShifts = [...shifts].sort((a, b) => new Date(a.shiftDate) - new Date(b.shiftDate));
     const today = new Date(new Date().toDateString());
-    const upcoming = sortedShifts.filter(s => new Date(s.date) >= today);
-    const past = sortedShifts.filter(s => new Date(s.date) < today);
+    const upcoming = sortedShifts.filter(s => new Date(s.shiftDate) >= today);
+    const past = sortedShifts.filter(s => new Date(s.shiftDate) < today);
 
     return (
         <div className="cp-tab-panel">
@@ -1094,7 +1094,7 @@ function ScheduleTab({ shifts, loading, navigate }) {
                             <tbody>
                                 {upcoming.slice(0, 20).map(shift => (
                                     <tr key={shift.id}>
-                                        <td style={{ fontWeight: 500 }}>{formatDate(shift.date)}</td>
+                                        <td style={{ fontWeight: 500 }}>{formatDate(shift.shiftDate)}</td>
                                         <td>{shift.client?.clientName || '—'}</td>
                                         <td><span className="ts-badge ts-badge--draft">{shift.serviceCode || '—'}</span></td>
                                         <td>{hhmm12(shift.startTime)} – {hhmm12(shift.endTime)}</td>
@@ -1131,7 +1131,7 @@ function ScheduleTab({ shifts, loading, navigate }) {
                             <tbody>
                                 {past.slice(-10).reverse().map(shift => (
                                     <tr key={shift.id}>
-                                        <td>{formatDate(shift.date)}</td>
+                                        <td>{formatDate(shift.shiftDate)}</td>
                                         <td>{shift.client?.clientName || '—'}</td>
                                         <td><span className="ts-badge ts-badge--draft">{shift.serviceCode || '—'}</span></td>
                                         <td>{hhmm12(shift.startTime)} – {hhmm12(shift.endTime)}</td>
