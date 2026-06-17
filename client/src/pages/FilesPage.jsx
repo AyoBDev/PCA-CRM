@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import Modal from '../components/common/Modal';
@@ -9,6 +10,7 @@ import { useToast } from '../hooks/useToast';
 import * as api from '../api';
 
 export default function FilesPage() {
+    const navigate = useNavigate();
     const undoState = useUndoStack();
     const { showToast } = useToast();
     const [currentFolder, setCurrentFolder] = useState(null);
@@ -408,6 +410,18 @@ export default function FilesPage() {
                                 </div>
                             )}
                             <div className="files-page__item-actions">
+                                {!item.isDirectory && item.mimeType === 'application/pdf' && (
+                                    <button
+                                        className="btn--icon"
+                                        title="Edit PDF"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            navigate(`/files/edit/${item.id}`);
+                                        }}
+                                    >
+                                        {Icons.edit}
+                                    </button>
+                                )}
                                 {!item.isDirectory && (
                                     <button
                                         className="btn--icon"
