@@ -1062,7 +1062,7 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
             oldValues: {
                 startTime: s.startTime, endTime: s.endTime,
                 serviceCode: s.serviceCode, accountNumber: s.accountNumber,
-                sandataClientId: s.sandataClientId,
+                sandataClientId: s.sandataClientId, employeeId: s.employeeId,
                 hours: s.hours, units: s.units,
             }
         }));
@@ -1089,7 +1089,7 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
                     oldValues: {
                         startTime: s.startTime, endTime: s.endTime,
                         serviceCode: s.serviceCode, accountNumber: s.accountNumber,
-                        sandataClientId: s.sandataClientId,
+                        sandataClientId: s.sandataClientId, employeeId: s.employeeId,
                         hours: s.hours, units: s.units,
                     }
                 }));
@@ -1118,7 +1118,14 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
             if (updates.serviceCode !== undefined) data.serviceCode = updates.serviceCode;
             if (updates.accountNumber !== undefined) data.accountNumber = updates.accountNumber;
             if (updates.sandataClientId !== undefined) data.sandataClientId = updates.sandataClientId;
-            if (updates.employeeId !== undefined) data.employeeId = Number(updates.employeeId);
+            if (updates.employeeId !== undefined) {
+                const empId = updates.employeeId ? Number(updates.employeeId) : null;
+                if (empId) {
+                    const empExists = await prisma.employee.findUnique({ where: { id: empId }, select: { id: true } });
+                    if (!empExists) { errors.push({ id: existing.id, error: 'Employee not found' }); continue; }
+                }
+                data.employeeId = empId;
+            }
 
             if (updates.accountNumber && !VALID_ACCOUNT_NUMBERS.includes(updates.accountNumber)) {
                 errors.push({ id: existing.id, error: 'Invalid account number' });
@@ -1184,6 +1191,7 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
                 if (match.updates.serviceCode) data.serviceCode = match.updates.serviceCode;
                 if (match.updates.accountNumber !== undefined) data.accountNumber = match.updates.accountNumber;
                 if (match.updates.sandataClientId !== undefined) data.sandataClientId = match.updates.sandataClientId;
+                if (match.updates.employeeId !== undefined) data.employeeId = match.updates.employeeId ? Number(match.updates.employeeId) : null;
 
                 if (Object.keys(data).length === 0) continue;
 

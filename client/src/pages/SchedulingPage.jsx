@@ -1287,7 +1287,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                 endTime: s.endTime || '13:00',
                 accountNumber: s.accountNumber || '',
                 sandataClientId: s.sandataClientId || '',
-                employeeId: s.employeeId || '',
+                employeeId: s.employeeId ? String(s.employeeId) : '',
             };
         }
         return map;
@@ -1334,7 +1334,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
         setEdits(prev => {
             const next = { ...prev };
             for (const s of selectedShifts) {
-                next[s.id] = { ...next[s.id], serviceCode: sourceEdit.serviceCode, startTime: sourceEdit.startTime, endTime: sourceEdit.endTime, accountNumber: sourceEdit.accountNumber, sandataClientId: sourceEdit.sandataClientId };
+                next[s.id] = { ...next[s.id], serviceCode: sourceEdit.serviceCode, startTime: sourceEdit.startTime, endTime: sourceEdit.endTime, accountNumber: sourceEdit.accountNumber, sandataClientId: sourceEdit.sandataClientId, employeeId: sourceEdit.employeeId };
             }
             return next;
         });
@@ -1413,7 +1413,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
             if (Object.keys(updates).length > 0) perShiftUpdates[s.id] = updates;
         }
         if (Object.keys(perShiftUpdates).length === 0) return;
-        onSave(perShiftUpdates, false); // Don't use applyToFuture anymore, we're passing explicit IDs
+        onSave(perShiftUpdates, applyToFuture && hasRecurringShifts);
     };
 
     // Client/employee options for SearchableSelect
