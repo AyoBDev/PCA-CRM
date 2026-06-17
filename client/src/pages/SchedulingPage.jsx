@@ -1387,7 +1387,8 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
             e.startTime !== (s.startTime || '09:00') ||
             e.endTime !== (s.endTime || '13:00') ||
             e.accountNumber !== (s.accountNumber || '') ||
-            e.sandataClientId !== (s.sandataClientId || '');
+            e.sandataClientId !== (s.sandataClientId || '') ||
+            String(e.employeeId) !== String(s.employeeId || '');
     });
 
     const hasRecurringShifts = selectedShifts.some(s => s.recurringGroupId);
