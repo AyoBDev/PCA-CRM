@@ -152,7 +152,7 @@ const { uploadDocument, downloadDocument, deleteDocument } = require('../control
 const { uploadAuthDocument, downloadAuthDocument, deleteAuthDocument } = require('../controllers/authDocumentController');
 const {
     listFolders, getFolder, createFolder, updateFolder, deleteFolder,
-    uploadFile, downloadFile, updateFile, deleteFile, copyFile, searchFiles, exportFiles,
+    uploadFile, downloadFile, replaceFile, updateFile, deleteFile, copyFile, searchFiles, exportFiles,
 } = require('../controllers/fileManagerController');
 const { listActivities, createActivity, deleteActivity } = require('../controllers/activityController');
 const { listTasks, getTask, createTask, updateTask, deleteTask, bulkUpdateTasks, getTaskSummary } = require('../controllers/taskController');
@@ -268,6 +268,7 @@ router.patch('/files/folders/:id', requireRole('admin'), updateFolder);
 router.delete('/files/folders/:id', requireRole('admin'), deleteFolder);
 router.post('/files/upload', requireRole('admin'), uploadLarge.single('file'), uploadFile);
 router.get('/files/:id/download', requireRole('admin'), downloadFile);
+router.put('/files/:id', requireRole('admin'), uploadLarge.single('file'), replaceFile);
 router.patch('/files/:id', requireRole('admin'), updateFile);
 router.delete('/files/:id', requireRole('admin'), deleteFile);
 router.post('/files/copy', requireRole('admin'), copyFile);

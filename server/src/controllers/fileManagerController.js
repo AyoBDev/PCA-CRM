@@ -228,6 +228,34 @@ async function downloadFile(req, res, next) {
     } catch (err) { next(err); }
 }
 
+// PUT /api/files/:id (replace file content)
+async function replaceFile(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const file = await prisma.adminFile.findUnique({ where: { id } });
+        if (!file) return res.status(404).json({ error: 'File not found' });
+
+        if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+        await storage.upload(file.storageKey, req.file.buffer, file.mimeType || 'application/octet-stream');
+
+        const oldSize = file.fileSize;
+        await prisma.adminFile.update({
+            where: { id },
+            data: { fileSize: req.file.size },
+        });
+
+        audit.logAction({
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            action: 'UPDATE', entityType: 'AdminFile', entityId: id,
+            entityName: file.name,
+            changes: [{ field: 'fileSize', oldValue: oldSize, newValue: req.file.size }],
+        });
+
+        res.json({ success: true, fileSize: req.file.size });
+    } catch (err) { next(err); }
+}
+
 // PATCH /api/files/:id
 async function updateFile(req, res, next) {
     try {
@@ -391,6 +419,7 @@ module.exports = {
     deleteFolder,
     uploadFile,
     downloadFile,
+    replaceFile,
     updateFile,
     deleteFile,
     copyFile,
