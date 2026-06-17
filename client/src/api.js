@@ -708,6 +708,15 @@ export async function uploadAdminFile(folderId, file) {
     if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error || `HTTP ${res.status}`); }
     return res.json();
 }
+export async function replaceAdminFile(id, blob) {
+    const form = new FormData();
+    form.append('file', blob);
+    const headers = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    const res = await fetch(`${BASE}/files/${id}`, { method: 'PUT', headers, body: form });
+    if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error || `HTTP ${res.status}`); }
+    return res.json();
+}
 export function downloadAdminFile(id) {
     return `${BASE}/files/${id}/download`;
 }
