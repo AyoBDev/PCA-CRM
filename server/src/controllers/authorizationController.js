@@ -114,7 +114,9 @@ async function updateAuthorization(req, res, next) {
             },
         });
 
-        if (req.body.serviceCode !== oldAuth.serviceCode || (auth.manualStatus === 'active' && oldAuth.manualStatus !== 'active')) {
+        const serviceNameChanged = MULTI_AUTH_CODES.includes(auth.serviceCode) &&
+            (auth.serviceName || '') !== (oldAuth.serviceName || '');
+        if (req.body.serviceCode !== oldAuth.serviceCode || serviceNameChanged || (auth.manualStatus === 'active' && (oldAuth.manualStatus || 'active') !== 'active')) {
             await deactivatePreviousAuths(auth.clientId, auth.serviceCode, auth.serviceName || '', auth.id, {
                 userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             });
@@ -309,6 +311,10 @@ async function renewAuthorization(req, res, next) {
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Authorization', entityId: newAuth.id, entityName: `${req.body.serviceCode} (renewal)`, metadata: { renewedFromId: oldId } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: oldId, entityName: oldAuth.serviceCode, changes: [{ field: 'manualStatus', oldValue: oldAuth.manualStatus, newValue: 'inactive' }], metadata: { reason: 'renewed' } });
 
+        await deactivatePreviousAuths(clientId, newAuth.serviceCode, (req.body.serviceName || '').trim(), newAuth.id, {
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+        });
+
         res.status(201).json(enrichAuthorization(newAuth));
     } catch (err) {
         next(err);
@@ -326,7 +332,9 @@ async function dedupAuthorizations(req, res, next) {
 
         const groups = {};
         for (const a of auths) {
-            const key = `${a.clientId}|${a.serviceCode}`;
+            const key = MULTI_AUTH_CODES.includes(a.serviceCode)
+                ? `${a.clientId}|${a.serviceCode}|${a.serviceName || ''}`
+                : `${a.clientId}|${a.serviceCode}`;
             if (!groups[key]) groups[key] = [];
             groups[key].push(a);
         }

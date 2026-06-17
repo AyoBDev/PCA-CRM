@@ -210,9 +210,13 @@ function filterAuthsByWeek(auths, weekStart, weekEnd) {
   });
 
   // When multiple active auths exist for the same service code, use the oldest
+  // Program codes (COPE, PAS) can have multiple active auths with different service names
+  const MULTI_AUTH_CODES = ['COPE', 'PAS'];
   const byCode = new Map();
   for (const auth of dateFiltered) {
-    const code = auth.serviceCode || '';
+    const code = MULTI_AUTH_CODES.includes(auth.serviceCode || '')
+        ? `${auth.serviceCode}|${auth.serviceName || ''}`
+        : auth.serviceCode || '';
     if (!byCode.has(code)) byCode.set(code, []);
     byCode.get(code).push(auth);
   }
