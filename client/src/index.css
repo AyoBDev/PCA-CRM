@@ -13217,6 +13217,9 @@ tr:hover .auth-note-icon--empty {
     transition: background 0.15s, border-color 0.15s;
 }
 
+.pdf-toolbar__tool svg { width: 16px; height: 16px; }
+.pdf-toolbar__btn svg { width: 16px; height: 16px; }
+
 .pdf-toolbar__tool:hover { background: hsl(var(--muted)); }
 .pdf-toolbar__tool--active {
     background: hsl(var(--primary) / 0.1);
