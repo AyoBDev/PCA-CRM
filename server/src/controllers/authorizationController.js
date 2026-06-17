@@ -13,16 +13,22 @@ function validateBody(body) {
     return errors;
 }
 
-async function deactivatePreviousAuths(clientId, serviceCode, excludeId, auditContext) {
-    const existing = await prisma.authorization.findMany({
-        where: {
-            clientId,
-            serviceCode,
-            manualStatus: 'active',
-            archivedAt: null,
-            id: { not: excludeId },
-        },
-    });
+// Program codes that allow multiple active authorizations (different services under same program)
+const MULTI_AUTH_CODES = ['COPE', 'PAS'];
+
+async function deactivatePreviousAuths(clientId, serviceCode, serviceName, excludeId, auditContext) {
+    // Program codes allow multiple active auths with different service names
+    const where = {
+        clientId,
+        serviceCode,
+        manualStatus: 'active',
+        archivedAt: null,
+        id: { not: excludeId },
+    };
+    if (MULTI_AUTH_CODES.includes(serviceCode) && serviceName) {
+        where.serviceName = serviceName;
+    }
+    const existing = await prisma.authorization.findMany({ where });
     if (existing.length === 0) return;
     await prisma.authorization.updateMany({
         where: { id: { in: existing.map(a => a.id) } },
@@ -71,7 +77,7 @@ async function createAuthorization(req, res, next) {
         });
 
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Authorization', entityId: auth.id, entityName: `${client.clientName} - ${auth.serviceCode}` });
-        await deactivatePreviousAuths(clientId, req.body.serviceCode, auth.id, {
+        await deactivatePreviousAuths(clientId, req.body.serviceCode, (req.body.serviceName || '').trim(), auth.id, {
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
         });
         res.status(201).json(enrichAuthorization(auth));
@@ -109,7 +115,7 @@ async function updateAuthorization(req, res, next) {
         });
 
         if (req.body.serviceCode !== oldAuth.serviceCode || (auth.manualStatus === 'active' && oldAuth.manualStatus !== 'active')) {
-            await deactivatePreviousAuths(auth.clientId, auth.serviceCode, auth.id, {
+            await deactivatePreviousAuths(auth.clientId, auth.serviceCode, auth.serviceName || '', auth.id, {
                 userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             });
         }
@@ -160,7 +166,7 @@ async function restoreAuthorization(req, res, next) {
         });
 
         if ((restored.manualStatus || 'active') === 'active') {
-            await deactivatePreviousAuths(restored.clientId, restored.serviceCode, restored.id, {
+            await deactivatePreviousAuths(restored.clientId, restored.serviceCode, restored.serviceName || '', restored.id, {
                 userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             });
         }
@@ -251,7 +257,7 @@ async function updateAuthManualStatus(req, res, next) {
         });
 
         if (manualStatus === 'active') {
-            await deactivatePreviousAuths(oldAuth.clientId, auth.serviceCode, auth.id, {
+            await deactivatePreviousAuths(oldAuth.clientId, auth.serviceCode, auth.serviceName || '', auth.id, {
                 userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             });
         }
