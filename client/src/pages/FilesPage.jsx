@@ -416,7 +416,8 @@ export default function FilesPage() {
                                         title="Edit PDF"
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            navigate(`/files/edit/${item.id}`);
+                                            navigate(`/files/edit/${item.id}?folder=${currentFolder?.id || ''}`);
+
                                         }}
                                     >
                                         {Icons.edit}

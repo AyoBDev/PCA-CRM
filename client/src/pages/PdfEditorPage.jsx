@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import * as pdfjsLib from 'pdfjs-dist';
 import PdfToolbar from '../components/pdf/PdfToolbar';
 import PdfPageCanvas from '../components/pdf/PdfPageCanvas';
@@ -15,14 +15,15 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 
 export default function PdfEditorPage() {
     const { fileId } = useParams();
+    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const { showToast } = useToast();
+    const folderId = searchParams.get('folder') || null;
 
     const [pdfDoc, setPdfDoc] = useState(null);
     const [pages, setPages] = useState([]);
     const [pdfBytes, setPdfBytes] = useState(null);
     const [fileName, setFileName] = useState('');
-    const [folderId, setFolderId] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -151,11 +152,8 @@ export default function PdfEditorPage() {
             }
             const blob = new File([modified], newName, { type: 'application/pdf' });
 
-            const folderRes = await api.getFolder(folderId || undefined);
-            const targetFolderId = folderRes?.id || folderId;
-            if (targetFolderId) {
-                await api.uploadAdminFile(targetFolderId, blob);
-            }
+            if (!folderId) throw new Error('Cannot determine target folder');
+            await api.uploadAdminFile(folderId, blob);
 
             setAnnotations([]);
             setUndoStack([]);

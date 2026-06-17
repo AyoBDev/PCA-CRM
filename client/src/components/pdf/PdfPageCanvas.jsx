@@ -27,13 +27,14 @@ export default function PdfPageCanvas({
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas || !pdfPage) return;
+        const vp = pdfPage.getViewport({ scale: zoom });
         const ctx = canvas.getContext('2d');
-        canvas.width = width;
-        canvas.height = height;
-        const renderTask = pdfPage.render({ canvasContext: ctx, viewport });
+        canvas.width = vp.width;
+        canvas.height = vp.height;
+        const renderTask = pdfPage.render({ canvasContext: ctx, viewport: vp });
         renderTask.promise.then(() => setRendered(true)).catch(() => {});
         return () => renderTask.cancel();
-    }, [pdfPage, zoom, width, height, viewport]);
+    }, [pdfPage, zoom]);
 
     const getSvgCoords = useCallback((e) => {
         const svg = e.currentTarget;

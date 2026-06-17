@@ -19,13 +19,15 @@ export async function flattenAnnotations(pdfBytes, annotations, scale) {
 
         switch (ann.type) {
             case 'text':
-                page.drawText(ann.content, {
-                    x: ann.x * s,
-                    y: height - (ann.y * s) - (ann.fontSize * s),
-                    size: ann.fontSize * s,
-                    font,
-                    color: parseColor(ann.color),
-                });
+                if (ann.content) {
+                    page.drawText(ann.content, {
+                        x: ann.x * s,
+                        y: height - (ann.y * s) - (ann.fontSize * s),
+                        size: ann.fontSize * s,
+                        font,
+                        color: parseColor(ann.color),
+                    });
+                }
                 break;
             case 'drawing':
                 for (let i = 1; i < ann.points.length; i++) {
