@@ -13139,3 +13139,155 @@ tr:hover .auth-note-icon--empty {
     color: hsl(var(--foreground));
     background: hsl(var(--muted) / 0.5);
 }
+
+/* ===== PDF Editor ===== */
+.pdf-editor {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 60px);
+    background: hsl(var(--muted));
+}
+
+.pdf-editor__loading,
+.pdf-editor__error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    font-size: 16px;
+    color: hsl(var(--muted-foreground));
+}
+
+.pdf-editor__error { color: hsl(var(--destructive)); }
+
+.pdf-editor__canvas-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.pdf-page {
+    background: white;
+    box-shadow: 0 2px 8px hsl(0 0% 0% / 0.15);
+    border-radius: 2px;
+}
+
+.pdf-page__overlay { user-select: none; }
+
+.pdf-ann--selected {
+    outline: 2px dashed hsl(var(--primary));
+    outline-offset: 2px;
+}
+
+/* Toolbar */
+.pdf-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: hsl(var(--card));
+    border-bottom: 1px solid hsl(var(--border));
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.pdf-toolbar__left,
+.pdf-toolbar__center,
+.pdf-toolbar__right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.pdf-toolbar__left { flex: 0 0 auto; }
+.pdf-toolbar__center { flex: 1; justify-content: center; }
+.pdf-toolbar__right { flex: 0 0 auto; }
+
+.pdf-toolbar__tool {
+    padding: 6px 10px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    color: hsl(var(--foreground));
+    font-size: 13px;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.pdf-toolbar__tool:hover { background: hsl(var(--muted)); }
+.pdf-toolbar__tool--active {
+    background: hsl(var(--primary) / 0.1);
+    border-color: hsl(var(--primary));
+    color: hsl(var(--primary));
+}
+
+.pdf-toolbar__btn {
+    padding: 4px 8px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    cursor: pointer;
+    color: hsl(var(--foreground));
+    font-size: 14px;
+}
+
+.pdf-toolbar__btn:hover:not(:disabled) { background: hsl(var(--muted)); }
+.pdf-toolbar__btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.pdf-toolbar__separator {
+    width: 1px;
+    height: 20px;
+    background: hsl(var(--border));
+    margin: 0 4px;
+}
+
+.pdf-toolbar__zoom,
+.pdf-toolbar__page {
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+    min-width: 50px;
+    text-align: center;
+}
+
+.pdf-toolbar__save-group {
+    display: flex;
+    gap: 4px;
+}
+
+.pdf-toolbar__options {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding-top: 6px;
+    border-top: 1px solid hsl(var(--border));
+    margin-top: 4px;
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+}
+
+.pdf-toolbar__option {
+    padding: 2px 8px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 4px;
+    background: transparent;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.pdf-toolbar__option--active {
+    background: hsl(var(--primary) / 0.1);
+    border-color: hsl(var(--primary));
+}
+
+.pdf-toolbar__color-swatch {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid hsl(var(--border));
+    cursor: pointer;
+    padding: 0;
+}
