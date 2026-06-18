@@ -155,7 +155,7 @@ export default function PdfPageCanvas({
                 className="pdf-page__overlay"
                 width={width}
                 height={height}
-                style={{ position: 'absolute', top: 0, left: 0, cursor: activeTool === 'draw' ? 'crosshair' : activeTool === 'text' ? 'text' : 'default' }}
+                style={{ position: 'absolute', top: 0, left: 0, zIndex: 1, cursor: activeTool === 'draw' ? 'crosshair' : activeTool === 'text' ? 'text' : 'default', pointerEvents: editingText ? 'none' : 'auto' }}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
@@ -212,8 +212,8 @@ export default function PdfPageCanvas({
 
             {editingAnn && (
                 <input
+                    ref={(el) => { if (el) setTimeout(() => el.focus(), 0); }}
                     type="text"
-                    autoFocus
                     value={editingAnn.content}
                     onChange={handleTextChange}
                     onBlur={handleTextCommit}
@@ -227,6 +227,7 @@ export default function PdfPageCanvas({
                         color: editingAnn.color,
                         fontFamily: 'Helvetica, Arial, sans-serif',
                         minWidth: '200px',
+                        zIndex: 10,
                     }}
                 />
             )}
