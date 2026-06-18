@@ -59,7 +59,7 @@ prisma/
 
 ### Frontend Structure
 Pages are split into individual files under `client/src/pages/`:
-- `DashboardPage.jsx`, `ClientsPage.jsx`, `TimesheetsListPage.jsx`, `PayrollPage.jsx`, `SchedulingPage.jsx`, `EmployeesPage.jsx`, `InsuranceTypesPage.jsx`, `ServicesPage.jsx`, `UsersPage.jsx`, `PcaFormPage.jsx`
+- `DashboardPage.jsx`, `ClientsPage.jsx`, `TimesheetsListPage.jsx`, `PayrollPage.jsx`, `SchedulingPage.jsx`, `EmployeesPage.jsx`, `InsuranceTypesPage.jsx`, `ServicesPage.jsx`, `UsersPage.jsx`, `PcaFormPage.jsx`, `FilesPage.jsx`
 
 Shared components under `client/src/components/`:
 - `common/Icons.jsx` — 25+ inline SVG icon components
@@ -80,7 +80,7 @@ Hooks under `client/src/hooks/`:
 - `useNavigationStack.js` — smart Back button navigation with logical parent fallbacks
 
 Utils under `client/src/utils/`:
-- `constants.js` — **Single source of truth** for all shared constants (AUTH_COLORS, SERVICE_COLORS, SERVICE_CODE_NAMES, SERVICE_CODE_COLORS, activity lists, TIMESHEET_STATUS_STYLES, DAY_NAMES, PAGE_SIZE, SERVICE_CODE_SORT_ORDER, ACTION_COLORS, CERT_COLORS)
+- `constants.js` — **Single source of truth** for all shared constants (AUTH_COLORS, SERVICE_COLORS, SERVICE_CODE_NAMES, SERVICE_CODE_COLORS, activity lists, TIMESHEET_STATUS_STYLES, DAY_NAMES, PAGE_SIZE, SERVICE_CODE_SORT_ORDER, `getAuthSortKey()`, ACTION_COLORS, CERT_COLORS)
 - `serviceCodes.jsx` — `SERVICE_CODE_OPTIONS`, `SERVICE_CATEGORIES`, `SERVICE_NAME_SUGGESTIONS`, `ServiceCodeSelect` component, `deriveServiceCode()` (pattern-match service name → code)
 - `accountMapping.js` — `ACCOUNT_NUMBER_OPTIONS`, `getAccountForCategory()`, `getAccountForServiceCode()`, `CATEGORY_ACCOUNT_MAP`, `SERVICE_CODE_ACCOUNT_MAP`
 - `dates.js` — `fmtDate()`, `formatWeek()`, `formatDate()`, `formatDateTime()`, `getSunday()`, `toLocalDateStr()`, `getWeekRange()`
@@ -115,7 +115,7 @@ Public-facing timesheet form accessed via permanent link (`/pca-form/:token`). F
 
 ### Routing
 **Client-side** (React Router):
-- Route scheme: `/dashboard`, `/timesheets`, `/payroll`, `/payroll/runs/:id`, `/insurance-types`, `/services`, `/users`, `/clients`, `/employees`, `/scheduling`
+- Route scheme: `/dashboard`, `/timesheets`, `/payroll`, `/payroll/runs/:id`, `/insurance-types`, `/services`, `/users`, `/clients`, `/employees`, `/scheduling`, `/files`
 - Public routes: `/login`, `/pca-form/:token`, `/sign/:token`, `/schedule/view/:token`, `/schedule/confirm/:token`, `/forgot-password`, `/reset-password/:token`
 
 **Server**: All API at `/api`. Public: `POST /auth/login`, `GET /sign/:token` (redirects to permanent link), `GET/PUT /pca-form/:token`. Admin-only routes use `requireRole('admin')`.
@@ -191,6 +191,7 @@ When adding a new value (e.g., new service code), update the centralized file an
 | `TIMESHEET_STATUS_STYLES` | EmployeeDetailPage, TimesheetsTab |
 | `DAY_NAMES_SHORT/FULL/UPPER` | SchedulingPage, FutureShiftsView, ScheduleTab, PcaFormPage |
 | `SERVICE_CODE_SORT_ORDER` | PayrollPage (banner + visit sorting) |
+| `getAuthSortKey(code, serviceName)` | AuthorizationsPage, ProgramsAuthTab (sort order: PCS → S5130 → S5125 → waiver → COPE-PCS → COPE-HM) |
 | `ACTION_COLORS` | ActivityDrawer, HistoryPage |
 | `CERT_COLORS` | EmployeeDetailPage certifications |
 | `PAGE_SIZE` | All paginated lists |
@@ -249,7 +250,16 @@ The **Client** and **Authorization** tables are the single source of truth for t
 **Key rules:**
 - When `accountNumber` or `sandataClientId` changes on an Authorization, it propagates to all active Shifts for that client + serviceCode
 - The admin timesheet form auto-expands `enabledServices` from active authorizations (not just the stored client field)
+- The PCA form PUT handler also auto-expands `enabledServices` from authorizations (prevents Respite/Companion data from being zeroed on save)
 - Archiving an authorization logs the count of affected shifts in the audit trail
+
+### Multi-Auth Program Codes (COPE, PAS)
+Program codes (`COPE`, `PAS`) allow **multiple active authorizations** with different `serviceName` values (e.g., COPE/Personal Care Services + COPE/Homemaker). This is enforced at multiple levels:
+- **`deactivatePreviousAuths`** in `authorizationController.js` filters by both `serviceCode` AND `serviceName` for `MULTI_AUTH_CODES`
+- **`filterAuthsByWeek`** in `authorizationService.js` deduplicates by `serviceCode|serviceName` composite key for program codes
+- **`dedupAuthorizations`** groups by `clientId|serviceCode|serviceName` for program codes
+- **Programs tab** (`ProgramsAuthTab.jsx`) renders separate cards per `serviceCode::serviceName`
+- **Client detail badges** use composite keys to show distinct badges (e.g., "COPE - Homemaker", "COPE - Personal Care Services")
 
 ## Data Model
 - **Users** — staff accounts (admin/user/pca roles), `active` boolean, `archivedAt` soft delete
@@ -266,7 +276,9 @@ The **Client** and **Authorization** tables are the single source of truth for t
 - **Shifts** — scheduled shifts with client, employee, service code, date/time
 - **AuditLog** — tracks all CRUD operations with field-level diffs
 - **EmployeeScheduleLink** — per-employee tokens for viewing their schedule
-- **ScheduleNotification** — email/SMS delivery tracking for schedules
+- **ScheduleNotification** — email/SMS delivery tracking for schedules (tracks opened, response)
+- **AdminFolder** — hierarchical folder structure (self-referencing parentId, materialized path)
+- **AdminFile** — file records with `storageKey` pointing to Railway Bucket / local filesystem
 
 All FK relationships use cascade delete. Prisma schema uses `@@map` for snake_case table/column names.
 
@@ -389,9 +401,24 @@ All tables use the `.data-table` class system. **Every new table MUST follow thi
 - **Seed script**: `seed.js` only creates admin if none exists (never overwrites). Uses `ADMIN_EMAIL` and `ADMIN_PASSWORD` env vars with fallback defaults.
 - **Data migration**: `prisma/migrate-data.js` transfers data from SQLite `dev.db` to PostgreSQL (one-time use, requires `better-sqlite3` devDependency)
 
+## Admin File Manager
+
+Full-featured file management system for administrative documents (insurance, eligibility, contracts).
+
+- **Route**: `/files` (admin-only, sidebar footer)
+- **Frontend**: `FilesPage.jsx` — custom grid with breadcrumbs, checkbox multi-select, upload, rename, delete, preview (opens in new tab), download
+- **Backend**: `fileManagerController.js` — CRUD for `AdminFolder` + `AdminFile` models
+- **Storage**: Railway Bucket (S3-compatible via `@aws-sdk/client-s3`). Local dev falls back to `server/uploads/admin-files/` filesystem. Controlled by `storageService.js`.
+- **Env vars**: `AWS_ENDPOINT_URL`, `AWS_S3_BUCKET_NAME`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` (auto-injected by Railway bucket connection)
+- **Default folders**: Insurance/ (Medicaid, UnitedHealth, BCBS, Aetna) and Eligibility/ (Active, Pending, Expired) — seeded on first deploy
+- **Duplicate handling**: Upload conflict modal with "Keep Both" (auto-rename) or "Replace" options
+- **Export**: "Export All Files" in overflow menu — streams all files as zip via `archiver`
+- **Audit**: All operations logged as `entityType: 'AdminFile'`
+
 ## Deployment (Railway)
 - Single service: Express serves the React build from `client/dist`
 - Start command: `prisma migrate deploy` → `seed.js` → `node src/index.js`
+- **Storage Bucket**: Create bucket on Railway canvas → Connect to service → env vars auto-injected
 - Environment variables: `DATABASE_URL` (PostgreSQL), `JWT_SECRET`, `PORT`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `BREVO_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`
 
 ## Service Code System — Cross-Entity Trace
@@ -414,6 +441,8 @@ Service codes are the connective tissue of the app. A change to service codes mu
 | `client/src/utils/constants.js` → `AUTH_COLORS`, `SERVICE_CODE_NAMES` | **Single source** for all frontend display colors/names |
 | `client/src/utils/accountMapping.js` → `SERVICE_CODE_ACCOUNT_MAP` | Service code → account number auto-fill |
 | `server/src/services/payrollService.js` → `SERVICE_CODE_RULES` | Maps EVV service names → codes for payroll |
+| `server/src/controllers/authorizationController.js` → `MULTI_AUTH_CODES` | Program codes allowing multiple active auths (COPE, PAS) |
+| `client/src/utils/constants.js` → `getAuthSortKey()` | **Single source** for auth display sort order across all pages |
 
 ### Entity Relationship Flow
 ```
