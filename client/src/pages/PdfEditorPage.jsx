@@ -57,7 +57,7 @@ export default function PdfEditorPage() {
                 if (!res.ok) throw new Error('Failed to load PDF');
                 const arrayBuffer = await res.arrayBuffer();
                 const bytes = new Uint8Array(arrayBuffer);
-                setPdfBytes(bytes);
+                setPdfBytes(bytes.slice());
 
                 const doc = await pdfjsLib.getDocument({ data: bytes }).promise;
                 setPdfDoc(doc);
