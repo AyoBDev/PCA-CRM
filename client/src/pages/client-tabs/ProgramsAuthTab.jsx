@@ -5,6 +5,15 @@ import { ACCOUNT_NUMBER_OPTIONS } from '../../utils/accountMapping';
 import { AUTH_COLORS, DEFAULT_AUTH_COLOR } from '../../utils/constants';
 
 const LEFT_CODES = ['PCS', 'SDPC', 'COPE', 'PAS'];
+const MULTI_AUTH_CODES = ['COPE', 'PAS'];
+
+function parseGroupKey(code) {
+    if (code.includes('::')) {
+        const [baseCode, serviceName] = code.split('::');
+        return { baseCode, serviceName };
+    }
+    return { baseCode: code, serviceName: null };
+}
 
 const STATUS_SORT_ORDER = { active: 0, pending: 1, inactive: 2 };
 
@@ -95,8 +104,8 @@ export default function ProgramsAuthTab({
     };
 
     const allCodes = Object.keys(authGroupsForInsurance);
-    const leftCodes = LEFT_CODES.filter(c => allCodes.includes(c));
-    const rightCodes = allCodes.filter(c => !LEFT_CODES.includes(c));
+    const leftCodes = allCodes.filter(c => LEFT_CODES.includes(parseGroupKey(c).baseCode));
+    const rightCodes = allCodes.filter(c => !LEFT_CODES.includes(parseGroupKey(c).baseCode));
 
     let totalActive = 0, totalUnits = 0;
     Object.values(authGroupsForInsurance).forEach(({ current }) => {
@@ -141,7 +150,9 @@ export default function ProgramsAuthTab({
 
     function renderServiceCard(code) {
         const { current, archived } = authGroupsForInsurance[code];
-        const colors = AUTH_COLORS[code] || DEFAULT_AUTH_COLOR;
+        const { baseCode, serviceName: groupServiceName } = parseGroupKey(code);
+        const colors = AUTH_COLORS[baseCode] || DEFAULT_AUTH_COLOR;
+        const displayLabel = groupServiceName ? `${baseCode} - ${groupServiceName}` : colors.label;
         const allAuths = [...current, ...archived];
         const filteredAuths = sortAuths(filterAuths(allAuths));
         const activeAuths = current.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt);
@@ -159,7 +170,7 @@ export default function ProgramsAuthTab({
                         {Icons[colors.icon]}
                     </div>
                     <div className="pa-service-card__title-area">
-                        <h4 className="pa-service-card__title">{colors.label}</h4>
+                        <h4 className="pa-service-card__title">{displayLabel}</h4>
                         {latestAuth?.authorizationNumber && <span className="pa-badge pa-badge--auth-num">#{latestAuth.authorizationNumber}</span>}
                         {activeAuths.length > 0 && <span className="pa-badge pa-badge--active">Active</span>}
                     </div>
@@ -209,7 +220,7 @@ export default function ProgramsAuthTab({
                 </div>
 
                 <div className="pa-service-card__footer">
-                    <button className="btn btn--outline btn--sm" onClick={() => navigate(`/clients/${clientId}/service/${code}`)}>{Icons.externalLink} Open</button>
+                    <button className="btn btn--outline btn--sm" onClick={() => navigate(`/clients/${clientId}/service/${encodeURIComponent(code)}`)}>{Icons.externalLink} Open</button>
                     <button
                         className="btn btn--outline btn--sm pa-btn--view-details"
                         style={{ color: colors.accent, borderColor: colors.accent }}

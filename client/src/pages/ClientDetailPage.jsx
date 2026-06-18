@@ -647,10 +647,15 @@ export default function ClientDetailPage() {
     ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     // For insurance tab: split auths into current vs archived per service group
+    // Program codes (COPE, PAS) use serviceCode + serviceName as key to show distinct cards
+    const MULTI_AUTH_CODES = ['COPE', 'PAS'];
     const authGroupsForInsurance = {};
     (client.authorizations || []).forEach(a => {
         let key = a.serviceCode || a.serviceCategory || 'Other';
         if (key === 'TIMESHEETS') key = 'TIMESHEET_PCS';
+        if (MULTI_AUTH_CODES.includes(key) && a.serviceName) {
+            key = `${key}::${a.serviceName}`;
+        }
         if (!authGroupsForInsurance[key]) authGroupsForInsurance[key] = { current: [], archived: [] };
         if (a.archivedAt) {
             authGroupsForInsurance[key].archived.push(a);
