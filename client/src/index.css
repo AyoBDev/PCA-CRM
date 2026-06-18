@@ -13177,6 +13177,15 @@ tr:hover .auth-note-icon--empty {
 
 .pdf-page__overlay { user-select: none; }
 
+.pdf-text-input {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px dashed hsl(var(--primary));
+    outline: none;
+    padding: 2px 4px;
+    border-radius: 2px;
+    z-index: 5;
+}
+
 .pdf-ann--selected {
     outline: 2px dashed hsl(var(--primary));
     outline-offset: 2px;

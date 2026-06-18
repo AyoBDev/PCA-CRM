@@ -16,10 +16,11 @@ export default function PdfPageCanvas({
     onMoveStart,
 }) {
     const canvasRef = useRef(null);
+    const containerRef = useRef(null);
     const [rendered, setRendered] = useState(false);
     const [drawing, setDrawing] = useState(false);
     const [dragStart, setDragStart] = useState(null);
-    const [activeTextId, setActiveTextId] = useState(null);
+    const [editingText, setEditingText] = useState(null);
 
     const viewport = pdfPage.getViewport({ scale: zoom });
     const width = viewport.width;
@@ -44,6 +45,7 @@ export default function PdfPageCanvas({
     }, []);
 
     const handleMouseDown = useCallback((e) => {
+        if (editingText) return;
         const { x, y } = getSvgCoords(e);
 
         if (activeTool === 'select') {
@@ -51,6 +53,10 @@ export default function PdfPageCanvas({
             const hit = [...pageAnns].reverse().find(a => hitTest(a, x, y));
             onAnnotationSelect(hit ? hit.id : null);
             if (hit) {
+                if (hit.type === 'text') {
+                    setEditingText(hit.id);
+                    return;
+                }
                 if (onMoveStart) onMoveStart();
                 setDragStart({ x, y, annX: hit.x, annY: hit.y, id: hit.id });
             }
@@ -67,7 +73,7 @@ export default function PdfPageCanvas({
         if (activeTool === 'text') {
             const ann = createTextAnnotation(pageIndex, x, y, toolOptions.fontSize, toolOptions.color);
             onAnnotationAdd(ann);
-            setActiveTextId(ann.id);
+            setEditingText(ann.id);
             return;
         }
 
@@ -84,7 +90,7 @@ export default function PdfPageCanvas({
             setDragStart({ x, y, id: ann.id });
             return;
         }
-    }, [activeTool, toolOptions, annotations, pageIndex, getSvgCoords, onAnnotationAdd, onAnnotationSelect, onAnnotationDelete, onMoveStart]);
+    }, [activeTool, toolOptions, annotations, pageIndex, getSvgCoords, onAnnotationAdd, onAnnotationSelect, onAnnotationDelete, onMoveStart, editingText]);
 
     const handleMouseMove = useCallback((e) => {
         const { x, y } = getSvgCoords(e);
@@ -128,21 +134,22 @@ export default function PdfPageCanvas({
         setDragStart(null);
     }, []);
 
-    const handleTextInput = useCallback((e, annId) => {
-        const ann = annotations.find(a => a.id === annId);
+    const handleTextChange = useCallback((e) => {
+        const ann = annotations.find(a => a.id === editingText);
         if (ann) {
             onAnnotationUpdate({ ...ann, content: e.target.value });
         }
-    }, [annotations, onAnnotationUpdate]);
+    }, [annotations, editingText, onAnnotationUpdate]);
 
-    const handleTextBlur = useCallback(() => {
-        setActiveTextId(null);
+    const handleTextCommit = useCallback(() => {
+        setEditingText(null);
     }, []);
 
     const pageAnnotations = annotations.filter(a => a.page === pageIndex);
+    const editingAnn = editingText ? annotations.find(a => a.id === editingText) : null;
 
     return (
-        <div className="pdf-page" style={{ position: 'relative', width, height, margin: '8px auto' }}>
+        <div ref={containerRef} className="pdf-page" style={{ position: 'relative', width, height, margin: '8px auto' }}>
             <canvas ref={canvasRef} style={{ display: 'block', width, height }} />
             <svg
                 className="pdf-page__overlay"
@@ -184,60 +191,45 @@ export default function PdfPageCanvas({
                             />
                         );
                     }
-                    if (ann.type === 'text') {
+                    if (ann.type === 'text' && ann.id !== editingText) {
                         return (
-                            <foreignObject
+                            <text
                                 key={ann.id}
                                 x={ann.x}
-                                y={ann.y}
-                                width={Math.max(250, ann.content.length * ann.fontSize * 0.6 + 40)}
-                                height={ann.fontSize * 2}
+                                y={ann.y + ann.fontSize}
+                                fontSize={ann.fontSize}
+                                fill={ann.color}
+                                fontFamily="Helvetica, Arial, sans-serif"
                                 className={selectedId === ann.id ? 'pdf-ann--selected' : ''}
                             >
-                                <div xmlns="http://www.w3.org/1999/xhtml" style={{ width: '100%', height: '100%' }} onMouseDown={(e) => e.stopPropagation()}>
-                                    {activeTextId === ann.id ? (
-                                        <input
-                                            type="text"
-                                            autoFocus
-                                            value={ann.content}
-                                            onChange={(e) => handleTextInput(e, ann.id)}
-                                            onBlur={handleTextBlur}
-                                            onKeyDown={(e) => { if (e.key === 'Enter') handleTextBlur(); }}
-                                            style={{
-                                                fontSize: ann.fontSize,
-                                                color: ann.color,
-                                                background: 'rgba(255,255,255,0.8)',
-                                                border: '1px dashed hsl(215 20% 50%)',
-                                                outline: 'none',
-                                                width: '100%',
-                                                fontFamily: 'Helvetica, Arial, sans-serif',
-                                                padding: '2px 4px',
-                                                borderRadius: '2px',
-                                                boxSizing: 'border-box',
-                                            }}
-                                        />
-                                    ) : (
-                                        <span
-                                            onClick={() => { if (activeTool === 'select') setActiveTextId(ann.id); }}
-                                            style={{
-                                                fontSize: ann.fontSize,
-                                                color: ann.color,
-                                                fontFamily: 'Helvetica, Arial, sans-serif',
-                                                cursor: 'text',
-                                                display: 'block',
-                                                padding: '2px 4px',
-                                            }}
-                                        >
-                                            {ann.content || ' '}
-                                        </span>
-                                    )}
-                                </div>
-                            </foreignObject>
+                                {ann.content || ' '}
+                            </text>
                         );
                     }
                     return null;
                 })}
             </svg>
+
+            {editingAnn && (
+                <input
+                    type="text"
+                    autoFocus
+                    value={editingAnn.content}
+                    onChange={handleTextChange}
+                    onBlur={handleTextCommit}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleTextCommit(); if (e.key === 'Escape') handleTextCommit(); }}
+                    className="pdf-text-input"
+                    style={{
+                        position: 'absolute',
+                        left: editingAnn.x,
+                        top: editingAnn.y,
+                        fontSize: editingAnn.fontSize,
+                        color: editingAnn.color,
+                        fontFamily: 'Helvetica, Arial, sans-serif',
+                        minWidth: '200px',
+                    }}
+                />
+            )}
         </div>
     );
 }
