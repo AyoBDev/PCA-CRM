@@ -417,10 +417,9 @@ export default function FilesPage() {
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             navigate(`/files/edit/${item.id}?folder=${currentFolder?.id || ''}`);
-
                                         }}
                                     >
-                                        {Icons.edit}
+                                        {Icons.pen}
                                     </button>
                                 )}
                                 {!item.isDirectory && (

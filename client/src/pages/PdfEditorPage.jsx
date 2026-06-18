@@ -184,7 +184,7 @@ export default function PdfEditorPage() {
         if (hasChanges) {
             setConfirmClose(true);
         } else {
-            navigate('/files');
+            navigate(-1);
         }
     }, [hasChanges, navigate]);
 
@@ -258,7 +258,7 @@ export default function PdfEditorPage() {
                     title="Unsaved changes"
                     message="You have unsaved annotations. Discard changes and close?"
                     confirmLabel="Discard"
-                    onConfirm={() => navigate('/files')}
+                    onConfirm={() => navigate(-1)}
                     onCancel={() => setConfirmClose(false)}
                 />
             )}
