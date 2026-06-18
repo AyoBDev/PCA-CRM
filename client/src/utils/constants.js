@@ -86,9 +86,22 @@ export const DAY_NAMES_UPPER = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 
 export const PAGE_SIZE = 25;
 
-// ─── Service Code Sort Order (payroll banner, scheduling) ───
+// ─── Service Code Sort Order (payroll banner, scheduling, auth pages) ───
 
-export const SERVICE_CODE_SORT_ORDER = { PCS: 0, S5125: 1, S5130: 1, S5150: 2, S5135: 3, SDPC: 4 };
+export const SERVICE_CODE_SORT_ORDER = { PCS: 0, S5130: 1, S5125: 2, S5150: 3, S5135: 4, SDPC: 5, S5120: 6 };
+
+// COPE/PAS program codes sort after waiver codes; sub-sorted by service name
+export function getAuthSortKey(code, serviceName) {
+    const MULTI_AUTH_CODES = ['COPE', 'PAS'];
+    const baseCode = code && code.includes('::') ? code.split('::')[0] : code;
+    if (MULTI_AUTH_CODES.includes(baseCode)) {
+        const sn = (serviceName || '').toLowerCase();
+        if (sn.includes('personal care')) return 100;
+        if (sn.includes('homemaker')) return 101;
+        return 99;
+    }
+    return SERVICE_CODE_SORT_ORDER[baseCode] ?? 50;
+}
 
 // ─── Action Colors (audit log, activity drawer) ───
 

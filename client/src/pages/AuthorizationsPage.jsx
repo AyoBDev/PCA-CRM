@@ -10,7 +10,7 @@ import { fmtDate, daysClass } from '../utils/dates';
 import { statusLabel } from '../utils/status';
 import { getAccountForCategory, getAccountForServiceCode, ACCOUNT_NUMBER_OPTIONS } from '../utils/accountMapping';
 import { ServiceCodeSelect, SERVICE_CATEGORIES, SERVICE_NAME_SUGGESTIONS } from '../utils/serviceCodes';
-import { SERVICE_CODE_COLORS, SERVICE_CODE_NAMES } from '../utils/constants';
+import { SERVICE_CODE_COLORS, SERVICE_CODE_NAMES, getAuthSortKey } from '../utils/constants';
 import AutocompleteInput from '../components/common/AutocompleteInput';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
@@ -215,24 +215,8 @@ function getServiceName(auth) {
     return auth.serviceName || SERVICE_CODE_NAMES[auth.serviceCode] || '';
 }
 
-// Sort order for authorizations: PCS first, then Homemaker (S5130), Attendant (S5125),
-// other waiver services, then COPE Personal Care, then COPE Homemaker.
-const AUTH_SORT_ORDER = { PCS: 0, S5130: 1, S5125: 2, S5150: 3, S5135: 4, SDPC: 5, S5120: 6 };
-const COPE_SERVICE_SORT = { 'personal care services': 100, 'homemaker': 101 };
-
-function getAuthSortKey(auth) {
-    const code = auth.serviceCode || '';
-    if (code === 'COPE' || code === 'PAS') {
-        const name = (auth.serviceName || '').toLowerCase();
-        if (COPE_SERVICE_SORT[name] != null) return COPE_SERVICE_SORT[name];
-        // Other COPE/PAS services go between waiver and known COPE subtypes
-        return 99;
-    }
-    return AUTH_SORT_ORDER[code] ?? 50;
-}
-
 function sortAuthorizations(auths) {
-    return [...auths].sort((a, b) => getAuthSortKey(a) - getAuthSortKey(b));
+    return [...auths].sort((a, b) => getAuthSortKey(a.serviceCode, a.serviceName) - getAuthSortKey(b.serviceCode, b.serviceName));
 }
 
 function AuthFormModal({ auth, clientId, onSave, onClose, onRenewal, isRenewal }) {

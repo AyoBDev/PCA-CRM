@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import Icons from '../../components/common/Icons';
 import * as api from '../../api';
 import { ACCOUNT_NUMBER_OPTIONS } from '../../utils/accountMapping';
-import { AUTH_COLORS, DEFAULT_AUTH_COLOR } from '../../utils/constants';
+import { AUTH_COLORS, DEFAULT_AUTH_COLOR, getAuthSortKey } from '../../utils/constants';
 
 const LEFT_CODES = ['PCS', 'SDPC', 'COPE', 'PAS'];
 const MULTI_AUTH_CODES = ['COPE', 'PAS'];
@@ -103,17 +103,11 @@ export default function ProgramsAuthTab({
         });
     };
 
-    const CARD_SORT_ORDER = { PCS: 0, S5130: 1, S5125: 2, S5150: 3, S5135: 4, SDPC: 5, S5120: 6, COPE: 10, PAS: 11 };
-    const getCardSortKey = (code) => {
-        const { baseCode, serviceName } = parseGroupKey(code);
-        const base = CARD_SORT_ORDER[baseCode] ?? 7;
-        if (baseCode === 'COPE' && serviceName) {
-            if (serviceName.toLowerCase().includes('personal care')) return 10;
-            if (serviceName.toLowerCase().includes('homemaker')) return 11;
-        }
-        return base;
-    };
-    const allCodes = Object.keys(authGroupsForInsurance).sort((a, b) => getCardSortKey(a) - getCardSortKey(b));
+    const allCodes = Object.keys(authGroupsForInsurance).sort((a, b) => {
+        const { baseCode: ba, serviceName: sa } = parseGroupKey(a);
+        const { baseCode: bb, serviceName: sb } = parseGroupKey(b);
+        return getAuthSortKey(ba, sa) - getAuthSortKey(bb, sb);
+    });
     const leftCodes = allCodes.filter(c => LEFT_CODES.includes(parseGroupKey(c).baseCode));
     const rightCodes = allCodes.filter(c => !LEFT_CODES.includes(parseGroupKey(c).baseCode));
 
