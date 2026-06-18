@@ -40,7 +40,7 @@ export default function PdfToolbar({
                         onClick={() => setActiveTool(t.id)}
                         title={t.label}
                     >
-                        {Icons[t.icon] || t.label}
+                        {Icons[t.icon]}<span className="pdf-toolbar__tool-label">{t.label}</span>
                     </button>
                 ))}
             </div>

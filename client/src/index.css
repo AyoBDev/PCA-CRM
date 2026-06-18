@@ -13218,6 +13218,7 @@ tr:hover .auth-note-icon--empty {
 }
 
 .pdf-toolbar__tool svg { width: 16px; height: 16px; }
+.pdf-toolbar__tool-label { margin-left: 4px; }
 .pdf-toolbar__btn svg { width: 16px; height: 16px; }
 
 .pdf-toolbar__tool:hover { background: hsl(var(--muted)); }

@@ -190,43 +190,48 @@ export default function PdfPageCanvas({
                                 key={ann.id}
                                 x={ann.x}
                                 y={ann.y}
-                                width={Math.max(200, ann.content.length * ann.fontSize * 0.6 + 20)}
-                                height={ann.fontSize + 10}
+                                width={Math.max(250, ann.content.length * ann.fontSize * 0.6 + 40)}
+                                height={ann.fontSize * 2}
                                 className={selectedId === ann.id ? 'pdf-ann--selected' : ''}
                             >
-                                {activeTextId === ann.id ? (
-                                    <input
-                                        type="text"
-                                        autoFocus
-                                        value={ann.content}
-                                        onChange={(e) => handleTextInput(e, ann.id)}
-                                        onBlur={handleTextBlur}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') handleTextBlur(); }}
-                                        style={{
-                                            fontSize: ann.fontSize,
-                                            color: ann.color,
-                                            background: 'transparent',
-                                            border: '1px dashed hsl(var(--primary))',
-                                            outline: 'none',
-                                            width: '100%',
-                                            fontFamily: 'Helvetica, Arial, sans-serif',
-                                            padding: 0,
-                                        }}
-                                    />
-                                ) : (
-                                    <span
-                                        onClick={() => { if (activeTool === 'select') setActiveTextId(ann.id); }}
-                                        style={{
-                                            fontSize: ann.fontSize,
-                                            color: ann.color,
-                                            fontFamily: 'Helvetica, Arial, sans-serif',
-                                            cursor: 'text',
-                                            display: 'block',
-                                        }}
-                                    >
-                                        {ann.content || ' '}
-                                    </span>
-                                )}
+                                <div xmlns="http://www.w3.org/1999/xhtml" style={{ width: '100%', height: '100%' }} onMouseDown={(e) => e.stopPropagation()}>
+                                    {activeTextId === ann.id ? (
+                                        <input
+                                            type="text"
+                                            autoFocus
+                                            value={ann.content}
+                                            onChange={(e) => handleTextInput(e, ann.id)}
+                                            onBlur={handleTextBlur}
+                                            onKeyDown={(e) => { if (e.key === 'Enter') handleTextBlur(); }}
+                                            style={{
+                                                fontSize: ann.fontSize,
+                                                color: ann.color,
+                                                background: 'rgba(255,255,255,0.8)',
+                                                border: '1px dashed hsl(215 20% 50%)',
+                                                outline: 'none',
+                                                width: '100%',
+                                                fontFamily: 'Helvetica, Arial, sans-serif',
+                                                padding: '2px 4px',
+                                                borderRadius: '2px',
+                                                boxSizing: 'border-box',
+                                            }}
+                                        />
+                                    ) : (
+                                        <span
+                                            onClick={() => { if (activeTool === 'select') setActiveTextId(ann.id); }}
+                                            style={{
+                                                fontSize: ann.fontSize,
+                                                color: ann.color,
+                                                fontFamily: 'Helvetica, Arial, sans-serif',
+                                                cursor: 'text',
+                                                display: 'block',
+                                                padding: '2px 4px',
+                                            }}
+                                        >
+                                            {ann.content || ' '}
+                                        </span>
+                                    )}
+                                </div>
                             </foreignObject>
                         );
                     }
