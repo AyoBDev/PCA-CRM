@@ -590,9 +590,20 @@ export default function ClientDetailPage() {
     }
     if (!client) return <div className="page-content"><div className="empty-state"><div className="empty-state__title">Client not found</div></div></div>;
 
-    const activeServiceCodes = [...new Set(
-        (client.authorizations || []).filter(a => !a.archivedAt).map(a => a.serviceCode)
-    )];
+    // Build unique service entries: for program codes (COPE, PAS) that can have
+    // different services (e.g. COPE/Personal Care vs COPE/Homemaker), use
+    // serviceCode + serviceName as the unique key to avoid collapsing them.
+    const PROGRAM_CODES = ['COPE', 'PAS'];
+    const activeServiceEntries = [];
+    const seenKeys = new Set();
+    (client.authorizations || []).filter(a => !a.archivedAt).forEach(a => {
+        const isProgramCode = PROGRAM_CODES.includes(a.serviceCode);
+        const key = isProgramCode ? `${a.serviceCode}::${a.serviceName || ''}` : a.serviceCode;
+        if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            activeServiceEntries.push({ serviceCode: a.serviceCode, serviceName: a.serviceName || '' });
+        }
+    });
     const docsByCategory = (client.documents || []).reduce((acc, d) => {
         if (!acc[d.category]) acc[d.category] = [];
         acc[d.category].push(d);
@@ -706,11 +717,19 @@ export default function ClientDetailPage() {
                                         {openIncidents} Open Incident{openIncidents > 1 ? 's' : ''}
                                     </span>
                                 )}
-                                {activeServiceCodes.map(code => {
-                                    const colors = AUTH_COLORS[code] || DEFAULT_AUTH_COLOR;
+                                {activeServiceEntries.map(({ serviceCode, serviceName }) => {
+                                    const colors = AUTH_COLORS[serviceCode] || DEFAULT_AUTH_COLOR;
+                                    const isProgramCode = PROGRAM_CODES.includes(serviceCode);
+                                    let chipLabel;
+                                    if (isProgramCode && serviceName) {
+                                        chipLabel = `${serviceCode} - ${serviceName}`;
+                                    } else {
+                                        chipLabel = colors.label?.replace(' Authorization', '').replace(' Service', '') || serviceCode;
+                                    }
+                                    const key = isProgramCode ? `${serviceCode}::${serviceName}` : serviceCode;
                                     return (
-                                        <span key={code} className="cp-service-chip cp-service-chip--sm" style={{ background: colors.bg, color: colors.accent, borderColor: colors.accent }}>
-                                            {colors.label?.replace(' Authorization', '').replace(' Service', '') || code}
+                                        <span key={key} className="cp-service-chip cp-service-chip--sm" style={{ background: colors.bg, color: colors.accent, borderColor: colors.accent }}>
+                                            {chipLabel}
                                         </span>
                                     );
                                 })}

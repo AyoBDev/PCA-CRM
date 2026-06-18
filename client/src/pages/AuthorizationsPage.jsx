@@ -215,6 +215,26 @@ function getServiceName(auth) {
     return auth.serviceName || SERVICE_CODE_NAMES[auth.serviceCode] || '';
 }
 
+// Sort order for authorizations: PCS first, then Homemaker (S5130), Attendant (S5125),
+// other waiver services, then COPE Personal Care, then COPE Homemaker.
+const AUTH_SORT_ORDER = { PCS: 0, S5130: 1, S5125: 2, S5150: 3, S5135: 4, SDPC: 5, S5120: 6 };
+const COPE_SERVICE_SORT = { 'personal care services': 100, 'homemaker': 101 };
+
+function getAuthSortKey(auth) {
+    const code = auth.serviceCode || '';
+    if (code === 'COPE' || code === 'PAS') {
+        const name = (auth.serviceName || '').toLowerCase();
+        if (COPE_SERVICE_SORT[name] != null) return COPE_SERVICE_SORT[name];
+        // Other COPE/PAS services go between waiver and known COPE subtypes
+        return 99;
+    }
+    return AUTH_SORT_ORDER[code] ?? 50;
+}
+
+function sortAuthorizations(auths) {
+    return [...auths].sort((a, b) => getAuthSortKey(a) - getAuthSortKey(b));
+}
+
 function AuthFormModal({ auth, clientId, onSave, onClose, onRenewal, isRenewal }) {
     const [serviceCategory, setServiceCategory] = useState(auth?.serviceCategory || '');
     const [serviceCode, setServiceCode] = useState(auth?.serviceCode || 'PCS');
@@ -1222,7 +1242,7 @@ export default function AuthorizationsPage() {
                                                         </td>
                                                     </tr>
                                                     {isOpen && (() => {
-                                                        const activeAuths = client.authorizations.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt);
+                                                        const activeAuths = sortAuthorizations(client.authorizations.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt));
                                                         if (activeAuths.length === 0) return (
                                                             <tr className="row-auth">
                                                                 <td colSpan={7} style={{ paddingLeft: 36, color: 'hsl(var(--muted-foreground))', fontStyle: 'italic', fontSize: 13 }}>
@@ -1444,7 +1464,7 @@ export default function AuthorizationsPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {(drawerClient.authorizations || []).filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt).map(auth => (
+                                    {sortAuthorizations((drawerClient.authorizations || []).filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt)).map(auth => (
                                         <tr key={auth.id}>
                                             <td>{auth.serviceCategory || '—'}</td>
                                             <td>{auth.serviceCode}</td>
