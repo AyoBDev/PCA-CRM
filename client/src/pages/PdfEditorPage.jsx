@@ -184,7 +184,7 @@ export default function PdfEditorPage() {
         if (hasChanges) {
             setConfirmClose(true);
         } else {
-            navigate(-1);
+            navigate(folderId ? `/files?folder=${folderId}` : '/files');
         }
     }, [hasChanges, navigate]);
 
@@ -258,7 +258,7 @@ export default function PdfEditorPage() {
                     title="Unsaved changes"
                     message="You have unsaved annotations. Discard changes and close?"
                     confirmLabel="Discard"
-                    onConfirm={() => navigate(-1)}
+                    onConfirm={() => navigate(folderId ? `/files?folder=${folderId}` : '/files')}
                     onCancel={() => setConfirmClose(false)}
                 />
             )}

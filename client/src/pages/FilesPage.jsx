@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import Modal from '../components/common/Modal';
@@ -11,6 +11,7 @@ import * as api from '../api';
 
 export default function FilesPage() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const undoState = useUndoStack();
     const { showToast } = useToast();
     const [currentFolder, setCurrentFolder] = useState(null);
@@ -79,7 +80,10 @@ export default function FilesPage() {
         }
     }, []);
 
-    useEffect(() => { loadFolder(null); }, [loadFolder]);
+    useEffect(() => {
+        const initFolder = searchParams.get('folder');
+        loadFolder(initFolder || null);
+    }, [loadFolder, searchParams]);
 
     const handlePreview = useCallback(async (file) => {
         try {
