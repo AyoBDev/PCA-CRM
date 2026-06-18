@@ -13,6 +13,7 @@ export default function PdfPageCanvas({
     onAnnotationUpdate,
     onAnnotationSelect,
     onAnnotationDelete,
+    onMoveStart,
 }) {
     const canvasRef = useRef(null);
     const [rendered, setRendered] = useState(false);
@@ -50,6 +51,7 @@ export default function PdfPageCanvas({
             const hit = [...pageAnns].reverse().find(a => hitTest(a, x, y));
             onAnnotationSelect(hit ? hit.id : null);
             if (hit) {
+                if (onMoveStart) onMoveStart();
                 setDragStart({ x, y, annX: hit.x, annY: hit.y, id: hit.id });
             }
             return;
@@ -82,7 +84,7 @@ export default function PdfPageCanvas({
             setDragStart({ x, y, id: ann.id });
             return;
         }
-    }, [activeTool, toolOptions, annotations, pageIndex, getSvgCoords, onAnnotationAdd, onAnnotationSelect, onAnnotationDelete]);
+    }, [activeTool, toolOptions, annotations, pageIndex, getSvgCoords, onAnnotationAdd, onAnnotationSelect, onAnnotationDelete, onMoveStart]);
 
     const handleMouseMove = useCallback((e) => {
         const { x, y } = getSvgCoords(e);

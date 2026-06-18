@@ -45,7 +45,7 @@ export default function PdfEditorPage() {
     const [confirmClose, setConfirmClose] = useState(false);
 
     const scrollRef = useRef(null);
-    const hasChanges = annotations.length > 0 || undoStack.length > 0;
+    const hasChanges = annotations.length > 0;
 
     useEffect(() => {
         async function loadPdf() {
@@ -112,6 +112,10 @@ export default function PdfEditorPage() {
         setAnnotations(s => s.map(a => a.id === updated.id ? updated : a));
     }, []);
 
+    const handleMoveStart = useCallback(() => {
+        pushUndo(annotations);
+    }, [annotations, pushUndo]);
+
     const handleAnnotationDelete = useCallback((id) => {
         pushUndo(annotations);
         setAnnotations(s => s.filter(a => a.id !== id));
@@ -125,7 +129,17 @@ export default function PdfEditorPage() {
             const modified = await flattenAnnotations(pdfBytes, annotations, zoom);
             const blob = new Blob([modified], { type: 'application/pdf' });
             await api.replaceAdminFile(fileId, blob);
-            setPdfBytes(new Uint8Array(modified));
+            const newBytes = new Uint8Array(modified);
+            setPdfBytes(newBytes);
+
+            const doc = await pdfjsLib.getDocument({ data: newBytes }).promise;
+            setPdfDoc(doc);
+            const loadedPages = [];
+            for (let i = 1; i <= doc.numPages; i++) {
+                loadedPages.push(await doc.getPage(i));
+            }
+            setPages(loadedPages);
+
             setAnnotations([]);
             setUndoStack([]);
             setRedoStack([]);
@@ -233,6 +247,7 @@ export default function PdfEditorPage() {
                             onAnnotationUpdate={handleAnnotationUpdate}
                             onAnnotationSelect={setSelectedId}
                             onAnnotationDelete={handleAnnotationDelete}
+                            onMoveStart={handleMoveStart}
                         />
                     </div>
                 ))}
