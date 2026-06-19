@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, PDFTextField, PDFCheckBox, PDFRadioGroup, PDFDropdown } from 'pdf-lib';
 
 function parseColor(hex) {
     const h = hex.replace('#', '');
@@ -52,5 +52,34 @@ export async function flattenAnnotations(pdfBytes, annotations, scale) {
         }
     }
 
+    return pdfDoc.save();
+}
+
+export async function fillFormFields(pdfBytes, formValues) {
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const form = pdfDoc.getForm();
+
+    for (const [name, value] of Object.entries(formValues)) {
+        try {
+            const fields = form.getFields();
+            const field = fields.find(f => f.getName() === name);
+            if (!field) continue;
+
+            if (field instanceof PDFTextField) {
+                field.setText(value || '');
+            } else if (field instanceof PDFCheckBox) {
+                if (value) field.check();
+                else field.uncheck();
+            } else if (field instanceof PDFRadioGroup) {
+                if (value) field.select(value);
+            } else if (field instanceof PDFDropdown) {
+                if (value) field.select(value);
+            }
+        } catch (e) {
+            console.warn(`Failed to fill field "${name}":`, e);
+        }
+    }
+
+    form.flatten();
     return pdfDoc.save();
 }
