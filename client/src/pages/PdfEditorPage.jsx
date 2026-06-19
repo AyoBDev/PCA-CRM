@@ -6,6 +6,8 @@ import PdfPageCanvas from '../components/pdf/PdfPageCanvas';
 import ConfirmModal from '../components/common/ConfirmModal';
 import { useToast } from '../hooks/useToast';
 import { flattenAnnotations } from '../utils/pdfSave';
+import { extractFormFields } from '../utils/pdfFormFields';
+import { fillFormFields } from '../utils/pdfSave';
 import * as api from '../api';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -43,9 +45,12 @@ export default function PdfEditorPage() {
     const [currentPage, setCurrentPage] = useState(1);
     const [saving, setSaving] = useState(false);
     const [confirmClose, setConfirmClose] = useState(false);
+    const [formFields, setFormFields] = useState([]);
+    const [formValues, setFormValues] = useState({});
 
     const scrollRef = useRef(null);
-    const hasChanges = annotations.length > 0;
+    const hasFormChanges = formFields.length > 0 && formFields.some(f => formValues[f.name] !== f.value);
+    const hasChanges = annotations.length > 0 || hasFormChanges;
 
     useEffect(() => {
         async function loadPdf() {
@@ -68,6 +73,16 @@ export default function PdfEditorPage() {
                     loadedPages.push(page);
                 }
                 setPages(loadedPages);
+
+                try {
+                    const fields = await extractFormFields(bytes.slice());
+                    setFormFields(fields);
+                    const initialValues = {};
+                    fields.forEach(f => { initialValues[f.name] = f.value; });
+                    setFormValues(initialValues);
+                } catch (e) {
+                    // PDF has no form fields — that's fine
+                }
 
                 const disposition = res.headers.get('content-disposition') || '';
                 const match = disposition.match(/filename="?([^"]+)"?/);
@@ -116,6 +131,10 @@ export default function PdfEditorPage() {
         pushUndo(annotations);
     }, [annotations, pushUndo]);
 
+    const handleFormFieldChange = useCallback((name, value) => {
+        setFormValues(prev => ({ ...prev, [name]: value }));
+    }, []);
+
     const handleAnnotationDelete = useCallback((id) => {
         pushUndo(annotations);
         setAnnotations(s => s.filter(a => a.id !== id));
@@ -123,10 +142,16 @@ export default function PdfEditorPage() {
     }, [annotations, pushUndo, selectedId]);
 
     const handleSave = useCallback(async () => {
-        if (!pdfBytes || annotations.length === 0) return;
+        if (!pdfBytes || (!annotations.length && !hasFormChanges)) return;
         setSaving(true);
         try {
-            const modified = await flattenAnnotations(pdfBytes, annotations, zoom);
+            let modified = pdfBytes;
+            if (annotations.length > 0) {
+                modified = await flattenAnnotations(modified, annotations, zoom);
+            }
+            if (hasFormChanges) {
+                modified = await fillFormFields(modified, formValues);
+            }
             const blob = new Blob([modified], { type: 'application/pdf' });
             await api.replaceAdminFile(fileId, blob);
             const newBytes = new Uint8Array(modified);
@@ -143,26 +168,34 @@ export default function PdfEditorPage() {
             setAnnotations([]);
             setUndoStack([]);
             setRedoStack([]);
+            setFormFields([]);
+            setFormValues({});
             showToast('PDF saved successfully', 'success');
         } catch (err) {
             showToast('Failed to save: ' + err.message, 'error');
         } finally {
             setSaving(false);
         }
-    }, [pdfBytes, annotations, zoom, fileId, showToast]);
+    }, [pdfBytes, annotations, zoom, fileId, showToast, hasFormChanges, formValues]);
 
     const handleSaveAs = useCallback(async () => {
-        if (!pdfBytes || annotations.length === 0) return;
+        if (!pdfBytes || (!annotations.length && !hasFormChanges)) return;
         setSaving(true);
         try {
-            const modified = await flattenAnnotations(pdfBytes, annotations, zoom);
+            let modified = pdfBytes;
+            if (annotations.length > 0) {
+                modified = await flattenAnnotations(modified, annotations, zoom);
+            }
+            if (hasFormChanges) {
+                modified = await fillFormFields(modified, formValues);
+            }
             const base = fileName.replace(/\.pdf$/i, '');
             const versionMatch = base.match(/_v(\d+)$/);
             let newName;
             if (versionMatch) {
                 newName = base.replace(/_v\d+$/, `_v${Number(versionMatch[1]) + 1}`) + '.pdf';
             } else {
-                newName = base + '_v2.pdf';
+                newName = base + '_filled.pdf';
             }
             const blob = new File([modified], newName, { type: 'application/pdf' });
 
@@ -172,13 +205,15 @@ export default function PdfEditorPage() {
             setAnnotations([]);
             setUndoStack([]);
             setRedoStack([]);
+            setFormFields([]);
+            setFormValues({});
             showToast(`Saved as ${newName}`, 'success');
         } catch (err) {
             showToast('Failed to save version: ' + err.message, 'error');
         } finally {
             setSaving(false);
         }
-    }, [pdfBytes, annotations, zoom, fileName, folderId, showToast]);
+    }, [pdfBytes, annotations, zoom, fileName, folderId, showToast, hasFormChanges, formValues]);
 
     const handleClose = useCallback(() => {
         if (hasChanges) {
@@ -248,6 +283,10 @@ export default function PdfEditorPage() {
                             onAnnotationSelect={setSelectedId}
                             onAnnotationDelete={handleAnnotationDelete}
                             onMoveStart={handleMoveStart}
+                            formFields={formFields}
+                            formValues={formValues}
+                            onFormFieldChange={handleFormFieldChange}
+                            pageHeight={page.getViewport({ scale: 1 }).height}
                         />
                     </div>
                 ))}
