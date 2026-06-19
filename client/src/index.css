@@ -13251,6 +13251,73 @@ tr:hover .auth-note-icon--empty {
     z-index: 5;
 }
 
+/* ===== PDF Form Fields ===== */
+.pdf-form-field {
+    box-sizing: border-box;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 12px;
+}
+
+.pdf-form-field--text {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid hsl(var(--border));
+    padding: 2px 4px;
+    border-radius: 2px;
+    resize: none;
+    overflow: hidden;
+}
+
+.pdf-form-field--text:focus {
+    border-color: hsl(var(--primary));
+    outline: none;
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.15);
+}
+
+.pdf-form-field--checkbox {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pdf-form-field--checkbox input {
+    width: 16px;
+    height: 16px;
+    accent-color: hsl(var(--primary));
+}
+
+.pdf-form-field--radio {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 2px 4px;
+    border-radius: 2px;
+    overflow-y: auto;
+}
+
+.pdf-form-field__radio-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    cursor: pointer;
+}
+
+.pdf-form-field__radio-label input { accent-color: hsl(var(--primary)); }
+
+.pdf-form-field--dropdown {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid hsl(var(--border));
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-size: 11px;
+}
+
+.pdf-form-field--dropdown:focus {
+    border-color: hsl(var(--primary));
+    outline: none;
+}
+
 .pdf-ann--selected {
     outline: 2px dashed hsl(var(--primary));
     outline-offset: 2px;
