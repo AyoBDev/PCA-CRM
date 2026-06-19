@@ -262,11 +262,10 @@ export default function FilesPage() {
                 <ContextBar.Left>
                     <input
                         type="text"
-                        className="form-input form-input--sm"
+                        className="context-bar__search"
                         placeholder="Search files..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        style={{ width: 180 }}
                     />
                     {files.length > 0 && (
                         <label className="files-page__select-all" onClick={(e) => e.stopPropagation()}>
