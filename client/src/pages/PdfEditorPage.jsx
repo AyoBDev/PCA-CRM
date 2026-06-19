@@ -62,7 +62,8 @@ export default function PdfEditorPage() {
                 if (!res.ok) throw new Error('Failed to load PDF');
                 const arrayBuffer = await res.arrayBuffer();
                 const bytes = new Uint8Array(arrayBuffer);
-                setPdfBytes(bytes.slice());
+                const bytesCopy = bytes.slice();
+                setPdfBytes(bytesCopy);
 
                 const doc = await pdfjsLib.getDocument({ data: bytes }).promise;
                 setPdfDoc(doc);
@@ -75,13 +76,15 @@ export default function PdfEditorPage() {
                 setPages(loadedPages);
 
                 try {
-                    const fields = await extractFormFields(bytes.slice());
-                    setFormFields(fields);
-                    const initialValues = {};
-                    fields.forEach(f => { initialValues[f.name] = f.value; });
-                    setFormValues(initialValues);
+                    const fields = await extractFormFields(bytesCopy.slice());
+                    if (fields.length > 0) {
+                        setFormFields(fields);
+                        const initialValues = {};
+                        fields.forEach(f => { initialValues[f.name] = f.value; });
+                        setFormValues(initialValues);
+                    }
                 } catch (e) {
-                    // PDF has no form fields — that's fine
+                    console.warn('Form field extraction failed:', e);
                 }
 
                 const disposition = res.headers.get('content-disposition') || '';
