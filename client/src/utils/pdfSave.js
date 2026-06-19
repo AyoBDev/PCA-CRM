@@ -58,10 +58,10 @@ export async function flattenAnnotations(pdfBytes, annotations, scale) {
 export async function fillFormFields(pdfBytes, formValues) {
     const pdfDoc = await PDFDocument.load(pdfBytes);
     const form = pdfDoc.getForm();
+    const fields = form.getFields();
 
     for (const [name, value] of Object.entries(formValues)) {
         try {
-            const fields = form.getFields();
             const field = fields.find(f => f.getName() === name);
             if (!field) continue;
 

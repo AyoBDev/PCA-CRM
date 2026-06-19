@@ -191,9 +191,13 @@ export default function PdfEditorPage() {
             }
             const base = fileName.replace(/\.pdf$/i, '');
             const versionMatch = base.match(/_v(\d+)$/);
+            const filledMatch = base.match(/_filled(_(\d+))?$/);
             let newName;
             if (versionMatch) {
                 newName = base.replace(/_v\d+$/, `_v${Number(versionMatch[1]) + 1}`) + '.pdf';
+            } else if (filledMatch) {
+                const num = filledMatch[2] ? Number(filledMatch[2]) + 1 : 2;
+                newName = base.replace(/_filled(_\d+)?$/, `_filled_${num}`) + '.pdf';
             } else {
                 newName = base + '_filled.pdf';
             }
@@ -221,7 +225,7 @@ export default function PdfEditorPage() {
         } else {
             navigate(folderId ? `/files?folder=${folderId}` : '/files');
         }
-    }, [hasChanges, navigate]);
+    }, [hasChanges, navigate, folderId]);
 
     const handlePageChange = useCallback((page) => {
         const clamped = Math.max(1, Math.min(page, pages.length));
