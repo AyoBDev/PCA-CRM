@@ -7,6 +7,8 @@ import ConfirmModal from '../components/common/ConfirmModal';
 import Icons from '../components/common/Icons';
 import { useUndoStack } from '../hooks/useUndoStack';
 import { useToast } from '../hooks/useToast';
+import FolderTree from '../components/files/FolderTree';
+import FileList from '../components/files/FileList';
 import * as api from '../api';
 
 export default function FilesPage() {
@@ -14,76 +16,60 @@ export default function FilesPage() {
     const [searchParams] = useSearchParams();
     const undoState = useUndoStack();
     const { showToast } = useToast();
-    const [currentFolder, setCurrentFolder] = useState(null);
-    const [folderStack, setFolderStack] = useState([]);
-    const [items, setItems] = useState([]);
-    const [loading, setLoading] = useState(true);
+
+    const [selectedFolder, setSelectedFolder] = useState(null);
+    const [files, setFiles] = useState([]);
+    const [loadingFiles, setLoadingFiles] = useState(false);
+    const [selected, setSelected] = useState(new Set());
     const [nameModal, setNameModal] = useState(null);
     const [deleteModal, setDeleteModal] = useState(null);
     const [conflictModal, setConflictModal] = useState(null);
-    const [selected, setSelected] = useState(new Set());
+    const [treeRefreshKey, setTreeRefreshKey] = useState(0);
+    const [search, setSearch] = useState('');
     const nameInputRef = useRef(null);
 
-    const loadFolder = useCallback(async (folderId) => {
-        setLoading(true);
+    const loadFiles = useCallback(async (folder) => {
+        if (!folder) { setFiles([]); return; }
+        setLoadingFiles(true);
         setSelected(new Set());
         try {
-            if (folderId) {
-                const data = await api.getFolder(folderId);
-                const mapped = [
-                    ...data.children.map(f => ({
-                        name: f.name,
-                        isDirectory: true,
-                        id: f.id,
-                        path: f.path,
-                        updatedAt: f.updatedAt,
-                    })),
-                    ...data.files.map(f => ({
-                        name: f.name,
-                        isDirectory: false,
-                        id: f.id,
-                        size: f.fileSize,
-                        mimeType: f.mimeType,
-                        updatedAt: f.updatedAt,
-                        uploadedBy: f.uploader?.name,
-                    })),
-                ];
-                setItems(mapped);
-                setCurrentFolder(data.folder);
-            } else {
-                const data = await api.listFolders(null);
-                const mapped = [
-                    ...data.folders.map(f => ({
-                        name: f.name,
-                        isDirectory: true,
-                        id: f.id,
-                        path: f.path,
-                        updatedAt: f.updatedAt,
-                    })),
-                    ...data.files.map(f => ({
-                        name: f.name,
-                        isDirectory: false,
-                        id: f.id,
-                        size: f.fileSize,
-                        mimeType: f.mimeType,
-                        updatedAt: f.updatedAt,
-                        uploadedBy: f.uploader?.name,
-                    })),
-                ];
-                setItems(mapped);
-                setCurrentFolder(null);
-            }
+            const data = await api.getFolder(folder.id);
+            setFiles(data.files.map(f => ({
+                id: f.id,
+                name: f.name,
+                size: f.fileSize,
+                mimeType: f.mimeType,
+                updatedAt: f.updatedAt,
+                uploadedBy: f.uploader?.name,
+            })));
         } catch (err) {
-            console.error('Failed to load folder:', err);
+            console.error('Failed to load files:', err);
         } finally {
-            setLoading(false);
+            setLoadingFiles(false);
         }
     }, []);
 
+    const handleSelectFolder = useCallback((folder) => {
+        setSelectedFolder(folder);
+        loadFiles(folder);
+    }, [loadFiles]);
+
     useEffect(() => {
         const initFolder = searchParams.get('folder');
-        loadFolder(initFolder || null);
-    }, [loadFolder, searchParams]);
+        if (initFolder) {
+            api.getFolder(initFolder).then(data => {
+                setSelectedFolder(data.folder);
+                setFiles(data.files.map(f => ({
+                    id: f.id,
+                    name: f.name,
+                    size: f.fileSize,
+                    mimeType: f.mimeType,
+                    updatedAt: f.updatedAt,
+                    uploadedBy: f.uploader?.name,
+                })));
+            }).catch(() => {});
+        }
+    }, [searchParams]);
 
     const handlePreview = useCallback(async (file) => {
         try {
@@ -96,9 +82,9 @@ export default function FilesPage() {
             const url = URL.createObjectURL(blob);
             window.open(url, '_blank');
         } catch (err) {
-            console.error('Preview failed:', err);
+            showToast('Preview failed', 'error');
         }
-    }, []);
+    }, [showToast]);
 
     const handleDownload = useCallback(async (file) => {
         try {
@@ -117,60 +103,36 @@ export default function FilesPage() {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         } catch (err) {
-            console.error('Download failed:', err);
+            showToast('Download failed', 'error');
         }
-    }, []);
+    }, [showToast]);
 
-    const handleFileOpen = useCallback((file) => {
-        if (file.isDirectory) {
-            setFolderStack(prev => [...prev, currentFolder]);
-            loadFolder(file.id);
-        } else {
-            handlePreview(file);
-        }
-    }, [currentFolder, loadFolder, handlePreview]);
-
-    const handleNavigateBack = useCallback(() => {
-        const prev = folderStack[folderStack.length - 1];
-        setFolderStack(s => s.slice(0, -1));
-        loadFolder(prev?.id || null);
-    }, [folderStack, loadFolder]);
-
-    const handleCreateFolder = useCallback(async (name) => {
-        try {
-            await api.createFolder(name, currentFolder?.id || null);
-            loadFolder(currentFolder?.id || null);
-        } catch (err) {
-            showToast(err.message || 'Failed to create folder', 'error');
-        }
-    }, [currentFolder, loadFolder, showToast]);
-
-    const handleUpload = useCallback(async (files) => {
-        if (!currentFolder) return;
-        for (const file of files) {
+    const handleUpload = useCallback(async (uploadFiles) => {
+        if (!selectedFolder) return;
+        for (const file of uploadFiles) {
             try {
-                await api.uploadAdminFile(currentFolder.id, file);
+                await api.uploadAdminFile(selectedFolder.id, file);
             } catch (err) {
                 if (err.message.includes('already exists')) {
-                    setConflictModal({ file, folderId: currentFolder.id });
+                    setConflictModal({ file, folderId: selectedFolder.id });
                     return;
                 }
+                showToast('Upload failed: ' + err.message, 'error');
             }
         }
-        loadFolder(currentFolder.id);
-    }, [currentFolder, loadFolder]);
+        loadFiles(selectedFolder);
+        setTreeRefreshKey(k => k + 1);
+    }, [selectedFolder, loadFiles, showToast]);
 
     const handleConflictReplace = useCallback(async () => {
         if (!conflictModal) return;
         const { file, folderId } = conflictModal;
-        const existing = items.find(i => !i.isDirectory && i.name === file.name);
-        if (existing) {
-            await api.deleteAdminFile(existing.id);
-        }
+        const existing = files.find(f => f.name === file.name);
+        if (existing) await api.deleteAdminFile(existing.id);
         await api.uploadAdminFile(folderId, file);
         setConflictModal(null);
-        loadFolder(folderId);
-    }, [conflictModal, items, loadFolder]);
+        loadFiles(selectedFolder);
+    }, [conflictModal, files, selectedFolder, loadFiles]);
 
     const handleConflictKeepBoth = useCallback(async () => {
         if (!conflictModal) return;
@@ -180,68 +142,91 @@ export default function FilesPage() {
         const baseName = nameParts.join('.');
         let counter = 1;
         let newName = `${baseName} (${counter})${ext}`;
-        const existingNames = items.filter(i => !i.isDirectory).map(i => i.name);
-        while (existingNames.includes(newName)) {
-            counter++;
-            newName = `${baseName} (${counter})${ext}`;
-        }
+        const existingNames = files.map(f => f.name);
+        while (existingNames.includes(newName)) { counter++; newName = `${baseName} (${counter})${ext}`; }
         const renamedFile = new File([file], newName, { type: file.type });
         await api.uploadAdminFile(folderId, renamedFile);
         setConflictModal(null);
-        loadFolder(folderId);
-    }, [conflictModal, items, loadFolder]);
+        loadFiles(selectedFolder);
+    }, [conflictModal, files, selectedFolder, loadFiles]);
 
-    const handleRename = useCallback(async (item, newName) => {
-        if (item.isDirectory) {
-            await api.renameFolder(item.id, newName);
-        } else {
-            await api.renameFile(item.id, newName);
-        }
-        loadFolder(currentFolder?.id || null);
-    }, [currentFolder, loadFolder]);
+    const handleRename = useCallback((file) => {
+        setNameModal({ mode: 'rename', item: file, defaultValue: file.name });
+    }, []);
+
+    const handleDelete = useCallback((file) => {
+        setDeleteModal([file]);
+    }, []);
+
+    const handleEditPdf = useCallback((file, folderId) => {
+        navigate(`/files/edit/${file.id}?folder=${folderId}`);
+    }, [navigate]);
 
     const handleDeleteConfirmed = useCallback(async (itemsToDelete) => {
         for (const item of itemsToDelete) {
-            if (item.isDirectory) {
-                await api.deleteFolder(item.id);
-            } else {
-                await api.deleteAdminFile(item.id);
-            }
+            await api.deleteAdminFile(item.id);
         }
         setDeleteModal(null);
         setSelected(new Set());
-        loadFolder(currentFolder?.id || null);
-    }, [currentFolder, loadFolder]);
+        loadFiles(selectedFolder);
+        setTreeRefreshKey(k => k + 1);
+    }, [selectedFolder, loadFiles]);
 
-    const itemKey = (item) => `${item.isDirectory ? 'f' : 'd'}-${item.id}`;
+    const handleToggleSelect = useCallback((fileId) => {
+        setSelected(prev => {
+            const next = new Set(prev);
+            if (next.has(fileId)) next.delete(fileId);
+            else next.add(fileId);
+            return next;
+        });
+    }, []);
 
     const handleSelectAll = useCallback(() => {
-        if (selected.size === items.length) {
+        if (selected.size === files.length) {
             setSelected(new Set());
         } else {
-            setSelected(new Set(items.map(i => itemKey(i))));
+            setSelected(new Set(files.map(f => f.id)));
         }
-    }, [items, selected]);
-
-    const selectedItems = items.filter(i => selected.has(itemKey(i)));
+    }, [files, selected]);
 
     const handleBulkDelete = useCallback(() => {
-        if (selectedItems.length) setDeleteModal(selectedItems);
-    }, [selectedItems]);
+        const items = files.filter(f => selected.has(f.id));
+        if (items.length) setDeleteModal(items);
+    }, [files, selected]);
 
     const handleBulkDownload = useCallback(async () => {
-        const files = selectedItems.filter(i => !i.isDirectory);
-        for (const file of files) {
-            await handleDownload(file);
+        const items = files.filter(f => selected.has(f.id));
+        for (const file of items) { await handleDownload(file); }
+    }, [files, selected, handleDownload]);
+
+    const handleCreateFolder = useCallback(() => {
+        setNameModal({ mode: 'create', item: null, defaultValue: '' });
+    }, []);
+
+    const handleNameSubmit = useCallback(async (e) => {
+        e.preventDefault();
+        const value = nameInputRef.current?.value?.trim();
+        if (!value) return;
+        if (nameModal.mode === 'create') {
+            try {
+                await api.createFolder(value, selectedFolder?.id || null);
+                setTreeRefreshKey(k => k + 1);
+            } catch (err) {
+                showToast(err.message || 'Failed to create folder', 'error');
+            }
+        } else if (nameModal.mode === 'rename') {
+            if (value !== nameModal.item.name) {
+                await api.renameFile(nameModal.item.id, value);
+                loadFiles(selectedFolder);
+            }
         }
-    }, [selectedItems, handleDownload]);
+        setNameModal(null);
+    }, [nameModal, selectedFolder, loadFiles, showToast]);
 
     const handleExportAll = useCallback(async () => {
         try {
             const token = api.getToken();
-            const res = await fetch('/api/files/export', {
-                headers: { 'Authorization': `Bearer ${token}` },
-            });
+            const res = await fetch('/api/files/export', { headers: { 'Authorization': `Bearer ${token}` } });
             if (!res.ok) throw new Error('Export failed');
             const blob = await res.blob();
             const url = URL.createObjectURL(blob);
@@ -257,34 +242,15 @@ export default function FilesPage() {
         }
     }, [showToast]);
 
-    const handleNameSubmit = useCallback((e) => {
-        e.preventDefault();
-        const value = nameInputRef.current?.value?.trim();
-        if (!value) return;
-        if (nameModal.mode === 'create') {
-            handleCreateFolder(value);
-        } else if (nameModal.mode === 'rename') {
-            if (value !== nameModal.item.name) {
-                handleRename(nameModal.item, value);
-            }
-        }
-        setNameModal(null);
-    }, [nameModal, handleCreateFolder, handleRename]);
-
-    // Build breadcrumb path
-    const breadcrumbs = [{ name: 'Root', id: null }];
-    if (folderStack.length) {
-        for (const f of folderStack) {
-            if (f) breadcrumbs.push({ name: f.name, id: f.id });
-        }
-    }
-    if (currentFolder) breadcrumbs.push({ name: currentFolder.name, id: currentFolder.id });
+    const filteredFiles = search
+        ? files.filter(f => f.name.toLowerCase().includes(search.toLowerCase()))
+        : files;
 
     return (
         <div className="files-page">
             <GlobalToolbar
                 title="Files"
-                subtitle="Administrative Documents"
+                subtitle={selectedFolder ? selectedFolder.name : 'Administrative Documents'}
                 icon={Icons.folder}
                 undoState={undoState}
                 activityEntity="AdminFile"
@@ -292,204 +258,86 @@ export default function FilesPage() {
                     { label: 'Export All Files', icon: Icons.download, action: handleExportAll },
                 ]}
             />
-            <div className="files-page__breadcrumbs">
-                {breadcrumbs.map((b, i) => (
-                    <span key={b.id ?? 'root'}>
-                        {i > 0 && <span className="files-page__breadcrumb-sep">&rsaquo;</span>}
-                        <button
-                            className={`files-page__breadcrumb${i === breadcrumbs.length - 1 ? ' files-page__breadcrumb--active' : ''}`}
-                            onClick={() => {
-                                if (i < breadcrumbs.length - 1) {
-                                    setFolderStack(folderStack.slice(0, i));
-                                    loadFolder(b.id);
-                                }
-                            }}
-                            disabled={i === breadcrumbs.length - 1}
-                        >
-                            {b.name}
-                        </button>
-                    </span>
-                ))}
-            </div>
             <ContextBar>
                 <ContextBar.Left>
-                    {currentFolder && (
-                        <button className="btn btn--secondary btn--sm" onClick={handleNavigateBack}>
-                            {Icons.chevronLeft} Back
-                        </button>
-                    )}
-                    {items.length > 0 && (
+                    <input
+                        type="text"
+                        className="form-input form-input--sm"
+                        placeholder="Search files..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        style={{ width: 180 }}
+                    />
+                    {files.length > 0 && (
                         <label className="files-page__select-all" onClick={(e) => e.stopPropagation()}>
                             <input
                                 type="checkbox"
-                                checked={items.length > 0 && selected.size === items.length}
-                                ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < items.length; }}
+                                checked={files.length > 0 && selected.size === files.length}
+                                ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < files.length; }}
                                 onChange={handleSelectAll}
                             />
                             <span>Select All</span>
                         </label>
                     )}
                     {selected.size > 0 && (
-                        <span className="files-page__selection-count">
-                            {selected.size} selected
-                        </span>
-                    )}
-                    {selected.size > 0 && (
                         <>
-                            <button className="btn btn--danger btn--sm" onClick={handleBulkDelete}>
-                                {Icons.trash} Delete
-                            </button>
-                            {selectedItems.some(i => !i.isDirectory) && (
-                                <button className="btn btn--secondary btn--sm" onClick={handleBulkDownload}>
-                                    {Icons.download} Download
-                                </button>
-                            )}
-                            <button className="btn btn--outline btn--sm" onClick={() => setSelected(new Set())}>
-                                Clear
-                            </button>
+                            <span className="files-page__selection-count">{selected.size} selected</span>
+                            <button className="btn btn--danger btn--sm" onClick={handleBulkDelete}>{Icons.trash} Delete</button>
+                            <button className="btn btn--secondary btn--sm" onClick={handleBulkDownload}>{Icons.download} Download</button>
+                            <button className="btn btn--outline btn--sm" onClick={() => setSelected(new Set())}>Clear</button>
                         </>
                     )}
                 </ContextBar.Left>
                 <ContextBar.Right>
-                    <button
-                        className="btn btn--primary btn--sm"
-                        onClick={() => setNameModal({ mode: 'create', item: null, defaultValue: '' })}
-                    >
-                        + New Folder
-                    </button>
-                    {currentFolder && (
+                    {selectedFolder && (
                         <label className="btn btn--primary btn--sm" style={{ cursor: 'pointer' }}>
-                            {Icons.upload} Upload
-                            <input
-                                type="file"
-                                multiple
-                                hidden
-                                onChange={(e) => {
-                                    if (e.target.files.length) handleUpload(Array.from(e.target.files));
-                                    e.target.value = '';
-                                }}
-                            />
+                            {Icons.upload} Upload File
+                            <input type="file" multiple hidden onChange={(e) => { if (e.target.files.length) handleUpload(Array.from(e.target.files)); e.target.value = ''; }} />
                         </label>
                     )}
                 </ContextBar.Right>
             </ContextBar>
-            {loading ? (
-                <div className="files-page__loading">Loading...</div>
-            ) : items.length === 0 ? (
-                <div className="files-page__empty">
-                    {currentFolder ? 'This folder is empty. Upload files or create subfolders.' : 'No folders yet.'}
+
+            <div className="files-page__panels">
+                <div className="files-page__left">
+                    <FolderTree
+                        activeFolderId={selectedFolder?.id}
+                        onSelectFolder={handleSelectFolder}
+                        onCreateFolder={handleCreateFolder}
+                        refreshKey={treeRefreshKey}
+                    />
                 </div>
-            ) : (
-                <div className="files-page__grid">
-                    {items.map(item => (
-                        <div
-                            key={itemKey(item)}
-                            className={`files-page__item${selected.has(itemKey(item)) ? ' files-page__item--selected' : ''}`}
-                            onClick={() => handleFileOpen(item)}
-                        >
-                            <label className="files-page__item-checkbox" onClick={(e) => e.stopPropagation()}>
-                                <input
-                                    type="checkbox"
-                                    checked={selected.has(itemKey(item))}
-                                    onChange={() => {
-                                        const key = itemKey(item);
-                                        setSelected(prev => {
-                                            const next = new Set(prev);
-                                            if (next.has(key)) next.delete(key);
-                                            else next.add(key);
-                                            return next;
-                                        });
-                                    }}
-                                />
-                            </label>
-                            <div className="files-page__item-icon">
-                                {item.isDirectory ? Icons.folder : Icons.fileText}
-                            </div>
-                            <div className="files-page__item-name" title={item.name}>
-                                {item.name}
-                            </div>
-                            {!item.isDirectory && (
-                                <div className="files-page__item-meta">
-                                    {formatSize(item.size)}
-                                </div>
-                            )}
-                            <div className="files-page__item-actions">
-                                {!item.isDirectory && item.mimeType === 'application/pdf' && (
-                                    <button
-                                        className="btn--icon"
-                                        title="Edit PDF"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            navigate(`/files/edit/${item.id}?folder=${currentFolder?.id || ''}`);
-                                        }}
-                                    >
-                                        {Icons.pen}
-                                    </button>
-                                )}
-                                {!item.isDirectory && (
-                                    <button
-                                        className="btn--icon"
-                                        title="Download"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDownload(item);
-                                        }}
-                                    >
-                                        {Icons.download}
-                                    </button>
-                                )}
-                                <button
-                                    className="btn--icon"
-                                    title="Rename"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setNameModal({ mode: 'rename', item, defaultValue: item.name });
-                                    }}
-                                >
-                                    {Icons.edit}
-                                </button>
-                                <button
-                                    className="btn--icon"
-                                    title="Delete"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setDeleteModal([item]);
-                                    }}
-                                >
-                                    {Icons.trash}
-                                </button>
-                            </div>
-                        </div>
-                    ))}
+                <div className="files-page__right">
+                    {loadingFiles ? (
+                        <div className="file-list file-list--empty-state"><p>Loading...</p></div>
+                    ) : (
+                        <FileList
+                            folder={selectedFolder}
+                            files={filteredFiles}
+                            selected={selected}
+                            onToggleSelect={handleToggleSelect}
+                            onPreview={handlePreview}
+                            onDownload={handleDownload}
+                            onRename={handleRename}
+                            onDelete={handleDelete}
+                            onEditPdf={handleEditPdf}
+                            onUpload={handleUpload}
+                        />
+                    )}
                 </div>
-            )}
+            </div>
 
             {nameModal && (
                 <Modal onClose={() => setNameModal(null)}>
-                    <h2 className="modal__title">
-                        {nameModal.mode === 'create' ? 'New Folder' : 'Rename'}
-                    </h2>
+                    <h2 className="modal__title">{nameModal.mode === 'create' ? 'New Folder' : 'Rename'}</h2>
                     <form onSubmit={handleNameSubmit}>
                         <div className="form-group">
-                            <label className="form-label">
-                                {nameModal.mode === 'create' ? 'Folder name' : 'New name'}
-                            </label>
-                            <input
-                                ref={nameInputRef}
-                                className="form-input"
-                                type="text"
-                                defaultValue={nameModal.defaultValue}
-                                autoFocus
-                                placeholder={nameModal.mode === 'create' ? 'Enter folder name' : 'Enter new name'}
-                            />
+                            <label className="form-label">{nameModal.mode === 'create' ? 'Folder name' : 'New name'}</label>
+                            <input ref={nameInputRef} className="form-input" type="text" defaultValue={nameModal.defaultValue} autoFocus placeholder={nameModal.mode === 'create' ? 'Enter folder name' : 'Enter new name'} />
                         </div>
                         <div className="form-actions">
-                            <button type="button" className="btn btn--outline" onClick={() => setNameModal(null)}>
-                                Cancel
-                            </button>
-                            <button type="submit" className="btn btn--primary">
-                                {nameModal.mode === 'create' ? 'Create' : 'Rename'}
-                            </button>
+                            <button type="button" className="btn btn--outline" onClick={() => setNameModal(null)}>Cancel</button>
+                            <button type="submit" className="btn btn--primary">{nameModal.mode === 'create' ? 'Create' : 'Rename'}</button>
                         </div>
                     </form>
                 </Modal>
@@ -497,11 +345,8 @@ export default function FilesPage() {
 
             {deleteModal && (
                 <ConfirmModal
-                    title={`Delete ${deleteModal.length === 1 ? (deleteModal[0].isDirectory ? 'folder' : 'file') : `${deleteModal.length} items`}`}
-                    message={deleteModal.length === 1
-                        ? `Are you sure you want to delete "${deleteModal[0].name}"? ${deleteModal[0].isDirectory ? 'All contents will be permanently removed.' : 'This cannot be undone.'}`
-                        : `Are you sure you want to delete ${deleteModal.length} items? This cannot be undone.`
-                    }
+                    title={`Delete ${deleteModal.length === 1 ? 'file' : `${deleteModal.length} files`}`}
+                    message={deleteModal.length === 1 ? `Delete "${deleteModal[0].name}"? This cannot be undone.` : `Delete ${deleteModal.length} files? This cannot be undone.`}
                     confirmLabel="Delete"
                     confirmVariant="danger"
                     onConfirm={() => handleDeleteConfirmed(deleteModal)}
@@ -512,29 +357,14 @@ export default function FilesPage() {
             {conflictModal && (
                 <Modal onClose={() => setConflictModal(null)}>
                     <h2 className="modal__title">File Already Exists</h2>
-                    <p className="modal__desc">
-                        A file named "{conflictModal.file.name}" already exists in this folder.
-                    </p>
+                    <p className="modal__desc">A file named "{conflictModal.file.name}" already exists in this folder.</p>
                     <div className="form-actions">
-                        <button className="btn btn--outline" onClick={() => setConflictModal(null)}>
-                            Cancel
-                        </button>
-                        <button className="btn btn--secondary" onClick={handleConflictKeepBoth}>
-                            Keep Both
-                        </button>
-                        <button className="btn btn--danger" onClick={handleConflictReplace}>
-                            Replace
-                        </button>
+                        <button className="btn btn--outline" onClick={() => setConflictModal(null)}>Cancel</button>
+                        <button className="btn btn--secondary" onClick={handleConflictKeepBoth}>Keep Both</button>
+                        <button className="btn btn--danger" onClick={handleConflictReplace}>Replace</button>
                     </div>
                 </Modal>
             )}
         </div>
     );
-}
-
-function formatSize(bytes) {
-    if (!bytes) return '';
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
