@@ -49,10 +49,11 @@ export async function extractFormFields(pdfBytes) {
 }
 
 export function pdfRectToScreen(rect, pageHeight, zoom) {
+    const h = rect.height * zoom;
     return {
         left: rect.x * zoom,
         top: (pageHeight - rect.y - rect.height) * zoom,
         width: rect.width * zoom,
-        height: Math.max(rect.height * zoom, 20),
+        height: h < 14 ? 14 : h,
     };
 }
