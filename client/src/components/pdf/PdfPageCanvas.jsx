@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { createTextAnnotation, createDrawingAnnotation, createHighlightAnnotation, hitTest } from '../../utils/pdfAnnotations';
+import PdfFormField from './PdfFormField';
 
 export default function PdfPageCanvas({
     pdfPage,
@@ -14,6 +15,10 @@ export default function PdfPageCanvas({
     onAnnotationSelect,
     onAnnotationDelete,
     onMoveStart,
+    formFields,
+    formValues,
+    onFormFieldChange,
+    pageHeight,
 }) {
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
@@ -209,6 +214,20 @@ export default function PdfPageCanvas({
                     return null;
                 })}
             </svg>
+
+            {formFields && formFields
+                .filter(f => f.page === pageIndex)
+                .map(field => (
+                    <PdfFormField
+                        key={field.name + '-' + field.page}
+                        field={field}
+                        pageHeight={pageHeight || height}
+                        zoom={zoom}
+                        value={formValues ? formValues[field.name] : undefined}
+                        onChange={onFormFieldChange}
+                    />
+                ))
+            }
 
             {editingAnn && (
                 <input
