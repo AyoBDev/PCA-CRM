@@ -878,7 +878,7 @@ async function getEmployeeSchedule(req, res, next) {
         const overlaps = detectOverlaps(shifts);
 
         const response = {
-            employee: { id: employee.id, name: employee.name, email: employee.email, phone: employee.phone },
+            employee: { id: employee.id, name: employee.name, email: employee.email, phone: employee.phone, address: employee.address },
             shifts: enriched,
             overlaps,
         };

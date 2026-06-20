@@ -2710,6 +2710,7 @@ export default function SchedulingPage() {
                                         <strong>{employeeInfo.name}</strong>
                                         {employeeInfo.phone && <span>{employeeInfo.phone}</span>}
                                         {employeeInfo.email && <span>{employeeInfo.email}</span>}
+                                        {employeeInfo.address && <span>{employeeInfo.address}</span>}
                                     </div>
                                 )}
                                 {employeeShifts.length > 0 && (() => {
