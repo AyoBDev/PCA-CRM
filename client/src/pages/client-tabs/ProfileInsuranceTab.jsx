@@ -70,7 +70,7 @@ export default function ProfileInsuranceTab({
                                     <span>End Date</span>
                                 </div>
                                 {Object.entries(authGroups).sort(([a], [b]) => getAuthSortKey(a) - getAuthSortKey(b)).flatMap(([code, auths]) =>
-                                    auths.filter(a => !a.archivedAt && (a.manualStatus || 'active') === 'active').map(a => {
+                                    auths.filter(a => !a.archivedAt && (a.manualStatus || 'active') === 'active').sort((a, b) => getAuthSortKey(code, a.serviceName) - getAuthSortKey(code, b.serviceName)).map(a => {
                                         const colors = AUTH_COLORS[code] || DEFAULT_AUTH_COLOR;
                                         return (
                                             <div key={a.id} className="cp-auth-overview-row">

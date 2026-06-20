@@ -95,10 +95,11 @@ export function getAuthSortKey(code, serviceName) {
     const MULTI_AUTH_CODES = ['COPE', 'PAS'];
     const baseCode = code && code.includes('::') ? code.split('::')[0] : code;
     if (MULTI_AUTH_CODES.includes(baseCode)) {
-        const sn = (serviceName || '').toLowerCase();
+        const sn = (serviceName || (code && code.includes('::') ? code.split('::')[1] : '')).toLowerCase();
         if (sn.includes('personal care')) return 100;
         if (sn.includes('homemaker')) return 101;
-        return 99;
+        if (sn.includes('respite')) return 102;
+        return 103;
     }
     return SERVICE_CODE_SORT_ORDER[baseCode] ?? 50;
 }
