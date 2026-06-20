@@ -184,6 +184,19 @@ The app must feel connected, not fragmented. When the same data appears in multi
 
 When building or modifying any view that shows authorizations, service codes, or client data that also appears elsewhere, verify the other views match. The Profile tab's "Programs and Authorizations Overview" and the Programs tab's service cards are the canonical example — both must sort by `getAuthSortKey()` and filter expired/inactive identically.
 
+### Consistency Rules (enforced)
+
+| Rule | Correct Pattern | Wrong Pattern |
+|------|----------------|---------------|
+| Null manualStatus | `(a.manualStatus \|\| 'active') === 'active'` | `a.manualStatus === 'active'` (excludes null/undefined, hides old records) |
+| Hours precision | `unitsToHours()` or `.toFixed(2)` everywhere | Mixing `.toFixed(1)` and `.toFixed(2)` on the same page |
+| Date formatting | Use `formatDate()` from `utils/dates.js` for display dates | Using `fmtDate()` (produces inconsistent "M/D/YYYY" format) — migrate to `formatDate()` |
+| Auth totals | Include ALL service types (PAS + Homemaker + Respite + Companion) | Omitting Companion from totals |
+| Service code sort | Import `SERVICE_CODE_SORT_ORDER` from constants | Inline sort maps in page components |
+| deriveServiceCode | Use shared `deriveServiceCode()` from `utils/serviceCodes.jsx` | Inline string matching in page components |
+| COPE/PAS mapping | Check `serviceName` to determine PAS/Homemaker/Respite/Companion | Mapping all COPE/PAS unconditionally to one service |
+| Activity lists | Server and client must have identical activity arrays | Subset lists on server (PDF export) vs full lists on client |
+
 ## DRY Principle — Centralized Constants & Functions
 
 **All shared constants and utility functions live in `client/src/utils/`.** Never hardcode service codes, colors, activity lists, date/time formatting, or avatar logic inline. Import from the shared files.

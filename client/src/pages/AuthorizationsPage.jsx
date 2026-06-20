@@ -913,7 +913,7 @@ export default function AuthorizationsPage() {
     // Sorting
     const STATUS_SORT_RANK = { 'Expired': 0, 'Renewal Reminder': 1, 'OK': 2 };
     const getMinDays = (c) => {
-        const days = c.authorizations.filter(a => a.manualStatus === 'active' && !a.archivedAt).map(a => a.daysToExpire).filter(d => d != null);
+        const days = c.authorizations.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt).map(a => a.daysToExpire).filter(d => d != null);
         return days.length > 0 ? Math.min(...days) : Infinity;
     };
     const sortedClients = [...filteredClients].sort((a, b) => {
@@ -1146,7 +1146,7 @@ export default function AuthorizationsPage() {
                                     </thead>
                                     <tbody>
                                         {paginatedClients.map((client) => {
-                                            const activeAuths = client.authorizations.filter(a => a.manualStatus === 'active' && !a.archivedAt);
+                                            const activeAuths = client.authorizations.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt);
                                             const minDays = activeAuths.length > 0
                                                 ? Math.min(...activeAuths.map(a => a.daysToExpire).filter(d => d != null))
                                                 : null;

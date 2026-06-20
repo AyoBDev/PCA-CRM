@@ -25,5 +25,5 @@ export function computeHours(timeIn, timeOut) {
 
 export function unitsToHours(units) {
     if (!units) return '—';
-    return (units / 4).toFixed(1);
+    return (units / 4).toFixed(2);
 }

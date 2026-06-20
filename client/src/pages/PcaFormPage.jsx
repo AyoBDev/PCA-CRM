@@ -527,8 +527,8 @@ export default function PcaFormPage() {
         })()
         : '';
 
-    const totalAuth = (authLimits.PAS?.hours || 0) + (authLimits.Homemaker?.hours || 0) + (authLimits.Respite?.hours || 0);
-    const totalAuthUnits = (authLimits.PAS?.units || 0) + (authLimits.Homemaker?.units || 0) + (authLimits.Respite?.units || 0);
+    const totalAuth = (authLimits.PAS?.hours || 0) + (authLimits.Homemaker?.hours || 0) + (authLimits.Respite?.hours || 0) + (authLimits.Companion?.hours || 0);
+    const totalAuthUnits = (authLimits.PAS?.units || 0) + (authLimits.Homemaker?.units || 0) + (authLimits.Respite?.units || 0) + (authLimits.Companion?.units || 0);
 
     return (
         <div className={`pcaf-page ${isMobile ? 'pcaf-page--mobile' : ''}`}>
@@ -641,6 +641,11 @@ export default function PcaFormPage() {
                         {authLimits.Respite && (
                             <span className="pcaf-auth-pill pcaf-auth-pill--respite">
                                 Respite: {authLimits.Respite.hours} hrs ({authLimits.Respite.units} units)
+                            </span>
+                        )}
+                        {authLimits.Companion && (
+                            <span className="pcaf-auth-pill pcaf-auth-pill--companion">
+                                Companion: {authLimits.Companion.hours} hrs ({authLimits.Companion.units} units)
                             </span>
                         )}
                     </div>

@@ -81,7 +81,7 @@ function deriveTimesheetService(auth) {
         if (name.includes('companion')) return 'Companion';
         return 'PAS';
     }
-    if (code === 'PCS' || code === 'PAS' || code === 'S5125' || code === 'TIMESHEET_PCS') return 'PAS';
+    if (code === 'PCS' || code === 'S5125' || code === 'TIMESHEET_PCS') return 'PAS';
     if (code === 'S5130' || code === 'S5120' || code === 'TIMESHEET_HOMEMAKER' || code === 'TIMESHEET_CHORE') return 'Homemaker';
     if (code === 'S5150' || code === 'TIMESHEET_RESPITE') return 'Respite';
     if (code === 'S5135' || code === 'TIMESHEET_COMPANION') return 'Companion';
