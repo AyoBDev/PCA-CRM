@@ -1,5 +1,5 @@
 import Icons from '../../components/common/Icons';
-import { AUTH_COLORS, DEFAULT_AUTH_COLOR, SERVICE_CODE_NAMES } from '../../utils/constants';
+import { AUTH_COLORS, DEFAULT_AUTH_COLOR, SERVICE_CODE_NAMES, getAuthSortKey } from '../../utils/constants';
 
 export default function ProfileInsuranceTab({
     client,
@@ -69,7 +69,7 @@ export default function ProfileInsuranceTab({
                                     <span>Start Date</span>
                                     <span>End Date</span>
                                 </div>
-                                {Object.entries(authGroups).flatMap(([code, auths]) =>
+                                {Object.entries(authGroups).sort(([a], [b]) => getAuthSortKey(a) - getAuthSortKey(b)).flatMap(([code, auths]) =>
                                     auths.filter(a => !a.archivedAt && (a.manualStatus || 'active') === 'active').map(a => {
                                         const colors = AUTH_COLORS[code] || DEFAULT_AUTH_COLOR;
                                         return (

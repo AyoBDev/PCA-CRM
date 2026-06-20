@@ -174,6 +174,16 @@ undoState.pushAction('Description of action',
 2. Controller calls service layer for business logic
 3. Enriched data returned to frontend; filtering/sorting done client-side
 
+## UI Consistency — Same Data, Same Presentation
+
+The app must feel connected, not fragmented. When the same data appears in multiple places (e.g., authorizations on the Profile tab AND the Programs tab), it MUST use:
+- **Same data source** — derive from the same API response / parent prop
+- **Same sort order** — always use `getAuthSortKey()` for authorization/service code ordering
+- **Same filtering logic** — active/expired/archived rules must match across views
+- **Same display format** — dates, units, labels rendered identically
+
+When building or modifying any view that shows authorizations, service codes, or client data that also appears elsewhere, verify the other views match. The Profile tab's "Programs and Authorizations Overview" and the Programs tab's service cards are the canonical example — both must sort by `getAuthSortKey()` and filter expired/inactive identically.
+
 ## DRY Principle — Centralized Constants & Functions
 
 **All shared constants and utility functions live in `client/src/utils/`.** Never hardcode service codes, colors, activity lists, date/time formatting, or avatar logic inline. Import from the shared files.
@@ -191,7 +201,7 @@ When adding a new value (e.g., new service code), update the centralized file an
 | `TIMESHEET_STATUS_STYLES` | EmployeeDetailPage, TimesheetsTab |
 | `DAY_NAMES_SHORT/FULL/UPPER` | SchedulingPage, FutureShiftsView, ScheduleTab, PcaFormPage |
 | `SERVICE_CODE_SORT_ORDER` | PayrollPage (banner + visit sorting) |
-| `getAuthSortKey(code, serviceName)` | AuthorizationsPage, ProgramsAuthTab (sort order: PCS → S5130 → S5125 → waiver → COPE-PCS → COPE-HM) |
+| `getAuthSortKey(code, serviceName)` | AuthorizationsPage, ProgramsAuthTab, ProfileInsuranceTab (sort order: PCS → S5130 → S5125 → waiver → COPE-PCS → COPE-HM) |
 | `ACTION_COLORS` | ActivityDrawer, HistoryPage |
 | `CERT_COLORS` | EmployeeDetailPage certifications |
 | `PAGE_SIZE` | All paginated lists |
