@@ -50,6 +50,7 @@ server/src/
   services/         # Business logic
   middleware/authMiddleware.js  # authenticate() + requireRole(...roles)
   lib/prisma.js     # Singleton Prisma client instance
+  lib/timesheetUtils.js  # Shared: roundTo15, computeHours, computeTotalHoursWithBlocks, deriveTimesheetService, activity lists
 prisma/
   schema.prisma     # PostgreSQL schema with @@map snake_case names
   seed.js           # Creates admin user (skips if already exists, uses ADMIN_EMAIL/ADMIN_PASSWORD env vars)
@@ -459,7 +460,7 @@ Service codes are the connective tissue of the app. A change to service codes mu
 | `server/src/controllers/authorizationController.js` → `VALID_SERVICE_CODES` | Server-side validation of allowed codes |
 | `server/src/services/authorizationService.js` → `REMINDER_WINDOWS`, `RENEWAL_COLORS` | Expiry reminder config per code |
 | `server/prisma/seed-services.js` → `DEFAULT_SERVICES` | Reference data seeder |
-| `server/src/controllers/pcaFormController.js` → `deriveTimesheetService()` | Maps auth service codes → PCA form sections (PAS/Homemaker/Respite/Companion) |
+| `server/src/lib/timesheetUtils.js` → `deriveTimesheetService()` | **Single source** for auth code → timesheet section mapping (used by both timesheetController and pcaFormController) |
 | `client/src/utils/serviceCodes.jsx` → `SERVICE_CODE_OPTIONS` | **Single source** for all frontend service code dropdowns |
 | `client/src/utils/constants.js` → `AUTH_COLORS`, `SERVICE_CODE_NAMES` | **Single source** for all frontend display colors/names |
 | `client/src/utils/accountMapping.js` → `SERVICE_CODE_ACCOUNT_MAP` | Service code → account number auto-fill |
@@ -490,7 +491,7 @@ Employee
  └── PayrollVisits (matched by employee name)
 ```
 
-### PCA Form Service Mapping (`deriveTimesheetService`)
+### PCA Form Service Mapping (`deriveTimesheetService` — in `server/src/lib/timesheetUtils.js`)
 | Auth Service Code | → PCA Form Section |
 |---|---|
 | PCS, PAS, TIMESHEET_PCS, COPE | PAS (ADL activities) |
@@ -502,7 +503,7 @@ Employee
 1. Add to `VALID_SERVICE_CODES` in `server/src/controllers/authorizationController.js`
 2. Add to `REMINDER_WINDOWS` and `RENEWAL_COLORS` in `server/src/services/authorizationService.js`
 3. Add to `server/prisma/seed-services.js`
-4. Update `deriveTimesheetService()` mapping in `server/src/controllers/pcaFormController.js`
+4. Update `deriveTimesheetService()` mapping in `server/src/lib/timesheetUtils.js`
 5. Add to `SERVICE_CODE_OPTIONS` in `client/src/utils/serviceCodes.jsx` (all dropdowns update automatically)
 6. Add to `AUTH_COLORS` and `SERVICE_CODE_NAMES` in `client/src/utils/constants.js` (all pages update automatically)
 7. Add to `SERVICE_CODE_ACCOUNT_MAP` in `client/src/utils/accountMapping.js` (auto-fill updates automatically)
