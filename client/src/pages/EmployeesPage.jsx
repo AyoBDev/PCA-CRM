@@ -10,11 +10,7 @@ import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import { useUndoStack } from '../hooks/useUndoStack';
 import { getInitials, getAvatarColor } from '../utils/ui';
-
-function fmtDate(d) {
-    if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
-}
+import { formatDate as fmtDate } from '../utils/dates';
 
 const CERT_FIELDS = [
     { key: 'tbDueDate', label: 'TB' },

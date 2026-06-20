@@ -4,25 +4,9 @@ import Icons from '../components/common/Icons';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import { useToast } from '../hooks/useToast';
+import { ACTION_COLORS } from '../utils/constants';
 
-const ACTION_COLORS = {
-    CREATE: { bg: 'hsl(142 71% 93%)', text: 'hsl(142 71% 29%)', label: 'Created' },
-    UPDATE: { bg: 'hsl(32 95% 92%)', text: 'hsl(32 95% 35%)', label: 'Updated' },
-    DELETE: { bg: 'hsl(0 84% 93%)', text: 'hsl(0 84% 40%)', label: 'Deleted' },
-    ARCHIVE: { bg: 'hsl(0 84% 93%)', text: 'hsl(0 84% 40%)', label: 'Archived' },
-    RESTORE: { bg: 'hsl(142 71% 93%)', text: 'hsl(142 71% 29%)', label: 'Restored' },
-    SUBMIT: { bg: 'hsl(217 91% 93%)', text: 'hsl(217 91% 35%)', label: 'Submitted' },
-    PERMANENT_DELETE: { bg: 'hsl(0 84% 93%)', text: 'hsl(0 84% 40%)', label: 'Permanently Deleted' },
-    BULK_DELETE: { bg: 'hsl(32 95% 92%)', text: 'hsl(32 95% 35%)', label: 'Bulk Delete' },
-    TOGGLE_ACTIVE: { bg: 'hsl(32 95% 92%)', text: 'hsl(32 95% 35%)', label: 'Toggled Active' },
-    RESET_PASSWORD: { bg: 'hsl(270 60% 93%)', text: 'hsl(270 60% 35%)', label: 'Password Reset' },
-    BULK_UPDATE: { bg: 'hsl(32 95% 92%)', text: 'hsl(32 95% 35%)', label: 'Bulk Update' },
-};
-
-const ALL_ACTIONS = [
-    'CREATE', 'UPDATE', 'DELETE', 'ARCHIVE', 'RESTORE',
-    'SUBMIT', 'PERMANENT_DELETE', 'BULK_DELETE', 'TOGGLE_ACTIVE', 'RESET_PASSWORD', 'BULK_UPDATE',
-];
+const ALL_ACTIONS = Object.keys(ACTION_COLORS);
 
 const ENTITY_TYPES = [
     'Client', 'Employee', 'User', 'Shift', 'Timesheet',

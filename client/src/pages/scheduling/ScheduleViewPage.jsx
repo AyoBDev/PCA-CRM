@@ -2,15 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import * as api from '../../api';
 import { CLIENT_COLORS } from '../../utils/ui';
-
-const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-function hhmm12(t) {
-    if (!t) return '';
-    const [h, m] = t.split(':').map(Number);
-    const hr = h % 12 || 12;
-    return `${hr}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
-}
+import { hhmm12 } from '../../utils/time';
+import { DAY_NAMES_FULL as DAY_NAMES } from '../../utils/constants';
 
 function computeShiftHours(startTime, endTime) {
     if (!startTime || !endTime) return 0;

@@ -1,20 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { hhmm12 } from '../../utils/time';
-import { SERVICE_COLORS } from '../../utils/constants';
-
-function toLocalDateStr(d) {
-    if (!d) return '';
-    if (typeof d === 'string') {
-        if (d.includes('T')) return d.split('T')[0];
-        return d;
-    }
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-}
-
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+import { SERVICE_COLORS, DAY_NAMES_SHORT as DAY_NAMES } from '../../utils/constants';
+import { toLocalDateStr } from '../../utils/dates';
 const MAX_VISIBLE_SHIFTS = 3;
 
 export default function MonthlyCalendarView({ shifts, month, year, overlapIds, onEditShift, onDayClick }) {

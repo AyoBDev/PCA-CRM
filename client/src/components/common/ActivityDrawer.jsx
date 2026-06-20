@@ -1,37 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as api from '../../api';
 import Icons from './Icons';
-
-// Human-readable labels for actions
-const ACTION_LABELS = {
-    CREATE: 'Created',
-    UPDATE: 'Updated',
-    DELETE: 'Deleted',
-    ARCHIVE: 'Archived',
-    RESTORE: 'Restored',
-    SUBMIT: 'Submitted',
-    EXPORT: 'Exported',
-    LOGIN: 'Logged in',
-    TOGGLE_ACTIVE: 'Toggled active',
-    RESET_PASSWORD: 'Reset password',
-    PERMANENT_DELETE: 'Permanently deleted',
-    BULK_DELETE: 'Bulk deleted',
-};
-
-// Action colors
-const ACTION_COLORS = {
-    CREATE: '#16a34a',
-    UPDATE: '#2563eb',
-    DELETE: '#dc2626',
-    ARCHIVE: '#f59e0b',
-    RESTORE: '#16a34a',
-    SUBMIT: '#7c3aed',
-    PERMANENT_DELETE: '#dc2626',
-    BULK_DELETE: '#dc2626',
-    LOGIN: '#6b7280',
-    TOGGLE_ACTIVE: '#f59e0b',
-    RESET_PASSWORD: '#f59e0b',
-};
+import { ACTION_COLORS as ACTION_COLORS_MAP } from '../../utils/constants';
 
 function formatTime(dateStr) {
     const d = new Date(dateStr);
@@ -68,8 +38,8 @@ function ChangesDetail({ changes }) {
 
 function ActivityItem({ log }) {
     const [expanded, setExpanded] = useState(false);
-    const color = ACTION_COLORS[log.action] || '#6b7280';
-    const label = ACTION_LABELS[log.action] || log.action;
+    const color = ACTION_COLORS_MAP[log.action]?.hex || '#6b7280';
+    const label = ACTION_COLORS_MAP[log.action]?.label || log.action;
     let parsed;
     try { parsed = typeof log.changes === 'string' ? JSON.parse(log.changes) : log.changes; } catch { parsed = []; }
     const hasChanges = Array.isArray(parsed) && parsed.length > 0;

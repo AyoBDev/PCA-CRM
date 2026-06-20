@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
-
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+import { DAY_NAMES_SHORT as DAYS } from '../../utils/constants';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function formatShiftDate(dateStr) {

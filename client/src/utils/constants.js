@@ -107,16 +107,18 @@ export function getAuthSortKey(code, serviceName) {
 // ─── Action Colors (audit log, activity drawer) ───
 
 export const ACTION_COLORS = {
-    CREATE: { bg: 'hsl(142 76% 94%)', text: '#16a34a', hex: '#22c55e' },
-    UPDATE: { bg: 'hsl(217 91% 94%)', text: '#2563eb', hex: '#3b82f6' },
-    DELETE: { bg: 'hsl(0 84% 94%)', text: '#dc2626', hex: '#ef4444' },
-    ARCHIVE: { bg: 'hsl(38 92% 94%)', text: '#d97706', hex: '#f59e0b' },
-    RESTORE: { bg: 'hsl(173 80% 94%)', text: '#0d9488', hex: '#14b8a6' },
-    SUBMIT: { bg: 'hsl(270 60% 94%)', text: '#7c3aed', hex: '#8b5cf6' },
-    PERMANENT_DELETE: { bg: 'hsl(0 84% 94%)', text: '#dc2626', hex: '#ef4444' },
-    BULK_DELETE: { bg: 'hsl(0 84% 94%)', text: '#dc2626', hex: '#ef4444' },
-    TOGGLE_ACTIVE: { bg: 'hsl(38 92% 94%)', text: '#d97706', hex: '#f59e0b' },
-    RESET_PASSWORD: { bg: 'hsl(217 91% 94%)', text: '#2563eb', hex: '#3b82f6' },
+    CREATE: { bg: 'hsl(142 71% 93%)', text: 'hsl(142 71% 29%)', hex: '#16a34a', label: 'Created' },
+    UPDATE: { bg: 'hsl(217 91% 93%)', text: 'hsl(217 91% 35%)', hex: '#2563eb', label: 'Updated' },
+    DELETE: { bg: 'hsl(0 84% 93%)', text: 'hsl(0 84% 40%)', hex: '#dc2626', label: 'Deleted' },
+    ARCHIVE: { bg: 'hsl(0 84% 93%)', text: 'hsl(0 84% 40%)', hex: '#f59e0b', label: 'Archived' },
+    RESTORE: { bg: 'hsl(142 71% 93%)', text: 'hsl(142 71% 29%)', hex: '#16a34a', label: 'Restored' },
+    SUBMIT: { bg: 'hsl(217 91% 93%)', text: 'hsl(217 91% 35%)', hex: '#7c3aed', label: 'Submitted' },
+    PERMANENT_DELETE: { bg: 'hsl(0 84% 93%)', text: 'hsl(0 84% 40%)', hex: '#dc2626', label: 'Permanently Deleted' },
+    BULK_DELETE: { bg: 'hsl(0 84% 93%)', text: 'hsl(0 84% 40%)', hex: '#dc2626', label: 'Bulk Delete' },
+    BULK_UPDATE: { bg: 'hsl(217 91% 93%)', text: 'hsl(217 91% 35%)', hex: '#2563eb', label: 'Bulk Update' },
+    TOGGLE_ACTIVE: { bg: 'hsl(38 92% 92%)', text: 'hsl(38 92% 35%)', hex: '#f59e0b', label: 'Toggled Active' },
+    RESET_PASSWORD: { bg: 'hsl(270 60% 93%)', text: 'hsl(270 60% 35%)', hex: '#f59e0b', label: 'Password Reset' },
+    LOGIN: { bg: 'hsl(220 9% 93%)', text: 'hsl(220 9% 40%)', hex: '#6b7280', label: 'Login' },
 };
 
 // ─── Certification Colors (employee) ───

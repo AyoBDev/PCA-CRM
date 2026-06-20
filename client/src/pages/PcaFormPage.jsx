@@ -10,9 +10,7 @@ import MobileDayTabs from '../components/pca-form/MobileDayTabs';
 import MobileDayCard from '../components/pca-form/MobileDayCard';
 import MobileSummaryTab from '../components/pca-form/MobileSummaryTab';
 import MobileAuthBar from '../components/pca-form/MobileAuthBar';
-import { ADL_ACTIVITIES, IADL_ACTIVITIES, RESPITE_ACTIVITIES, COMPANION_ACTIVITIES } from '../utils/constants';
-
-const DAY_SHORT = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+import { ADL_ACTIVITIES, IADL_ACTIVITIES, RESPITE_ACTIVITIES, COMPANION_ACTIVITIES, DAY_NAMES_UPPER as DAY_SHORT } from '../utils/constants';
 
 function totalHoursWithBlocks(entry, section) {
     let total = computeHours(entry[`${section}TimeIn`], entry[`${section}TimeOut`]);

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import * as api from '../../api';
+import { DAY_NAMES_FULL } from '../../utils/constants';
 
 export default function ScheduleConfirmPage() {
     const { token } = useParams();
@@ -38,7 +39,7 @@ export default function ScheduleConfirmPage() {
     if (loading) return <div className="signing-page"><p>Loading schedule...</p></div>;
     if (error) return <div className="signing-page"><p className="error">{error}</p></div>;
 
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayNames = DAY_NAMES_FULL;
 
     return (
         <div className="signing-page">

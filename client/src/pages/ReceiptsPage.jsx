@@ -6,10 +6,7 @@ import { useUndoStack } from '../hooks/useUndoStack';
 import Modal from '../components/common/Modal';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
-
-function fmtDate(d) {
-    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
-}
+import { formatDate as fmtDate } from '../utils/dates';
 
 function fmtMoney(n) {
     const abs = Math.abs(Number(n));
