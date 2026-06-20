@@ -107,15 +107,22 @@ export default function ProgramsAuthTab({
         const { baseCode: ba, serviceName: sa } = parseGroupKey(a);
         const { baseCode: bb, serviceName: sb } = parseGroupKey(b);
         return getAuthSortKey(ba, sa) - getAuthSortKey(bb, sb);
+    }).filter(code => {
+        if (authFilterStatus === 'all') return true;
+        const { current, archived } = authGroupsForInsurance[code];
+        const allAuths = [...current, ...archived];
+        return filterAuths(allAuths).length > 0;
     });
     const leftCodes = allCodes.filter(c => LEFT_CODES.includes(parseGroupKey(c).baseCode));
     const rightCodes = allCodes.filter(c => !LEFT_CODES.includes(parseGroupKey(c).baseCode));
 
     let totalActive = 0, totalUnits = 0;
     Object.values(authGroupsForInsurance).forEach(({ current }) => {
-        totalActive += current.length;
         current.forEach(a => {
-            totalUnits += a.authorizedUnits || 0;
+            if ((a.manualStatus || 'active') === 'active' && a.status !== 'Expired') {
+                totalActive++;
+                totalUnits += a.authorizedUnits || 0;
+            }
         });
     });
     const totalHours = (totalUnits / 4).toFixed(2);
