@@ -226,8 +226,8 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                                                         <div>
                                                             <span title={status.respondedAt ? new Date(status.respondedAt).toLocaleString() : ''} style={{ display: 'inline-block', padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: c.bg, color: c.color }}>{c.label}</span>
                                                             {status.responseNotes && (
-                                                                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 3, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={status.responseNotes}>
-                                                                    {status.responseNotes}
+                                                                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 3, maxWidth: 240, fontStyle: 'italic' }} title={status.responseNotes}>
+                                                                    "{status.responseNotes}"
                                                                 </div>
                                                             )}
                                                         </div>
