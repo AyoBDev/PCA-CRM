@@ -4,7 +4,7 @@ import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import DrawerPanel from '../components/common/DrawerPanel';
-import { fmtDate, daysClass } from '../utils/dates';
+import { formatDate as fmtDate, daysClass } from '../utils/dates';
 import { statusLabel } from '../utils/status';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';

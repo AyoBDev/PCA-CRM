@@ -68,6 +68,15 @@ export const IADL_ACTIVITIES = ['Light Housekeeping', 'Medication Reminders', 'L
 export const RESPITE_ACTIVITIES = ['Companionship', 'Safety Supervision', 'Community Activities', 'Other Approved Respite Tasks'];
 export const COMPANION_ACTIVITIES = ['Companionship', 'Safety Supervision', 'Social Activities', 'Light Errands', 'Other'];
 
+// ─── Timesheet Service Colors (PAS/HM/Respite/Companion badges on timesheet lists) ───
+
+export const TIMESHEET_SERVICE_COLORS = {
+    PAS: '#3b82f6',
+    Homemaker: '#8b5cf6',
+    Respite: '#06b6d4',
+    Companion: '#ec4899',
+};
+
 // ─── Timesheet Status Styles ───
 
 export const TIMESHEET_STATUS_STYLES = {

@@ -4,8 +4,9 @@ import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
-import { fmtDate } from '../utils/dates';
+import { formatDate as fmtDate } from '../utils/dates';
 import { hhmm12 } from '../utils/time';
+import { deriveServiceCode } from '../utils/serviceCodes';
 import { visitRowClass } from '../utils/status';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
@@ -80,24 +81,6 @@ function PayrollUploadModal({ onUpload, onClose }) {
 // ────────────────────────────────────────
 // PayrollClientGroup
 // ────────────────────────────────────────
-// Derive service code from service name (mirrors server SERVICE_CODE_RULES)
-function deriveServiceCode(serviceName) {
-    if (!serviceName) return '';
-    const lower = serviceName.toLowerCase();
-    const rules = [
-        { terms: ['self', 'directed'],  code: 'SDPC'  },
-        { terms: ['self', 'direct'],    code: 'SDPC'  },
-        { terms: ['personal', 'care'],  code: 'PCS'   },
-        { terms: ['homemaker'],         code: 'S5130' },
-        { terms: ['attendant'],         code: 'S5125' },
-        { terms: ['companion'],         code: 'S5135' },
-        { terms: ['respite'],           code: 'S5150' },
-    ];
-    for (const rule of rules) {
-        if (rule.terms.every(t => lower.includes(t))) return rule.code;
-    }
-    return '';
-}
 
 const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits, onVisitChange, authMap, mergedOriginalsMap, readOnly }) {
     // Match server normalizeName: lowercase, strip non-alphanumeric, sort words

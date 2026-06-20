@@ -6,7 +6,7 @@ import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import DrawerPanel from '../components/common/DrawerPanel';
 import ClientCreationWizard from '../components/ClientCreationWizard';
-import { fmtDate, daysClass } from '../utils/dates';
+import { formatDate as fmtDate, daysClass } from '../utils/dates';
 import { statusLabel } from '../utils/status';
 import { getAccountForCategory, getAccountForServiceCode, ACCOUNT_NUMBER_OPTIONS } from '../utils/accountMapping';
 import { ServiceCodeSelect, SERVICE_CATEGORIES, SERVICE_NAME_SUGGESTIONS } from '../utils/serviceCodes';

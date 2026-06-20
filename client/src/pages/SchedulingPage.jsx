@@ -17,6 +17,8 @@ import ContextBar from '../components/common/ContextBar';
 import { useUndoStack } from '../hooks/useUndoStack';
 import { SERVICE_COLORS, DAY_NAMES_SHORT } from '../utils/constants';
 import { CLIENT_COLORS } from '../utils/ui';
+import { deriveServiceCode } from '../utils/serviceCodes';
+import { toLocalDateStr } from '../utils/dates';
 
 function buildClientColorMap(shifts) {
     const names = [...new Set(shifts.map(s => s.client?.clientName).filter(Boolean))].sort();
@@ -32,19 +34,6 @@ function buildClientColorMap(shifts) {
 import SearchableSelect from '../components/common/SearchableSelect';
 
 // Helper: get YYYY-MM-DD from a date value.
-// For ISO strings from the server (stored as UTC midnight), extract the UTC date portion
-// so a shift on "2026-03-15T00:00:00.000Z" always shows as March 15 regardless of timezone.
-// For local Date objects (like our days array), use local date.
-function toLocalDateStr(d) {
-    if (typeof d === 'string') {
-        // If it looks like an ISO string with 'T', extract YYYY-MM-DD from the string directly
-        const idx = d.indexOf('T');
-        if (idx === 10) return d.slice(0, 10);
-        return new Date(d).toISOString().slice(0, 10);
-    }
-    // For Date objects (our locally-constructed day array), use local date parts
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 
 function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete, onClose, defaultDate, defaultClientId, defaultEmployeeId, defaultStartTime, weekStart: propWeekStart, draft, onClearDraft }) {
     const DAY_NAMES = DAY_NAMES_SHORT;
@@ -80,20 +69,10 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
     const [clientGateCode, setClientGateCode] = useState(selectedClient?.gateCode || '');
     const [clientNotes, setClientNotes] = useState(selectedClient?.notes || '');
 
-    // Authorized services for the selected client (from master sheet)
-    // Resolves TIMESHEETS entries via serviceName matching, includes units
     function deriveCode(auth) {
         if (auth.serviceCode && auth.serviceCode !== 'TIMESHEETS') return auth.serviceCode;
-        if (!auth.serviceName) return auth.serviceCode === 'TIMESHEETS' ? 'TIMESHEETS' : null;
-        const lower = auth.serviceName.toLowerCase();
-        if (lower.includes('self') && (lower.includes('directed') || lower.includes('direct'))) return 'SDPC';
-        if (lower.includes('personal') && lower.includes('care')) return 'PCS';
-        if (lower === 'pas' || lower === 'pca') return 'PCS';
-        if (lower.includes('homemaker') || lower === 'hm') return 'S5130';
-        if (lower.includes('attendant')) return 'S5125';
-        if (lower.includes('companion')) return 'S5135';
-        if (lower.includes('respite')) return 'S5150';
-        if (lower === 'timesheets') return 'TIMESHEETS';
+        const derived = deriveServiceCode(auth.serviceName);
+        if (derived) return derived;
         return auth.serviceCode === 'TIMESHEETS' ? 'TIMESHEETS' : null;
     }
 

@@ -4,7 +4,7 @@ import Icons from '../components/common/Icons';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import { useToast } from '../hooks/useToast';
-import { ACTION_COLORS } from '../utils/constants';
+import { ACTION_COLORS, PAGE_SIZE } from '../utils/constants';
 
 const ALL_ACTIONS = Object.keys(ACTION_COLORS);
 
@@ -24,7 +24,7 @@ export default function HistoryPage() {
     const [entityFilter, setEntityFilter] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
-    const limit = 25;
+    const limit = PAGE_SIZE;
 
     const fetchLogs = useCallback(async () => {
         setLoading(true);

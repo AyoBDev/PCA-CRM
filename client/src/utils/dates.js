@@ -1,10 +1,3 @@
-export function fmtDate(d) {
-    if (!d) return '—';
-    const dt = new Date(d);
-    // Use UTC components to avoid timezone shift (dates stored as UTC midnight)
-    return `${dt.getUTCMonth() + 1}/${dt.getUTCDate()}/${dt.getUTCFullYear()}`;
-}
-
 export function daysClass(days) {
     if (days === null || days === undefined) return 'days-cell--positive';
     if (days < 0) return 'days-cell--expired';

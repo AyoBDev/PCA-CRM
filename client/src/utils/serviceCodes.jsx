@@ -51,10 +51,11 @@ export function ServiceCodeSelect({ value, onChange, ...props }) {
 }
 
 const SERVICE_CODE_RULES = [
+    { pattern: /self[- ]?direct/i, code: 'SDPC' },
     { pattern: /personal care/i, code: 'PCS' },
-    { pattern: /self[- ]?directed/i, code: 'SDPC' },
+    { pattern: /\bpas\b|\bpca\b/i, code: 'PCS' },
     { pattern: /attendant/i, code: 'S5125' },
-    { pattern: /homemaker/i, code: 'S5130' },
+    { pattern: /homemaker|\bhm\b/i, code: 'S5130' },
     { pattern: /chore/i, code: 'S5120' },
     { pattern: /companion/i, code: 'S5135' },
     { pattern: /respite/i, code: 'S5150' },

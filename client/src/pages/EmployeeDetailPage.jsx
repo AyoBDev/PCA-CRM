@@ -11,7 +11,7 @@ import { useUndoStack } from '../hooks/useUndoStack';
 import PayrollTab from './employee-tabs/PayrollTab';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
-import { TIMESHEET_STATUS_STYLES } from '../utils/constants';
+import { TIMESHEET_STATUS_STYLES, TIMESHEET_SERVICE_COLORS } from '../utils/constants';
 import { formatDate } from '../utils/dates';
 import { hhmm12 } from '../utils/time';
 
@@ -1000,16 +1000,16 @@ function TimesheetsTab({ employeeName, navigate }) {
                                             </div>
                                             <div style={{ display: 'flex', gap: 16, alignItems: 'center', fontSize: 12 }}>
                                                 {ts.totalPasHours > 0 && (
-                                                    <span style={{ color: '#3b82f6' }}>PAS {ts.totalPasHours.toFixed(1)}h</span>
+                                                    <span style={{ color: TIMESHEET_SERVICE_COLORS.PAS }}>PAS {ts.totalPasHours.toFixed(2)}h</span>
                                                 )}
                                                 {ts.totalHmHours > 0 && (
-                                                    <span style={{ color: '#8b5cf6' }}>HM {ts.totalHmHours.toFixed(1)}h</span>
+                                                    <span style={{ color: TIMESHEET_SERVICE_COLORS.Homemaker }}>HM {ts.totalHmHours.toFixed(2)}h</span>
                                                 )}
                                                 {(ts.totalRespiteHours || 0) > 0 && (
-                                                    <span style={{ color: '#06b6d4' }}>RP {ts.totalRespiteHours.toFixed(1)}h</span>
+                                                    <span style={{ color: TIMESHEET_SERVICE_COLORS.Respite }}>RP {ts.totalRespiteHours.toFixed(2)}h</span>
                                                 )}
                                                 {(ts.totalCompanionHours || 0) > 0 && (
-                                                    <span style={{ color: '#ec4899' }}>CP {ts.totalCompanionHours.toFixed(1)}h</span>
+                                                    <span style={{ color: TIMESHEET_SERVICE_COLORS.Companion }}>CP {ts.totalCompanionHours.toFixed(2)}h</span>
                                                 )}
                                                 <span style={{ fontWeight: 600, fontSize: 13 }}>{ts.totalHours?.toFixed(1) || '0.0'}h</span>
                                             </div>
