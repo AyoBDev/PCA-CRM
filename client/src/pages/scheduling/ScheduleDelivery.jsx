@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useToast } from '../../hooks/useToast';
 import Icons from '../../components/common/Icons';
+import Modal from '../../components/common/Modal';
 import * as api from '../../api';
 
 export default function ScheduleDelivery({ weekStart, shifts }) {
@@ -15,6 +16,7 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
     const [notifStatus, setNotifStatus] = useState([]);
     const [scheduleLinks, setScheduleLinks] = useState([]);
     const [empSearch, setEmpSearch] = useState('');
+    const [responseModal, setResponseModal] = useState(null);
     const { showToast } = useToast();
 
     useEffect(() => {
@@ -223,10 +225,10 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                                                     const colors = { accepted: { bg: '#dcfce7', color: '#166534', label: 'Accepted' }, rejected: { bg: '#fee2e2', color: '#991b1b', label: 'Rejected' }, changes_requested: { bg: '#fef3c7', color: '#92400e', label: 'Changes Req.' } };
                                                     const c = colors[status.response] || { bg: '#f3f4f6', color: '#374151', label: status.response };
                                                     return (
-                                                        <div>
-                                                            <span title={status.respondedAt ? new Date(status.respondedAt).toLocaleString() : ''} style={{ display: 'inline-block', padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: c.bg, color: c.color }}>{c.label}</span>
+                                                        <div style={{ cursor: 'pointer' }} onClick={() => setResponseModal({ emp, status })}>
+                                                            <span style={{ display: 'inline-block', padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: c.bg, color: c.color }}>{c.label}</span>
                                                             {status.responseNotes && (
-                                                                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 3, maxWidth: 240, fontStyle: 'italic' }} title={status.responseNotes}>
+                                                                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 3, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                                     "{status.responseNotes}"
                                                                 </div>
                                                             )}
@@ -302,6 +304,35 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {responseModal && (
+                <Modal onClose={() => setResponseModal(null)}>
+                    <h2 style={{ margin: '0 0 4px', fontSize: 18 }}>{responseModal.emp.name}</h2>
+                    <p style={{ margin: '0 0 16px', fontSize: 13, color: '#6b7280' }}>Schedule Response</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontSize: 13, color: '#6b7280', minWidth: 70 }}>Status:</span>
+                            {(() => {
+                                const colors = { accepted: { bg: '#dcfce7', color: '#166534', label: 'Accepted' }, rejected: { bg: '#fee2e2', color: '#991b1b', label: 'Rejected' }, changes_requested: { bg: '#fef3c7', color: '#92400e', label: 'Changes Requested' } };
+                                const c = colors[responseModal.status.response] || { bg: '#f3f4f6', color: '#374151', label: responseModal.status.response };
+                                return <span style={{ padding: '3px 12px', borderRadius: 10, fontSize: 13, fontWeight: 600, background: c.bg, color: c.color }}>{c.label}</span>;
+                            })()}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontSize: 13, color: '#6b7280', minWidth: 70 }}>Date:</span>
+                            <span style={{ fontSize: 13 }}>{responseModal.status.respondedAt ? new Date(responseModal.status.respondedAt).toLocaleString() : '—'}</span>
+                        </div>
+                        {responseModal.status.responseNotes && (
+                            <div style={{ marginTop: 4 }}>
+                                <span style={{ display: 'block', fontSize: 13, color: '#6b7280', marginBottom: 6 }}>Notes:</span>
+                                <div style={{ padding: '12px 16px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', fontSize: 14, lineHeight: 1.5, color: '#1f2937', whiteSpace: 'pre-wrap' }}>
+                                    {responseModal.status.responseNotes}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </Modal>
             )}
         </div>
     );
