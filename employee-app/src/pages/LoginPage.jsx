@@ -31,11 +31,15 @@ export default function LoginPage() {
         <p className="login-subtitle">Employee Portal</p>
         <form onSubmit={handleSubmit}>
           {error && <div className="login-error">{error}</div>}
-          <label className="field-label">Email</label>
-          <input type="email" className="field-input" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" />
-          <label className="field-label">Password</label>
-          <input type="password" className="field-input" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" />
-          <button type="submit" className="btn btn-primary btn-full" disabled={submitting}>
+          <div className="form-group">
+            <label>Email</label>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" />
+          </div>
+          <div className="form-group">
+            <label>Password</label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" />
+          </div>
+          <button type="submit" className="btn btn--primary btn--full" disabled={submitting}>
             {submitting ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
