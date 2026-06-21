@@ -24,6 +24,8 @@ export default function FilesPage() {
     const [nameModal, setNameModal] = useState(null);
     const [deleteModal, setDeleteModal] = useState(null);
     const [conflictModal, setConflictModal] = useState(null);
+    const [moveModal, setMoveModal] = useState(null);
+    const [folders, setFolders] = useState([]);
     const [treeRefreshKey, setTreeRefreshKey] = useState(0);
     const [search, setSearch] = useState('');
     const nameInputRef = useRef(null);
@@ -162,15 +164,30 @@ export default function FilesPage() {
         navigate(`/files/edit/${file.id}?folder=${folderId}`);
     }, [navigate]);
 
-    const handleDeleteConfirmed = useCallback(async (itemsToDelete) => {
-        for (const item of itemsToDelete) {
-            await api.deleteAdminFile(item.id);
+    const handleDeleteConfirmed = useCallback(async () => {
+        if (deleteModal.type === 'folder') {
+            try {
+                await api.deleteFolder(deleteModal.item.id);
+                setTreeRefreshKey(k => k + 1);
+                if (selectedFolder?.id === deleteModal.item.id) {
+                    setSelectedFolder(null);
+                    setFiles([]);
+                }
+                showToast('Folder deleted');
+            } catch (err) {
+                showToast(err.message || 'Failed to delete folder', 'error');
+            }
+        } else {
+            const itemsToDelete = Array.isArray(deleteModal) ? deleteModal : deleteModal.items;
+            for (const item of itemsToDelete) {
+                await api.deleteAdminFile(item.id);
+            }
+            setSelected(new Set());
+            loadFiles(selectedFolder);
+            setTreeRefreshKey(k => k + 1);
         }
         setDeleteModal(null);
-        setSelected(new Set());
-        loadFiles(selectedFolder);
-        setTreeRefreshKey(k => k + 1);
-    }, [selectedFolder, loadFiles]);
+    }, [deleteModal, selectedFolder, loadFiles, showToast]);
 
     const handleToggleSelect = useCallback((fileId) => {
         setSelected(prev => {
@@ -203,6 +220,32 @@ export default function FilesPage() {
         setNameModal({ mode: 'create', item: null, defaultValue: '' });
     }, []);
 
+    const handleRenameFolder = useCallback((folder) => {
+        setNameModal({ mode: 'renameFolder', item: folder, defaultValue: folder.name });
+    }, []);
+
+    const handleDeleteFolder = useCallback((folder) => {
+        setDeleteModal({ type: 'folder', item: folder });
+    }, []);
+
+    const handleMoveFiles = useCallback(async () => {
+        const allFolders = await api.listFolders(null);
+        const flat = [];
+        const flatten = async (parentId) => {
+            const data = await api.listFolders(parentId);
+            for (const f of (data.folders || [])) {
+                flat.push(f);
+                await flatten(f.id);
+            }
+        };
+        for (const f of (allFolders.folders || [])) {
+            flat.push(f);
+            await flatten(f.id);
+        }
+        setFolders(flat);
+        setMoveModal({ fileIds: [...selected] });
+    }, [selected]);
+
     const handleNameSubmit = useCallback(async (e) => {
         e.preventDefault();
         const value = nameInputRef.current?.value?.trim();
@@ -218,6 +261,18 @@ export default function FilesPage() {
             if (value !== nameModal.item.name) {
                 await api.renameFile(nameModal.item.id, value);
                 loadFiles(selectedFolder);
+            }
+        } else if (nameModal.mode === 'renameFolder') {
+            if (value !== nameModal.item.name) {
+                try {
+                    await api.renameFolder(nameModal.item.id, value);
+                    setTreeRefreshKey(k => k + 1);
+                    if (selectedFolder?.id === nameModal.item.id) {
+                        setSelectedFolder(prev => ({ ...prev, name: value }));
+                    }
+                } catch (err) {
+                    showToast(err.message || 'Failed to rename folder', 'error');
+                }
             }
         }
         setNameModal(null);
@@ -281,6 +336,7 @@ export default function FilesPage() {
                     {selected.size > 0 && (
                         <>
                             <span className="files-page__selection-count">{selected.size} selected</span>
+                            <button className="btn btn--outline btn--sm" onClick={handleMoveFiles}>{Icons.folder} Move</button>
                             <button className="btn btn--danger btn--sm" onClick={handleBulkDelete}>{Icons.trash} Delete</button>
                             <button className="btn btn--secondary btn--sm" onClick={handleBulkDownload}>{Icons.download} Download</button>
                             <button className="btn btn--outline btn--sm" onClick={() => setSelected(new Set())}>Clear</button>
@@ -303,6 +359,8 @@ export default function FilesPage() {
                         activeFolderId={selectedFolder?.id}
                         onSelectFolder={handleSelectFolder}
                         onCreateFolder={handleCreateFolder}
+                        onRenameFolder={handleRenameFolder}
+                        onDeleteFolder={handleDeleteFolder}
                         refreshKey={treeRefreshKey}
                     />
                 </div>
@@ -328,7 +386,7 @@ export default function FilesPage() {
 
             {nameModal && (
                 <Modal onClose={() => setNameModal(null)}>
-                    <h2 className="modal__title">{nameModal.mode === 'create' ? 'New Folder' : 'Rename'}</h2>
+                    <h2 className="modal__title">{nameModal.mode === 'create' ? 'New Folder' : nameModal.mode === 'renameFolder' ? 'Rename Folder' : 'Rename File'}</h2>
                     <form onSubmit={handleNameSubmit}>
                         <div className="form-group">
                             <label className="form-label">{nameModal.mode === 'create' ? 'Folder name' : 'New name'}</label>
@@ -342,13 +400,55 @@ export default function FilesPage() {
                 </Modal>
             )}
 
+            {moveModal && (
+                <Modal onClose={() => setMoveModal(null)}>
+                    <h2 className="modal__title">Move {moveModal.fileIds.length} file{moveModal.fileIds.length !== 1 ? 's' : ''} to...</h2>
+                    <div style={{ maxHeight: 300, overflowY: 'auto', border: '1px solid hsl(var(--border))', borderRadius: 8, marginBottom: 16 }}>
+                        {folders.filter(f => f.id !== selectedFolder?.id).map(f => (
+                            <button
+                                key={f.id}
+                                className="btn btn--ghost"
+                                style={{ width: '100%', textAlign: 'left', padding: '10px 16px', borderBottom: '1px solid hsl(var(--border))', display: 'flex', alignItems: 'center', gap: 8 }}
+                                onClick={async () => {
+                                    try {
+                                        for (const fileId of moveModal.fileIds) {
+                                            await api.moveFile(fileId, f.id);
+                                        }
+                                        showToast(`Moved ${moveModal.fileIds.length} file${moveModal.fileIds.length !== 1 ? 's' : ''} to ${f.name}`);
+                                        setMoveModal(null);
+                                        setSelected(new Set());
+                                        loadFiles(selectedFolder);
+                                        setTreeRefreshKey(k => k + 1);
+                                    } catch (err) {
+                                        showToast(err.message || 'Move failed', 'error');
+                                    }
+                                }}
+                            >
+                                {Icons.folder}
+                                <span>{f.path || f.name}</span>
+                            </button>
+                        ))}
+                        {folders.filter(f => f.id !== selectedFolder?.id).length === 0 && (
+                            <div style={{ padding: 16, color: 'hsl(var(--muted-foreground))', textAlign: 'center' }}>No other folders available</div>
+                        )}
+                    </div>
+                    <div className="form-actions">
+                        <button className="btn btn--outline" onClick={() => setMoveModal(null)}>Cancel</button>
+                    </div>
+                </Modal>
+            )}
+
             {deleteModal && (
                 <ConfirmModal
-                    title={`Delete ${deleteModal.length === 1 ? 'file' : `${deleteModal.length} files`}`}
-                    message={deleteModal.length === 1 ? `Delete "${deleteModal[0].name}"? This cannot be undone.` : `Delete ${deleteModal.length} files? This cannot be undone.`}
+                    title={deleteModal.type === 'folder' ? 'Delete Folder' : `Delete ${Array.isArray(deleteModal) && deleteModal.length === 1 ? 'file' : `${(Array.isArray(deleteModal) ? deleteModal.length : 1)} files`}`}
+                    message={deleteModal.type === 'folder'
+                        ? `Delete folder "${deleteModal.item.name}" and all its contents? This cannot be undone.`
+                        : Array.isArray(deleteModal) && deleteModal.length === 1
+                            ? `Delete "${deleteModal[0].name}"? This cannot be undone.`
+                            : `Delete ${deleteModal.length} files? This cannot be undone.`}
                     confirmLabel="Delete"
                     confirmVariant="danger"
-                    onConfirm={() => handleDeleteConfirmed(deleteModal)}
+                    onConfirm={handleDeleteConfirmed}
                     onClose={() => setDeleteModal(null)}
                 />
             )}

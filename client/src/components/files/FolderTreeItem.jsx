@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import Icons from '../common/Icons';
 
 export default function FolderTreeItem({
@@ -7,11 +7,15 @@ export default function FolderTreeItem({
     isActive,
     onSelect,
     onLoadChildren,
+    onRenameFolder,
+    onDeleteFolder,
     childrenCache,
     fileCountCache,
 }) {
     const [expanded, setExpanded] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const menuRef = useRef(null);
 
     const children = childrenCache[folder.id] || [];
     const fileCount = fileCountCache[folder.id];
@@ -25,6 +29,13 @@ export default function FolderTreeItem({
         }
         setExpanded(!expanded);
     }, [expanded, folder.id, childrenCache, onLoadChildren]);
+
+    useEffect(() => {
+        if (!menuOpen) return;
+        const close = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
+        document.addEventListener('mousedown', close);
+        return () => document.removeEventListener('mousedown', close);
+    }, [menuOpen]);
 
     const handleSelect = useCallback(() => {
         onSelect(folder);
@@ -59,6 +70,30 @@ export default function FolderTreeItem({
                 {fileCount !== undefined && (
                     <span className="folder-tree-item__badge">{fileCount}</span>
                 )}
+                {(onRenameFolder || onDeleteFolder) && (
+                    <div className="folder-tree-item__menu-wrap" ref={menuRef}>
+                        <button
+                            className="folder-tree-item__menu-btn"
+                            onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
+                        >
+                            ⋯
+                        </button>
+                        {menuOpen && (
+                            <div className="folder-tree-item__menu">
+                                {onRenameFolder && (
+                                    <button onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onRenameFolder(folder); }}>
+                                        {Icons.edit} Rename
+                                    </button>
+                                )}
+                                {onDeleteFolder && (
+                                    <button className="folder-tree-item__menu--danger" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDeleteFolder(folder); }}>
+                                        {Icons.trash} Delete
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
             {expanded && children.length > 0 && (
                 <div className="folder-tree-item__children">
@@ -70,6 +105,8 @@ export default function FolderTreeItem({
                             isActive={false}
                             onSelect={onSelect}
                             onLoadChildren={onLoadChildren}
+                            onRenameFolder={onRenameFolder}
+                            onDeleteFolder={onDeleteFolder}
                             childrenCache={childrenCache}
                             fileCountCache={fileCountCache}
                         />
