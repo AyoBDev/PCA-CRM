@@ -80,4 +80,16 @@ async function approveOnboarding(req, res, next) {
     }
 }
 
-module.exports = { getOnboardingInfo, completeOnboarding, resendInvite, approveOnboarding };
+async function getOnboardingLink(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const token = await prisma.onboardingToken.findUnique({ where: { employeeId: id } });
+        if (!token || token.status !== 'pending') {
+            return res.status(404).json({ error: 'No active onboarding link for this employee' });
+        }
+        const link = `${onboarding.EMPLOYEE_APP_URL}/onboard/${token.token}`;
+        res.json({ link });
+    } catch (err) { next(err); }
+}
+
+module.exports = { getOnboardingInfo, completeOnboarding, resendInvite, approveOnboarding, getOnboardingLink };

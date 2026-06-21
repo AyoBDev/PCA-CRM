@@ -158,7 +158,7 @@ const { getPayrollProfile, upsertPayrollProfile, revealSensitiveField } = requir
 const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalizeReceipts, sendReceipts, downloadReceiptPdf } = require('../controllers/receiptController');
 const { previewSandata, applySandata, undoSandata } = require('../controllers/sandataController');
 const { listConversations, getConversationMessages, adminSendMessage } = require('../controllers/employeePortal/adminChatController');
-const { getOnboardingInfo, completeOnboarding, resendInvite, approveOnboarding } = require('../controllers/onboardingController');
+const { getOnboardingInfo, completeOnboarding, resendInvite, approveOnboarding, getOnboardingLink } = require('../controllers/onboardingController');
 const { authenticate, requireRole } = require('../middleware/authMiddleware');
 const employeeRoutes = require('./employee');
 
@@ -342,6 +342,7 @@ router.delete('/employees/:id', requireRole('admin', 'user', 'pca'), deleteEmplo
 router.delete('/employees/:id/permanent', requireRole('admin'), permanentlyDeleteEmployee);
 router.post('/employees/:id/resend-invite', requireRole('admin'), resendInvite);
 router.patch('/employees/:id/approve-onboarding', requireRole('admin'), approveOnboarding);
+router.get('/employees/:id/onboarding-link', requireRole('admin'), getOnboardingLink);
 router.get('/employees/:id/availability', requireRole('admin', 'user', 'pca'), getEmployeeAvailability);
 
 // Employee Certifications

@@ -408,6 +408,16 @@ export default function EmployeeDetailPage() {
         }
     };
 
+    const handleCopyOnboardingLink = async () => {
+        try {
+            const { link } = await api.getOnboardingLink(employee.id);
+            await navigator.clipboard.writeText(link);
+            showToast('Onboarding link copied to clipboard', 'success');
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    };
+
     const handleApprove = async () => {
         try {
             await api.approveOnboarding(employee.id);
@@ -464,9 +474,14 @@ export default function EmployeeDetailPage() {
                 <ContextBar.Right>
                     <EntityActivityButton entityType="Employee" entityId={employee.id} />
                     {employee.onboardingStatus === 'invited' && (
-                        <button className="btn btn--outline btn--sm" onClick={handleResendInvite}>
-                            {Icons.mail} Resend Invite
-                        </button>
+                        <>
+                            <button className="btn btn--outline btn--sm" onClick={handleCopyOnboardingLink}>
+                                {Icons.copy} Copy Link
+                            </button>
+                            <button className="btn btn--outline btn--sm" onClick={handleResendInvite}>
+                                {Icons.mail} Resend Invite
+                            </button>
+                        </>
                     )}
                     <button className="btn btn--outline btn--sm" onClick={() => setShowEditModal(true)}>
                         {Icons.edit} Edit Employee

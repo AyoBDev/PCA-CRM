@@ -692,3 +692,7 @@ export async function approveOnboarding(employeeId) {
 export async function getEmployeeAvailability(employeeId) {
     return request(`/employees/${employeeId}/availability`);
 }
+
+export async function getOnboardingLink(employeeId) {
+    return request(`/employees/${employeeId}/onboarding-link`);
+}
