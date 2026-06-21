@@ -17,6 +17,7 @@ import { hhmm12 } from '../utils/time';
 
 const TABS = [
     { key: 'profile', label: 'Profile', icon: 'user' },
+    { key: 'onboarding', label: 'Onboarding', icon: 'clipboard', onboardingOnly: true },
     { key: 'certifications', label: 'Certifications', icon: 'shieldCheck' },
     { key: 'timesheets', label: 'Timesheets', icon: 'clock' },
     { key: 'schedule', label: 'Schedule', icon: 'calendar' },
@@ -572,30 +573,9 @@ export default function EmployeeDetailPage() {
                     </div>
                 </div>
 
-                {/* ONBOARDING REVIEW PANEL */}
-                {employee.onboardingStatus === 'submitted' && (
-                    <div className="sheet-card" style={{ marginBottom: 16 }}>
-                        <div className="sheet-card__header">
-                            <h2 className="sheet-card__title">{Icons.clipboard} Onboarding Review</h2>
-                            <div className="sheet-card__actions">
-                                <button className="btn btn--primary btn--sm" onClick={handleApprove}>
-                                    {Icons.checkCircle} Approve
-                                </button>
-                            </div>
-                        </div>
-                        <div style={{ padding: 20 }}>
-                            {loadingAvailability ? (
-                                <p className="text-muted">Loading availability data...</p>
-                            ) : (
-                                <OnboardingReviewPanel data={availabilityData} />
-                            )}
-                        </div>
-                    </div>
-                )}
-
                 {/* TAB NAVIGATION */}
                 <div className="cp-tabs">
-                    {TABS.filter(tab => !tab.adminOnly || isAdmin).map(tab => (
+                    {TABS.filter(tab => (!tab.adminOnly || isAdmin) && (!tab.onboardingOnly || employee.onboardingStatus === 'submitted')).map(tab => (
                         <button
                             key={tab.key}
                             className={`cp-tab ${activeTab === tab.key ? 'cp-tab--active' : ''}`}
@@ -617,6 +597,20 @@ export default function EmployeeDetailPage() {
                 <div className="cp-tab-content">
                     {activeTab === 'profile' && (
                         <ProfileTab employee={employee} />
+                    )}
+                    {activeTab === 'onboarding' && (
+                        <div className="cp-tab-panel">
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+                                <button className="btn btn--primary btn--sm" onClick={handleApprove}>
+                                    {Icons.checkCircle} Approve
+                                </button>
+                            </div>
+                            {loadingAvailability ? (
+                                <p className="text-muted">Loading availability data...</p>
+                            ) : (
+                                <OnboardingReviewPanel data={availabilityData} />
+                            )}
+                        </div>
                     )}
                     {activeTab === 'certifications' && (
                         <CertificationsTab employee={employee} onEdit={() => setShowCertModal(true)} />
