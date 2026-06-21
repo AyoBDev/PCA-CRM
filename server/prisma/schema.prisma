@@ -15,6 +15,7 @@ model User {
   role                    String                    @default("pca")
   phone                   String                    @default("") @map("phone")
   active                  Boolean                   @default(true) @map("active")
+  status                  String                    @default("active") @map("status")
   archivedAt              DateTime?                 @map("archived_at")
   createdAt               DateTime                  @default(now()) @map("created_at")
   updatedAt               DateTime                  @updatedAt @map("updated_at")
@@ -43,6 +44,41 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
+model OnboardingToken {
+  id          Int       @id @default(autoincrement())
+  token       String    @unique @default(uuid())
+  employeeId  Int       @unique @map("employee_id")
+  status      String    @default("pending") @map("status")
+  expiresAt   DateTime  @map("expires_at")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("onboarding_tokens")
+}
+
+model EmployeeAvailability {
+  id                   Int       @id @default(autoincrement())
+  employeeId           Int       @unique @map("employee_id")
+  availableFrom        DateTime  @map("available_from")
+  availableUntil       DateTime? @map("available_until")
+  weeklySchedule       Json      @map("weekly_schedule")
+  maxHoursPerWeek      Int       @map("max_hours_per_week")
+  maxConcurrentClients Int       @map("max_concurrent_clients")
+  maxTravelDistance     Int       @map("max_travel_distance")
+  transportation       String    @map("transportation")
+  holidayAvailability  Json      @map("holiday_availability")
+  blackoutDates        Json      @map("blackout_dates")
+  initialTimeOff       Json      @map("initial_time_off")
+  notes                String    @default("") @map("notes")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+  employee             Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("employee_availability")
+}
+
 model Employee {
   id                      Int                    @id @default(autoincrement())
   name                    String
@@ -69,10 +105,13 @@ model Employee {
   notes                   String                 @default("") @map("notes")
   critical                Boolean                @default(false) @map("critical")
   complianceStatus        String                 @default("ok") @map("compliance_status")
+  onboardingStatus        String                 @default("active") @map("onboarding_status")
   availability            Json?                  @map("availability")
   careTeamAssignments     ClientCareTeam[]
   certifications          EmployeeCertification[]
   scheduleLink            EmployeeScheduleLink?
+  onboardingToken         OnboardingToken?
+  employeeAvailability    EmployeeAvailability?
   user                    User?                  @relation(fields: [userId], references: [id])
   notifications           ScheduleNotification[]
   shifts                  Shift[]
