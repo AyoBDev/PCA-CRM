@@ -20,6 +20,20 @@ async function request(path, options = {}) {
   return res.json();
 }
 
+// Public onboarding endpoints (no auth required)
+export function getOnboardingInfo(token) {
+    return fetch(`${BASE}/api/onboarding/${token}`)
+        .then(r => { if (!r.ok) return r.json().then(e => { throw new Error(e.error); }); return r.json(); });
+}
+
+export function submitOnboarding(token, data) {
+    return fetch(`${BASE}/api/onboarding/${token}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    }).then(r => { if (!r.ok) return r.json().then(e => { throw new Error(e.error); }); return r.json(); });
+}
+
 export const api = {
   login: (email, password) =>
     fetch(`${BASE}/api/auth/login`, {

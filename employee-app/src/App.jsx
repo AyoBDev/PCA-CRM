@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import EmployeeLayout from './components/layout/EmployeeLayout';
 import LoginPage from './pages/LoginPage';
+import OnboardingPage from './pages/OnboardingPage';
 import HomePage from './pages/HomePage';
 import SchedulePage from './pages/SchedulePage';
 import AvailabilityPage from './pages/AvailabilityPage';
@@ -23,6 +24,7 @@ export default function App() {
     <AuthProvider>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/onboard/:token" element={<OnboardingPage />} />
         <Route element={<ProtectedRoutes />}>
           <Route index element={<HomePage />} />
           <Route path="schedule" element={<SchedulePage />} />
