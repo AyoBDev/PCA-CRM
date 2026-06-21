@@ -67,4 +67,5 @@ export const api = {
   updateProfile: (data) => request('/profile', { method: 'PATCH', body: JSON.stringify(data) }),
   subscribePush: (subscription) => request('/push/subscribe', { method: 'POST', body: JSON.stringify(subscription) }),
   unsubscribePush: () => request('/push/subscribe', { method: 'DELETE' }),
+  getTimesheet: (weekStart) => request(`/timesheet${weekStart ? `?weekStart=${weekStart}` : ''}`),
 };
