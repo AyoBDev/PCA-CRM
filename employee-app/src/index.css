@@ -491,6 +491,33 @@ body { font-family: var(--font); font-size: 14px; color: var(--text); background
     font-size: 13px;
 }
 
+/* Password Toggle */
+.onboard-password-wrap {
+    position: relative;
+}
+
+.onboard-password-wrap input {
+    padding-right: 40px;
+}
+
+.onboard-password-toggle {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: hsl(240 3.8% 46.1%);
+    padding: 4px;
+    display: flex;
+    align-items: center;
+}
+
+.onboard-password-toggle:hover {
+    color: hsl(240 10% 3.9%);
+}
+
 /* Actions */
 .onboard-actions {
     display: flex;
