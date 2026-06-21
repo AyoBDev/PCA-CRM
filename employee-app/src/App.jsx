@@ -5,10 +5,12 @@ import LoginPage from './pages/LoginPage';
 import OnboardingPage from './pages/OnboardingPage';
 import HomePage from './pages/HomePage';
 import SchedulePage from './pages/SchedulePage';
+import TimesheetPage from './pages/TimesheetPage';
+import MessagesPage from './pages/MessagesPage';
+import AccountPage from './pages/AccountPage';
+import PayStubsPage from './pages/PayStubsPage';
+import CertificationsPage from './pages/CertificationsPage';
 import AvailabilityPage from './pages/AvailabilityPage';
-import RequirementsPage from './pages/RequirementsPage';
-import PayrollPage from './pages/PayrollPage';
-import ChatPage from './pages/ChatPage';
 import TasksPage from './pages/TasksPage';
 import ProfilePage from './pages/ProfilePage';
 
@@ -28,12 +30,14 @@ export default function App() {
         <Route element={<ProtectedRoutes />}>
           <Route index element={<HomePage />} />
           <Route path="schedule" element={<SchedulePage />} />
-          <Route path="availability" element={<AvailabilityPage />} />
-          <Route path="requirements" element={<RequirementsPage />} />
-          <Route path="payroll" element={<PayrollPage />} />
-          <Route path="chat" element={<ChatPage />} />
-          <Route path="tasks" element={<TasksPage />} />
-          <Route path="profile" element={<ProfilePage />} />
+          <Route path="timesheet" element={<TimesheetPage />} />
+          <Route path="messages" element={<MessagesPage />} />
+          <Route path="account" element={<AccountPage />} />
+          <Route path="account/pay" element={<PayStubsPage />} />
+          <Route path="account/certs" element={<CertificationsPage />} />
+          <Route path="account/availability" element={<AvailabilityPage />} />
+          <Route path="account/tasks" element={<TasksPage />} />
+          <Route path="account/profile" element={<ProfilePage />} />
         </Route>
       </Routes>
     </AuthProvider>

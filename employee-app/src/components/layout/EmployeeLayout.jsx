@@ -1,15 +1,13 @@
 import { Outlet } from 'react-router-dom';
-import BottomTabBar from './BottomTabBar';
-import EmployeeSidebar from './EmployeeSidebar';
+import BottomNav from './BottomTabBar';
 
-export default function EmployeeLayout({ badges = {} }) {
+export default function EmployeeLayout() {
   return (
-    <div className="employee-app">
-      <EmployeeSidebar badges={badges} />
-      <main className="employee-main">
+    <div className="app">
+      <main className="page-content">
         <Outlet />
       </main>
-      <BottomTabBar badges={badges} />
+      <BottomNav />
     </div>
   );
 }
