@@ -256,4 +256,15 @@ async function listArchivedEmployees(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listEmployees, getEmployee, createEmployee, updateEmployee, deleteEmployee, restoreEmployee, permanentlyDeleteEmployee, bulkPermanentlyDeleteEmployees, bulkImportEmployees, restoreEmployees, listArchivedEmployees };
+async function getEmployeeAvailability(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const availability = await prisma.employeeAvailability.findUnique({
+            where: { employeeId: id },
+        });
+        if (!availability) return res.status(404).json({ error: 'No availability data found' });
+        res.json(availability);
+    } catch (err) { next(err); }
+}
+
+module.exports = { listEmployees, getEmployee, createEmployee, updateEmployee, deleteEmployee, restoreEmployee, permanentlyDeleteEmployee, bulkPermanentlyDeleteEmployees, bulkImportEmployees, restoreEmployees, listArchivedEmployees, getEmployeeAvailability };

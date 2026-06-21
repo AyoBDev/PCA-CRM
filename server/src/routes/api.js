@@ -129,6 +129,7 @@ const {
     bulkImportEmployees,
     restoreEmployees,
     listArchivedEmployees,
+    getEmployeeAvailability,
 } = require('../controllers/employeeController');
 const { listCertifications, createCertification, updateCertification, deleteCertification, downloadCertification } = require('../controllers/employeeCertController');
 const { getDashboardStats } = require('../controllers/dashboardController');
@@ -341,6 +342,7 @@ router.delete('/employees/:id', requireRole('admin', 'user', 'pca'), deleteEmplo
 router.delete('/employees/:id/permanent', requireRole('admin'), permanentlyDeleteEmployee);
 router.post('/employees/:id/resend-invite', requireRole('admin'), resendInvite);
 router.patch('/employees/:id/approve-onboarding', requireRole('admin'), approveOnboarding);
+router.get('/employees/:id/availability', requireRole('admin', 'user', 'pca'), getEmployeeAvailability);
 
 // Employee Certifications
 router.get('/employees/:employeeId/certifications', requireRole('admin', 'user', 'pca'), listCertifications);
