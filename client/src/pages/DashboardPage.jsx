@@ -54,6 +54,7 @@ export default function DashboardPage() {
     if (stats.overdueTimesheets?.count > 0) attentionItems.push({ icon: Icons.clock, label: `${stats.overdueTimesheets.count} timesheet${stats.overdueTimesheets.count > 1 ? 's' : ''} overdue`, severity: 'destructive', action: () => navigate('/timesheets?status=overdue') });
     if (taskSummary?.overdue > 0) attentionItems.push({ icon: Icons.alertCircle, label: `${taskSummary.overdue} overdue task${taskSummary.overdue > 1 ? 's' : ''}`, severity: 'destructive', action: () => navigate('/tasks') });
     if (taskSummary?.dueToday > 0) attentionItems.push({ icon: Icons.checkSquare, label: `${taskSummary.dueToday} task${taskSummary.dueToday > 1 ? 's' : ''} due today`, severity: 'warning', action: () => navigate('/tasks') });
+    if (stats.pendingOnboarding > 0) attentionItems.push({ icon: Icons.user, label: `${stats.pendingOnboarding} employee${stats.pendingOnboarding > 1 ? 's' : ''} completed onboarding — review and approve`, severity: 'warning', action: () => navigate('/employees?onboarding=submitted') });
 
     return (
         <>
