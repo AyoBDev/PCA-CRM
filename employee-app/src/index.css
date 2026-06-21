@@ -198,3 +198,421 @@ body { font-family: var(--font); font-size: 14px; color: var(--text); background
 /* Payroll + Profile */
 .payroll-page { max-width: 700px; }
 .profile-page { max-width: 500px; }
+
+/* Onboarding Wizard */
+.onboard-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: hsl(220 20% 97%);
+}
+
+.onboard-card {
+    background: white;
+    border-radius: 12px;
+    padding: 32px;
+    max-width: 600px;
+    width: 100%;
+    box-shadow: 0 4px 12px hsl(0 0% 0% / 0.06);
+}
+
+.onboard-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    color: hsl(240 10% 3.9%);
+}
+
+.onboard-subtitle {
+    font-size: 14px;
+    color: hsl(240 3.8% 46.1%);
+    margin: 0 0 24px;
+}
+
+.onboard-error {
+    background: hsl(0 93% 97%);
+    color: hsl(0 84% 40%);
+    border: 1px solid hsl(0 84% 60% / 0.2);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+
+.onboard-done-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: hsl(142 76% 92%);
+    color: hsl(160 84% 39%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0 auto 16px;
+}
+
+/* Wizard Steps */
+.wizard-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 24px;
+    padding: 16px 0;
+}
+
+.wizard-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    flex: 1;
+}
+
+.wizard-step__circle {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+    border: 2px solid hsl(240 5.9% 90%);
+    color: hsl(240 3.8% 46.1%);
+    background: white;
+    position: relative;
+    z-index: 1;
+}
+
+.wizard-step--active .wizard-step__circle {
+    border-color: hsl(217 91% 60%);
+    background: hsl(217 91% 60%);
+    color: white;
+}
+
+.wizard-step--completed .wizard-step__circle {
+    border-color: #16a34a;
+    background: #16a34a;
+    color: white;
+}
+
+.wizard-step__label {
+    font-size: 11px;
+    font-weight: 500;
+    margin-top: 6px;
+    color: hsl(240 3.8% 46.1%);
+}
+
+.wizard-step--active .wizard-step__label {
+    color: hsl(217 91% 60%);
+    font-weight: 600;
+}
+
+.wizard-step-connector {
+    position: absolute;
+    top: 16px;
+    left: calc(-50% + 16px);
+    right: calc(50% + 16px);
+    height: 2px;
+    background: hsl(240 5.9% 90%);
+}
+
+.wizard-step-connector--completed {
+    background: #16a34a;
+}
+
+/* Step Content */
+.onboard-step {
+    margin-bottom: 24px;
+}
+
+.onboard-step-title {
+    font-size: 17px;
+    font-weight: 600;
+    margin: 0 0 16px;
+    color: hsl(240 10% 3.9%);
+}
+
+.onboard-section-label {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 20px 0 4px;
+    color: hsl(240 10% 3.9%);
+}
+
+.onboard-hint {
+    font-size: 12px;
+    color: hsl(240 3.8% 46.1%);
+    margin: 0 0 12px;
+}
+
+/* Schedule Grid */
+.onboard-schedule-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.onboard-day-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: hsl(213 94% 95% / 0.5);
+}
+
+.onboard-day-row--off {
+    background: hsl(240 4.8% 95.9%);
+    opacity: 0.7;
+}
+
+.onboard-day-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 120px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.onboard-day-times {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: hsl(240 3.8% 46.1%);
+}
+
+.onboard-day-times input[type="time"] {
+    padding: 4px 8px;
+    border: 1px solid hsl(240 5.9% 90%);
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+/* Holiday Grid */
+.onboard-holiday-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.onboard-holiday-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+/* Inline Add */
+.onboard-inline-add {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.onboard-inline-add input {
+    padding: 6px 10px;
+    border: 1px solid hsl(240 5.9% 90%);
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+/* Chip List */
+.onboard-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 16px;
+}
+
+.onboard-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: hsl(213 94% 95%);
+    color: hsl(217 91% 40%);
+    border-radius: 14px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.onboard-chip button {
+    background: none;
+    border: none;
+    color: hsl(217 91% 40%);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0 2px;
+}
+
+/* Time Off Add */
+.onboard-timeoff-add {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.onboard-timeoff-add input {
+    padding: 6px 10px;
+    border: 1px solid hsl(240 5.9% 90%);
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.onboard-timeoff-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.onboard-timeoff-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    background: hsl(240 4.8% 95.9%);
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+/* Actions */
+.onboard-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid hsl(240 5.9% 90%);
+}
+
+/* Form elements (reuse from design system) */
+.onboard-card .form-group {
+    margin-bottom: 16px;
+}
+
+.onboard-card .form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 4px;
+    color: hsl(240 10% 3.9%);
+}
+
+.onboard-card .form-group input,
+.onboard-card .form-group select,
+.onboard-card .form-group textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid hsl(240 5.9% 90%);
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.onboard-card .form-group input:focus,
+.onboard-card .form-group select:focus,
+.onboard-card .form-group textarea:focus {
+    outline: none;
+    border-color: hsl(217 91% 60%);
+    box-shadow: 0 0 0 2px hsl(217 91% 60% / 0.1);
+}
+
+.onboard-card .form-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+/* Button styles for onboarding */
+.btn--primary {
+    background: hsl(217 91% 60%);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 6px;
+    border: none;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.btn--primary:hover:not(:disabled) {
+    background: hsl(217 91% 55%);
+}
+
+.btn--primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn--outline {
+    background: white;
+    color: hsl(240 10% 3.9%);
+    padding: 10px 20px;
+    border-radius: 6px;
+    border: 1px solid hsl(240 5.9% 90%);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.btn--outline:hover {
+    background: hsl(240 4.8% 95.9%);
+}
+
+.btn--ghost {
+    background: none;
+    color: hsl(240 3.8% 46.1%);
+    border: none;
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+
+.btn--ghost:hover {
+    color: hsl(240 10% 3.9%);
+}
+
+.btn--sm {
+    padding: 6px 12px;
+    font-size: 13px;
+}
+
+.btn--xs {
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+@media (max-width: 500px) {
+    .onboard-card {
+        padding: 20px;
+    }
+    .onboard-card .form-grid-2 {
+        grid-template-columns: 1fr;
+    }
+    .wizard-step__label {
+        display: none;
+    }
+    .onboard-day-row {
+        flex-wrap: wrap;
+    }
+    .onboard-timeoff-add {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
