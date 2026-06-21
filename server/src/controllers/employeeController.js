@@ -1,5 +1,6 @@
 const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
+const onboarding = require('../services/onboardingService');
 
 async function listEmployees(req, res, next) {
     try {
@@ -42,6 +43,15 @@ async function createEmployee(req, res, next) {
             include: { user: { select: { id: true, name: true, email: true, role: true } } },
         });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name });
+
+        // Auto-send onboarding invite if email provided and no user account linked
+        if (employee.email && !userId) {
+            await prisma.employee.update({ where: { id: employee.id }, data: { onboardingStatus: 'invited' } });
+            employee.onboardingStatus = 'invited';
+            const token = await onboarding.createOnboardingToken(employee.id);
+            onboarding.sendOnboardingEmail(employee, token).catch(err => console.error('Onboarding email failed:', err.message));
+        }
+
         res.status(201).json(employee);
     } catch (err) { next(err); }
 }

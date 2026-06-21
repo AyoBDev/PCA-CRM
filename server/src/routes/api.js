@@ -157,6 +157,7 @@ const { getPayrollProfile, upsertPayrollProfile, revealSensitiveField } = requir
 const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalizeReceipts, sendReceipts, downloadReceiptPdf } = require('../controllers/receiptController');
 const { previewSandata, applySandata, undoSandata } = require('../controllers/sandataController');
 const { listConversations, getConversationMessages, adminSendMessage } = require('../controllers/employeePortal/adminChatController');
+const { getOnboardingInfo, completeOnboarding, resendInvite, approveOnboarding } = require('../controllers/onboardingController');
 const { authenticate, requireRole } = require('../middleware/authMiddleware');
 const employeeRoutes = require('./employee');
 
@@ -179,6 +180,8 @@ router.post('/schedule/view/:token/open', recordOpen);
 router.get('/schedule/view/:token/notification', getNotificationForView);
 router.get('/pca-form/:token', getPcaForm);
 router.put('/pca-form/:token', updatePcaForm);
+router.get('/onboarding/:token', getOnboardingInfo);
+router.post('/onboarding/:token/complete', completeOnboarding);
 
 // Backup (admin JWT or dedicated API key — must be above authenticate middleware)
 function backupAuth(req, res, next) {
@@ -336,6 +339,8 @@ router.put('/employees/:id/restore', requireRole('admin', 'user', 'pca'), restor
 router.put('/employees/:id',   requireRole('admin', 'user', 'pca'), updateEmployee);
 router.delete('/employees/:id', requireRole('admin', 'user', 'pca'), deleteEmployee);
 router.delete('/employees/:id/permanent', requireRole('admin'), permanentlyDeleteEmployee);
+router.post('/employees/:id/resend-invite', requireRole('admin'), resendInvite);
+router.patch('/employees/:id/approve-onboarding', requireRole('admin'), approveOnboarding);
 
 // Employee Certifications
 router.get('/employees/:employeeId/certifications', requireRole('admin', 'user', 'pca'), listCertifications);
