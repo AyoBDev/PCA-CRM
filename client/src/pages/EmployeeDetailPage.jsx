@@ -142,8 +142,8 @@ function OnboardingReviewPanel({ data }) {
     if (!data) return <p className="text-muted">No availability data submitted.</p>;
 
     const weeklySchedule = data.weeklySchedule || {};
-    const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-    const dayLabels = { monday: 'Monday', tuesday: 'Tuesday', wednesday: 'Wednesday', thursday: 'Thursday', friday: 'Friday', saturday: 'Saturday', sunday: 'Sunday' };
+    const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const dayLabels = { sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday' };
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -165,7 +165,7 @@ function OnboardingReviewPanel({ data }) {
                             <div key={day} style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', background: 'hsl(var(--accent))', borderRadius: 6 }}>
                                 <span style={{ fontWeight: 500, width: 100, fontSize: 13 }}>{dayLabels[day]}</span>
                                 <span style={{ fontSize: 13, color: 'hsl(var(--foreground))' }}>
-                                    {schedule.startTime} – {schedule.endTime}
+                                    {schedule.start} – {schedule.end}
                                 </span>
                             </div>
                         );
