@@ -1,51 +1,49 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 
-const REASONS = ['vacation', 'sick_leave', 'personal', 'medical'];
+const DAY_LABELS = { sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday' };
 
 export default function AvailabilityPage() {
-  const [availability, setAvailability] = useState(null);
-  const [timeOffRequests, setTimeOffRequests] = useState([]);
-  const [showTimeOff, setShowTimeOff] = useState(false);
-  const [form, setForm] = useState({ dateFrom: '', dateTo: '', reason: 'vacation' });
-  const [submitting, setSubmitting] = useState(false);
+  const navigate = useNavigate();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => { api.getAvailability().then(d => setAvailability(d.availability)); api.getTimeOffRequests().then(setTimeOffRequests); }, []);
+  useEffect(() => {
+    api.getAvailability().then(setData).catch(() => {}).finally(() => setLoading(false));
+  }, []);
 
-  async function handleTimeOffSubmit(e) {
-    e.preventDefault();
-    setSubmitting(true);
-    try { await api.submitTimeOff(form); const updated = await api.getTimeOffRequests(); setTimeOffRequests(updated); setShowTimeOff(false); setForm({ dateFrom: '', dateTo: '', reason: 'vacation' }); } finally { setSubmitting(false); }
-  }
+  if (loading) return <div className="page-loading">Loading...</div>;
+
+  const schedule = data?.weeklySchedule || {};
 
   return (
-    <div className="availability-page">
-      <h1 className="page-title">Availability & Time Off</h1>
-      <div className="card">
-        <h3 className="card-heading">Current Availability</h3>
-        {availability ? <pre className="availability-summary">{JSON.stringify(availability, null, 2)}</pre> : <p className="text-muted">No availability set</p>}
-        <button className="btn btn-secondary" style={{ marginTop: 8 }}>Request a Change</button>
+    <div>
+      <div className="sub-header">
+        <button className="sub-header__back" onClick={() => navigate('/account')}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <h2 className="sub-header__title">Availability</h2>
       </div>
-      <div className="card" style={{ marginTop: 16 }}>
-        <div className="card-header-row"><h3 className="card-heading">Time Off Requests</h3><button className="btn btn-primary" onClick={() => setShowTimeOff(true)}>Request Time Off</button></div>
-        {timeOffRequests.length === 0 ? <p className="text-muted">No requests</p> : (
-          <table className="simple-table"><thead><tr><th>From</th><th>To</th><th>Reason</th><th>Status</th></tr></thead><tbody>
-            {timeOffRequests.map(r => (<tr key={r.id}><td>{new Date(r.dateFrom).toLocaleDateString()}</td><td>{new Date(r.dateTo).toLocaleDateString()}</td><td>{r.reason.replace(/_/g, ' ')}</td><td><span className={`status-badge badge--${r.status === 'approved' ? 'green' : r.status === 'declined' ? 'red' : 'amber'}`}>{r.status}</span></td></tr>))}
-          </tbody></table>
-        )}
+      <div className="card" style={{ marginBottom: 12 }}>
+        {Object.entries(DAY_LABELS).map(([key, label]) => {
+          const day = schedule[key];
+          return (
+            <div key={key} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid hsl(var(--border))' }}>
+              <span style={{ fontWeight: 500, fontSize: 14 }}>{label}</span>
+              <span style={{ fontSize: 13, color: day?.available ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}>
+                {day?.available ? `${day.start} – ${day.end}` : 'Off'}
+              </span>
+            </div>
+          );
+        })}
       </div>
-      {showTimeOff && (
-        <div className="modal-overlay" onClick={() => setShowTimeOff(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2 className="modal-title">Request Time Off</h2>
-            <form onSubmit={handleTimeOffSubmit}>
-              <label className="field-label">From</label><input type="date" className="field-input" value={form.dateFrom} onChange={e => setForm(f => ({ ...f, dateFrom: e.target.value }))} required />
-              <label className="field-label">To</label><input type="date" className="field-input" value={form.dateTo} onChange={e => setForm(f => ({ ...f, dateTo: e.target.value }))} required />
-              <label className="field-label">Reason</label><select className="field-input" value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}>{REASONS.map(r => <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>)}</select>
-              <button type="submit" className="btn btn-primary btn-full" disabled={submitting}>{submitting ? 'Submitting...' : 'Submit'}</button>
-              <button type="button" className="btn btn-secondary btn-full" onClick={() => setShowTimeOff(false)}>Cancel</button>
-            </form>
-          </div>
+      {data?.maxHoursPerWeek && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          <p style={{ fontSize: 13 }}><strong>Max hours/week:</strong> {data.maxHoursPerWeek}</p>
+          <p style={{ fontSize: 13 }}><strong>Max clients:</strong> {data.maxConcurrentClients}</p>
+          <p style={{ fontSize: 13 }}><strong>Max travel:</strong> {data.maxTravelDistance} min</p>
+          <p style={{ fontSize: 13 }}><strong>Transport:</strong> {data.transportation}</p>
         </div>
       )}
     </div>

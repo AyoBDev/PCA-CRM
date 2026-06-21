@@ -1,31 +1,55 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 
 export default function ProfilePage() {
+  const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
-  const [form, setForm] = useState({});
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => { api.getProfile().then(p => { setProfile(p); setForm({ name: p.name, phone: p.phone, email: p.email, address: p.address }); }); }, []);
+  useEffect(() => {
+    api.getProfile().then(setProfile).finally(() => setLoading(false));
+  }, []);
 
-  async function handleSave(e) {
-    e.preventDefault(); setSaving(true); setSaved(false);
-    try { const updated = await api.updateProfile(form); setProfile(updated); setSaved(true); setTimeout(() => setSaved(false), 3000); } finally { setSaving(false); }
-  }
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.updateProfile(profile);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) { /* silent */ }
+    setSaving(false);
+  };
 
-  if (!profile) return <div className="page-loading">Loading...</div>;
+  if (loading) return <div className="page-loading">Loading...</div>;
 
   return (
-    <div className="profile-page">
-      <h1 className="page-title">My Profile</h1>
-      <form className="card" onSubmit={handleSave} style={{ padding: 16 }}>
-        <label className="field-label">Name</label><input className="field-input" value={form.name || ''} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-        <label className="field-label">Phone</label><input className="field-input" type="tel" value={form.phone || ''} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
-        <label className="field-label">Email</label><input className="field-input" type="email" value={form.email || ''} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
-        <label className="field-label">Address</label><input className="field-input" value={form.address || ''} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
-        <button type="submit" className="btn btn-primary btn-full" disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</button>
-        {saved && <p className="save-success">Profile updated</p>}
+    <div>
+      <div className="sub-header">
+        <button className="sub-header__back" onClick={() => navigate('/account')}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <h2 className="sub-header__title">Edit Profile</h2>
+      </div>
+      <form onSubmit={handleSave}>
+        <div className="form-group">
+          <label>Phone</label>
+          <input type="tel" value={profile?.phone || ''} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} />
+        </div>
+        <div className="form-group">
+          <label>Address</label>
+          <input type="text" value={profile?.address || ''} onChange={e => setProfile(p => ({ ...p, address: e.target.value }))} />
+        </div>
+        <div className="form-group">
+          <label>Emergency Contact</label>
+          <input type="text" value={profile?.emergencyContact || ''} onChange={e => setProfile(p => ({ ...p, emergencyContact: e.target.value }))} />
+        </div>
+        <button type="submit" className="btn btn--primary" disabled={saving}>
+          {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Changes'}
+        </button>
       </form>
     </div>
   );
