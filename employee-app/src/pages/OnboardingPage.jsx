@@ -13,17 +13,17 @@ const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const HOLIDAYS = [
-    { key: 'newYears', label: "New Year's Day" },
-    { key: 'mlk', label: 'MLK Day' },
-    { key: 'presidents', label: "Presidents' Day" },
-    { key: 'memorial', label: 'Memorial Day' },
-    { key: 'independence', label: 'Independence Day' },
-    { key: 'labor', label: 'Labor Day' },
-    { key: 'thanksgiving', label: 'Thanksgiving' },
-    { key: 'christmas', label: 'Christmas' },
+    { key: 'newYears', label: "New Year's Day (Jan 1)" },
+    { key: 'mlk', label: 'MLK Day (3rd Mon in Jan)' },
+    { key: 'presidents', label: "Presidents' Day (3rd Mon in Feb)" },
+    { key: 'memorial', label: 'Memorial Day (Last Mon in May)' },
+    { key: 'independence', label: 'Independence Day (Jul 4)' },
+    { key: 'labor', label: 'Labor Day (1st Mon in Sep)' },
+    { key: 'thanksgiving', label: 'Thanksgiving (4th Thu in Nov)' },
+    { key: 'christmas', label: 'Christmas (Dec 25)' },
 ];
 
-const TRANSPORTATION_OPTIONS = ['Own car', 'Public transit', 'Rideshare', 'Bicycle', 'Walk', 'Other'];
+const TRANSPORTATION_OPTIONS = ['Own car', 'Public transit', 'Rideshare', 'Walk', 'Other'];
 
 export default function OnboardingPage() {
     const { token } = useParams();
@@ -48,7 +48,7 @@ export default function OnboardingPage() {
     const [maxConcurrentClients, setMaxConcurrentClients] = useState(1);
 
     // Step 3: Travel
-    const [maxTravelDistance, setMaxTravelDistance] = useState(15);
+    const [maxTravelTime, setMaxTravelTime] = useState(30);
     const [transportation, setTransportation] = useState('Own car');
     const [notes, setNotes] = useState('');
 
@@ -115,7 +115,7 @@ export default function OnboardingPage() {
             if (!maxConcurrentClients || maxConcurrentClients < 1) return 'Max clients is required';
         }
         if (step === 2) {
-            if (!maxTravelDistance || maxTravelDistance < 1) return 'Travel distance is required';
+            if (!maxTravelTime || maxTravelTime < 1) return 'Max travel time is required';
             if (!transportation) return 'Transportation method is required';
         }
         return null;
@@ -143,7 +143,7 @@ export default function OnboardingPage() {
                     weeklySchedule,
                     maxHoursPerWeek: Number(maxHoursPerWeek),
                     maxConcurrentClients: Number(maxConcurrentClients),
-                    maxTravelDistance: Number(maxTravelDistance),
+                    maxTravelTime: Number(maxTravelTime),
                     transportation,
                     holidayAvailability,
                     blackoutDates,
@@ -258,8 +258,8 @@ export default function OnboardingPage() {
                         <h2 className="onboard-step-title">Travel & Preferences</h2>
                         <div className="form-grid-2">
                             <div className="form-group">
-                                <label>Max Travel Distance (miles)</label>
-                                <input type="number" min="1" max="100" value={maxTravelDistance} onChange={e => setMaxTravelDistance(e.target.value)} />
+                                <label>Max Travel Time (minutes)</label>
+                                <input type="number" min="5" max="120" step="5" value={maxTravelTime} onChange={e => setMaxTravelTime(e.target.value)} />
                             </div>
                             <div className="form-group">
                                 <label>Transportation</label>

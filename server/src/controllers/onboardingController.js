@@ -32,7 +32,7 @@ async function completeOnboarding(req, res, next) {
         if (!availability.maxHoursPerWeek || !availability.maxConcurrentClients) {
             return res.status(400).json({ error: 'Max hours and max clients are required' });
         }
-        if (!availability.maxTravelDistance || !availability.transportation) {
+        if ((!availability.maxTravelTime && !availability.maxTravelDistance) || !availability.transportation) {
             return res.status(400).json({ error: 'Travel information is required' });
         }
 

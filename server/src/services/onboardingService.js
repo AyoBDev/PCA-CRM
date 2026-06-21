@@ -64,16 +64,20 @@ async function completeOnboarding(tokenStr, { password, availability }) {
     if (!valid) throw new Error(reason);
 
     const passwordHash = await bcrypt.hash(password, 10);
+    const email = employee.email.toLowerCase().trim();
 
-    const user = await prisma.user.create({
-        data: {
-            email: employee.email.toLowerCase().trim(),
-            passwordHash,
-            name: employee.name,
-            role: 'pca',
-            status: 'pending',
-        },
-    });
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    let user;
+    if (existingUser) {
+        user = await prisma.user.update({
+            where: { id: existingUser.id },
+            data: { passwordHash, status: 'pending' },
+        });
+    } else {
+        user = await prisma.user.create({
+            data: { email, passwordHash, name: employee.name, role: 'pca', status: 'pending' },
+        });
+    }
 
     await prisma.$transaction([
         prisma.employee.update({
@@ -92,7 +96,7 @@ async function completeOnboarding(tokenStr, { password, availability }) {
                 weeklySchedule: availability.weeklySchedule,
                 maxHoursPerWeek: availability.maxHoursPerWeek,
                 maxConcurrentClients: availability.maxConcurrentClients,
-                maxTravelDistance: availability.maxTravelDistance,
+                maxTravelDistance: availability.maxTravelTime || availability.maxTravelDistance,
                 transportation: availability.transportation,
                 holidayAvailability: availability.holidayAvailability,
                 blackoutDates: availability.blackoutDates,
