@@ -29,6 +29,43 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* === APP HEADER (mobile brand bar) === */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: hsl(var(--card));
+  border-bottom: 1px solid hsl(var(--border));
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+.app-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.app-header__logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: hsl(var(--primary));
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.app-header__logo svg { width: 16px; height: 16px; }
+.app-header__name {
+  font-size: 15px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+}
+@media (min-width: 768px) {
+  .app-header { display: none; }
+}
+
 /* === APP LAYOUT === */
 .app {
   min-height: 100dvh;
@@ -125,6 +162,18 @@ body {
     background: hsl(var(--primary) / 0.08);
     font-weight: 600;
   }
+  .left-rail__logo {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: hsl(var(--primary));
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+  .left-rail__logo svg { width: 20px; height: 20px; }
   .left-rail__icon { width: 22px; height: 22px; }
   .left-rail__icon svg { width: 100%; height: 100%; }
   .app { padding-bottom: 0; margin-left: var(--rail-width); }
@@ -391,6 +440,8 @@ body {
 /* === LOGIN === */
 .login-page { display: flex; align-items: center; justify-content: center; min-height: 100dvh; padding: 16px; }
 .login-card { background: hsl(var(--card)); border-radius: var(--radius); padding: 32px 24px; width: 100%; max-width: 380px; box-shadow: var(--shadow); text-align: center; }
+.login-logo { width: 48px; height: 48px; border-radius: 12px; background: hsl(var(--primary)); color: white; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+.login-logo svg { width: 28px; height: 28px; }
 .login-title { font-size: 24px; font-weight: 700; color: hsl(var(--primary)); margin-bottom: 4px; }
 .login-subtitle { font-size: 14px; color: hsl(var(--muted-foreground)); margin-bottom: 24px; }
 .login-error { background: hsl(var(--destructive) / 0.08); color: hsl(var(--destructive)); padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; text-align: left; }
