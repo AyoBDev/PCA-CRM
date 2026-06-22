@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  base: '/employee/',
   plugins: [
     react(),
     VitePWA({
@@ -10,14 +11,14 @@ export default defineConfig({
       manifest: {
         name: 'PCAlink Employee',
         short_name: 'PCAlink',
-        start_url: '/',
+        start_url: '/employee/',
         display: 'standalone',
         orientation: 'portrait',
         theme_color: '#1e293b',
         background_color: '#ffffff',
         icons: [
-          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/employee/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/employee/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
         ],
       },
       workbox: {

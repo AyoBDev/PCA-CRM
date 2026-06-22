@@ -3,7 +3,7 @@ const prisma = require('../lib/prisma');
 const { isEmailConfigured, sendEmail } = require('./notificationService');
 
 const ONBOARDING_EXPIRY_DAYS = 7;
-const EMPLOYEE_APP_URL = process.env.EMPLOYEE_APP_URL || 'http://localhost:5174';
+const EMPLOYEE_APP_URL = process.env.EMPLOYEE_APP_URL || 'http://localhost:4000/employee';
 
 async function createOnboardingToken(employeeId) {
     await prisma.onboardingToken.deleteMany({ where: { employeeId } });
