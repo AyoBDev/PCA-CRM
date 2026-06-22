@@ -312,11 +312,11 @@ router.post('/timesheets/send-reminders', requireRole('admin'), sendTimesheetRem
 router.post('/timesheets/bulk-export-pdf', requireRole('admin', 'user', 'pca'), exportBulkTimesheetPdf);
 router.get('/timesheets/:id', getTimesheet);
 router.post('/timesheets', createTimesheet);
-router.put('/timesheets/:id/restore', restoreTimesheet);
-router.put('/timesheets/:id', updateTimesheet);
-router.put('/timesheets/:id/submit', submitTimesheet);
+router.put('/timesheets/:id/restore', requireRole('admin'), restoreTimesheet);
+router.put('/timesheets/:id', requireRole('admin'), updateTimesheet);
+router.put('/timesheets/:id/submit', requireRole('admin'), submitTimesheet);
 router.post('/timesheets/:id/signing-links', requireRole('admin', 'user', 'pca'), generateSigningLinks);
-router.delete('/timesheets/:id', deleteTimesheet);
+router.delete('/timesheets/:id', requireRole('admin'), deleteTimesheet);
 router.delete('/timesheets/:id/permanent', requireRole('admin'), permanentlyDeleteTimesheet);
 router.get('/timesheets/:id/export-pdf', requireRole('admin', 'user', 'pca'), exportTimesheetPdf);
 router.put('/timesheets/:id/status', requireRole('admin', 'user', 'pca'), updateTimesheetStatus);

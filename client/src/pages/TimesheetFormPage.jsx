@@ -220,7 +220,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
 
     const submitted = ts?.status === 'submitted';
     const accepted = ts?.status === 'accepted';
-    const readOnly = accepted || (submitted && !isAdmin);
+    const readOnly = accepted || (submitted && !isAdmin) || (!isAdmin && authUser?.role === 'user');
 
     const pasEnabled = enabledServices.includes('PAS');
     const hmEnabled = enabledServices.includes('Homemaker');
@@ -728,7 +728,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                 </div>
 
                 {/* Action buttons for draft */}
-                {!submitted && !accepted && (
+                {!submitted && !accepted && isAdmin && (
                     <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', padding: '16px 0' }}>
                         <button className="btn btn--outline btn--sm" onClick={handleShareLinks}>{Icons.share} Share</button>
                         <button className="btn btn--outline btn--sm" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Draft'}</button>

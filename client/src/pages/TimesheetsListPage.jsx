@@ -415,7 +415,7 @@ export default function TimesheetsListPage() {
                     <div className="archived-banner">
                         {Icons.archive}
                         <span style={{ flex: 1 }}>Viewing archived timesheets. Click "Restore" to bring items back.</span>
-                        {allTimesheets.length > 0 && (
+                        {allTimesheets.length > 0 && isAdmin && (
                             <button className="btn btn--danger btn--sm" onClick={() => setConfirmBulkPermanentDelete(true)}>
                                 {Icons.trash} Delete All Archived
                             </button>
@@ -479,11 +479,11 @@ export default function TimesheetsListPage() {
                                             <td onClick={(e) => e.stopPropagation()}>
                                                 {showArchived ? (
                                                     <div style={{ display: 'flex', gap: 6 }}>
-                                                        <button className="btn btn--restore btn--xs" onClick={() => handleRestore(ts.id)} title="Restore">{Icons.rotateCcw}</button>
-                                                        <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmPermanentDelete(ts)} title="Delete permanently">{Icons.trash}</button>
+                                                        {isAdmin && <button className="btn btn--restore btn--xs" onClick={() => handleRestore(ts.id)} title="Restore">{Icons.rotateCcw}</button>}
+                                                        {isAdmin && <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmPermanentDelete(ts)} title="Delete permanently">{Icons.trash}</button>}
                                                     </div>
                                                 ) : (
-                                                    <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmDelete(ts)} title="Archive">{Icons.trash}</button>
+                                                    isAdmin && <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmDelete(ts)} title="Archive">{Icons.trash}</button>
                                                 )}
                                             </td>
                                         </tr>
