@@ -36,8 +36,9 @@ async function completeOnboarding(req, res, next) {
             return res.status(400).json({ error: 'Travel information is required' });
         }
 
-        const { employee } = await onboarding.completeOnboarding(req.params.token, { password, availability });
-        res.json({ success: true, message: 'Onboarding complete. Your admin will review and activate your account.' });
+        const { employee, skipApproval } = await onboarding.completeOnboarding(req.params.token, { password, availability });
+        audit.logAction({ userId: 0, userName: employee.name, userRole: 'pca', action: 'SUBMIT', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'onboarding_completed', skipApproval } });
+        res.json({ success: true, message: skipApproval ? 'Onboarding complete. You can now log in.' : 'Onboarding complete. Your admin will review and activate your account.' });
     } catch (err) {
         if (err.message === 'not_found' || err.message === 'completed' || err.message === 'expired') {
             return res.status(400).json({ error: 'This onboarding link is no longer valid.' });
