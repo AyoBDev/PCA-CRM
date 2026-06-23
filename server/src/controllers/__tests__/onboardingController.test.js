@@ -78,8 +78,8 @@ describe('Onboarding Flow', () => {
         expect(user.role).toBe('pca');
     });
 
-    it('pending user cannot log in', async () => {
-        const res = await request(app).post('/api/auth/login').send({ email: 'newpca@test.com', password: 'securepass1' });
+    it('pending user cannot log in via employee portal', async () => {
+        const res = await request(app).post('/api/auth/employee-login').send({ email: 'newpca@test.com', password: 'securepass1' });
         expect(res.status).toBe(403);
         expect(res.body.error).toContain('pending');
     });
@@ -97,10 +97,16 @@ describe('Onboarding Flow', () => {
         expect(user.status).toBe('active');
     });
 
-    it('approved user can log in', async () => {
-        const res = await request(app).post('/api/auth/login').send({ email: 'newpca@test.com', password: 'securepass1' });
+    it('approved user can log in via employee login', async () => {
+        const res = await request(app).post('/api/auth/employee-login').send({ email: 'newpca@test.com', password: 'securepass1' });
         expect(res.status).toBe(200);
         expect(res.body.token).toBeDefined();
+    });
+
+    it('approved PCA user is blocked from admin login', async () => {
+        const res = await request(app).post('/api/auth/login').send({ email: 'newpca@test.com', password: 'securepass1' });
+        expect(res.status).toBe(403);
+        expect(res.body.error).toContain('Employee Portal');
     });
 
     it('completed token cannot be reused', async () => {
