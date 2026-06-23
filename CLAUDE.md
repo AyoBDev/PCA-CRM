@@ -313,6 +313,15 @@ All FK relationships use cascade delete. Prisma schema uses `@@map` for snake_ca
 - Actions: CREATE, UPDATE, DELETE, ARCHIVE, RESTORE, SUBMIT, PERMANENT_DELETE, BULK_DELETE, TOGGLE_ACTIVE, RESET_PASSWORD
 - All controllers call `audit.logAction()` for every mutation
 - Frontend: `ActivityButton` (page-level) and `EntityActivityButton` (entity-level) in `ActivityDrawer.jsx`
+- **History Page** (`HistoryPage.jsx`): shows all audit logs with filters by action, entity type, and date range. Entity types: Client, Employee, User, Shift, Timesheet, Authorization, PayrollRun, PermanentLink, InsuranceType, Service, Task, Receipt
+
+### Audit Logging — Required for All New Features
+**Every new page or feature that performs mutations MUST log audit events.** This ensures the History page always reflects all system activity. When adding a new feature:
+1. Import `audit` from `../services/auditService` in the controller
+2. Call `audit.logAction()` for every CREATE, UPDATE, DELETE, ARCHIVE, RESTORE, or SUBMIT action
+3. If the feature introduces a new `entityType`, add it to the `ENTITY_TYPES` array in `client/src/pages/HistoryPage.jsx`
+4. Use `metadata` field for contextual details (e.g., `{ action: 'onboarding_invite_sent' }`)
+5. For public endpoints (no `req.user`), use `userId: 0` and the entity name as `userName`
 
 ## Payroll Module
 
