@@ -38,11 +38,11 @@ export function submitOnboarding(token, data) {
 
 export const api = {
   login: (email, password) =>
-    fetch(`${BASE}/api/auth/login`, {
+    fetch(`${BASE}/api/auth/employee-login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
-    }).then(r => { if (!r.ok) throw new Error('Invalid credentials'); return r.json(); }),
+    }).then(async r => { if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.error || 'Invalid credentials'); } return r.json(); }),
 
   getHomeSummary: () => request('/home/summary'),
   getNextShift: () => request('/home/next-shift'),

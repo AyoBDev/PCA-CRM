@@ -35,6 +35,12 @@ async function login(req, res, next) {
         if (user.status === 'pending') {
             return res.status(403).json({ error: 'Your account is pending admin approval. You will receive an email when activated.' });
         }
+        if (user.role === 'pca') {
+            const employee = await prisma.employee.findUnique({ where: { userId: user.id } });
+            if (employee) {
+                return res.status(403).json({ error: 'Please use the Employee Portal to log in.' });
+            }
+        }
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) {
             return res.status(401).json({ error: 'Invalid email or password' });
