@@ -68,11 +68,10 @@ async function completeOnboarding(tokenStr, { password, availability }) {
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     let user;
+    let skipApproval = false;
     if (existingUser) {
-        user = await prisma.user.update({
-            where: { id: existingUser.id },
-            data: { passwordHash, status: 'pending' },
-        });
+        user = existingUser;
+        skipApproval = true;
     } else {
         user = await prisma.user.create({
             data: { email, passwordHash, name: employee.name, role: 'pca', status: 'pending' },
@@ -82,7 +81,7 @@ async function completeOnboarding(tokenStr, { password, availability }) {
     await prisma.$transaction([
         prisma.employee.update({
             where: { id: employee.id },
-            data: { userId: user.id, onboardingStatus: 'submitted' },
+            data: { userId: user.id, onboardingStatus: skipApproval ? 'active' : 'submitted' },
         }),
         prisma.onboardingToken.update({
             where: { id: token.id },
@@ -106,7 +105,7 @@ async function completeOnboarding(tokenStr, { password, availability }) {
         }),
     ]);
 
-    return { employee, user };
+    return { employee, user, skipApproval };
 }
 
 async function approveOnboarding(employeeId) {
