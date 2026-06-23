@@ -60,11 +60,26 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
     }, [shifts]);
 
     const statusByEmp = useMemo(() => {
+        // notifStatus is ordered newest-first. We want the most recent notification
+        // that has a response; if none, fall back to the newest notification.
         const map = new Map();
         for (const n of notifStatus) {
             const empId = n.employee?.id || n.employeeId;
-            if (!map.has(empId)) {
+            const existing = map.get(empId);
+            if (!existing) {
                 map.set(empId, n);
+                continue;
+            }
+            const existingHasResponse = !!existing.response;
+            const currentHasResponse = !!n.response;
+            if (!existingHasResponse && currentHasResponse) {
+                // Merge: keep newest send/open info but adopt the response from the older notification
+                map.set(empId, {
+                    ...existing,
+                    response: n.response,
+                    responseNotes: n.responseNotes,
+                    respondedAt: n.respondedAt,
+                });
             }
         }
         return map;
