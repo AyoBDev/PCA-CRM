@@ -202,7 +202,8 @@ function ProgramSection({ title, subtitle, icon, colorClass, activities, section
 export default function TimesheetFormPage({ timesheetId, clients, onBack, showToast: showToastProp }) {
     const { showToast: toastHook } = useToast();
     const showToast = showToastProp || toastHook;
-    const { isAdmin, authUser } = useAuth();
+    const { isAdmin, user: authUser } = useAuth();
+    const isUser = authUser?.role === 'user';
     const [ts, setTs] = useState(null);
     const [entries, setEntries] = useState([]);
     const [recipientSig, setRecipientSig] = useState('');
@@ -220,7 +221,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
 
     const submitted = ts?.status === 'submitted';
     const accepted = ts?.status === 'accepted';
-    const readOnly = accepted || (submitted && !isAdmin) || (!isAdmin && authUser?.role === 'user');
+    const readOnly = accepted || (submitted && !isAdmin) || isUser;
 
     const pasEnabled = enabledServices.includes('PAS');
     const hmEnabled = enabledServices.includes('Homemaker');
@@ -228,7 +229,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
     const companionEnabled = enabledServices.includes('Companion');
 
     const toggleService = async (svc) => {
-        if ((!isAdmin && authUser?.role !== 'user') || !ts?.client?.id) return;
+        if ((!isAdmin && !isUser) || !ts?.client?.id) return;
         const next = enabledServices.includes(svc)
             ? enabledServices.filter((s) => s !== svc)
             : [...enabledServices, svc];
@@ -454,7 +455,7 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                 </div>
 
                 {/* Program Cards (admin toggle) */}
-                {(isAdmin || authUser?.role === 'user') && (
+                {(isAdmin || isUser) && (
                     <div className="tsv2-programs">
                         <div className="tsv2-programs__title">Service Types (Programs)</div>
                         <div className="tsv2-programs__subtitle">Select the programs provided for this client.</div>
@@ -701,11 +702,11 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                     </div>
                     <div>
                         <div className="tsv2-sig-section__title">Office Use Only</div>
-                        {isAdmin && (
+                        {(isAdmin || isUser) && (
                             <>
                                 <div className="tsv2-office-actions">
-                                    <button className="btn--accept" onClick={handleAcceptTimesheet} disabled={!submitted}><span className="tsv2-btn-icon">{Icons.checkCircle}</span> Accept</button>
-                                    <button className="btn--reject" onClick={handleRejectTimesheet} disabled={!submitted}><span className="tsv2-btn-icon">{Icons.alertCircle}</span> Reject</button>
+                                    {isAdmin && <button className="btn--accept" onClick={handleAcceptTimesheet} disabled={!submitted}><span className="tsv2-btn-icon">{Icons.checkCircle}</span> Accept</button>}
+                                    {isAdmin && <button className="btn--reject" onClick={handleRejectTimesheet} disabled={!submitted}><span className="tsv2-btn-icon">{Icons.alertCircle}</span> Reject</button>}
                                     <button className="btn--sendback" onClick={() => setShowCorrectionModal(true)} disabled={!submitted && !accepted}><span className="tsv2-btn-icon">{Icons.rotateCcw}</span> Send Back for Corrections</button>
                                 </div>
                                 {ts?.correctionNote && (
@@ -733,6 +734,11 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                         <button className="btn btn--outline btn--sm" onClick={handleShareLinks}>{Icons.share} Share</button>
                         <button className="btn btn--outline btn--sm" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Draft'}</button>
                         <button className="btn btn--primary btn--sm" onClick={handleSubmit}>Submit</button>
+                    </div>
+                )}
+                {!submitted && !accepted && !isAdmin && isUser && (
+                    <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', padding: '16px 0' }}>
+                        <button className="btn btn--outline btn--sm" onClick={handleShareLinks}>{Icons.share} Share</button>
                     </div>
                 )}
                 {submitted && isAdmin && (
