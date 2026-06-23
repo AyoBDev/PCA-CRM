@@ -761,15 +761,16 @@ model TaskReminder {
 }
 
 model AdminFolder {
-  id        Int           @id @default(autoincrement())
-  name      String
-  parentId  Int?          @map("parent_id")
-  path      String        @default("/")
-  parent    AdminFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
-  children  AdminFolder[] @relation("FolderTree")
-  files     AdminFile[]
-  createdAt DateTime      @default(now()) @map("created_at")
-  updatedAt DateTime      @updatedAt @map("updated_at")
+  id         Int           @id @default(autoincrement())
+  name       String
+  parentId   Int?          @map("parent_id")
+  path       String        @default("/")
+  archivedAt DateTime?     @map("archived_at")
+  parent     AdminFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children   AdminFolder[] @relation("FolderTree")
+  files      AdminFile[]
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
 
   @@unique([parentId, name])
   @@index([parentId])

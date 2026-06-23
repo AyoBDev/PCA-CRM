@@ -698,6 +698,12 @@ export function moveFolder(id, parentId) {
 export function deleteFolder(id) {
     return request(`/files/folders/${id}`, { method: 'DELETE' });
 }
+export function restoreFolder(id) {
+    return request(`/files/folders/${id}/restore`, { method: 'POST' });
+}
+export function listArchivedFolders() {
+    return request('/files/folders?archived=true');
+}
 export async function uploadAdminFile(folderId, file) {
     const form = new FormData();
     form.append('folderId', folderId);

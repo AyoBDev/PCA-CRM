@@ -57,6 +57,7 @@ export default function FolderTree({ activeFolderId, onSelectFolder, onCreateFol
                             folder={folder}
                             depth={0}
                             isActive={activeFolderId === folder.id}
+                            activeFolderId={activeFolderId}
                             onSelect={onSelectFolder}
                             onLoadChildren={handleLoadChildren}
                             onRenameFolder={onRenameFolder}

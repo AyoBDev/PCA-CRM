@@ -67,6 +67,7 @@ const { createPermanentLink, listPermanentLinks, deletePermanentLink } = require
 const { getPcaForm, updatePcaForm } = require('../controllers/pcaFormController');
 const {
     login,
+    employeeLogin,
     getMe,
     register,
     listUsers,
@@ -152,7 +153,7 @@ const {
 const { uploadDocument, downloadDocument, deleteDocument } = require('../controllers/documentController');
 const { uploadAuthDocument, downloadAuthDocument, deleteAuthDocument } = require('../controllers/authDocumentController');
 const {
-    listFolders, getFolder, createFolder, updateFolder, deleteFolder,
+    listFolders, getFolder, createFolder, updateFolder, deleteFolder, restoreFolder,
     uploadFile, downloadFile, replaceFile, updateFile, deleteFile, copyFile, searchFiles, exportFiles,
 } = require('../controllers/fileManagerController');
 const { listActivities, createActivity, deleteActivity } = require('../controllers/activityController');
@@ -173,6 +174,7 @@ router.use('/employee', employeeRoutes);
 
 // ── Public routes (no auth) ──
 router.post('/auth/login', login);
+router.post('/auth/employee-login', employeeLogin);
 router.post('/auth/forgot-password', forgotPassword);
 router.post('/auth/reset-password-with-token', resetPasswordWithToken);
 router.get('/sign/:token', getSigningForm);
@@ -275,6 +277,7 @@ router.get('/files/folders/:id', requireRole('admin'), getFolder);
 router.post('/files/folders', requireRole('admin'), createFolder);
 router.patch('/files/folders/:id', requireRole('admin'), updateFolder);
 router.delete('/files/folders/:id', requireRole('admin'), deleteFolder);
+router.post('/files/folders/:id/restore', requireRole('admin'), restoreFolder);
 router.post('/files/upload', requireRole('admin'), uploadLarge.single('file'), uploadFile);
 router.get('/files/:id/download', requireRole('admin'), downloadFile);
 router.put('/files/:id', requireRole('admin'), uploadLarge.single('file'), replaceFile);

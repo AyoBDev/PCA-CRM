@@ -25,6 +25,7 @@ export default function FilesPage() {
     const [deleteModal, setDeleteModal] = useState(null);
     const [conflictModal, setConflictModal] = useState(null);
     const [moveModal, setMoveModal] = useState(null);
+    const [trashModal, setTrashModal] = useState(null);
     const [folders, setFolders] = useState([]);
     const [treeRefreshKey, setTreeRefreshKey] = useState(0);
     const [search, setSearch] = useState('');
@@ -228,6 +229,26 @@ export default function FilesPage() {
         setDeleteModal({ type: 'folder', item: folder });
     }, []);
 
+    const handleViewTrash = useCallback(async () => {
+        try {
+            const data = await api.listArchivedFolders();
+            setTrashModal(data.folders || []);
+        } catch (err) {
+            showToast('Failed to load deleted folders', 'error');
+        }
+    }, [showToast]);
+
+    const handleRestoreFolder = useCallback(async (folder) => {
+        try {
+            await api.restoreFolder(folder.id);
+            showToast(`Folder "${folder.name}" restored`);
+            setTrashModal(prev => prev.filter(f => f.id !== folder.id));
+            setTreeRefreshKey(k => k + 1);
+        } catch (err) {
+            showToast(err.message || 'Failed to restore folder', 'error');
+        }
+    }, [showToast]);
+
     const handleMoveFiles = useCallback(async () => {
         const allFolders = await api.listFolders(null);
         const flat = [];
@@ -310,6 +331,7 @@ export default function FilesPage() {
                 undoState={undoState}
                 activityEntity="AdminFile"
                 overflowItems={[
+                    { label: 'Deleted Folders', icon: Icons.trash, action: handleViewTrash },
                     { label: 'Export All Files', icon: Icons.download, action: handleExportAll },
                 ]}
             />
@@ -461,6 +483,35 @@ export default function FilesPage() {
                         <button className="btn btn--outline" onClick={() => setConflictModal(null)}>Cancel</button>
                         <button className="btn btn--secondary" onClick={handleConflictKeepBoth}>Keep Both</button>
                         <button className="btn btn--danger" onClick={handleConflictReplace}>Replace</button>
+                    </div>
+                </Modal>
+            )}
+
+            {trashModal && (
+                <Modal onClose={() => setTrashModal(null)}>
+                    <h2 className="modal__title">Deleted Folders</h2>
+                    <p className="modal__desc">These folders have been deleted. You can restore them to bring them back.</p>
+                    {trashModal.length === 0 ? (
+                        <div style={{ padding: '24px 0', textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>
+                            No deleted folders
+                        </div>
+                    ) : (
+                        <div style={{ maxHeight: 320, overflowY: 'auto', border: '1px solid hsl(var(--border))', borderRadius: 8, marginBottom: 16 }}>
+                            {trashModal.map(f => (
+                                <div key={f.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid hsl(var(--border))' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        {Icons.folder}
+                                        <span style={{ fontSize: 14 }}>{f.path || f.name}</span>
+                                    </div>
+                                    <button className="btn btn--primary btn--sm" onClick={() => handleRestoreFolder(f)}>
+                                        Restore
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    <div className="form-actions">
+                        <button className="btn btn--outline" onClick={() => setTrashModal(null)}>Close</button>
                     </div>
                 </Modal>
             )}

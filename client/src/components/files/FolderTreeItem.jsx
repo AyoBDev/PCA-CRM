@@ -5,6 +5,7 @@ export default function FolderTreeItem({
     folder,
     depth,
     isActive,
+    activeFolderId,
     onSelect,
     onLoadChildren,
     onRenameFolder,
@@ -102,7 +103,8 @@ export default function FolderTreeItem({
                             key={child.id}
                             folder={child}
                             depth={depth + 1}
-                            isActive={false}
+                            isActive={activeFolderId === child.id}
+                            activeFolderId={activeFolderId}
                             onSelect={onSelect}
                             onLoadChildren={onLoadChildren}
                             onRenameFolder={onRenameFolder}

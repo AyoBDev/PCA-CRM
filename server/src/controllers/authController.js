@@ -308,4 +308,40 @@ async function resetPasswordWithToken(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { login, getMe, register, listUsers, deleteUser, restoreUser, resetPassword, permanentlyDeleteUser, bulkPermanentlyDeleteUsers, forgotPassword, resetPasswordWithToken, toggleUserActive };
+async function employeeLogin(req, res, next) {
+    try {
+        const { email, password } = req.body;
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Email and password are required' });
+        }
+        const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+        if (!user) {
+            return res.status(401).json({ error: 'Invalid email or password' });
+        }
+        if (user.archivedAt) {
+            return res.status(403).json({ error: 'This account has been archived. Please contact your administrator.' });
+        }
+        if (!user.active) {
+            return res.status(403).json({ error: 'This account has been deactivated. Please contact your administrator.' });
+        }
+        if (user.status === 'pending') {
+            return res.status(403).json({ error: 'Your account is pending admin approval. You will receive an email when activated.' });
+        }
+        const employee = await prisma.employee.findUnique({ where: { userId: user.id } });
+        if (!employee) {
+            return res.status(403).json({ error: 'No employee profile is linked to this account.' });
+        }
+        const valid = await bcrypt.compare(password, user.passwordHash);
+        if (!valid) {
+            return res.status(401).json({ error: 'Invalid email or password' });
+        }
+        const token = signToken(user);
+        audit.logAction({ userId: user.id, userName: user.name, userRole: user.role, action: 'LOGIN', entityType: 'User', entityId: user.id, entityName: user.name, metadata: { portal: 'employee' } });
+        res.json({
+            token,
+            user: { id: user.id, email: user.email, name: user.name, role: user.role },
+        });
+    } catch (err) { next(err); }
+}
+
+module.exports = { login, employeeLogin, getMe, register, listUsers, deleteUser, restoreUser, resetPassword, permanentlyDeleteUser, bulkPermanentlyDeleteUsers, forgotPassword, resetPasswordWithToken, toggleUserActive };
