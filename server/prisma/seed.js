@@ -56,36 +56,43 @@ async function main() {
     }
     console.log('✅ Workflow triggers seeded');
 
-    // Seed default admin file folders
-    const defaultFolders = [
-        { name: 'Insurance', path: '/Insurance', parentId: null },
-        { name: 'Eligibility', path: '/Eligibility', parentId: null },
-    ];
-    for (const folder of defaultFolders) {
-        const existing = await prisma.adminFolder.findFirst({
-            where: { name: folder.name, parentId: null },
-        });
-        if (!existing) {
-            const created = await prisma.adminFolder.create({ data: folder });
-            // Create subfolders
-            if (folder.name === 'Insurance') {
-                const subs = ['Medicaid', 'UnitedHealth', 'Blue Cross Blue Shield', 'Aetna'];
-                for (const sub of subs) {
-                    await prisma.adminFolder.create({
-                        data: { name: sub, path: `/Insurance/${sub}`, parentId: created.id },
-                    });
-                }
-            } else if (folder.name === 'Eligibility') {
-                const subs = ['Active', 'Pending', 'Expired'];
-                for (const sub of subs) {
-                    await prisma.adminFolder.create({
-                        data: { name: sub, path: `/Eligibility/${sub}`, parentId: created.id },
-                    });
+    // Seed default admin file folders (skip if table doesn't exist yet)
+    try {
+        const defaultFolders = [
+            { name: 'Insurance', path: '/Insurance', parentId: null },
+            { name: 'Eligibility', path: '/Eligibility', parentId: null },
+        ];
+        for (const folder of defaultFolders) {
+            const existing = await prisma.adminFolder.findFirst({
+                where: { name: folder.name, parentId: null },
+            });
+            if (!existing) {
+                const created = await prisma.adminFolder.create({ data: folder });
+                if (folder.name === 'Insurance') {
+                    const subs = ['Medicaid', 'UnitedHealth', 'Blue Cross Blue Shield', 'Aetna'];
+                    for (const sub of subs) {
+                        await prisma.adminFolder.create({
+                            data: { name: sub, path: `/Insurance/${sub}`, parentId: created.id },
+                        });
+                    }
+                } else if (folder.name === 'Eligibility') {
+                    const subs = ['Active', 'Pending', 'Expired'];
+                    for (const sub of subs) {
+                        await prisma.adminFolder.create({
+                            data: { name: sub, path: `/Eligibility/${sub}`, parentId: created.id },
+                        });
+                    }
                 }
             }
         }
+        console.log('✅ Admin file folders seeded');
+    } catch (err) {
+        if (err.code === 'P2021') {
+            console.log('⚠️  admin_folders table not found — skipping folder seed (run migrations first)');
+        } else {
+            throw err;
+        }
     }
-    console.log('✅ Admin file folders seeded');
 }
 
 main()
