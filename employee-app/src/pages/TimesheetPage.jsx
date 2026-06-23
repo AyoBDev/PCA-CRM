@@ -33,8 +33,7 @@ export default function TimesheetPage() {
   const statusLabel = data?.timesheet?.status === 'submitted' ? 'Submitted' : data?.timesheet?.status === 'draft' ? 'Draft' : 'New';
   const statusClass = data?.timesheet?.status === 'submitted' ? 'success' : data?.timesheet?.status === 'draft' ? 'warning' : 'muted';
 
-  const pcaFormUrl = data?.token ? `/api/pca-form/${data.token}?weekStart=${sunday}` : null;
-  const externalFormUrl = data?.token ? `${window.location.origin.replace(':5174', ':4000')}/pca-form/${data.token}` : null;
+  const externalFormUrl = data?.token ? `/pca-form/${data.token}` : null;
 
   return (
     <div>

@@ -10,7 +10,9 @@ async function request(path, options = {}) {
   const res = await fetch(`${BASE}/api/employee${path}`, { ...options, headers });
   if (res.status === 401) {
     localStorage.removeItem('token');
-    window.location.href = '/login';
+    localStorage.removeItem('user');
+    const base = import.meta.env.BASE_URL || '/';
+    window.location.href = `${base}login`;
     return;
   }
   if (!res.ok) {
