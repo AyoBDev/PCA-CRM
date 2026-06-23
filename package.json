@@ -3,10 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "install:all": "cd client && npm install && cd ../server && npm install",
+    "install:all": "cd client && npm install && cd ../employee-app && npm install && cd ../server && npm install",
     "build:client": "cd client && npm run build",
+    "build:employee": "cd employee-app && npm run build",
     "build:server": "cd server && npx prisma generate",
-    "build": "npm run build:client && npm run build:server",
+    "build": "npm run build:client && npm run build:employee && npm run build:server",
     "start": "cd server && npx prisma migrate deploy && node prisma/seed.js && node src/index.js",
     "dev": "cd server && npm run dev"
   }

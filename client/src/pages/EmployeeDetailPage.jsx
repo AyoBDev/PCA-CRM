@@ -17,6 +17,7 @@ import { hhmm12 } from '../utils/time';
 
 const TABS = [
     { key: 'profile', label: 'Profile', icon: 'user' },
+    { key: 'onboarding', label: 'Onboarding', icon: 'clipboard', onboardingOnly: true },
     { key: 'certifications', label: 'Certifications', icon: 'shieldCheck' },
     { key: 'timesheets', label: 'Timesheets', icon: 'clock' },
     { key: 'schedule', label: 'Schedule', icon: 'calendar' },
@@ -138,6 +139,116 @@ function EditEmployeeModal({ employee, users, onSave, onClose }) {
     );
 }
 
+function OnboardingReviewPanel({ data }) {
+    if (!data) return <p className="text-muted">No availability data submitted.</p>;
+
+    const weeklySchedule = data.weeklySchedule || {};
+    const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const dayLabels = { sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday' };
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            {/* Weekly Schedule */}
+            <div>
+                <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: 'hsl(var(--foreground))' }}>Weekly Availability</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {dayNames.map(day => {
+                        const schedule = weeklySchedule[day];
+                        if (!schedule || !schedule.available) {
+                            return (
+                                <div key={day} style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', background: 'hsl(var(--muted))', borderRadius: 6 }}>
+                                    <span style={{ fontWeight: 500, width: 100, fontSize: 13 }}>{dayLabels[day]}</span>
+                                    <span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>Not available</span>
+                                </div>
+                            );
+                        }
+                        return (
+                            <div key={day} style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', background: 'hsl(var(--accent))', borderRadius: 6 }}>
+                                <span style={{ fontWeight: 500, width: 100, fontSize: 13 }}>{dayLabels[day]}</span>
+                                <span style={{ fontSize: 13, color: 'hsl(var(--foreground))' }}>
+                                    {schedule.start} – {schedule.end}
+                                </span>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* Travel & Limits */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div>
+                    <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: 'hsl(var(--foreground))' }}>Max Hours/Week</h4>
+                    <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>{data.maxHoursPerWeek || 'Not specified'}</p>
+                </div>
+                <div>
+                    <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: 'hsl(var(--foreground))' }}>Max Concurrent Clients</h4>
+                    <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>{data.maxConcurrentClients || 'Not specified'}</p>
+                </div>
+                <div>
+                    <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: 'hsl(var(--foreground))' }}>Max Travel Distance</h4>
+                    <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>{data.maxTravelDistance ? `${data.maxTravelDistance} miles` : 'Not specified'}</p>
+                </div>
+                <div>
+                    <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: 'hsl(var(--foreground))' }}>Transportation</h4>
+                    <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>{data.transportation || 'Not specified'}</p>
+                </div>
+            </div>
+
+            {/* Holiday Availability */}
+            {data.holidayAvailability && (
+                <div>
+                    <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: 'hsl(var(--foreground))' }}>Holiday Availability</h4>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {Object.entries(data.holidayAvailability).map(([holiday, available]) => (
+                            available && (
+                                <span key={holiday} style={{ padding: '4px 10px', background: 'hsl(var(--accent))', borderRadius: 4, fontSize: 12 }}>
+                                    {holiday.replace(/([A-Z])/g, ' $1').trim()}
+                                </span>
+                            )
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Blackout Dates */}
+            {data.blackoutDates && data.blackoutDates.length > 0 && (
+                <div>
+                    <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: 'hsl(var(--foreground))' }}>Blackout Dates</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {data.blackoutDates.map((item, idx) => (
+                            <div key={idx} style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>
+                                {item.startDate} to {item.endDate} {item.reason && `— ${item.reason}`}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Initial Time Off */}
+            {data.initialTimeOff && data.initialTimeOff.length > 0 && (
+                <div>
+                    <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: 'hsl(var(--foreground))' }}>Initial Time Off</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {data.initialTimeOff.map((item, idx) => (
+                            <div key={idx} style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>
+                                {item.startDate} to {item.endDate} {item.reason && `— ${item.reason}`}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Notes */}
+            {data.notes && (
+                <div>
+                    <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: 'hsl(var(--foreground))' }}>Notes</h4>
+                    <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', whiteSpace: 'pre-wrap' }}>{data.notes}</p>
+                </div>
+            )}
+        </div>
+    );
+}
+
 function EditCertModal({ employee, onSave, onClose }) {
     const [form, setForm] = useState({
         tbDueDate: employee.tbDueDate ? new Date(employee.tbDueDate).toISOString().split('T')[0] : '',
@@ -217,6 +328,8 @@ export default function EmployeeDetailPage() {
     const [showCertModal, setShowCertModal] = useState(false);
     const [shifts, setShifts] = useState([]);
     const [shiftsLoading, setShiftsLoading] = useState(false);
+    const [availabilityData, setAvailabilityData] = useState(null);
+    const [loadingAvailability, setLoadingAvailability] = useState(false);
 
     const fetchEmployee = useCallback(async () => {
         try {
@@ -245,8 +358,19 @@ export default function EmployeeDetailPage() {
         finally { setShiftsLoading(false); }
     }, [employeeId]);
 
+    const fetchAvailability = useCallback(async () => {
+        if (!employee || employee.onboardingStatus !== 'submitted') return;
+        try {
+            setLoadingAvailability(true);
+            const data = await api.getEmployeeAvailability(Number(employeeId));
+            setAvailabilityData(data);
+        } catch (err) { /* ignore */ }
+        finally { setLoadingAvailability(false); }
+    }, [employeeId, employee]);
+
     useEffect(() => { fetchEmployee(); fetchUsers(); }, [fetchEmployee, fetchUsers]);
     useEffect(() => { if (activeTab === 'schedule') fetchShifts(); }, [activeTab, fetchShifts]);
+    useEffect(() => { fetchAvailability(); }, [fetchAvailability]);
 
     const handleSaveEmployee = async (data) => {
         try {
@@ -274,6 +398,35 @@ export default function EmployeeDetailPage() {
                 async () => { await api.updateEmployee(Number(employeeId), data); fetchEmployee(); }
             );
         } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleResendInvite = async () => {
+        try {
+            await api.resendOnboardingInvite(employee.id);
+            showToast('Onboarding invite resent', 'success');
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    };
+
+    const handleCopyOnboardingLink = async () => {
+        try {
+            const { link } = await api.getOnboardingLink(employee.id);
+            await navigator.clipboard.writeText(link);
+            showToast('Onboarding link copied to clipboard', 'success');
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    };
+
+    const handleApprove = async () => {
+        try {
+            await api.approveOnboarding(employee.id);
+            showToast(`${employee.name}'s account has been activated`, 'success');
+            fetchEmployee();
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
     };
 
     if (loading) {
@@ -321,6 +474,16 @@ export default function EmployeeDetailPage() {
             <ContextBar>
                 <ContextBar.Right>
                     <EntityActivityButton entityType="Employee" entityId={employee.id} />
+                    {employee.onboardingStatus === 'invited' && (
+                        <>
+                            <button className="btn btn--outline btn--sm" onClick={handleCopyOnboardingLink}>
+                                {Icons.copy} Copy Link
+                            </button>
+                            <button className="btn btn--outline btn--sm" onClick={handleResendInvite}>
+                                {Icons.mail} Resend Invite
+                            </button>
+                        </>
+                    )}
                     <button className="btn btn--outline btn--sm" onClick={() => setShowEditModal(true)}>
                         {Icons.edit} Edit Employee
                     </button>
@@ -342,6 +505,12 @@ export default function EmployeeDetailPage() {
                                 <span className={`ts-badge ts-badge--${employee.active ? 'success' : 'draft'}`}>
                                     {employee.active ? 'Active' : 'Inactive'}
                                 </span>
+                                {employee.onboardingStatus === 'invited' && (
+                                    <span className="ts-badge ts-badge--draft">Invited</span>
+                                )}
+                                {employee.onboardingStatus === 'submitted' && (
+                                    <span className="ts-badge ts-badge--submitted">Pending Review</span>
+                                )}
                             </div>
                             <div className="cp-bio__chips">
                                 {employee.clientAssignment && (
@@ -406,7 +575,7 @@ export default function EmployeeDetailPage() {
 
                 {/* TAB NAVIGATION */}
                 <div className="cp-tabs">
-                    {TABS.filter(tab => !tab.adminOnly || isAdmin).map(tab => (
+                    {TABS.filter(tab => (!tab.adminOnly || isAdmin) && (!tab.onboardingOnly || employee.onboardingStatus === 'submitted')).map(tab => (
                         <button
                             key={tab.key}
                             className={`cp-tab ${activeTab === tab.key ? 'cp-tab--active' : ''}`}
@@ -428,6 +597,20 @@ export default function EmployeeDetailPage() {
                 <div className="cp-tab-content">
                     {activeTab === 'profile' && (
                         <ProfileTab employee={employee} />
+                    )}
+                    {activeTab === 'onboarding' && (
+                        <div className="cp-tab-panel">
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+                                <button className="btn btn--primary btn--sm" onClick={handleApprove}>
+                                    {Icons.checkCircle} Approve
+                                </button>
+                            </div>
+                            {loadingAvailability ? (
+                                <p className="text-muted">Loading availability data...</p>
+                            ) : (
+                                <OnboardingReviewPanel data={availabilityData} />
+                            )}
+                        </div>
                     )}
                     {activeTab === 'certifications' && (
                         <CertificationsTab employee={employee} onEdit={() => setShowCertModal(true)} />

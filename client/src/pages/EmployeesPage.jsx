@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useToast } from '../hooks/useToast';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
@@ -289,6 +289,8 @@ export default function EmployeesPage() {
     const { showToast, showUndoToast } = useToast();
     const undoState = useUndoStack();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const onboardingFilter = searchParams.get('onboarding');
     const [employees, setEmployees] = useState([]);
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -471,6 +473,8 @@ export default function EmployeesPage() {
             (e.clientAssignment || '').toLowerCase().includes(search.toLowerCase()) ||
             (e.npi || '').includes(search);
         if (!matchesSearch) return false;
+
+        if (onboardingFilter && e.onboardingStatus !== onboardingFilter) return false;
 
         if (statusFilter === 'OK') return getEmpCertStatus(e) === 'valid' && !e.critical;
         if (statusFilter === 'Critical') return e.critical || getEmpCertStatus(e) === 'expiring';
@@ -721,7 +725,11 @@ export default function EmployeesPage() {
                                                             {getInitials(emp.name)}
                                                         </div>
                                                         <div>
-                                                            <div style={{ fontWeight: 500, color: 'hsl(var(--primary))' }}>{emp.name}</div>
+                                                            <div style={{ fontWeight: 500, color: 'hsl(var(--primary))', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                                {emp.name}
+                                                                {emp.onboardingStatus === 'invited' && <span className="ts-badge ts-badge--draft" style={{ fontSize: 10 }}>Invited</span>}
+                                                                {emp.onboardingStatus === 'submitted' && <span className="ts-badge ts-badge--submitted" style={{ fontSize: 10 }}>Pending Review</span>}
+                                                            </div>
                                                             {emp.email && <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>{emp.email}</div>}
                                                         </div>
                                                     </div>

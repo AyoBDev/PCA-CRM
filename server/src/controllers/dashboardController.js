@@ -52,6 +52,10 @@ async function getDashboardStats(req, res) {
         }),
     ]);
 
+    const pendingOnboarding = await prisma.employee.count({
+        where: { onboardingStatus: 'submitted' },
+    });
+
     const overdueRaw = await prisma.timesheet.findMany({
         where: { status: 'draft', archivedAt: null },
         select: { id: true, pcaName: true, weekStart: true, status: true, client: { select: { clientName: true } } },
@@ -103,6 +107,7 @@ async function getDashboardStats(req, res) {
         timesheetSubmitted,
         recentPayrollRuns: payrollRuns,
         overdueTimesheets: { count: overdueTimesheets.length, items: overdueTimesheets },
+        pendingOnboarding,
     });
 }
 

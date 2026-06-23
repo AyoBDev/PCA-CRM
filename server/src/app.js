@@ -8,7 +8,15 @@ const app = express();
 
 // ── Middleware ──
 app.use(compression());
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    process.env.EMPLOYEE_APP_ORIGIN,
+    process.env.ADMIN_APP_ORIGIN,
+  ].filter(Boolean),
+  credentials: true,
+}));
 app.use(express.json());
 
 // ── Routes ──
@@ -17,13 +25,27 @@ app.use('/api', apiRoutes);
 // ── Health check ──
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
-// ── Serve client build in production ──
+// ── Serve employee app at /employee ──
+const employeeDist = path.join(__dirname, '../../employee-app/dist');
+app.use('/employee', express.static(employeeDist, {
+    maxAge: '1y',
+    immutable: true,
+    setHeaders(res, filePath) {
+        if (filePath.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache');
+        }
+    },
+}));
+app.get('/employee/*', (_req, res) => {
+    res.sendFile(path.join(employeeDist, 'index.html'));
+});
+
+// ── Serve admin client build at / ──
 const clientDist = path.join(__dirname, '../../client/dist');
 app.use(express.static(clientDist, {
     maxAge: '1y',
     immutable: true,
     setHeaders(res, filePath) {
-        // index.html should never be cached (so new deploys are picked up)
         if (filePath.endsWith('.html')) {
             res.setHeader('Cache-Control', 'no-cache');
         }

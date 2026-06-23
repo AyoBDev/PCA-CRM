@@ -735,3 +735,20 @@ export function copyFiles(fileIds, targetFolderId) {
 export function searchAdminFiles(q) {
     return request(`/files/search?q=${encodeURIComponent(q)}`);
 }
+
+// ── Employee Onboarding ──
+export async function resendOnboardingInvite(employeeId) {
+    return request(`/employees/${employeeId}/resend-invite`, { method: 'POST' });
+}
+
+export async function approveOnboarding(employeeId) {
+    return request(`/employees/${employeeId}/approve-onboarding`, { method: 'PATCH' });
+}
+
+export async function getEmployeeAvailability(employeeId) {
+    return request(`/employees/${employeeId}/availability`);
+}
+
+export async function getOnboardingLink(employeeId) {
+    return request(`/employees/${employeeId}/onboarding-link`);
+}

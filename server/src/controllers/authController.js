@@ -32,6 +32,9 @@ async function login(req, res, next) {
         if (!user.active) {
             return res.status(403).json({ error: 'This account has been deactivated. Please contact your administrator.' });
         }
+        if (user.status === 'pending') {
+            return res.status(403).json({ error: 'Your account is pending admin approval. You will receive an email when activated.' });
+        }
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) {
             return res.status(401).json({ error: 'Invalid email or password' });
