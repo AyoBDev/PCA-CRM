@@ -12,6 +12,7 @@ const PATH_TO_PAGE = {
     '/permanent-links': 'permanentLinks',
     '/scheduling': 'scheduling',
     '/tasks': 'tasks',
+    '/messages': 'messages',
     '/payroll': 'payroll',
     '/receipts': 'receipts',
     '/employees': 'employees',
@@ -100,6 +101,11 @@ export default function Sidebar({ onMobileClose }) {
                 {isStaff && (
                     <button className={`sidebar__nav-item ${activePage === 'tasks' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/tasks')} title="Tasks">
                         {Icons.checkSquare} Tasks
+                    </button>
+                )}
+                {isStaff && (
+                    <button className={`sidebar__nav-item ${activePage === 'messages' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/messages')} title="Messages">
+                        {Icons.mail} Messages
                     </button>
                 )}
                 {isStaff && (

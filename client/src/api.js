@@ -758,3 +758,9 @@ export async function getEmployeeAvailability(employeeId) {
 export async function getOnboardingLink(employeeId) {
     return request(`/employees/${employeeId}/onboarding-link`);
 }
+
+// ── Conversations ──
+export const getConversations = () => request('/conversations');
+export const getConversationMessages = (id) => request(`/conversations/${id}/messages`);
+export const sendConversationMessage = (id, content) =>
+    request(`/conversations/${id}/messages`, { method: 'POST', body: JSON.stringify({ content }) });
