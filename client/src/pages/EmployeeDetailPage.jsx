@@ -929,9 +929,11 @@ function CertificationsTab({ employee, onEdit }) {
         const colors = CERT_COLORS[ct.type] || CERT_COLORS.other;
         const allRecords = certRecords.filter(r => r.certType === ct.type);
         const activeRecords = allRecords.filter(r => r.status === 'active');
+        const pendingRecords = allRecords.filter(r => r.status === 'pending');
         const expiredRecords = allRecords.filter(r => r.status === 'expired');
         const currentAttachment = activeRecords.find(r => r.fileName);
-        const attachCount = allRecords.filter(r => r.fileName).length;
+        const allUploads = allRecords.flatMap(r => r.uploads || []);
+        const attachCount = allRecords.filter(r => r.fileName).length + allUploads.length;
 
         return (
             <div key={ct.type} className="pa-service-card" style={{ '--card-accent': colors.accent, '--card-bg': colors.bg, '--card-border': colors.border }}>
@@ -1014,6 +1016,35 @@ function CertificationsTab({ employee, onEdit }) {
                                         )}
                                     </div>
                                 ))}
+                                {pendingRecords.length > 0 && (
+                                    <>
+                                        <div style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--primary))', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '8px 0 4px' }}>Pending Review (uploaded by employee)</div>
+                                        {pendingRecords.map(rec => (
+                                            <div key={rec.id} className="pa-auth-item" style={{ borderLeft: '3px solid hsl(var(--primary))' }}>
+                                                <div className="pa-auth-item__header">
+                                                    <div className="pa-auth-item__left">
+                                                        <span className="pa-auth-item__name">{rec.fileName || 'Pending Upload'}</span>
+                                                        <span className="pa-auth-item__dates">
+                                                            Submitted {rec.updatedAt ? formatDate(rec.updatedAt) : ''}
+                                                        </span>
+                                                    </div>
+                                                    <div className="pa-auth-item__right">
+                                                        <span className="ts-badge ts-badge--submitted">Pending</span>
+                                                        {rec.fileName && (
+                                                            <button className="btn btn--ghost btn--xs" onClick={() => handleDownload(rec)}>{Icons.download}</button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {(rec.uploads || []).map(upload => (
+                                                    <div key={upload.id} style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '4px 0 4px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                        {Icons.paperclip} {upload.fileName} ({(upload.fileSize / 1024).toFixed(0)} KB)
+                                                        {upload.note && <span style={{ fontStyle: 'italic' }}>— {upload.note}</span>}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ))}
+                                    </>
+                                )}
                                 {expiredRecords.length > 0 && (
                                     <>
                                         <div style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '8px 0 4px' }}>Previous Expired</div>

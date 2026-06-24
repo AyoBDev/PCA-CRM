@@ -19,6 +19,10 @@ async function listCertifications(req, res, next) {
                 notes: true,
                 createdAt: true,
                 updatedAt: true,
+                uploads: {
+                    select: { id: true, fileName: true, fileSize: true, fileType: true, note: true, submittedAt: true },
+                    orderBy: { submittedAt: 'desc' },
+                },
             },
         });
         res.json(certs);
