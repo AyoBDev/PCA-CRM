@@ -45,7 +45,6 @@ export default function MessagesPage() {
     setInput('');
     try {
       if (socket && connected) {
-        // Optimistic append; server will echo via socket and dedupe.
         socket.emit('chat:message', { content });
       } else {
         const msg = await api.sendMessage(content);
