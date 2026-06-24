@@ -9,7 +9,7 @@ const { getWeekSchedule, getScheduleHistory } = require('../controllers/employee
 const { getAvailability, submitAvailabilityRequest, getTimeOffRequests, submitTimeOff } = require('../controllers/employeePortal/availabilityController');
 const { getPayrollSummary, getPaystubs, downloadPaystub } = require('../controllers/employeePortal/payrollController');
 const { getTasks, completeTask } = require('../controllers/employeePortal/tasksController');
-const { getMessages, sendMessage, markRead } = require('../controllers/employeePortal/chatController');
+const { getMessages, sendMessage, markRead, getUnreadCount } = require('../controllers/employeePortal/chatController');
 const { getNotifications, markNotificationsRead } = require('../controllers/employeePortal/notificationController');
 const { getTimesheet } = require('../controllers/employeePortal/timesheetController');
 
@@ -53,6 +53,7 @@ router.get('/tasks', getTasks);
 router.patch('/tasks/:id/complete', completeTask);
 
 // Chat
+router.get('/chat/unread-count', getUnreadCount);
 router.get('/chat/messages', getMessages);
 router.post('/chat/messages', sendMessage);
 router.patch('/chat/read', markRead);

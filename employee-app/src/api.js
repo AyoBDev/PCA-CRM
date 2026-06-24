@@ -61,6 +61,7 @@ export const api = {
   getMessages: (before) => request(`/chat/messages${before ? `?before=${before}` : ''}`),
   sendMessage: (content) => request('/chat/messages', { method: 'POST', body: JSON.stringify({ content }) }),
   markRead: () => request('/chat/read', { method: 'PATCH' }),
+  getMessageUnreadCount: () => request('/chat/unread-count'),
   getNotifications: () => request('/notifications'),
   markNotificationsRead: () => request('/notifications/read', { method: 'PATCH' }),
   getTasks: () => request('/tasks'),

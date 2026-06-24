@@ -93,4 +93,16 @@ async function markRead(req, res) {
   res.json({ updated: result.count });
 }
 
-module.exports = { getMessages, sendMessage, markRead };
+async function getUnreadCount(req, res) {
+  const employeeId = req.employee.id;
+  const employeeUserId = req.user.id;
+  const convo = await prisma.conversation.findUnique({ where: { employeeId } });
+  if (!convo) return res.json({ unreadCount: 0 });
+
+  const unreadCount = await prisma.message.count({
+    where: { conversationId: convo.id, senderId: { not: employeeUserId }, readAt: null },
+  });
+  res.json({ unreadCount });
+}
+
+module.exports = { getMessages, sendMessage, markRead, getUnreadCount };

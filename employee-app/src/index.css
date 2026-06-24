@@ -125,6 +125,22 @@ body {
   background: hsl(var(--destructive));
   border-radius: 50%;
 }
+.nav-badge {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #E63946;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 0 2px #fff;
+}
 
 /* === LEFT RAIL (desktop 768px+) === */
 .left-rail { display: none; }
@@ -175,7 +191,7 @@ body {
     margin-bottom: 16px;
   }
   .left-rail__logo svg { width: 20px; height: 20px; }
-  .left-rail__icon { width: 22px; height: 22px; }
+  .left-rail__icon { width: 22px; height: 22px; position: relative; }
   .left-rail__icon svg { width: 100%; height: 100%; }
   .app { padding-bottom: 0; margin-left: var(--rail-width); }
 }

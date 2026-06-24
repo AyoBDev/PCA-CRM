@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useSocket } from '../hooks/useSocket';
+import { useMessaging } from '../hooks/useMessaging';
 import { api } from '../api';
 
 export default function MessagesPage() {
   const { user } = useAuth();
   const { socket, connected } = useSocket();
+  const { clear } = useMessaging();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -14,28 +16,28 @@ export default function MessagesPage() {
   useEffect(() => {
     api.getMessages().then(data => {
       setMessages(data.messages || data || []);
-      api.markRead().catch(() => {});
+      api.markRead().then(() => clear()).catch(() => {});
     });
-  }, []);
+  }, [clear]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   useEffect(() => {
-    if (!socket) return;
+    if (!socket || !user) return;
     function onMessage(payload) {
       setMessages((prev) => {
         if (prev.some((m) => m.id === payload.id)) return prev;
         return [...prev, payload];
       });
-      if (payload.senderRole !== 'pca') {
+      if (payload.senderId !== user.id) {
         api.markRead().catch(() => {});
       }
     }
     socket.on('chat:message', onMessage);
     return () => socket.off('chat:message', onMessage);
-  }, [socket]);
+  }, [socket, user]);
 
   const handleSend = async (e) => {
     e.preventDefault();

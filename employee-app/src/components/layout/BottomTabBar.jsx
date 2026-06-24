@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { useMessaging } from '../../hooks/useMessaging';
 
 const TABS = [
   { to: '/', label: 'Home', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/></svg> },
@@ -8,13 +9,22 @@ const TABS = [
   { to: '/account', label: 'Account', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
 ];
 
+function badgeFor(tab, unreadCount) {
+  if (tab.to !== '/messages' || unreadCount <= 0) return null;
+  return <span className="nav-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>;
+}
+
 export default function BottomNav() {
+  const { unreadCount } = useMessaging();
   return (
     <>
       <nav className="bottom-nav">
         {TABS.map(tab => (
           <NavLink key={tab.to} to={tab.to} end={tab.to === '/'} className={({ isActive }) => `bottom-nav__item ${isActive ? 'bottom-nav__item--active' : ''}`}>
-            <span className="bottom-nav__icon">{tab.icon}</span>
+            <span className="bottom-nav__icon">
+              {tab.icon}
+              {badgeFor(tab, unreadCount)}
+            </span>
             <span>{tab.label}</span>
           </NavLink>
         ))}
@@ -28,7 +38,10 @@ export default function BottomNav() {
         </div>
         {TABS.map(tab => (
           <NavLink key={tab.to} to={tab.to} end={tab.to === '/'} className={({ isActive }) => `left-rail__item ${isActive ? 'left-rail__item--active' : ''}`}>
-            <span className="left-rail__icon">{tab.icon}</span>
+            <span className="left-rail__icon">
+              {tab.icon}
+              {badgeFor(tab, unreadCount)}
+            </span>
             <span>{tab.label}</span>
           </NavLink>
         ))}
