@@ -61,8 +61,23 @@ async function adminSendMessage(req, res) {
     data: { lastMessageAt: new Date() },
   });
 
+  const employee = await prisma.employee.findUnique({ where: { id: convo.employeeId }, select: { name: true } });
+
   emitToEmployee(convo.employeeId, 'chat:message', {
-    id: msg.id, content: msg.content, senderId: msg.senderId, senderRole: msg.senderRole, createdAt: msg.createdAt,
+    id: msg.id, content: msg.content, senderId: msg.senderId, senderRole: msg.senderRole, createdAt: msg.createdAt, conversationId: conversationId,
+  });
+
+  emitToOffice('chat:conversation-updated', {
+    conversationId,
+    employeeId: convo.employeeId,
+    employeeName: employee?.name || '',
+    lastMessage: {
+      id: msg.id,
+      content: msg.content,
+      senderRole: msg.senderRole,
+      createdAt: msg.createdAt,
+    },
+    lastMessageAt: new Date(),
   });
 
   res.status(201).json(msg);

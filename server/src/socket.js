@@ -53,9 +53,32 @@ function initSocket(httpServer) {
             content: data.content,
           },
         });
-        const payload = { id: msg.id, content: msg.content, senderId: msg.senderId, senderRole: msg.senderRole, createdAt: msg.createdAt };
+        const payload = {
+          id: msg.id,
+          content: msg.content,
+          senderId: msg.senderId,
+          senderRole: msg.senderRole,
+          createdAt: msg.createdAt,
+          conversationId: convo.id,
+        };
         socket.emit('chat:message', payload);
-        io.to('office').emit('chat:message', { ...payload, employeeId: socket.employeeId, employeeName: socket.user.name });
+        io.to('office').emit('chat:message', {
+          ...payload,
+          employeeId: socket.employeeId,
+          employeeName: socket.user.name,
+        });
+        io.to('office').emit('chat:conversation-updated', {
+          conversationId: convo.id,
+          employeeId: socket.employeeId,
+          employeeName: socket.user.name,
+          lastMessage: {
+            id: msg.id,
+            content: msg.content,
+            senderRole: msg.senderRole,
+            createdAt: msg.createdAt,
+          },
+          lastMessageAt: convo.lastMessageAt,
+        });
       } catch (err) {
         socket.emit('chat:error', { error: 'Failed to send message' });
       }
