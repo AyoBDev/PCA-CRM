@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useSocket } from '../hooks/useSocket';
 import { api } from '../api';
 
 export default function MessagesPage() {
   const { user } = useAuth();
+  const { socket, connected } = useSocket();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -20,20 +22,47 @@ export default function MessagesPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  useEffect(() => {
+    if (!socket) return;
+    function onMessage(payload) {
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === payload.id)) return prev;
+        return [...prev, payload];
+      });
+      if (payload.senderRole !== 'pca') {
+        api.markRead().catch(() => {});
+      }
+    }
+    socket.on('chat:message', onMessage);
+    return () => socket.off('chat:message', onMessage);
+  }, [socket]);
+
   const handleSend = async (e) => {
     e.preventDefault();
-    if (!input.trim() || sending) return;
+    const content = input.trim();
+    if (!content || sending) return;
     setSending(true);
+    setInput('');
     try {
-      const msg = await api.sendMessage(input.trim());
-      setMessages(prev => [...prev, msg]);
-      setInput('');
-    } catch (err) { /* silent */ }
+      if (socket && connected) {
+        // Optimistic append; server will echo via socket and dedupe.
+        socket.emit('chat:message', { content });
+      } else {
+        const msg = await api.sendMessage(content);
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return [...prev, msg];
+        });
+      }
+    } catch {
+      setInput(content);
+    }
     setSending(false);
   };
 
   return (
     <div className="chat-page">
+      {!connected && <div className="chat-connecting">Connecting…</div>}
       <div className="chat-messages">
         {messages.length === 0 ? (
           <div className="chat-empty">No messages yet</div>

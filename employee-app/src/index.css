@@ -459,6 +459,13 @@ body {
 .chat-send { width: 44px; height: 44px; border-radius: 50%; background: hsl(var(--primary)); color: white; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .chat-send:disabled { opacity: 0.4; }
 .chat-send svg { width: 18px; height: 18px; }
+.chat-connecting {
+    text-align: center;
+    padding: 4px 0;
+    font-size: 11px;
+    color: #888;
+    background: #f4f4f4;
+}
 
 /* === LOGIN === */
 .login-page { display: flex; align-items: center; justify-content: center; min-height: 100dvh; padding: 16px; }
