@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Icons from '../common/Icons';
 import { useAuth } from '../../hooks/useAuth';
+import { useMessaging } from '../../contexts/MessagingContext';
 
 // Map route paths to page keys for active state
 const PATH_TO_PAGE = {
@@ -26,6 +27,7 @@ const PATH_TO_PAGE = {
 
 export default function Sidebar({ onMobileClose }) {
     const { user, isAdmin, isStaff, logout } = useAuth();
+    const { unreadConversations } = useMessaging();
     const navigate = useNavigate();
     const location = useLocation();
     const [collapsed, setCollapsed] = useState(
@@ -105,7 +107,18 @@ export default function Sidebar({ onMobileClose }) {
                 )}
                 {isStaff && (
                     <button className={`sidebar__nav-item ${activePage === 'messages' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/messages')} title="Messages">
-                        {Icons.mail} Messages
+                        <span className="sidebar__nav-item-icon-wrap">
+                            {Icons.mail}
+                            {unreadConversations > 0 && (
+                                <span className="sidebar__nav-dot" aria-hidden="true" />
+                            )}
+                        </span>
+                        <span className="sidebar__nav-item-label">Messages</span>
+                        {unreadConversations > 0 && (
+                            <span className="sidebar__nav-pill">
+                                {unreadConversations > 99 ? '99+' : unreadConversations}
+                            </span>
+                        )}
                     </button>
                 )}
                 {isStaff && (

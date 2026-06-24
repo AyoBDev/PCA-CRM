@@ -13801,3 +13801,51 @@ tr:hover .auth-note-icon--empty {
         max-width: 85%;
     }
 }
+
+/* Sidebar unread badge styles */
+.sidebar__nav-item-icon-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sidebar__nav-item-label {
+    flex: 1;
+    text-align: left;
+}
+
+.sidebar__nav-pill {
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 10px;
+    background: hsl(var(--destructive, 0 84% 60%));
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 20px;
+    text-align: center;
+    margin-left: auto;
+}
+
+.sidebar__nav-dot {
+    display: none;
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: hsl(var(--destructive, 0 84% 60%));
+    border: 2px solid var(--sidebar-bg);
+}
+
+.sidebar--collapsed .sidebar__nav-item-label,
+.sidebar--collapsed .sidebar__nav-pill {
+    display: none;
+}
+
+.sidebar--collapsed .sidebar__nav-dot {
+    display: block;
+}

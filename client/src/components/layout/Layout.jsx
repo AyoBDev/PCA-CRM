@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import Toast from './Toast';
 import Icons from '../common/Icons';
+import { MessagingProvider } from '../../contexts/MessagingContext';
 
 export default function Layout({ children }) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(
@@ -27,17 +28,19 @@ export default function Layout({ children }) {
     }, [mobileMenuOpen]);
 
     return (
-        <div className={`app${sidebarCollapsed ? ' app--sidebar-collapsed' : ''}${mobileMenuOpen ? ' app--mobile-menu-open' : ''}`}>
-            <a href="#main-content" className="skip-link">Skip to main content</a>
-            <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(true)} aria-label="Open menu">
-                {Icons.menu}
-            </button>
-            {mobileMenuOpen && <div className="mobile-menu-backdrop" onClick={() => setMobileMenuOpen(false)} />}
-            <Sidebar onMobileClose={() => setMobileMenuOpen(false)} />
-            <main className="main-content" id="main-content">
-                {children}
-            </main>
-            <Toast />
-        </div>
+        <MessagingProvider>
+            <div className={`app${sidebarCollapsed ? ' app--sidebar-collapsed' : ''}${mobileMenuOpen ? ' app--mobile-menu-open' : ''}`}>
+                <a href="#main-content" className="skip-link">Skip to main content</a>
+                <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(true)} aria-label="Open menu">
+                    {Icons.menu}
+                </button>
+                {mobileMenuOpen && <div className="mobile-menu-backdrop" onClick={() => setMobileMenuOpen(false)} />}
+                <Sidebar onMobileClose={() => setMobileMenuOpen(false)} />
+                <main className="main-content" id="main-content">
+                    {children}
+                </main>
+                <Toast />
+            </div>
+        </MessagingProvider>
     );
 }
