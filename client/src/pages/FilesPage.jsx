@@ -218,7 +218,11 @@ export default function FilesPage() {
     }, [files, selected, handleDownload]);
 
     const handleCreateFolder = useCallback(() => {
-        setNameModal({ mode: 'create', item: null, defaultValue: '' });
+        setNameModal({ mode: 'create', item: null, defaultValue: '', parentId: selectedFolder?.id || null });
+    }, [selectedFolder]);
+
+    const handleCreateSubfolder = useCallback((folder) => {
+        setNameModal({ mode: 'create', item: null, defaultValue: '', parentId: folder.id });
     }, []);
 
     const handleRenameFolder = useCallback((folder) => {
@@ -273,7 +277,8 @@ export default function FilesPage() {
         if (!value) return;
         if (nameModal.mode === 'create') {
             try {
-                await api.createFolder(value, selectedFolder?.id || null);
+                const parentId = nameModal.parentId !== undefined ? nameModal.parentId : (selectedFolder?.id || null);
+                await api.createFolder(value, parentId);
                 setTreeRefreshKey(k => k + 1);
             } catch (err) {
                 showToast(err.message || 'Failed to create folder', 'error');
@@ -381,6 +386,7 @@ export default function FilesPage() {
                         activeFolderId={selectedFolder?.id}
                         onSelectFolder={handleSelectFolder}
                         onCreateFolder={handleCreateFolder}
+                        onCreateSubfolder={handleCreateSubfolder}
                         onRenameFolder={handleRenameFolder}
                         onDeleteFolder={handleDeleteFolder}
                         refreshKey={treeRefreshKey}

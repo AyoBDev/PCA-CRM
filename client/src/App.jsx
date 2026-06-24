@@ -33,11 +33,13 @@ const FilesPage = lazy(() => import('./pages/FilesPage'));
 const PdfEditorPage = lazy(() => import('./pages/PdfEditorPage'));
 const MessagesPage = lazy(() => import('./pages/MessagesPage'));
 
-function ProtectedRoute({ children, adminOnly = false, staffOnly = false }) {
+function ProtectedRoute({ children, adminOnly = false, staffOnly = false, officeOnly = false }) {
     const { user, isAdmin, isStaff, loading } = useAuth();
+    const isOffice = user?.role === 'admin' || user?.role === 'user';
     if (loading) return <div className="page-loading" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 48, color: 'hsl(var(--muted-foreground))' }}>Loading…</div>;
     if (!user) return <Navigate to="/login" replace />;
     if (adminOnly && !isAdmin) return <Navigate to="/timesheets" replace />;
+    if (officeOnly && !isOffice) return <Navigate to="/timesheets" replace />;
     if (staffOnly && !isStaff) return <Navigate to="/timesheets" replace />;
     return children;
 }
@@ -79,8 +81,8 @@ function AppRoutes() {
                 <Route path="/users" element={<ProtectedRoute adminOnly><Layout><UsersPage /></Layout></ProtectedRoute>} />
                 <Route path="/history" element={<ProtectedRoute staffOnly><Layout><HistoryPage /></Layout></ProtectedRoute>} />
                 <Route path="/sandata" element={<ProtectedRoute adminOnly><Layout><SandataImportPage /></Layout></ProtectedRoute>} />
-                <Route path="/files" element={<ProtectedRoute adminOnly><Layout><FilesPage /></Layout></ProtectedRoute>} />
-                <Route path="/files/edit/:fileId" element={<ProtectedRoute adminOnly><Layout><PdfEditorPage /></Layout></ProtectedRoute>} />
+                <Route path="/files" element={<ProtectedRoute officeOnly><Layout><FilesPage /></Layout></ProtectedRoute>} />
+                <Route path="/files/edit/:fileId" element={<ProtectedRoute officeOnly><Layout><PdfEditorPage /></Layout></ProtectedRoute>} />
                 <Route path="/messages" element={<ProtectedRoute staffOnly><Layout><MessagesPage /></Layout></ProtectedRoute>} />
 
                 {/* Default redirect */}

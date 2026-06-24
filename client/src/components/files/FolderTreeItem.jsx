@@ -8,6 +8,7 @@ export default function FolderTreeItem({
     activeFolderId,
     onSelect,
     onLoadChildren,
+    onCreateSubfolder,
     onRenameFolder,
     onDeleteFolder,
     childrenCache,
@@ -71,7 +72,7 @@ export default function FolderTreeItem({
                 {fileCount !== undefined && (
                     <span className="folder-tree-item__badge">{fileCount}</span>
                 )}
-                {(onRenameFolder || onDeleteFolder) && (
+                {(onCreateSubfolder || onRenameFolder || onDeleteFolder) && (
                     <div className="folder-tree-item__menu-wrap" ref={menuRef}>
                         <button
                             className="folder-tree-item__menu-btn"
@@ -81,6 +82,11 @@ export default function FolderTreeItem({
                         </button>
                         {menuOpen && (
                             <div className="folder-tree-item__menu">
+                                {onCreateSubfolder && (
+                                    <button onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onCreateSubfolder(folder); }}>
+                                        {Icons.folder} New Subfolder
+                                    </button>
+                                )}
                                 {onRenameFolder && (
                                     <button onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onRenameFolder(folder); }}>
                                         {Icons.edit} Rename
@@ -107,6 +113,7 @@ export default function FolderTreeItem({
                             activeFolderId={activeFolderId}
                             onSelect={onSelect}
                             onLoadChildren={onLoadChildren}
+                            onCreateSubfolder={onCreateSubfolder}
                             onRenameFolder={onRenameFolder}
                             onDeleteFolder={onDeleteFolder}
                             childrenCache={childrenCache}

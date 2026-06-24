@@ -3,7 +3,7 @@ import FolderTreeItem from './FolderTreeItem';
 import Icons from '../common/Icons';
 import * as api from '../../api';
 
-export default function FolderTree({ activeFolderId, onSelectFolder, onCreateFolder, onRenameFolder, onDeleteFolder, refreshKey }) {
+export default function FolderTree({ activeFolderId, onSelectFolder, onCreateFolder, onCreateSubfolder, onRenameFolder, onDeleteFolder, refreshKey }) {
     const [rootFolders, setRootFolders] = useState([]);
     const [childrenCache, setChildrenCache] = useState({});
     const [fileCountCache, setFileCountCache] = useState({});
@@ -64,6 +64,7 @@ export default function FolderTree({ activeFolderId, onSelectFolder, onCreateFol
                             activeFolderId={activeFolderId}
                             onSelect={onSelectFolder}
                             onLoadChildren={handleLoadChildren}
+                            onCreateSubfolder={onCreateSubfolder}
                             onRenameFolder={onRenameFolder}
                             onDeleteFolder={onDeleteFolder}
                             childrenCache={childrenCache}

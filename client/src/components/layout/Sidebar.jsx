@@ -26,7 +26,7 @@ const PATH_TO_PAGE = {
 };
 
 export default function Sidebar({ onMobileClose }) {
-    const { user, isAdmin, isStaff, logout } = useAuth();
+    const { user, isAdmin, isOffice, isStaff, logout } = useAuth();
     const { unreadConversations } = useMessaging();
     const navigate = useNavigate();
     const location = useLocation();
@@ -161,7 +161,7 @@ export default function Sidebar({ onMobileClose }) {
                                 {Icons.upload} SANDATA
                             </button>
                         )}
-                        {isAdmin && (
+                        {isOffice && (
                             <button className={`sidebar__nav-item ${activePage === 'files' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/files')} title="Files">
                                 {Icons.folder} Files
                             </button>
