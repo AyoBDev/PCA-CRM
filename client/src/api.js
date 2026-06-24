@@ -764,3 +764,6 @@ export const getConversations = () => request('/conversations');
 export const getConversationMessages = (id) => request(`/conversations/${id}/messages`);
 export const sendConversationMessage = (id, content) =>
     request(`/conversations/${id}/messages`, { method: 'POST', body: JSON.stringify({ content }) });
+export const markConversationRead = (id) =>
+    request(`/conversations/${id}/read`, { method: 'POST' });
+export const getUnreadSummary = () => request('/conversations/unread-summary');
