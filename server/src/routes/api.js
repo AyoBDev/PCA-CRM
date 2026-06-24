@@ -449,9 +449,9 @@ router.post('/sandata/undo', requireRole('admin'), undoSandata);
 
 // Employee chat (admin)
 router.get('/conversations', requireRole('admin', 'user'), listConversations);
+router.get('/conversations/unread-summary', requireRole('admin', 'user'), getUnreadSummary);
 router.get('/conversations/:id/messages', requireRole('admin', 'user'), getConversationMessages);
 router.post('/conversations/:id/messages', requireRole('admin', 'user'), adminSendMessage);
 router.post('/conversations/:id/read', requireRole('admin', 'user'), markConversationRead);
-router.get('/conversations/unread-summary', requireRole('admin', 'user'), getUnreadSummary);
 
 module.exports = router;

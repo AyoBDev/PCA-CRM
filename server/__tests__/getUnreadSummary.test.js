@@ -47,7 +47,7 @@ describe('getUnreadSummary', () => {
     const res = mockRes();
     await getUnreadSummary({}, res);
     const arg = res.json.mock.calls[0][0];
-    expect(arg.unreadConversations).toBeGreaterThanOrEqual(2);
-    expect(arg.unreadMessages).toBeGreaterThanOrEqual(3);
+    expect(arg.unreadConversations).toBe(2);
+    expect(arg.unreadMessages).toBe(3);
   });
 });
