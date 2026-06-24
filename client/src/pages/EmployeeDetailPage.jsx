@@ -17,7 +17,7 @@ import { hhmm12 } from '../utils/time';
 
 const TABS = [
     { key: 'profile', label: 'Profile', icon: 'user' },
-    { key: 'onboarding', label: 'Onboarding', icon: 'clipboard', onboardingOnly: true },
+    { key: 'availability', label: 'Availability', icon: 'calendar' },
     { key: 'certifications', label: 'Certifications', icon: 'shieldCheck' },
     { key: 'timesheets', label: 'Timesheets', icon: 'clock' },
     { key: 'schedule', label: 'Schedule', icon: 'calendar' },
@@ -359,18 +359,18 @@ export default function EmployeeDetailPage() {
     }, [employeeId]);
 
     const fetchAvailability = useCallback(async () => {
-        if (!employee || employee.onboardingStatus !== 'submitted') return;
+        if (!employee) return;
         try {
             setLoadingAvailability(true);
             const data = await api.getEmployeeAvailability(Number(employeeId));
             setAvailabilityData(data);
-        } catch (err) { /* ignore */ }
+        } catch (err) { setAvailabilityData(null); }
         finally { setLoadingAvailability(false); }
     }, [employeeId, employee]);
 
     useEffect(() => { fetchEmployee(); fetchUsers(); }, [fetchEmployee, fetchUsers]);
     useEffect(() => { if (activeTab === 'schedule') fetchShifts(); }, [activeTab, fetchShifts]);
-    useEffect(() => { fetchAvailability(); }, [fetchAvailability]);
+    useEffect(() => { if (activeTab === 'availability') fetchAvailability(); }, [activeTab, fetchAvailability]);
 
     const handleSaveEmployee = async (data) => {
         try {
@@ -575,7 +575,7 @@ export default function EmployeeDetailPage() {
 
                 {/* TAB NAVIGATION */}
                 <div className="cp-tabs">
-                    {TABS.filter(tab => (!tab.adminOnly || isAdmin) && (!tab.onboardingOnly || employee.onboardingStatus === 'submitted')).map(tab => (
+                    {TABS.filter(tab => !tab.adminOnly || isAdmin).map(tab => (
                         <button
                             key={tab.key}
                             className={`cp-tab ${activeTab === tab.key ? 'cp-tab--active' : ''}`}
@@ -598,17 +598,21 @@ export default function EmployeeDetailPage() {
                     {activeTab === 'profile' && (
                         <ProfileTab employee={employee} />
                     )}
-                    {activeTab === 'onboarding' && (
+                    {activeTab === 'availability' && (
                         <div className="cp-tab-panel">
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-                                <button className="btn btn--primary btn--sm" onClick={handleApprove}>
-                                    {Icons.checkCircle} Approve
-                                </button>
-                            </div>
+                            {employee.onboardingStatus === 'submitted' && (
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+                                    <button className="btn btn--primary btn--sm" onClick={handleApprove}>
+                                        {Icons.checkCircle} Approve Onboarding
+                                    </button>
+                                </div>
+                            )}
                             {loadingAvailability ? (
                                 <p className="text-muted">Loading availability data...</p>
-                            ) : (
+                            ) : availabilityData ? (
                                 <OnboardingReviewPanel data={availabilityData} />
+                            ) : (
+                                <p className="text-muted">No availability data submitted yet.</p>
                             )}
                         </div>
                     )}

@@ -1,5 +1,6 @@
 const prisma = require('../../lib/prisma');
 const { uploadFile } = require('../../lib/storage');
+const audit = require('../../services/auditService');
 
 async function getCertifications(req, res) {
   const certs = await prisma.employeeCertification.findMany({
@@ -59,6 +60,7 @@ async function uploadCertification(req, res) {
     }),
   ]);
 
+  audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'CertificationUpload', entityId: certId, entityName: `${cert.certType} - ${req.file.originalname}`, metadata: { employeeId: req.employee.id, fileName: req.file.originalname } });
   res.json({ success: true, status: 'pending' });
 }
 

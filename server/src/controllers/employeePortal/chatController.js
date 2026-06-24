@@ -1,4 +1,5 @@
 const prisma = require('../../lib/prisma');
+const audit = require('../../services/auditService');
 
 async function getMessages(req, res) {
   const employeeId = req.employee.id;
@@ -47,6 +48,7 @@ async function sendMessage(req, res) {
     data: { lastMessageAt: new Date() },
   });
 
+  audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Message', entityId: msg.id, entityName: req.employee.name, metadata: { conversationId: convo.id } });
   res.status(201).json(msg);
 }
 
