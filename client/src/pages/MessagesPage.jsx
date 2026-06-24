@@ -65,15 +65,17 @@ export default function MessagesPage() {
                 ...payload,
                 sender: payload.sender || (payload.employeeName ? { name: payload.employeeName } : undefined),
             };
+            const isFromEmployee = selectedConv.employeeUserId != null
+                ? normalized.senderId === selectedConv.employeeUserId
+                : normalized.senderRole === 'pca';
             setMessages((prev) => {
                 if (prev.some((m) => m.id === normalized.id)) return prev;
-                const isFromPca = normalized.senderRole === 'pca';
-                if (isFromPca) {
+                if (isFromEmployee) {
                     setNewMessageMarkerId((cur) => cur ?? normalized.id);
                 }
                 return [...prev, normalized];
             });
-            if (normalized.senderRole === 'pca') {
+            if (isFromEmployee) {
                 markRead(selectedConv.id);
             }
         }
@@ -86,7 +88,7 @@ export default function MessagesPage() {
         try {
             setLoadingMessages(true);
             const data = await getConversationMessages(convId);
-            setMessages(data);
+            setMessages(Array.isArray(data) ? data : (data.messages || []));
         } catch (err) {
             showToast(err.message || 'Failed to load messages', 'error');
         } finally {
@@ -210,7 +212,10 @@ export default function MessagesPage() {
                                         <div className="msg-empty">No messages in this conversation</div>
                                     ) : (
                                         messages.map((msg) => {
-                                            const isMine = msg.senderRole === 'admin' || msg.senderRole === 'user';
+                                            const isFromEmployee = selectedConv.employeeUserId != null
+                                                ? msg.senderId === selectedConv.employeeUserId
+                                                : msg.senderRole === 'pca';
+                                            const isMine = !isFromEmployee;
                                             const showDivider = newMessageMarkerId === msg.id;
                                             return (
                                                 <div key={msg.id}>

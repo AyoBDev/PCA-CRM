@@ -19,10 +19,8 @@ function initSocket(httpServer) {
     try {
       const payload = jwt.verify(token, JWT_SECRET);
       socket.user = payload;
-      if (payload.role === 'pca') {
-        const employee = await prisma.employee.findUnique({ where: { userId: payload.id } });
-        if (employee) socket.employeeId = employee.id;
-      }
+      const employee = await prisma.employee.findUnique({ where: { userId: payload.id } });
+      if (employee) socket.employeeId = employee.id;
       next();
     } catch {
       next(new Error('Invalid token'));
@@ -32,8 +30,7 @@ function initSocket(httpServer) {
   io.on('connection', (socket) => {
     if (socket.employeeId) {
       socket.join(`employee:${socket.employeeId}`);
-    }
-    if (socket.user.role === 'admin' || socket.user.role === 'user') {
+    } else {
       socket.join('office');
     }
 
@@ -74,14 +71,17 @@ function initSocket(httpServer) {
           ...payload,
           employeeId: socket.employeeId,
           employeeName: socket.user.name,
+          employeeUserId: socket.user.id,
         });
         io.to('office').emit('chat:conversation-updated', {
           conversationId: convo.id,
           employeeId: socket.employeeId,
           employeeName: socket.user.name,
+          employeeUserId: socket.user.id,
           lastMessage: {
             id: msg.id,
             content: msg.content,
+            senderId: msg.senderId,
             senderRole: msg.senderRole,
             createdAt: msg.createdAt,
           },
@@ -101,7 +101,12 @@ function initSocket(httpServer) {
     socket.on('chat:read', async (data) => {
       if (!socket.employeeId || !data.upTo) return;
       await prisma.message.updateMany({
-        where: { id: { lte: data.upTo }, conversation: { employeeId: socket.employeeId }, readAt: null },
+        where: {
+          id: { lte: data.upTo },
+          conversation: { employeeId: socket.employeeId },
+          senderId: { not: socket.user.id },
+          readAt: null,
+        },
         data: { readAt: new Date() },
       });
     });

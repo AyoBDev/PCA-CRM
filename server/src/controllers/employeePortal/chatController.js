@@ -58,15 +58,18 @@ async function sendMessage(req, res) {
     conversationId: convo.id,
     employeeId: req.employee.id,
     employeeName: req.employee.name,
+    employeeUserId: req.user.id,
   });
 
   emitToOffice('chat:conversation-updated', {
     conversationId: convo.id,
     employeeId: req.employee.id,
     employeeName: req.employee.name,
+    employeeUserId: req.user.id,
     lastMessage: {
       id: msg.id,
       content: msg.content,
+      senderId: msg.senderId,
       senderRole: msg.senderRole,
       createdAt: msg.createdAt,
     },
@@ -79,11 +82,12 @@ async function sendMessage(req, res) {
 
 async function markRead(req, res) {
   const employeeId = req.employee.id;
+  const employeeUserId = req.user.id;
   const convo = await prisma.conversation.findUnique({ where: { employeeId } });
   if (!convo) return res.json({ updated: 0 });
 
   const result = await prisma.message.updateMany({
-    where: { conversationId: convo.id, senderRole: { not: 'pca' }, readAt: null },
+    where: { conversationId: convo.id, senderId: { not: employeeUserId }, readAt: null },
     data: { readAt: new Date() },
   });
   res.json({ updated: result.count });

@@ -48,18 +48,23 @@ export function MessagingProvider({ children }) {
             setConversations((list) => {
                 const idx = list.findIndex((c) => c.id === payload.conversationId);
                 const isActive = activeIdRef.current === payload.conversationId;
-                const isFromPca = payload.senderRole === 'pca';
-                const increment = isFromPca && !isActive ? 1 : 0;
+                const employeeUserId = payload.employeeUserId
+                    ?? (idx === -1 ? null : list[idx].employeeUserId);
+                const isFromEmployee = employeeUserId != null
+                    ? payload.senderId === employeeUserId
+                    : payload.senderRole === 'pca';
+                const increment = isFromEmployee && !isActive ? 1 : 0;
                 if (idx === -1) {
-                    // unknown conversation: trigger a refresh to fetch the new one
                     refresh();
                     return list;
                 }
                 const updated = {
                     ...list[idx],
+                    employeeUserId: list[idx].employeeUserId ?? payload.employeeUserId ?? null,
                     lastMessage: {
                         id: payload.id,
                         content: payload.content,
+                        senderId: payload.senderId,
                         senderRole: payload.senderRole,
                         createdAt: payload.createdAt,
                     },
@@ -76,7 +81,6 @@ export function MessagingProvider({ children }) {
             setConversations((list) => {
                 const idx = list.findIndex((c) => c.id === payload.conversationId);
                 if (idx === -1) {
-                    // new conversation surface — re-fetch full list to get accurate unreadCount
                     refresh();
                     return list;
                 }
@@ -86,8 +90,8 @@ export function MessagingProvider({ children }) {
                     lastMessage: payload.lastMessage,
                     lastMessageAt: payload.lastMessageAt,
                     employeeName: payload.employeeName || next[idx].employeeName,
+                    employeeUserId: payload.employeeUserId ?? next[idx].employeeUserId ?? null,
                 };
-                // move to top
                 const item = next.splice(idx, 1)[0];
                 return [item, ...next];
             });
