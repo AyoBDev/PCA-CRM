@@ -82,4 +82,15 @@ async function markConversationRead(req, res) {
   res.json({ conversationId, unreadCount: 0 });
 }
 
-module.exports = { listConversations, getConversationMessages, adminSendMessage, markConversationRead };
+async function getUnreadSummary(req, res) {
+  const grouped = await prisma.message.groupBy({
+    by: ['conversationId'],
+    where: { senderRole: 'pca', readAt: null },
+    _count: { _all: true },
+  });
+  const unreadConversations = grouped.length;
+  const unreadMessages = grouped.reduce((sum, g) => sum + g._count._all, 0);
+  res.json({ unreadConversations, unreadMessages });
+}
+
+module.exports = { listConversations, getConversationMessages, adminSendMessage, markConversationRead, getUnreadSummary };

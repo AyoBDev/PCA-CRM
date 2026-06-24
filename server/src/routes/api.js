@@ -162,7 +162,7 @@ const { listWorkflowTriggers, updateWorkflowTrigger } = require('../controllers/
 const { getPayrollProfile, upsertPayrollProfile, revealSensitiveField } = require('../controllers/payrollProfileController');
 const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalizeReceipts, sendReceipts, downloadReceiptPdf } = require('../controllers/receiptController');
 const { previewSandata, applySandata, undoSandata } = require('../controllers/sandataController');
-const { listConversations, getConversationMessages, adminSendMessage, markConversationRead } = require('../controllers/employeePortal/adminChatController');
+const { listConversations, getConversationMessages, adminSendMessage, markConversationRead, getUnreadSummary } = require('../controllers/employeePortal/adminChatController');
 const { getOnboardingInfo, completeOnboarding, resendInvite, approveOnboarding, getOnboardingLink } = require('../controllers/onboardingController');
 const { authenticate, requireRole } = require('../middleware/authMiddleware');
 const employeeRoutes = require('./employee');
@@ -452,5 +452,6 @@ router.get('/conversations', requireRole('admin', 'user'), listConversations);
 router.get('/conversations/:id/messages', requireRole('admin', 'user'), getConversationMessages);
 router.post('/conversations/:id/messages', requireRole('admin', 'user'), adminSendMessage);
 router.post('/conversations/:id/read', requireRole('admin', 'user'), markConversationRead);
+router.get('/conversations/unread-summary', requireRole('admin', 'user'), getUnreadSummary);
 
 module.exports = router;
