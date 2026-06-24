@@ -21,7 +21,11 @@ export default function FolderTree({ activeFolderId, onSelectFolder, onCreateFol
         }
     }, []);
 
-    useEffect(() => { loadRoot(); }, [loadRoot, refreshKey]);
+    useEffect(() => {
+        setChildrenCache({});
+        setFileCountCache({});
+        loadRoot();
+    }, [loadRoot, refreshKey]);
 
     const handleLoadChildren = useCallback(async (folderId) => {
         try {

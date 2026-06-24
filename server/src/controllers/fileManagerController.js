@@ -7,10 +7,11 @@ async function listFolders(req, res, next) {
     try {
         const parentId = req.query.parentId ? Number(req.query.parentId) : null;
         const archived = req.query.archived === 'true';
-        const where = { parentId };
+        const where = {};
         if (archived) {
             where.archivedAt = { not: null };
         } else {
+            where.parentId = parentId;
             where.archivedAt = null;
         }
         const folders = await prisma.adminFolder.findMany({
