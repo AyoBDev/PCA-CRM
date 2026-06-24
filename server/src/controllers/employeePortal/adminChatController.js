@@ -67,6 +67,15 @@ async function adminSendMessage(req, res) {
     id: msg.id, content: msg.content, senderId: msg.senderId, senderRole: msg.senderRole, createdAt: msg.createdAt, conversationId: conversationId,
   });
 
+  emitToOffice('chat:message', {
+    id: msg.id,
+    content: msg.content,
+    senderId: msg.senderId,
+    senderRole: msg.senderRole,
+    createdAt: msg.createdAt,
+    conversationId,
+  });
+
   emitToOffice('chat:conversation-updated', {
     conversationId,
     employeeId: convo.employeeId,

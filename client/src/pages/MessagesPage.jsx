@@ -65,7 +65,7 @@ export default function MessagesPage() {
                 if (prev.some((m) => m.id === payload.id)) return prev;
                 // mark the first new message id so the divider renders above it
                 const isFromPca = payload.senderRole === 'pca';
-                if (isFromPca && !prev.some((m) => m.id === newMessageMarkerId)) {
+                if (isFromPca) {
                     setNewMessageMarkerId((cur) => cur ?? payload.id);
                 }
                 return [...prev, payload];

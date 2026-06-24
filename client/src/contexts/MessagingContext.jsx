@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { useSocket } from '../hooks/useSocket';
-import { getConversations, markConversationRead as apiMarkRead } from '../api';
+import { getConversations, markConversationRead as apiMarkRead, getUnreadSummary } from '../api';
 
 const MessagingContext = createContext(null);
 
@@ -9,6 +9,7 @@ export function MessagingProvider({ children }) {
     const [conversations, setConversations] = useState([]);
     const [activeConversationId, setActiveConversationId] = useState(null);
     const activeIdRef = useRef(null);
+    const [summary, setSummary] = useState({ unreadConversations: 0, unreadMessages: 0 });
 
     useEffect(() => {
         activeIdRef.current = activeConversationId;
@@ -25,6 +26,7 @@ export function MessagingProvider({ children }) {
 
     useEffect(() => {
         refresh();
+        getUnreadSummary().then(setSummary).catch(() => {});
     }, [refresh]);
 
     const markRead = useCallback(async (id) => {
@@ -115,8 +117,12 @@ export function MessagingProvider({ children }) {
         };
     }, [socket, refresh]);
 
-    const unreadConversations = conversations.filter((c) => (c.unreadCount || 0) > 0).length;
-    const unreadMessages = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+    const unreadConversations = conversations.length > 0
+        ? conversations.filter((c) => (c.unreadCount || 0) > 0).length
+        : summary.unreadConversations;
+    const unreadMessages = conversations.length > 0
+        ? conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0)
+        : summary.unreadMessages;
 
     return (
         <MessagingContext.Provider
