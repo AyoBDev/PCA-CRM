@@ -1,5 +1,5 @@
 const prisma = require('../../lib/prisma');
-const { emitToEmployee } = require('../../socket');
+const { emitToEmployee, emitToOffice } = require('../../socket');
 
 async function listConversations(req, res) {
   const conversations = await prisma.conversation.findMany({
@@ -68,4 +68,18 @@ async function adminSendMessage(req, res) {
   res.status(201).json(msg);
 }
 
-module.exports = { listConversations, getConversationMessages, adminSendMessage };
+async function markConversationRead(req, res) {
+  const conversationId = parseInt(req.params.id);
+  if (!conversationId) return res.status(400).json({ error: 'Invalid conversation id' });
+
+  await prisma.message.updateMany({
+    where: { conversationId, senderRole: 'pca', readAt: null },
+    data: { readAt: new Date() },
+  });
+
+  emitToOffice('chat:conversation-read', { conversationId });
+
+  res.json({ conversationId, unreadCount: 0 });
+}
+
+module.exports = { listConversations, getConversationMessages, adminSendMessage, markConversationRead };
