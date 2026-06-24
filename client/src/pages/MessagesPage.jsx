@@ -61,17 +61,19 @@ export default function MessagesPage() {
 
         function onMessage(payload) {
             if (payload.conversationId !== selectedConv.id) return;
+            const normalized = {
+                ...payload,
+                sender: payload.sender || (payload.employeeName ? { name: payload.employeeName } : undefined),
+            };
             setMessages((prev) => {
-                if (prev.some((m) => m.id === payload.id)) return prev;
-                // mark the first new message id so the divider renders above it
-                const isFromPca = payload.senderRole === 'pca';
+                if (prev.some((m) => m.id === normalized.id)) return prev;
+                const isFromPca = normalized.senderRole === 'pca';
                 if (isFromPca) {
-                    setNewMessageMarkerId((cur) => cur ?? payload.id);
+                    setNewMessageMarkerId((cur) => cur ?? normalized.id);
                 }
-                return [...prev, payload];
+                return [...prev, normalized];
             });
-            // If this is a PCA message and we're viewing, mark read so badge stays clean
-            if (payload.senderRole === 'pca') {
+            if (normalized.senderRole === 'pca') {
                 markRead(selectedConv.id);
             }
         }
@@ -219,9 +221,11 @@ export default function MessagesPage() {
                                                     )}
                                                     <div className={`msg-bubble-wrap ${isMine ? 'msg-bubble-wrap--mine' : ''}`}>
                                                         <div className={`msg-bubble ${isMine ? 'msg-bubble--mine' : 'msg-bubble--other'}`}>
-                                                            {!isMine && (
-                                                                <div className="msg-bubble__sender">{msg.sender?.name || 'Employee'}</div>
-                                                            )}
+                                                            <div className="msg-bubble__sender">
+                                                                {isMine
+                                                                    ? (msg.sender?.name || user?.name || 'You')
+                                                                    : (msg.sender?.name || selectedConv.employeeName || 'Employee')}
+                                                            </div>
                                                             <div className="msg-bubble__content">{msg.content}</div>
                                                             <div className="msg-bubble__time">
                                                                 {formatRelativeTime(msg.createdAt)}

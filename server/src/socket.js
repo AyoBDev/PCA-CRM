@@ -38,8 +38,16 @@ function initSocket(httpServer) {
     }
 
     socket.on('chat:message', async (data) => {
-      if (!socket.employeeId) return;
       try {
+        if (!socket.employeeId) {
+          const employee = await prisma.employee.findUnique({ where: { userId: socket.user.id } });
+          if (!employee) {
+            socket.emit('chat:error', { error: 'No employee profile linked to this account' });
+            return;
+          }
+          socket.employeeId = employee.id;
+          socket.join(`employee:${employee.id}`);
+        }
         const convo = await prisma.conversation.upsert({
           where: { employeeId: socket.employeeId },
           create: { employeeId: socket.employeeId },
