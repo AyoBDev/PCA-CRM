@@ -500,7 +500,7 @@ export default function FilesPage() {
                             {trashModal.map(f => (
                                 <div key={f.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid hsl(var(--border))' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        {Icons.folder}
+                                        <span style={{ display: 'flex', width: 16, height: 16 }}>{Icons.folder}</span>
                                         <span style={{ fontSize: 14 }}>{f.path || f.name}</span>
                                     </div>
                                     <button className="btn btn--primary btn--sm" onClick={() => handleRestoreFolder(f)}>
