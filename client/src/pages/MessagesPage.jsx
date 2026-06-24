@@ -78,7 +78,7 @@ export default function MessagesPage() {
 
         socket.on('chat:message', onMessage);
         return () => socket.off('chat:message', onMessage);
-    }, [socket, selectedConv, markRead, newMessageMarkerId]);
+    }, [socket, selectedConv, markRead]);
 
     async function loadMessages(convId) {
         try {
