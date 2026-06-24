@@ -33,20 +33,10 @@ export default function TimesheetPage() {
   const statusLabel = data?.timesheet?.status === 'submitted' ? 'Submitted' : data?.timesheet?.status === 'draft' ? 'Draft' : 'New';
   const statusClass = data?.timesheet?.status === 'submitted' ? 'success' : data?.timesheet?.status === 'draft' ? 'warning' : 'muted';
 
-  const externalFormUrl = data?.token ? `/pca-form/${data.token}` : null;
+  const formUrl = data?.token ? `/pca-form/${data.token}?weekStart=${sunday}` : null;
 
   return (
     <div>
-      <div className="week-nav">
-        <button className="week-nav__arrow" onClick={prevWeek}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
-        </button>
-        <span className="week-nav__label">{formatWeekLabel(sunday)}</span>
-        <button className="week-nav__arrow" onClick={nextWeek}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
-        </button>
-      </div>
-
       {loading ? (
         <div className="page-loading">Loading...</div>
       ) : data?.noLink ? (
@@ -56,44 +46,19 @@ export default function TimesheetPage() {
           </div>
           <p className="empty-state__text">{data.message}</p>
         </div>
-      ) : (
-        <div>
-          <div className="ts-status-bar">
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 500 }}>Timesheet for {data?.client?.name}</div>
-              <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>PCA: {data?.pcaName}</div>
-            </div>
-            <span className={`badge badge--${statusClass}`}>{statusLabel}</span>
-          </div>
-
-          {data?.timesheet?.id && (
-            <div className="card" style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>PAS Hours</span>
-                <span style={{ fontSize: 14, fontWeight: 600 }}>{data.timesheet.totalPasHours || 0}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>Homemaker Hours</span>
-                <span style={{ fontSize: 14, fontWeight: 600 }}>{data.timesheet.totalHmHours || 0}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>Respite Hours</span>
-                <span style={{ fontSize: 14, fontWeight: 600 }}>{data.timesheet.totalRespiteHours || 0}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>Companion Hours</span>
-                <span style={{ fontSize: 14, fontWeight: 600 }}>{data.timesheet.totalCompanionHours || 0}</span>
-              </div>
-            </div>
-          )}
-
-          {externalFormUrl && (
-            <a href={externalFormUrl} target="_blank" rel="noopener" className="btn btn--primary" style={{ textDecoration: 'none' }}>
-              {data?.timesheet?.id ? 'Edit Timesheet' : 'Start Timesheet'}
-            </a>
-          )}
-        </div>
-      )}
+      ) : formUrl ? (
+        <iframe
+          src={formUrl}
+          title="Timesheet"
+          style={{
+            width: '100%',
+            height: 'calc(100dvh - var(--nav-height) - env(safe-area-inset-bottom, 0px) - 16px)',
+            border: 'none',
+            borderRadius: 12,
+            background: 'white',
+          }}
+        />
+      ) : null}
     </div>
   );
 }

@@ -23,7 +23,7 @@ function formatRelativeTime(date) {
 
 export default function MessagesPage() {
     const { user } = useAuth();
-    const toast = useToast();
+    const { showToast } = useToast();
     const [conversations, setConversations] = useState([]);
     const [selectedConv, setSelectedConv] = useState(null);
     const [messages, setMessages] = useState([]);
@@ -50,7 +50,7 @@ export default function MessagesPage() {
             const data = await getConversations();
             setConversations(data);
         } catch (err) {
-            toast.error(err.message || 'Failed to load conversations');
+            showToast(err.message || 'Failed to load conversations', 'error');
         } finally {
             setLoading(false);
         }
@@ -62,7 +62,7 @@ export default function MessagesPage() {
             const data = await getConversationMessages(convId);
             setMessages(data);
         } catch (err) {
-            toast.error(err.message || 'Failed to load messages');
+            showToast(err.message || 'Failed to load messages', 'error');
         } finally {
             setLoadingMessages(false);
         }
@@ -91,7 +91,7 @@ export default function MessagesPage() {
             await loadMessages(selectedConv.id);
             await loadConversations();
         } catch (err) {
-            toast.error(err.message || 'Failed to send message');
+            showToast(err.message || 'Failed to send message', 'error');
             setReplyText(content);
         } finally {
             setSending(false);
@@ -137,7 +137,7 @@ export default function MessagesPage() {
                                                 {formatRelativeTime(conv.lastMessageAt)}
                                             </div>
                                         </div>
-                                        <div className="msg-list-item__preview">{conv.lastMessage}</div>
+                                        <div className="msg-list-item__preview">{conv.lastMessage?.content || ''}</div>
                                     </div>
                                     {conv.unreadCount > 0 && (
                                         <div className="msg-list-item__badge">{conv.unreadCount}</div>

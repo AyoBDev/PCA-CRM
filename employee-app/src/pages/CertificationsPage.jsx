@@ -16,7 +16,7 @@ export default function CertificationsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.getCertifications().then(data => setCerts(data || [])).finally(() => setLoading(false));
+    api.getCertifications().then(data => setCerts(data.certifications || data || [])).finally(() => setLoading(false));
   }, []);
 
   return (
