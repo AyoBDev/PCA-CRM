@@ -61,13 +61,14 @@ export default function MessagesPage() {
 
         function onMessage(payload) {
             if (payload.conversationId !== selectedConv.id) return;
+            const isFromEmployee = selectedConv.employeeUserId != null
+                ? payload.senderId === selectedConv.employeeUserId
+                : payload.senderRole === 'pca';
             const normalized = {
                 ...payload,
-                sender: payload.sender || (payload.employeeName ? { name: payload.employeeName } : undefined),
+                sender: payload.sender
+                    || (isFromEmployee && payload.employeeName ? { name: payload.employeeName } : undefined),
             };
-            const isFromEmployee = selectedConv.employeeUserId != null
-                ? normalized.senderId === selectedConv.employeeUserId
-                : normalized.senderRole === 'pca';
             setMessages((prev) => {
                 if (prev.some((m) => m.id === normalized.id)) return prev;
                 if (isFromEmployee) {
