@@ -13849,3 +13849,39 @@ tr:hover .auth-note-icon--empty {
 .sidebar--collapsed .sidebar__nav-dot {
     display: block;
 }
+
+.msg-new-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 16px 0;
+    color: hsl(var(--destructive, 0 84% 60%));
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.msg-new-divider::before,
+.msg-new-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: hsl(var(--destructive, 0 84% 60%) / 0.4);
+}
+
+.msg-list-item--unread .msg-list-item__name,
+.msg-list-item--unread .msg-list-item__preview {
+    font-weight: 700;
+    color: hsl(var(--foreground));
+}
+
+.msg-connecting-pill {
+    margin-left: 12px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+    font-size: 11px;
+    font-weight: 500;
+}

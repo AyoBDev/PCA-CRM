@@ -3,6 +3,7 @@ import GlobalToolbar from '../components/common/GlobalToolbar';
 import Icons from '../components/common/Icons';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
+import { useMessaging } from '../contexts/MessagingContext';
 import { getConversations, getConversationMessages, sendConversationMessage } from '../api';
 import { formatDate } from '../utils/dates';
 
@@ -24,37 +25,60 @@ function formatRelativeTime(date) {
 export default function MessagesPage() {
     const { user } = useAuth();
     const { showToast } = useToast();
-    const [conversations, setConversations] = useState([]);
+    const {
+        conversations,
+        markRead,
+        setActiveConversationId,
+        socket,
+        connected,
+    } = useMessaging();
     const [selectedConv, setSelectedConv] = useState(null);
     const [messages, setMessages] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [loadingMessages, setLoadingMessages] = useState(false);
     const [sending, setSending] = useState(false);
     const [replyText, setReplyText] = useState('');
     const [mobileView, setMobileView] = useState('list');
+    const [newMessageMarkerId, setNewMessageMarkerId] = useState(null);
     const messagesEndRef = useRef(null);
+    const messagesBodyRef = useRef(null);
+    const userScrolledUpRef = useRef(false);
 
     useEffect(() => {
-        loadConversations();
-    }, []);
-
-    useEffect(() => {
-        if (messagesEndRef.current) {
-            messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        if (!messagesBodyRef.current) return;
+        const el = messagesBodyRef.current;
+        const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+        if (distanceFromBottom < 120) {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }
     }, [messages]);
 
-    async function loadConversations() {
-        try {
-            setLoading(true);
-            const data = await getConversations();
-            setConversations(data);
-        } catch (err) {
-            showToast(err.message || 'Failed to load conversations', 'error');
-        } finally {
-            setLoading(false);
+    useEffect(() => {
+        return () => setActiveConversationId(null);
+    }, [setActiveConversationId]);
+
+    useEffect(() => {
+        if (!socket || !selectedConv) return;
+
+        function onMessage(payload) {
+            if (payload.conversationId !== selectedConv.id) return;
+            setMessages((prev) => {
+                if (prev.some((m) => m.id === payload.id)) return prev;
+                // mark the first new message id so the divider renders above it
+                const isFromPca = payload.senderRole === 'pca';
+                if (isFromPca && !prev.some((m) => m.id === newMessageMarkerId)) {
+                    setNewMessageMarkerId((cur) => cur ?? payload.id);
+                }
+                return [...prev, payload];
+            });
+            // If this is a PCA message and we're viewing, mark read so badge stays clean
+            if (payload.senderRole === 'pca') {
+                markRead(selectedConv.id);
+            }
         }
-    }
+
+        socket.on('chat:message', onMessage);
+        return () => socket.off('chat:message', onMessage);
+    }, [socket, selectedConv, markRead, newMessageMarkerId]);
 
     async function loadMessages(convId) {
         try {
@@ -68,16 +92,30 @@ export default function MessagesPage() {
         }
     }
 
-    function handleSelectConversation(conv) {
+    function handleBodyScroll(e) {
+        const el = e.currentTarget;
+        const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+        userScrolledUpRef.current = distanceFromBottom > 120;
+    }
+
+    async function handleSelectConversation(conv) {
         setSelectedConv(conv);
+        setActiveConversationId(conv.id);
         setMobileView('chat');
-        loadMessages(conv.id);
+        setNewMessageMarkerId(null);
+        userScrolledUpRef.current = false;
+        await loadMessages(conv.id);
+        if ((conv.unreadCount || 0) > 0) {
+            markRead(conv.id);
+        }
     }
 
     function handleBackToList() {
         setMobileView('list');
         setSelectedConv(null);
+        setActiveConversationId(null);
         setMessages([]);
+        setNewMessageMarkerId(null);
     }
 
     async function handleSendMessage() {
@@ -87,9 +125,11 @@ export default function MessagesPage() {
 
         try {
             setSending(true);
-            await sendConversationMessage(selectedConv.id, content);
-            await loadMessages(selectedConv.id);
-            await loadConversations();
+            const msg = await sendConversationMessage(selectedConv.id, content);
+            setMessages((prev) => {
+                if (prev.some((m) => m.id === msg.id)) return prev;
+                return [...prev, msg];
+            });
         } catch (err) {
             showToast(err.message || 'Failed to send message', 'error');
             setReplyText(content);
@@ -116,15 +156,13 @@ export default function MessagesPage() {
             <div className="page-container">
                 <div className="msg-page">
                     <div className={`msg-list ${mobileView === 'chat' ? 'msg-list--hidden' : ''}`}>
-                        {loading ? (
-                            <div className="msg-empty">Loading conversations…</div>
-                        ) : conversations.length === 0 ? (
+                        {conversations.length === 0 ? (
                             <div className="msg-empty">No messages yet</div>
                         ) : (
                             conversations.map((conv) => (
                                 <button
                                     key={conv.id}
-                                    className={`msg-list-item ${selectedConv?.id === conv.id ? 'msg-list-item--active' : ''}`}
+                                    className={`msg-list-item ${selectedConv?.id === conv.id ? 'msg-list-item--active' : ''} ${(conv.unreadCount || 0) > 0 ? 'msg-list-item--unread' : ''}`}
                                     onClick={() => handleSelectConversation(conv)}
                                 >
                                     <div className="msg-list-item__avatar">
@@ -158,9 +196,12 @@ export default function MessagesPage() {
                                     </button>
                                     <div className="msg-chat__header-text">
                                         <div className="msg-chat__name">{selectedConv.employeeName}</div>
+                                        {!connected && (
+                                            <span className="msg-connecting-pill">Connecting…</span>
+                                        )}
                                     </div>
                                 </div>
-                                <div className="msg-chat__body">
+                                <div className="msg-chat__body" ref={messagesBodyRef} onScroll={handleBodyScroll}>
                                     {loadingMessages ? (
                                         <div className="msg-empty">Loading messages…</div>
                                     ) : messages.length === 0 ? (
@@ -168,15 +209,23 @@ export default function MessagesPage() {
                                     ) : (
                                         messages.map((msg) => {
                                             const isMine = msg.senderRole === 'admin' || msg.senderRole === 'user';
+                                            const showDivider = newMessageMarkerId === msg.id;
                                             return (
-                                                <div key={msg.id} className={`msg-bubble-wrap ${isMine ? 'msg-bubble-wrap--mine' : ''}`}>
-                                                    <div className={`msg-bubble ${isMine ? 'msg-bubble--mine' : 'msg-bubble--other'}`}>
-                                                        {!isMine && (
-                                                            <div className="msg-bubble__sender">{msg.sender?.name || 'Employee'}</div>
-                                                        )}
-                                                        <div className="msg-bubble__content">{msg.content}</div>
-                                                        <div className="msg-bubble__time">
-                                                            {formatRelativeTime(msg.createdAt)}
+                                                <div key={msg.id}>
+                                                    {showDivider && (
+                                                        <div className="msg-new-divider">
+                                                            <span>New messages</span>
+                                                        </div>
+                                                    )}
+                                                    <div className={`msg-bubble-wrap ${isMine ? 'msg-bubble-wrap--mine' : ''}`}>
+                                                        <div className={`msg-bubble ${isMine ? 'msg-bubble--mine' : 'msg-bubble--other'}`}>
+                                                            {!isMine && (
+                                                                <div className="msg-bubble__sender">{msg.sender?.name || 'Employee'}</div>
+                                                            )}
+                                                            <div className="msg-bubble__content">{msg.content}</div>
+                                                            <div className="msg-bubble__time">
+                                                                {formatRelativeTime(msg.createdAt)}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
