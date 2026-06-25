@@ -2,6 +2,9 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { PERMISSIONS } from '../../utils/permissions';
 import * as api from '../../api';
 import { useToast } from '../../hooks/useToast';
+import Modal from '../common/Modal';
+import ConfirmModal from '../common/ConfirmModal';
+import Icons from '../common/Icons';
 
 const EMPTY_DRAFT = { id: null, name: '', description: '', permissions: [] };
 
@@ -11,6 +14,7 @@ export default function ManageRolesModal({ open, onClose }) {
     const [draft, setDraft] = useState(EMPTY_DRAFT);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(null);
 
     const sectionedPermissions = useMemo(() => {
         const sections = {};
@@ -38,39 +42,38 @@ export default function ManageRolesModal({ open, onClose }) {
         else setDraft(EMPTY_DRAFT);
     }, [open, loadGroups]);
 
-    if (!open) return null;
-
-    function selectGroup(g) {
+    const selectGroup = useCallback((g) => {
         setDraft({
             id: g.id,
             name: g.name,
             description: g.description || '',
             permissions: Array.isArray(g.permissions) ? [...g.permissions] : [],
         });
-    }
+    }, []);
 
-    function newDraft() {
+    const newDraft = useCallback(() => {
         setDraft({ ...EMPTY_DRAFT });
-    }
+    }, []);
 
-    function togglePerm(key) {
+    const togglePerm = useCallback((key) => {
         setDraft(d => ({
             ...d,
             permissions: d.permissions.includes(key)
                 ? d.permissions.filter(k => k !== key)
                 : [...d.permissions, key],
         }));
-    }
+    }, []);
 
-    function selectAll() {
+    const selectAll = useCallback(() => {
         setDraft(d => ({ ...d, permissions: PERMISSIONS.map(p => p.key) }));
-    }
+    }, []);
 
-    function clearAll() {
+    const clearAll = useCallback(() => {
         setDraft(d => ({ ...d, permissions: [] }));
-    }
+    }, []);
 
-    async function save() {
+    const save = useCallback(async (e) => {
+        if (e) e.preventDefault();
         if (!draft.name.trim()) {
             showToast('Name is required', 'error');
             return;
@@ -101,104 +104,147 @@ export default function ManageRolesModal({ open, onClose }) {
         } finally {
             setSaving(false);
         }
-    }
+    }, [draft, loadGroups, showToast]);
 
-    async function archive(g) {
-        const msg = g.userCount > 0
-            ? `Delete '${g.name}'? ${g.userCount} user${g.userCount === 1 ? '' : 's'} currently assigned will become unrestricted (No restrictions) until you assign them a new role.`
-            : `Delete '${g.name}'?`;
-        if (!window.confirm(msg)) return;
+    const handleDelete = useCallback(async () => {
+        const g = confirmDelete;
+        if (!g) return;
         try {
             await api.archivePermissionGroup(g.id);
-            showToast(`Role '${g.name}' deleted`);
+            showToast(`Role "${g.name}" deleted`);
             if (draft.id === g.id) setDraft(EMPTY_DRAFT);
             await loadGroups();
         } catch (err) {
             showToast(err.message || 'Failed to delete role', 'error');
+        } finally {
+            setConfirmDelete(null);
         }
-    }
+    }, [confirmDelete, draft.id, loadGroups, showToast]);
+
+    if (!open) return null;
 
     return (
-        <div className="modal-backdrop" onClick={onClose}>
-            <div className="modal modal--wide" onClick={e => e.stopPropagation()} style={{ maxWidth: 720 }}>
-                <div className="modal__header">
-                    <h2 className="modal__title">Manage Roles</h2>
-                    <button className="modal__close" onClick={onClose}>×</button>
-                </div>
-                <div className="manage-roles__body" style={{ display: 'flex', gap: 16, minHeight: 360 }}>
-                    <div className="manage-roles__list" style={{ flex: '0 0 220px', borderRight: '1px solid hsl(var(--border))', paddingRight: 12 }}>
+        <>
+            <Modal onClose={onClose} wide>
+                <h2 className="modal__title">Manage Roles</h2>
+                <p className="modal__desc">Create reusable permission groups and assign them to users on the Users page.</p>
+
+                <div className="roles-modal">
+                    <aside className="roles-modal__list">
+                        <div className="roles-modal__list-header">
+                            <span>Roles</span>
+                            <button type="button" className="btn btn--ghost btn--xs" onClick={newDraft}>
+                                {Icons.plus} New
+                            </button>
+                        </div>
                         {loading ? (
-                            <div>Loading…</div>
+                            <div className="roles-modal__empty">Loading…</div>
+                        ) : groups.length === 0 ? (
+                            <div className="roles-modal__empty">No roles yet.</div>
                         ) : (
-                            <>
-                                {groups.length === 0 && <div style={{ color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>No roles yet.</div>}
+                            <ul className="roles-modal__list-items">
                                 {groups.map(g => (
-                                    <div
+                                    <li
                                         key={g.id}
-                                        className={`manage-roles__list-item ${draft.id === g.id ? 'manage-roles__list-item--active' : ''}`}
+                                        className={`roles-modal__list-item ${draft.id === g.id ? 'roles-modal__list-item--active' : ''}`}
                                         onClick={() => selectGroup(g)}
-                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', cursor: 'pointer', borderRadius: 6, marginBottom: 4, background: draft.id === g.id ? 'hsl(var(--muted))' : 'transparent' }}
                                     >
-                                        <div>
-                                            <div style={{ fontWeight: 600, fontSize: 13 }}>{g.name}</div>
-                                            <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>{g.userCount} user{g.userCount === 1 ? '' : 's'}</div>
+                                        <div className="roles-modal__list-item-text">
+                                            <div className="roles-modal__list-item-name">{g.name}</div>
+                                            <div className="roles-modal__list-item-meta">
+                                                {g.userCount} user{g.userCount === 1 ? '' : 's'} · {g.permissions?.length || 0} permission{(g.permissions?.length || 0) === 1 ? '' : 's'}
+                                            </div>
                                         </div>
                                         <button
-                                            className="btn--icon"
-                                            title="Delete"
-                                            onClick={(e) => { e.stopPropagation(); archive(g); }}
-                                            style={{ color: 'hsl(var(--destructive))' }}
-                                        >×</button>
-                                    </div>
+                                            type="button"
+                                            className="btn btn--ghost btn--icon btn--danger-ghost roles-modal__list-item-delete"
+                                            title="Delete role"
+                                            onClick={(e) => { e.stopPropagation(); setConfirmDelete(g); }}
+                                        >
+                                            {Icons.trash}
+                                        </button>
+                                    </li>
                                 ))}
-                                <button className="btn btn--ghost btn--sm" onClick={newDraft} style={{ marginTop: 8 }}>+ New Role</button>
-                            </>
+                            </ul>
                         )}
-                    </div>
-                    <div className="manage-roles__editor" style={{ flex: 1 }}>
+                    </aside>
+
+                    <form className="roles-modal__editor" onSubmit={save}>
                         <div className="form-group">
-                            <label className="form-label">Name</label>
-                            <input className="form-input" value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} placeholder="e.g., Office Manager" />
+                            <label htmlFor="role-name">Role name</label>
+                            <input
+                                id="role-name"
+                                type="text"
+                                value={draft.name}
+                                onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
+                                placeholder="e.g., Office Manager"
+                                required
+                            />
                         </div>
                         <div className="form-group">
-                            <label className="form-label">Description</label>
-                            <input className="form-input" value={draft.description} onChange={e => setDraft(d => ({ ...d, description: e.target.value }))} placeholder="Optional" />
+                            <label htmlFor="role-description">Description</label>
+                            <input
+                                id="role-description"
+                                type="text"
+                                value={draft.description}
+                                onChange={e => setDraft(d => ({ ...d, description: e.target.value }))}
+                                placeholder="Optional"
+                            />
                         </div>
+
                         <div className="form-group">
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                                <label className="form-label">Permissions</label>
-                                <div>
-                                    <button type="button" className="btn btn--ghost btn--sm" onClick={selectAll}>Select all</button>
-                                    <button type="button" className="btn btn--ghost btn--sm" onClick={clearAll} style={{ marginLeft: 8 }}>Clear all</button>
+                            <div className="roles-modal__permissions-header">
+                                <label>Permissions</label>
+                                <div className="roles-modal__permissions-actions">
+                                    <button type="button" className="btn btn--ghost btn--xs" onClick={selectAll}>Select all</button>
+                                    <button type="button" className="btn btn--ghost btn--xs" onClick={clearAll}>Clear all</button>
                                 </div>
                             </div>
-                            <div style={{ maxHeight: 280, overflowY: 'auto', border: '1px solid hsl(var(--border))', borderRadius: 6, padding: 12 }}>
+                            <div className="roles-modal__permissions">
                                 {Object.entries(sectionedPermissions).map(([section, perms]) => (
-                                    <div key={section} style={{ marginBottom: 10 }}>
-                                        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'hsl(var(--muted-foreground))', marginBottom: 4 }}>{section}</div>
-                                        {perms.map(p => (
-                                            <label key={p.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 13, cursor: 'pointer' }}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={draft.permissions.includes(p.key)}
-                                                    onChange={() => togglePerm(p.key)}
-                                                />
-                                                {p.label}
-                                            </label>
-                                        ))}
+                                    <div key={section} className="roles-modal__permission-section">
+                                        <div className="roles-modal__permission-section-title">{section}</div>
+                                        <div className="roles-modal__permission-grid">
+                                            {perms.map(p => (
+                                                <label key={p.key} className="roles-modal__permission">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={draft.permissions.includes(p.key)}
+                                                        onChange={() => togglePerm(p.key)}
+                                                    />
+                                                    <span>{p.label}</span>
+                                                </label>
+                                            ))}
+                                        </div>
                                     </div>
                                 ))}
                             </div>
                         </div>
-                    </div>
+
+                        <div className="form-actions">
+                            <button type="button" className="btn btn--outline" onClick={onClose}>Close</button>
+                            <button type="submit" className="btn btn--primary" disabled={saving || !draft.name.trim()}>
+                                {saving ? 'Saving…' : (draft.id ? 'Save changes' : 'Create role')}
+                            </button>
+                        </div>
+                    </form>
                 </div>
-                <div className="modal__footer">
-                    <button className="btn btn--ghost" onClick={onClose}>Close</button>
-                    <button className="btn btn--primary" onClick={save} disabled={saving || !draft.name.trim()}>
-                        {saving ? 'Saving…' : (draft.id ? 'Save' : 'Create')}
-                    </button>
-                </div>
-            </div>
-        </div>
+            </Modal>
+
+            {confirmDelete && (
+                <ConfirmModal
+                    title="Delete role"
+                    message={
+                        confirmDelete.userCount > 0
+                            ? `Delete "${confirmDelete.name}"? ${confirmDelete.userCount} user${confirmDelete.userCount === 1 ? '' : 's'} currently assigned will become unrestricted (No restrictions) until you assign them a new role.`
+                            : `Delete "${confirmDelete.name}"?`
+                    }
+                    confirmLabel="Delete"
+                    confirmVariant="danger"
+                    onConfirm={handleDelete}
+                    onClose={() => setConfirmDelete(null)}
+                />
+            )}
+        </>
     );
 }
