@@ -14,6 +14,8 @@ model User {
   name                    String
   role                    String                    @default("pca")
   phone                   String                    @default("") @map("phone")
+  permissionGroupId       Int?                      @map("permission_group_id")
+  permissionsVersion      Int                       @default(1) @map("permissions_version")
   active                  Boolean                   @default(true) @map("active")
   status                  String                    @default("active") @map("status")
   archivedAt              DateTime?                 @map("archived_at")
@@ -29,6 +31,7 @@ model User {
   adminFiles              AdminFile[]
   messages                  Message[]
   pushSubscriptions         PushSubscription[]
+  permissionGroup         PermissionGroup?  @relation(fields: [permissionGroupId], references: [id], onDelete: SetNull)
 
   @@map("users")
 }
@@ -893,4 +896,17 @@ model PushSubscription {
 
   @@index([userId])
   @@map("push_subscriptions")
+}
+
+model PermissionGroup {
+  id           Int       @id @default(autoincrement())
+  name         String    @unique
+  description  String    @default("")
+  permissions  Json
+  archivedAt   DateTime? @map("archived_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  users        User[]
+
+  @@map("permission_groups")
 }
