@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { NotificationsProvider } from './hooks/useNotifications';
 import EmployeeLayout from './components/layout/EmployeeLayout';
 import LoginPage from './pages/LoginPage';
 import OnboardingPage from './pages/OnboardingPage';
@@ -18,7 +19,11 @@ function ProtectedRoutes() {
   const { user, loading } = useAuth();
   if (loading) return <div className="loading-screen">Loading...</div>;
   if (!user) return <Navigate to="/login" replace />;
-  return <EmployeeLayout />;
+  return (
+    <NotificationsProvider>
+      <EmployeeLayout />
+    </NotificationsProvider>
+  );
 }
 
 export default function App() {
