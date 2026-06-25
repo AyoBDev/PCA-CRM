@@ -242,4 +242,28 @@ describe('respondToSchedule', () => {
         await respondToSchedule(req, res);
         expect(res.status).toHaveBeenCalledWith(400);
     });
+
+    test('coerces non-string notes to string before validating (number)', async () => {
+        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok' });
+        const { req, res } = mockReqRes({
+            params: { token: 'tok' },
+            body: { response: 'rejected', notes: 12345 },
+        });
+        await respondToSchedule(req, res);
+        // 12345 stringifies to "12345" (5 chars) which trims to length 5 — passes
+        expect(res.status).not.toHaveBeenCalledWith(400);
+        expect(prisma.scheduleNotification.update).toHaveBeenCalled();
+    });
+
+    test('coerces non-string notes to string before validating (array)', async () => {
+        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok' });
+        const { req, res } = mockReqRes({
+            params: { token: 'tok' },
+            body: { response: 'rejected', notes: [] },
+        });
+        await respondToSchedule(req, res);
+        // [] stringifies to "" — fails the 5-char rule
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(prisma.scheduleNotification.update).not.toHaveBeenCalled();
+    });
 });

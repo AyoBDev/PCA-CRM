@@ -171,7 +171,7 @@ async function respondToSchedule(req, res) {
     }
 
     if (NOTE_REQUIRED_RESPONSES.includes(response)) {
-        const trimmed = (notes || '').trim();
+        const trimmed = String(notes ?? '').trim();
         if (trimmed.length < MIN_NOTE_LENGTH) {
             const action = response === 'rejected' ? 'rejecting' : 'requesting changes to';
             return res.status(400).json({
