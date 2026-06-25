@@ -14,10 +14,10 @@
   --shadow: 0 1px 3px rgba(0,0,0,0.06);
   --nav-height: 56px;
   --rail-width: 64px;
-  --svc-pas: 224 83% 43%;
-  --svc-homemaker: 142 71% 45%;
-  --svc-respite: 21 97% 58%;
-  --svc-companion: 259 90% 66%;
+  --svc-pas: #1e40af;
+  --svc-homemaker: #16a34a;
+  --svc-respite: #ea580c;
+  --svc-companion: #7c3aed;
   --navy: 220 70% 14%;
 }
 
