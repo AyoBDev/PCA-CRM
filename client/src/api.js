@@ -795,6 +795,22 @@ export async function getOnboardingLink(employeeId) {
     return request(`/employees/${employeeId}/onboarding-link`);
 }
 
+// ── Permission Groups ──
+export const listPermissionGroups = () => request('/permission-groups');
+export const getPermissionGroup = (id) => request(`/permission-groups/${id}`);
+export const createPermissionGroup = (body) =>
+    request('/permission-groups', { method: 'POST', body: JSON.stringify(body) });
+export const updatePermissionGroup = (id, body) =>
+    request(`/permission-groups/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+export const archivePermissionGroup = (id) =>
+    request(`/permission-groups/${id}`, { method: 'DELETE' });
+export const getPermissionKeys = () => request('/permissions/keys');
+export const assignUserPermissionGroup = (userId, permissionGroupId) =>
+    request(`/users/${userId}/permission-group`, {
+        method: 'PATCH',
+        body: JSON.stringify({ permissionGroupId }),
+    });
+
 // ── Conversations ──
 export const getConversations = () => request('/conversations');
 export const getConversationMessages = (id) => request(`/conversations/${id}/messages`);
