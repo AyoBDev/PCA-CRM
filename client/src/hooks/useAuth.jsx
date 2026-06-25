@@ -24,16 +24,6 @@ export function AuthProvider({ children }) {
         return () => window.removeEventListener('auth:logout', handler);
     }, []);
 
-    // Listen for permissions_changed event from api.js
-    useEffect(() => {
-        const onPermsChanged = () => {
-            sessionStorage.setItem('login_notice', 'Your access has changed. Please log in again.');
-            logout();
-        };
-        window.addEventListener('auth:permissions-changed', onPermsChanged);
-        return () => window.removeEventListener('auth:permissions-changed', onPermsChanged);
-    }, [logout]);
-
     const login = useCallback(async (email, password) => {
         const res = await api.login(email, password);
         api.setToken(res.token);
@@ -45,6 +35,16 @@ export function AuthProvider({ children }) {
         api.clearToken();
         setUser(null);
     }, []);
+
+    // Listen for permissions_changed event from api.js
+    useEffect(() => {
+        const onPermsChanged = () => {
+            sessionStorage.setItem('login_notice', 'Your access has changed. Please log in again.');
+            logout();
+        };
+        window.addEventListener('auth:permissions-changed', onPermsChanged);
+        return () => window.removeEventListener('auth:permissions-changed', onPermsChanged);
+    }, [logout]);
 
     const isAdmin = user?.role === 'admin';
     const isOffice = user?.role === 'admin' || user?.role === 'user';
