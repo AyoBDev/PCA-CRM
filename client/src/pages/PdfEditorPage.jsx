@@ -4,6 +4,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import PdfToolbar from '../components/pdf/PdfToolbar';
 import PdfPageCanvas from '../components/pdf/PdfPageCanvas';
 import ConfirmModal from '../components/common/ConfirmModal';
+import SaveAsModal from '../components/files/SaveAsModal';
 import { useToast } from '../hooks/useToast';
 import { flattenAnnotations } from '../utils/pdfSave';
 import { extractFormFields } from '../utils/pdfFormFields';
@@ -47,6 +48,7 @@ export default function PdfEditorPage() {
     const [confirmClose, setConfirmClose] = useState(false);
     const [formFields, setFormFields] = useState([]);
     const [formValues, setFormValues] = useState({});
+    const [saveAsOpen, setSaveAsOpen] = useState(false);
 
     const scrollRef = useRef(null);
     const hasFormChanges = formFields.length > 0 && formFields.some(f => formValues[f.name] !== f.value);
@@ -181,8 +183,27 @@ export default function PdfEditorPage() {
         }
     }, [pdfBytes, annotations, zoom, fileId, showToast, hasFormChanges, formValues]);
 
-    const handleSaveAs = useCallback(async () => {
+    const suggestedSaveAsName = useCallback(() => {
+        const base = (fileName || 'document.pdf').replace(/\.pdf$/i, '');
+        const versionMatch = base.match(/_v(\d+)$/);
+        const filledMatch = base.match(/_filled(_(\d+))?$/);
+        if (versionMatch) {
+            return base.replace(/_v\d+$/, `_v${Number(versionMatch[1]) + 1}`) + '.pdf';
+        }
+        if (filledMatch) {
+            const num = filledMatch[2] ? Number(filledMatch[2]) + 1 : 2;
+            return base.replace(/_filled(_\d+)?$/, `_filled_${num}`) + '.pdf';
+        }
+        return base + '_filled.pdf';
+    }, [fileName]);
+
+    const handleSaveAs = useCallback(() => {
         if (!pdfBytes || (!annotations.length && !hasFormChanges)) return;
+        setSaveAsOpen(true);
+    }, [pdfBytes, annotations.length, hasFormChanges]);
+
+    const handleSaveAsConfirm = useCallback(async ({ name, folderId: targetFolderId }) => {
+        if (!pdfBytes) throw new Error('PDF not loaded');
         setSaving(true);
         try {
             let modified = pdfBytes;
@@ -192,35 +213,22 @@ export default function PdfEditorPage() {
             if (hasFormChanges) {
                 modified = await fillFormFields(modified, formValues);
             }
-            const base = fileName.replace(/\.pdf$/i, '');
-            const versionMatch = base.match(/_v(\d+)$/);
-            const filledMatch = base.match(/_filled(_(\d+))?$/);
-            let newName;
-            if (versionMatch) {
-                newName = base.replace(/_v\d+$/, `_v${Number(versionMatch[1]) + 1}`) + '.pdf';
-            } else if (filledMatch) {
-                const num = filledMatch[2] ? Number(filledMatch[2]) + 1 : 2;
-                newName = base.replace(/_filled(_\d+)?$/, `_filled_${num}`) + '.pdf';
-            } else {
-                newName = base + '_filled.pdf';
-            }
-            const blob = new File([modified], newName, { type: 'application/pdf' });
+            const finalName = name.toLowerCase().endsWith('.pdf') ? name : `${name}.pdf`;
+            const blob = new File([modified], finalName, { type: 'application/pdf' });
 
-            if (!folderId) throw new Error('Cannot determine target folder');
-            await api.uploadAdminFile(folderId, blob);
+            await api.uploadAdminFile(targetFolderId, blob);
 
             setAnnotations([]);
             setUndoStack([]);
             setRedoStack([]);
             setFormFields([]);
             setFormValues({});
-            showToast(`Saved as ${newName}`, 'success');
-        } catch (err) {
-            showToast('Failed to save version: ' + err.message, 'error');
+            setSaveAsOpen(false);
+            showToast(`Saved as ${finalName}`, 'success');
         } finally {
             setSaving(false);
         }
-    }, [pdfBytes, annotations, zoom, fileName, folderId, showToast, hasFormChanges, formValues]);
+    }, [pdfBytes, annotations, zoom, hasFormChanges, formValues, showToast]);
 
     const handleClose = useCallback(() => {
         if (hasChanges) {
@@ -308,6 +316,14 @@ export default function PdfEditorPage() {
                     onCancel={() => setConfirmClose(false)}
                 />
             )}
+
+            <SaveAsModal
+                open={saveAsOpen}
+                defaultName={suggestedSaveAsName()}
+                defaultFolderId={folderId ? Number(folderId) : null}
+                onSave={handleSaveAsConfirm}
+                onClose={() => setSaveAsOpen(false)}
+            />
         </div>
     );
 }

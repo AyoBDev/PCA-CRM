@@ -14102,3 +14102,88 @@ tr:hover .auth-note-icon--empty {
     color: hsl(var(--muted-foreground));
     font-size: 13px;
 }
+
+/* === SAVE AS MODAL (PDF editor) === */
+.save-as__search {
+    width: 100%;
+    margin-bottom: 8px;
+}
+
+.save-as__folder-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 260px;
+    overflow-y: auto;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    background: hsl(var(--card));
+    padding: 6px;
+}
+
+.save-as__folder-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: hsl(var(--foreground));
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.save-as__folder-item:hover {
+    background: hsl(var(--accent));
+}
+
+.save-as__folder-item--active {
+    background: hsl(var(--accent));
+    color: hsl(var(--accent-foreground));
+    font-weight: 600;
+    box-shadow: inset 2px 0 0 hsl(var(--primary));
+}
+
+.save-as__folder-icon {
+    display: inline-flex;
+    align-items: center;
+    color: hsl(var(--muted-foreground));
+    flex-shrink: 0;
+}
+
+.save-as__folder-item--active .save-as__folder-icon {
+    color: hsl(var(--primary));
+}
+
+.save-as__folder-path {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.save-as__folder-check {
+    color: hsl(var(--primary));
+    display: inline-flex;
+    align-items: center;
+}
+
+.save-as__folder-empty {
+    padding: 24px 8px;
+    text-align: center;
+    color: hsl(var(--muted-foreground));
+    font-size: 12px;
+}
+
+.save-as__error {
+    margin-top: 12px;
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    background: hsl(var(--danger-bg));
+    color: hsl(var(--danger));
+    font-size: 13px;
+}
