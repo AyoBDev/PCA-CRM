@@ -7,9 +7,17 @@ const audit = require('../services/auditService');
 const JWT_SECRET = process.env.JWT_SECRET || 'nvbestpca-secret';
 const TOKEN_EXPIRY = '24h';
 
-function signToken(user) {
+function signToken(user, permissions) {
     return jwt.sign(
-        { id: user.id, email: user.email, name: user.name, role: user.role },
+        {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            permissionGroupId: user.permissionGroupId ?? null,
+            permissions: Array.isArray(permissions) ? permissions : [],
+            permissionsVersion: user.permissionsVersion ?? 1,
+        },
         JWT_SECRET,
         { expiresIn: TOKEN_EXPIRY }
     );
@@ -45,11 +53,20 @@ async function login(req, res, next) {
         if (!valid) {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
-        const token = signToken(user);
+        const group = user.permissionGroupId
+            ? await prisma.permissionGroup.findUnique({ where: { id: user.permissionGroupId } })
+            : null;
+        const permissions = group && Array.isArray(group.permissions) ? group.permissions : [];
+        const token = signToken(user, permissions);
         audit.logAction({ userId: user.id, userName: user.name, userRole: user.role, action: 'LOGIN', entityType: 'User', entityId: user.id, entityName: user.name });
         res.json({
             token,
-            user: { id: user.id, email: user.email, name: user.name, role: user.role },
+            user: {
+                id: user.id, email: user.email, name: user.name, role: user.role,
+                permissionGroupId: user.permissionGroupId ?? null,
+                permissions,
+                permissionsVersion: user.permissionsVersion ?? 1,
+            },
         });
     } catch (err) { next(err); }
 }
@@ -57,16 +74,27 @@ async function login(req, res, next) {
 // GET /api/auth/me
 async function getMe(req, res, next) {
     try {
-        const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+        const user = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            include: { permissionGroup: true },
+        });
         if (!user) return res.status(404).json({ error: 'User not found' });
-        res.json({ id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone });
+        const permissions = user.permissionGroup && Array.isArray(user.permissionGroup.permissions)
+            ? user.permissionGroup.permissions
+            : [];
+        res.json({
+            id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone,
+            permissionGroupId: user.permissionGroupId ?? null,
+            permissions,
+            permissionsVersion: user.permissionsVersion ?? 1,
+        });
     } catch (err) { next(err); }
 }
 
 // POST /api/auth/register  (admin only)
 async function register(req, res, next) {
     try {
-        const { email, password, name, role, phone } = req.body;
+        const { email, password, name, role, phone, permissionGroupId } = req.body;
         if (!email || !password || !name) {
             return res.status(400).json({ error: 'Email, password, and name are required' });
         }
@@ -83,6 +111,7 @@ async function register(req, res, next) {
                 name: name.trim(),
                 role: validRole,
                 phone: (phone || '').trim(),
+                permissionGroupId: (validRole === 'user' && Number.isInteger(permissionGroupId)) ? permissionGroupId : null,
             },
         });
         res.status(201).json({ id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone });
@@ -341,11 +370,20 @@ async function employeeLogin(req, res, next) {
         if (!valid) {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
-        const token = signToken(user);
+        const group = user.permissionGroupId
+            ? await prisma.permissionGroup.findUnique({ where: { id: user.permissionGroupId } })
+            : null;
+        const permissions = group && Array.isArray(group.permissions) ? group.permissions : [];
+        const token = signToken(user, permissions);
         audit.logAction({ userId: user.id, userName: user.name, userRole: user.role, action: 'LOGIN', entityType: 'User', entityId: user.id, entityName: user.name, metadata: { portal: 'employee' } });
         res.json({
             token,
-            user: { id: user.id, email: user.email, name: user.name, role: user.role },
+            user: {
+                id: user.id, email: user.email, name: user.name, role: user.role,
+                permissionGroupId: user.permissionGroupId ?? null,
+                permissions,
+                permissionsVersion: user.permissionsVersion ?? 1,
+            },
         });
     } catch (err) { next(err); }
 }
