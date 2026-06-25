@@ -174,6 +174,7 @@ const {
     assignUserPermissionGroup,
 } = require('../controllers/permissionGroupController');
 const { authenticate, requireRole } = require('../middleware/authMiddleware');
+const { requirePermission } = require('../middleware/permissionMiddleware');
 const employeeRoutes = require('./employee');
 
 const router = express.Router();
@@ -224,14 +225,14 @@ router.use(authenticate);
 router.get('/auth/me', getMe);
 
 // Auth — user management (admin only)
-router.post('/auth/register', requireRole('admin'), register);
-router.get('/auth/users', requireRole('admin', 'user', 'pca'), listUsers);
-router.delete('/auth/users/bulk-permanent', requireRole('admin'), bulkPermanentlyDeleteUsers);
-router.delete('/auth/users/:id', requireRole('admin'), deleteUser);
-router.put('/auth/users/:id/restore', requireRole('admin'), restoreUser);
-router.put('/auth/users/:id/reset-password', requireRole('admin'), resetPassword);
-router.put('/auth/users/:id/toggle-active', requireRole('admin'), toggleUserActive);
-router.delete('/auth/users/:id/permanent', requireRole('admin'), permanentlyDeleteUser);
+router.post('/auth/register', requireRole('admin'), requirePermission('users'), register);
+router.get('/auth/users', requireRole('admin', 'user', 'pca'), requirePermission('users'), listUsers);
+router.delete('/auth/users/bulk-permanent', requireRole('admin'), requirePermission('users'), bulkPermanentlyDeleteUsers);
+router.delete('/auth/users/:id', requireRole('admin'), requirePermission('users'), deleteUser);
+router.put('/auth/users/:id/restore', requireRole('admin'), requirePermission('users'), restoreUser);
+router.put('/auth/users/:id/reset-password', requireRole('admin'), requirePermission('users'), resetPassword);
+router.put('/auth/users/:id/toggle-active', requireRole('admin'), requirePermission('users'), toggleUserActive);
+router.delete('/auth/users/:id/permanent', requireRole('admin'), requirePermission('users'), permanentlyDeleteUser);
 
 // Permission groups (admin only)
 router.get('/permissions/keys', requireRole('admin'), getPermissionKeys);
@@ -246,32 +247,32 @@ router.patch('/users/:id/permission-group', requireRole('admin'), assignUserPerm
 router.get('/dashboard/stats', requireRole('admin', 'user', 'pca'), getDashboardStats);
 
 // Client routes — bulk import is admin only, everything else is admin + user
-router.get('/clients', requireRole('admin', 'user', 'pca'), listClients);
-router.get('/clients/archived', requireRole('admin', 'user', 'pca'), listArchivedClients);
-router.post('/clients/restore', requireRole('admin', 'user', 'pca'), restoreClients);
-router.delete('/clients/bulk-permanent', requireRole('admin'), bulkPermanentlyDeleteClients);
-router.get('/clients/:id', requireRole('admin', 'user', 'pca'), getClient);
-router.post('/clients', requireRole('admin', 'user', 'pca'), createClient);
-router.post('/clients/bulk-import', requireRole('admin'), upload.single('file'), bulkImport);
-router.post('/clients/bulk-delete', requireRole('admin', 'user', 'pca'), bulkDelete);
-router.put('/clients/:id/restore', requireRole('admin', 'user', 'pca'), restoreClient);
-router.put('/clients/:id', requireRole('admin', 'user', 'pca'), updateClient);
-router.patch('/clients/:id', requireRole('admin', 'user', 'pca'), patchClient);
-router.delete('/clients/:id', requireRole('admin', 'user', 'pca'), deleteClient);
-router.delete('/clients/:id/permanent', requireRole('admin'), permanentlyDeleteClient);
-router.post('/clients/:id/merge', requireRole('admin'), mergeClients);
+router.get('/clients', requireRole('admin', 'user', 'pca'), requirePermission('clients'), listClients);
+router.get('/clients/archived', requireRole('admin', 'user', 'pca'), requirePermission('clients'), listArchivedClients);
+router.post('/clients/restore', requireRole('admin', 'user', 'pca'), requirePermission('clients'), restoreClients);
+router.delete('/clients/bulk-permanent', requireRole('admin'), requirePermission('clients'), bulkPermanentlyDeleteClients);
+router.get('/clients/:id', requireRole('admin', 'user', 'pca'), requirePermission('clients'), getClient);
+router.post('/clients', requireRole('admin', 'user', 'pca'), requirePermission('clients'), createClient);
+router.post('/clients/bulk-import', requireRole('admin'), requirePermission('clients'), upload.single('file'), bulkImport);
+router.post('/clients/bulk-delete', requireRole('admin', 'user', 'pca'), requirePermission('clients'), bulkDelete);
+router.put('/clients/:id/restore', requireRole('admin', 'user', 'pca'), requirePermission('clients'), restoreClient);
+router.put('/clients/:id', requireRole('admin', 'user', 'pca'), requirePermission('clients'), updateClient);
+router.patch('/clients/:id', requireRole('admin', 'user', 'pca'), requirePermission('clients'), patchClient);
+router.delete('/clients/:id', requireRole('admin', 'user', 'pca'), requirePermission('clients'), deleteClient);
+router.delete('/clients/:id/permanent', requireRole('admin'), requirePermission('clients'), permanentlyDeleteClient);
+router.post('/clients/:id/merge', requireRole('admin'), requirePermission('clients'), mergeClients);
 
 // Authorization routes
-router.post('/clients/:clientId/authorizations', requireRole('admin', 'user', 'pca'), createAuthorization);
-router.put('/authorizations/:id', requireRole('admin', 'user', 'pca'), updateAuthorization);
-router.put('/authorizations/:id/archive', requireRole('admin', 'user', 'pca'), archiveAuthorization);
-router.put('/authorizations/:id/restore', requireRole('admin', 'user', 'pca'), restoreAuthorization);
-router.delete('/authorizations/:id', requireRole('admin', 'user', 'pca'), deleteAuthorization);
-router.patch('/authorizations/:id/account-number', requireRole('admin', 'user', 'pca'), updateAccountNumber);
-router.patch('/authorizations/:id/sandata-client-id', requireRole('admin', 'user', 'pca'), updateSandataClientId);
-router.patch('/authorizations/:id/status', requireRole('admin', 'user', 'pca'), updateAuthManualStatus);
-router.post('/authorizations/:id/renew', requireRole('admin', 'user', 'pca'), renewAuthorization);
-router.post('/authorizations/dedup', requireRole('admin'), dedupAuthorizations);
+router.post('/clients/:clientId/authorizations', requireRole('admin', 'user', 'pca'), requirePermission('authorizations'), createAuthorization);
+router.put('/authorizations/:id', requireRole('admin', 'user', 'pca'), requirePermission('authorizations'), updateAuthorization);
+router.put('/authorizations/:id/archive', requireRole('admin', 'user', 'pca'), requirePermission('authorizations'), archiveAuthorization);
+router.put('/authorizations/:id/restore', requireRole('admin', 'user', 'pca'), requirePermission('authorizations'), restoreAuthorization);
+router.delete('/authorizations/:id', requireRole('admin', 'user', 'pca'), requirePermission('authorizations'), deleteAuthorization);
+router.patch('/authorizations/:id/account-number', requireRole('admin', 'user', 'pca'), requirePermission('authorizations'), updateAccountNumber);
+router.patch('/authorizations/:id/sandata-client-id', requireRole('admin', 'user', 'pca'), requirePermission('authorizations'), updateSandataClientId);
+router.patch('/authorizations/:id/status', requireRole('admin', 'user', 'pca'), requirePermission('authorizations'), updateAuthManualStatus);
+router.post('/authorizations/:id/renew', requireRole('admin', 'user', 'pca'), requirePermission('authorizations'), renewAuthorization);
+router.post('/authorizations/dedup', requireRole('admin'), requirePermission('authorizations'), dedupAuthorizations);
 
 // Care Team
 router.post('/clients/:clientId/care-team', requireRole('admin', 'user', 'pca'), addCareTeamMember);
@@ -289,20 +290,20 @@ router.delete('/auth-documents/:id', requireRole('admin', 'user', 'pca'), delete
 
 // File Manager (admin + user staff access)
 const uploadLarge = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
-router.get('/files/folders', requireRole('admin', 'user'), listFolders);
-router.get('/files/search', requireRole('admin', 'user'), searchFiles);
-router.get('/files/folders/:id', requireRole('admin', 'user'), getFolder);
-router.post('/files/folders', requireRole('admin', 'user'), createFolder);
-router.patch('/files/folders/:id', requireRole('admin', 'user'), updateFolder);
-router.delete('/files/folders/:id', requireRole('admin', 'user'), deleteFolder);
-router.post('/files/folders/:id/restore', requireRole('admin', 'user'), restoreFolder);
-router.post('/files/upload', requireRole('admin', 'user'), uploadLarge.single('file'), uploadFile);
-router.get('/files/:id/download', requireRole('admin', 'user'), downloadFile);
-router.put('/files/:id', requireRole('admin', 'user'), uploadLarge.single('file'), replaceFile);
-router.patch('/files/:id', requireRole('admin', 'user'), updateFile);
-router.delete('/files/:id', requireRole('admin', 'user'), deleteFile);
-router.post('/files/copy', requireRole('admin', 'user'), copyFile);
-router.get('/files/export', requireRole('admin', 'user'), exportFiles);
+router.get('/files/folders', requireRole('admin', 'user'), requirePermission('files'), listFolders);
+router.get('/files/search', requireRole('admin', 'user'), requirePermission('files'), searchFiles);
+router.get('/files/folders/:id', requireRole('admin', 'user'), requirePermission('files'), getFolder);
+router.post('/files/folders', requireRole('admin', 'user'), requirePermission('files'), createFolder);
+router.patch('/files/folders/:id', requireRole('admin', 'user'), requirePermission('files'), updateFolder);
+router.delete('/files/folders/:id', requireRole('admin', 'user'), requirePermission('files'), deleteFolder);
+router.post('/files/folders/:id/restore', requireRole('admin', 'user'), requirePermission('files'), restoreFolder);
+router.post('/files/upload', requireRole('admin', 'user'), requirePermission('files'), uploadLarge.single('file'), uploadFile);
+router.get('/files/:id/download', requireRole('admin', 'user'), requirePermission('files'), downloadFile);
+router.put('/files/:id', requireRole('admin', 'user'), requirePermission('files'), uploadLarge.single('file'), replaceFile);
+router.patch('/files/:id', requireRole('admin', 'user'), requirePermission('files'), updateFile);
+router.delete('/files/:id', requireRole('admin', 'user'), requirePermission('files'), deleteFile);
+router.post('/files/copy', requireRole('admin', 'user'), requirePermission('files'), copyFile);
+router.get('/files/export', requireRole('admin', 'user'), requirePermission('files'), exportFiles);
 
 // Hospital Visits
 router.get('/clients/:clientId/hospital-visits', requireRole('admin', 'user', 'pca'), listHospitalVisits);
@@ -317,112 +318,112 @@ router.put('/incidents/:id', requireRole('admin', 'user', 'pca'), updateIncident
 router.delete('/incidents/:id', requireRole('admin', 'user', 'pca'), deleteIncident);
 
 // Insurance Type routes
-router.get('/insurance-types', requireRole('admin', 'user', 'pca'), listInsuranceTypes);
-router.post('/insurance-types', requireRole('admin', 'user', 'pca'), createInsuranceType);
-router.delete('/insurance-types/bulk-permanent', requireRole('admin'), bulkPermanentlyDeleteInsuranceTypes);
-router.put('/insurance-types/:id/restore', requireRole('admin', 'user', 'pca'), restoreInsuranceType);
-router.put('/insurance-types/:id', requireRole('admin', 'user', 'pca'), updateInsuranceType);
-router.delete('/insurance-types/:id', requireRole('admin', 'user', 'pca'), deleteInsuranceType);
-router.delete('/insurance-types/:id/permanent', requireRole('admin'), permanentlyDeleteInsuranceType);
+router.get('/insurance-types', requireRole('admin', 'user', 'pca'), requirePermission('insurance-types'), listInsuranceTypes);
+router.post('/insurance-types', requireRole('admin', 'user', 'pca'), requirePermission('insurance-types'), createInsuranceType);
+router.delete('/insurance-types/bulk-permanent', requireRole('admin'), requirePermission('insurance-types'), bulkPermanentlyDeleteInsuranceTypes);
+router.put('/insurance-types/:id/restore', requireRole('admin', 'user', 'pca'), requirePermission('insurance-types'), restoreInsuranceType);
+router.put('/insurance-types/:id', requireRole('admin', 'user', 'pca'), requirePermission('insurance-types'), updateInsuranceType);
+router.delete('/insurance-types/:id', requireRole('admin', 'user', 'pca'), requirePermission('insurance-types'), deleteInsuranceType);
+router.delete('/insurance-types/:id/permanent', requireRole('admin'), requirePermission('insurance-types'), permanentlyDeleteInsuranceType);
 
 // Service routes
-router.get('/services', requireRole('admin', 'user', 'pca'), listServices);
-router.post('/services', requireRole('admin', 'user', 'pca'), createService);
-router.delete('/services/bulk-permanent', requireRole('admin'), bulkPermanentlyDeleteServices);
-router.put('/services/:id/restore', requireRole('admin', 'user', 'pca'), restoreService);
-router.put('/services/:id', requireRole('admin', 'user', 'pca'), updateService);
-router.delete('/services/:id', requireRole('admin', 'user', 'pca'), deleteService);
-router.delete('/services/:id/permanent', requireRole('admin'), permanentlyDeleteService);
+router.get('/services', requireRole('admin', 'user', 'pca'), requirePermission('services'), listServices);
+router.post('/services', requireRole('admin', 'user', 'pca'), requirePermission('services'), createService);
+router.delete('/services/bulk-permanent', requireRole('admin'), requirePermission('services'), bulkPermanentlyDeleteServices);
+router.put('/services/:id/restore', requireRole('admin', 'user', 'pca'), requirePermission('services'), restoreService);
+router.put('/services/:id', requireRole('admin', 'user', 'pca'), requirePermission('services'), updateService);
+router.delete('/services/:id', requireRole('admin', 'user', 'pca'), requirePermission('services'), deleteService);
+router.delete('/services/:id/permanent', requireRole('admin'), requirePermission('services'), permanentlyDeleteService);
 
 // Timesheet routes (all authenticated users)
-router.get('/timesheets/activities', getActivities);
-router.get('/timesheets', listTimesheets);
-router.delete('/timesheets/bulk-permanent', requireRole('admin'), bulkPermanentlyDeleteTimesheets);
-router.post('/timesheets/send-reminders', requireRole('admin'), sendTimesheetReminders);
-router.post('/timesheets/bulk-export-pdf', requireRole('admin', 'user', 'pca'), exportBulkTimesheetPdf);
-router.get('/timesheets/:id', getTimesheet);
-router.post('/timesheets', createTimesheet);
-router.put('/timesheets/:id/restore', requireRole('admin'), restoreTimesheet);
-router.put('/timesheets/:id', requireRole('admin'), updateTimesheet);
-router.put('/timesheets/:id/submit', requireRole('admin'), submitTimesheet);
-router.post('/timesheets/:id/signing-links', requireRole('admin', 'user', 'pca'), generateSigningLinks);
-router.delete('/timesheets/:id', requireRole('admin'), deleteTimesheet);
-router.delete('/timesheets/:id/permanent', requireRole('admin'), permanentlyDeleteTimesheet);
-router.get('/timesheets/:id/export-pdf', requireRole('admin', 'user', 'pca'), exportTimesheetPdf);
-router.put('/timesheets/:id/status', requireRole('admin', 'user', 'pca'), updateTimesheetStatus);
+router.get('/timesheets/activities', requirePermission('timesheets'), getActivities);
+router.get('/timesheets', requirePermission('timesheets'), listTimesheets);
+router.delete('/timesheets/bulk-permanent', requireRole('admin'), requirePermission('timesheets'), bulkPermanentlyDeleteTimesheets);
+router.post('/timesheets/send-reminders', requireRole('admin'), requirePermission('timesheets'), sendTimesheetReminders);
+router.post('/timesheets/bulk-export-pdf', requireRole('admin', 'user', 'pca'), requirePermission('timesheets'), exportBulkTimesheetPdf);
+router.get('/timesheets/:id', requirePermission('timesheets'), getTimesheet);
+router.post('/timesheets', requirePermission('timesheets'), createTimesheet);
+router.put('/timesheets/:id/restore', requireRole('admin'), requirePermission('timesheets'), restoreTimesheet);
+router.put('/timesheets/:id', requireRole('admin'), requirePermission('timesheets'), updateTimesheet);
+router.put('/timesheets/:id/submit', requireRole('admin'), requirePermission('timesheets'), submitTimesheet);
+router.post('/timesheets/:id/signing-links', requireRole('admin', 'user', 'pca'), requirePermission('timesheets'), generateSigningLinks);
+router.delete('/timesheets/:id', requireRole('admin'), requirePermission('timesheets'), deleteTimesheet);
+router.delete('/timesheets/:id/permanent', requireRole('admin'), requirePermission('timesheets'), permanentlyDeleteTimesheet);
+router.get('/timesheets/:id/export-pdf', requireRole('admin', 'user', 'pca'), requirePermission('timesheets'), exportTimesheetPdf);
+router.put('/timesheets/:id/status', requireRole('admin', 'user', 'pca'), requirePermission('timesheets'), updateTimesheetStatus);
 
 // Permanent link routes
-router.get('/permanent-links', requireRole('admin', 'user', 'pca'), listPermanentLinks);
-router.post('/permanent-links', requireRole('admin', 'user', 'pca'), createPermanentLink);
-router.delete('/permanent-links/:id', requireRole('admin', 'user', 'pca'), deletePermanentLink);
+router.get('/permanent-links', requireRole('admin', 'user', 'pca'), requirePermission('permanent-links'), listPermanentLinks);
+router.post('/permanent-links', requireRole('admin', 'user', 'pca'), requirePermission('permanent-links'), createPermanentLink);
+router.delete('/permanent-links/:id', requireRole('admin', 'user', 'pca'), requirePermission('permanent-links'), deletePermanentLink);
 
 // Payroll
-router.get('/payroll/runs',                requireRole('admin', 'user', 'pca'), listPayrollRuns);
-router.post('/payroll/runs',               requireRole('admin'), upload.single('file'), uploadPayrollRun);
-router.delete('/payroll/runs/bulk-permanent', requireRole('admin'), bulkPermanentlyDeletePayrollRuns);
-router.get('/payroll/runs/:id',            requireRole('admin', 'user', 'pca'), getPayrollRun);
-router.patch('/payroll/runs/:id',          requireRole('admin'), updatePayrollRun);
-router.put('/payroll/runs/:id/restore',    requireRole('admin'), restorePayrollRun);
-router.delete('/payroll/runs/:id',         requireRole('admin'), deletePayrollRun);
-router.delete('/payroll/runs/:id/permanent', requireRole('admin'), permanentlyDeletePayrollRun);
-router.get('/payroll/runs/:id/export',     requireRole('admin', 'user', 'pca'), exportPayrollRun);
-router.patch('/payroll/visits/:id',        requireRole('admin'), updatePayrollVisit);
-router.patch('/payroll/visits/:id/notes',  requireRole('admin', 'user', 'pca'), updatePayrollVisitNotes);
+router.get('/payroll/runs',                requireRole('admin', 'user', 'pca'), requirePermission('payroll'), listPayrollRuns);
+router.post('/payroll/runs',               requireRole('admin'), requirePermission('payroll'), upload.single('file'), uploadPayrollRun);
+router.delete('/payroll/runs/bulk-permanent', requireRole('admin'), requirePermission('payroll'), bulkPermanentlyDeletePayrollRuns);
+router.get('/payroll/runs/:id',            requireRole('admin', 'user', 'pca'), requirePermission('payroll'), getPayrollRun);
+router.patch('/payroll/runs/:id',          requireRole('admin'), requirePermission('payroll'), updatePayrollRun);
+router.put('/payroll/runs/:id/restore',    requireRole('admin'), requirePermission('payroll'), restorePayrollRun);
+router.delete('/payroll/runs/:id',         requireRole('admin'), requirePermission('payroll'), deletePayrollRun);
+router.delete('/payroll/runs/:id/permanent', requireRole('admin'), requirePermission('payroll'), permanentlyDeletePayrollRun);
+router.get('/payroll/runs/:id/export',     requireRole('admin', 'user', 'pca'), requirePermission('payroll'), exportPayrollRun);
+router.patch('/payroll/visits/:id',        requireRole('admin'), requirePermission('payroll'), updatePayrollVisit);
+router.patch('/payroll/visits/:id/notes',  requireRole('admin', 'user', 'pca'), requirePermission('payroll'), updatePayrollVisitNotes);
 
 // Employees
-router.get('/employees',       requireRole('admin', 'user', 'pca'), listEmployees);
-router.get('/employees/archived', requireRole('admin', 'user', 'pca'), listArchivedEmployees);
-router.post('/employees/restore', requireRole('admin', 'user', 'pca'), restoreEmployees);
-router.delete('/employees/bulk-permanent', requireRole('admin'), bulkPermanentlyDeleteEmployees);
-router.get('/employees/:id',   requireRole('admin', 'user', 'pca'), getEmployee);
-router.post('/employees',      requireRole('admin', 'user', 'pca'), createEmployee);
-router.post('/employees/bulk-import', requireRole('admin'), upload.single('file'), bulkImportEmployees);
-router.put('/employees/:id/restore', requireRole('admin', 'user', 'pca'), restoreEmployee);
-router.put('/employees/:id',   requireRole('admin', 'user', 'pca'), updateEmployee);
-router.delete('/employees/:id', requireRole('admin', 'user', 'pca'), deleteEmployee);
-router.delete('/employees/:id/permanent', requireRole('admin'), permanentlyDeleteEmployee);
-router.post('/employees/:id/resend-invite', requireRole('admin'), resendInvite);
-router.patch('/employees/:id/approve-onboarding', requireRole('admin'), approveOnboarding);
-router.get('/employees/:id/onboarding-link', requireRole('admin'), getOnboardingLink);
-router.get('/employees/:id/availability', requireRole('admin', 'user', 'pca'), getEmployeeAvailability);
+router.get('/employees',       requireRole('admin', 'user', 'pca'), requirePermission('employees'), listEmployees);
+router.get('/employees/archived', requireRole('admin', 'user', 'pca'), requirePermission('employees'), listArchivedEmployees);
+router.post('/employees/restore', requireRole('admin', 'user', 'pca'), requirePermission('employees'), restoreEmployees);
+router.delete('/employees/bulk-permanent', requireRole('admin'), requirePermission('employees'), bulkPermanentlyDeleteEmployees);
+router.get('/employees/:id',   requireRole('admin', 'user', 'pca'), requirePermission('employees'), getEmployee);
+router.post('/employees',      requireRole('admin', 'user', 'pca'), requirePermission('employees'), createEmployee);
+router.post('/employees/bulk-import', requireRole('admin'), requirePermission('employees'), upload.single('file'), bulkImportEmployees);
+router.put('/employees/:id/restore', requireRole('admin', 'user', 'pca'), requirePermission('employees'), restoreEmployee);
+router.put('/employees/:id',   requireRole('admin', 'user', 'pca'), requirePermission('employees'), updateEmployee);
+router.delete('/employees/:id', requireRole('admin', 'user', 'pca'), requirePermission('employees'), deleteEmployee);
+router.delete('/employees/:id/permanent', requireRole('admin'), requirePermission('employees'), permanentlyDeleteEmployee);
+router.post('/employees/:id/resend-invite', requireRole('admin'), requirePermission('employees'), resendInvite);
+router.patch('/employees/:id/approve-onboarding', requireRole('admin'), requirePermission('employees'), approveOnboarding);
+router.get('/employees/:id/onboarding-link', requireRole('admin'), requirePermission('employees'), getOnboardingLink);
+router.get('/employees/:id/availability', requireRole('admin', 'user', 'pca'), requirePermission('employees'), getEmployeeAvailability);
 
 // Employee Certifications
-router.get('/employees/:employeeId/certifications', requireRole('admin', 'user', 'pca'), listCertifications);
-router.post('/employees/:employeeId/certifications', requireRole('admin', 'user', 'pca'), upload.single('file'), createCertification);
-router.put('/certifications/:id', requireRole('admin', 'user', 'pca'), upload.single('file'), updateCertification);
-router.delete('/certifications/:id', requireRole('admin', 'user', 'pca'), deleteCertification);
-router.get('/certifications/:id/download', requireRole('admin', 'user', 'pca'), downloadCertification);
+router.get('/employees/:employeeId/certifications', requireRole('admin', 'user', 'pca'), requirePermission('employees'), listCertifications);
+router.post('/employees/:employeeId/certifications', requireRole('admin', 'user', 'pca'), requirePermission('employees'), upload.single('file'), createCertification);
+router.put('/certifications/:id', requireRole('admin', 'user', 'pca'), requirePermission('employees'), upload.single('file'), updateCertification);
+router.delete('/certifications/:id', requireRole('admin', 'user', 'pca'), requirePermission('employees'), deleteCertification);
+router.get('/certifications/:id/download', requireRole('admin', 'user', 'pca'), requirePermission('employees'), downloadCertification);
 
 // Scheduling
-router.get('/shifts',                       requireRole('admin', 'user', 'pca'), listShifts);
-router.get('/shifts/auth-check',            requireRole('admin', 'user', 'pca'), authCheck);
-router.get('/shifts/client/:clientId',      requireRole('admin', 'user', 'pca'), getClientSchedule);
-router.get('/shifts/employee/:employeeId',  requireRole('admin', 'user', 'pca'), getEmployeeSchedule);
-router.post('/shifts',                      requireRole('admin', 'user', 'pca'), createShift);
-router.patch('/shifts/bulk',                requireRole('admin', 'user', 'pca'), bulkUpdateShifts);
-router.patch('/shifts/bulk-per-shift',      requireRole('admin', 'user', 'pca'), bulkUpdateShiftsPerShift);
-router.delete('/shifts/bulk',               requireRole('admin', 'user', 'pca'), bulkDeleteShifts);
-router.get('/shifts/bulk-edit-batches',      requireRole('admin', 'user', 'pca'), listBulkEditBatches);
-router.post('/shifts/bulk-undo/:batchId',   requireRole('admin', 'user', 'pca'), bulkUndoBatch);
-router.post('/shifts/:id/repeat',            requireRole('admin', 'user', 'pca'), repeatShift);
-router.put('/shifts/:id/restore',           requireRole('admin', 'user', 'pca'), restoreShift);
-router.post('/shifts/restore',              requireRole('admin', 'user', 'pca'), restoreShifts);
-router.delete('/shifts/permanent',          requireRole('admin'), permanentDeleteShifts);
-router.get('/shifts/archived',              requireRole('admin', 'user', 'pca'), listArchivedShifts);
-router.put('/shifts/:id',                   requireRole('admin', 'user', 'pca'), updateShift);
-router.delete('/shifts/all',                requireRole('admin', 'user', 'pca'), deleteAllShifts);
-router.delete('/shifts/:id',                requireRole('admin', 'user', 'pca'), deleteShift);
+router.get('/shifts',                       requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), listShifts);
+router.get('/shifts/auth-check',            requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), authCheck);
+router.get('/shifts/client/:clientId',      requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), getClientSchedule);
+router.get('/shifts/employee/:employeeId',  requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), getEmployeeSchedule);
+router.post('/shifts',                      requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), createShift);
+router.patch('/shifts/bulk',                requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), bulkUpdateShifts);
+router.patch('/shifts/bulk-per-shift',      requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), bulkUpdateShiftsPerShift);
+router.delete('/shifts/bulk',               requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), bulkDeleteShifts);
+router.get('/shifts/bulk-edit-batches',      requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), listBulkEditBatches);
+router.post('/shifts/bulk-undo/:batchId',   requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), bulkUndoBatch);
+router.post('/shifts/:id/repeat',            requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), repeatShift);
+router.put('/shifts/:id/restore',           requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), restoreShift);
+router.post('/shifts/restore',              requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), restoreShifts);
+router.delete('/shifts/permanent',          requireRole('admin'), requirePermission('scheduling'), permanentDeleteShifts);
+router.get('/shifts/archived',              requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), listArchivedShifts);
+router.put('/shifts/:id',                   requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), updateShift);
+router.delete('/shifts/all',                requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), deleteAllShifts);
+router.delete('/shifts/:id',                requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), deleteShift);
 
 // Schedule Notifications
-router.post('/schedule-notifications/send',       requireRole('admin', 'user', 'pca'), sendSchedules);
-router.get('/schedule-notifications/status',      requireRole('admin', 'user', 'pca'), getNotificationStatus);
-router.get('/schedule-notifications/responses',   requireRole('admin', 'user', 'pca'), getScheduleResponses);
-router.get('/schedule-notifications/employee/:employeeId', requireRole('admin', 'user', 'pca'), getEmployeeNotificationHistory);
+router.post('/schedule-notifications/send',       requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), sendSchedules);
+router.get('/schedule-notifications/status',      requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), getNotificationStatus);
+router.get('/schedule-notifications/responses',   requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), getScheduleResponses);
+router.get('/schedule-notifications/employee/:employeeId', requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), getEmployeeNotificationHistory);
 
 // Employee Schedule Links
-router.get('/employee-schedule-links',        requireRole('admin', 'user', 'pca'), listLinks);
-router.post('/employee-schedule-links',       requireRole('admin', 'user', 'pca'), createLink);
-router.delete('/employee-schedule-links/:id', requireRole('admin', 'user', 'pca'), deleteLink);
+router.get('/employee-schedule-links',        requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), listLinks);
+router.post('/employee-schedule-links',       requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), createLink);
+router.delete('/employee-schedule-links/:id', requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), deleteLink);
 
 // Client Activities
 router.get('/clients/:clientId/activities', listActivities);
@@ -430,17 +431,17 @@ router.post('/clients/:clientId/activities', createActivity);
 router.delete('/activities/:id', requireRole('admin'), deleteActivity);
 
 // Audit Logs (admin only)
-router.get('/audit-logs',                     requireRole('admin'), getAuditLogs);
-router.get('/audit-logs/:entityType/:entityId', requireRole('admin'), getEntityAuditLogs);
+router.get('/audit-logs',                     requireRole('admin'), requirePermission('history'), getAuditLogs);
+router.get('/audit-logs/:entityType/:entityId', requireRole('admin'), requirePermission('history'), getEntityAuditLogs);
 
 // Tasks
-router.get('/tasks/summary', requireRole('admin', 'user', 'pca'), getTaskSummary);
-router.get('/tasks', requireRole('admin', 'user', 'pca'), listTasks);
-router.patch('/tasks/bulk-update', requireRole('admin'), bulkUpdateTasks);
-router.get('/tasks/:id', requireRole('admin', 'user', 'pca'), getTask);
-router.post('/tasks', requireRole('admin'), createTask);
-router.patch('/tasks/:id', requireRole('admin', 'user', 'pca'), updateTask);
-router.delete('/tasks/:id', requireRole('admin'), deleteTask);
+router.get('/tasks/summary', requireRole('admin', 'user', 'pca'), requirePermission('tasks'), getTaskSummary);
+router.get('/tasks', requireRole('admin', 'user', 'pca'), requirePermission('tasks'), listTasks);
+router.patch('/tasks/bulk-update', requireRole('admin'), requirePermission('tasks'), bulkUpdateTasks);
+router.get('/tasks/:id', requireRole('admin', 'user', 'pca'), requirePermission('tasks'), getTask);
+router.post('/tasks', requireRole('admin'), requirePermission('tasks'), createTask);
+router.patch('/tasks/:id', requireRole('admin', 'user', 'pca'), requirePermission('tasks'), updateTask);
+router.delete('/tasks/:id', requireRole('admin'), requirePermission('tasks'), deleteTask);
 
 // Workflow Triggers (admin only)
 router.get('/workflow-triggers', requireRole('admin'), listWorkflowTriggers);
@@ -452,24 +453,24 @@ router.put('/employees/:employeeId/payroll-profile', requireRole('admin'), upser
 router.get('/employees/:employeeId/payroll-profile/reveal', requireRole('admin'), revealSensitiveField);
 
 // Receipts (admin-only)
-router.get('/receipts', requireRole('admin'), listReceipts);
-router.post('/receipts/preview', requireRole('admin'), previewReceipts);
-router.post('/receipts/generate', requireRole('admin'), generateReceipts);
-router.patch('/receipts/:id', requireRole('admin'), updateReceipt);
-router.post('/receipts/finalize', requireRole('admin'), finalizeReceipts);
-router.post('/receipts/send', requireRole('admin'), sendReceipts);
-router.get('/receipts/:id/pdf', requireRole('admin'), downloadReceiptPdf);
+router.get('/receipts', requireRole('admin'), requirePermission('receipts'), listReceipts);
+router.post('/receipts/preview', requireRole('admin'), requirePermission('receipts'), previewReceipts);
+router.post('/receipts/generate', requireRole('admin'), requirePermission('receipts'), generateReceipts);
+router.patch('/receipts/:id', requireRole('admin'), requirePermission('receipts'), updateReceipt);
+router.post('/receipts/finalize', requireRole('admin'), requirePermission('receipts'), finalizeReceipts);
+router.post('/receipts/send', requireRole('admin'), requirePermission('receipts'), sendReceipts);
+router.get('/receipts/:id/pdf', requireRole('admin'), requirePermission('receipts'), downloadReceiptPdf);
 
 // SANDATA Import (admin only)
-router.post('/sandata/preview', requireRole('admin'), upload.single('file'), previewSandata);
-router.post('/sandata/apply', requireRole('admin'), applySandata);
-router.post('/sandata/undo', requireRole('admin'), undoSandata);
+router.post('/sandata/preview', requireRole('admin'), requirePermission('sandata'), upload.single('file'), previewSandata);
+router.post('/sandata/apply', requireRole('admin'), requirePermission('sandata'), applySandata);
+router.post('/sandata/undo', requireRole('admin'), requirePermission('sandata'), undoSandata);
 
 // Employee chat (admin)
-router.get('/conversations', requireRole('admin', 'user'), listConversations);
-router.get('/conversations/unread-summary', requireRole('admin', 'user'), getUnreadSummary);
-router.get('/conversations/:id/messages', requireRole('admin', 'user'), getConversationMessages);
-router.post('/conversations/:id/messages', requireRole('admin', 'user'), adminSendMessage);
-router.post('/conversations/:id/read', requireRole('admin', 'user'), markConversationRead);
+router.get('/conversations', requireRole('admin', 'user'), requirePermission('messages'), listConversations);
+router.get('/conversations/unread-summary', requireRole('admin', 'user'), requirePermission('messages'), getUnreadSummary);
+router.get('/conversations/:id/messages', requireRole('admin', 'user'), requirePermission('messages'), getConversationMessages);
+router.post('/conversations/:id/messages', requireRole('admin', 'user'), requirePermission('messages'), adminSendMessage);
+router.post('/conversations/:id/read', requireRole('admin', 'user'), requirePermission('messages'), markConversationRead);
 
 module.exports = router;
