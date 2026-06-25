@@ -24,6 +24,16 @@ export function AuthProvider({ children }) {
         return () => window.removeEventListener('auth:logout', handler);
     }, []);
 
+    // Listen for permissions_changed event from api.js
+    useEffect(() => {
+        const onPermsChanged = () => {
+            sessionStorage.setItem('login_notice', 'Your access has changed. Please log in again.');
+            logout();
+        };
+        window.addEventListener('auth:permissions-changed', onPermsChanged);
+        return () => window.removeEventListener('auth:permissions-changed', onPermsChanged);
+    }, [logout]);
+
     const login = useCallback(async (email, password) => {
         const res = await api.login(email, password);
         api.setToken(res.token);
@@ -40,8 +50,16 @@ export function AuthProvider({ children }) {
     const isOffice = user?.role === 'admin' || user?.role === 'user';
     const isStaff = user?.role === 'admin' || user?.role === 'user' || user?.role === 'pca';
 
+    const hasPermission = useCallback((key) => {
+        if (!user) return false;
+        if (user.role === 'admin') return true;
+        if (user.role !== 'user') return false;
+        if (user.permissionGroupId == null) return true;
+        return Array.isArray(user.permissions) && user.permissions.includes(key);
+    }, [user]);
+
     return (
-        <AuthContext.Provider value={{ user, isAdmin, isOffice, isStaff, login, logout, loading }}>
+        <AuthContext.Provider value={{ user, isAdmin, isOffice, isStaff, hasPermission, login, logout, loading }}>
             {children}
         </AuthContext.Provider>
     );

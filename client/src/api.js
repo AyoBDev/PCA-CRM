@@ -26,7 +26,13 @@ async function request(path, options = {}) {
     const res = await fetch(`${BASE}${path}`, { headers, ...options });
 
     if (res.status === 401) {
+        let body = {};
+        try { body = await res.clone().json(); } catch {}
         clearToken();
+        if (body.error === 'permissions_changed') {
+            window.dispatchEvent(new CustomEvent('auth:permissions-changed'));
+            throw new Error('Your access has changed. Please log in again.');
+        }
         window.dispatchEvent(new Event('auth:logout'));
         throw new Error('Session expired. Please log in again.');
     }
@@ -46,7 +52,13 @@ async function request(path, options = {}) {
 
 async function handleRes(res) {
     if (res.status === 401) {
+        let body = {};
+        try { body = await res.clone().json(); } catch {}
         clearToken();
+        if (body.error === 'permissions_changed') {
+            window.dispatchEvent(new CustomEvent('auth:permissions-changed'));
+            throw new Error('Your access has changed. Please log in again.');
+        }
         window.dispatchEvent(new Event('auth:logout'));
         throw new Error('Session expired. Please log in again.');
     }
@@ -182,7 +194,13 @@ export const uploadDocument = (clientId, formData) => {
         body: formData,
     }).then(async (res) => {
         if (res.status === 401) {
+            let body = {};
+            try { body = await res.clone().json(); } catch {}
             clearToken();
+            if (body.error === 'permissions_changed') {
+                window.dispatchEvent(new CustomEvent('auth:permissions-changed'));
+                throw new Error('Your access has changed. Please log in again.');
+            }
             window.dispatchEvent(new Event('auth:logout'));
             throw new Error('Session expired. Please log in again.');
         }
@@ -217,7 +235,13 @@ export const uploadAuthDocument = (authId, formData) => {
         body: formData,
     }).then(async (res) => {
         if (res.status === 401) {
+            let body = {};
+            try { body = await res.clone().json(); } catch {}
             clearToken();
+            if (body.error === 'permissions_changed') {
+                window.dispatchEvent(new CustomEvent('auth:permissions-changed'));
+                throw new Error('Your access has changed. Please log in again.');
+            }
             window.dispatchEvent(new Event('auth:logout'));
             throw new Error('Session expired. Please log in again.');
         }
@@ -576,7 +600,13 @@ export const uploadPayrollRun = (formData) =>
         body: formData,
     }).then(async (res) => {
         if (res.status === 401) {
+            let body = {};
+            try { body = await res.clone().json(); } catch {}
             clearToken();
+            if (body.error === 'permissions_changed') {
+                window.dispatchEvent(new CustomEvent('auth:permissions-changed'));
+                throw new Error('Your access has changed. Please log in again.');
+            }
             window.dispatchEvent(new Event('auth:logout'));
             throw new Error('Session expired. Please log in again.');
         }
@@ -666,7 +696,13 @@ export async function downloadBackup() {
     if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
     const res = await fetch(`${BASE}/backup/export`, { headers });
     if (res.status === 401) {
+        let body = {};
+        try { body = await res.clone().json(); } catch {}
         clearToken();
+        if (body.error === 'permissions_changed') {
+            window.dispatchEvent(new CustomEvent('auth:permissions-changed'));
+            throw new Error('Your access has changed. Please log in again.');
+        }
         window.dispatchEvent(new Event('auth:logout'));
         throw new Error('Session expired');
     }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icons from '../components/common/Icons';
 import { useAuth } from '../hooks/useAuth';
@@ -10,6 +10,14 @@ export default function LoginPage() {
     const [error, setError] = useState('');
     const { login } = useAuth();
     const navigate = useNavigate();
+
+    useEffect(() => {
+        const notice = sessionStorage.getItem('login_notice');
+        if (notice) {
+            sessionStorage.removeItem('login_notice');
+            setError(notice);
+        }
+    }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
