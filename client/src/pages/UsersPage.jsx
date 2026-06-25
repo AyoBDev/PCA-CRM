@@ -5,6 +5,7 @@ import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
+import ManageRolesModal from '../components/users/ManageRolesModal';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import { useUndoStack } from '../hooks/useUndoStack';
@@ -15,7 +16,7 @@ export default function UsersPage() {
     const undoState = useUndoStack();
     const [users, setUsers] = useState([]);
     const [showModal, setShowModal] = useState(false);
-    const [form, setForm] = useState({ name: '', email: '', password: '', role: 'pca' });
+    const [form, setForm] = useState({ name: '', email: '', password: '', role: 'pca', permissionGroupId: null });
     const [saving, setSaving] = useState(false);
     const [showArchived, setShowArchived] = useState(false);
     const [resetUser, setResetUser] = useState(null);
@@ -25,12 +26,18 @@ export default function UsersPage() {
     const [confirmArchive, setConfirmArchive] = useState(null);
     const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(null);
     const [confirmBulkPermanentDelete, setConfirmBulkPermanentDelete] = useState(false);
+    const [permissionGroups, setPermissionGroups] = useState([]);
+    const [manageRolesOpen, setManageRolesOpen] = useState(false);
 
     const fetchUsers = useCallback(async () => {
         try { setUsers(await api.getUsers({ archived: showArchived })); } catch (err) { showToast(err.message, 'error'); }
     }, [showToast, showArchived]);
 
     useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+    useEffect(() => {
+        api.listPermissionGroups().then(setPermissionGroups).catch(() => {});
+    }, [manageRolesOpen]);
 
     const handleCreate = async (e) => {
         e.preventDefault();
@@ -40,7 +47,7 @@ export default function UsersPage() {
             const created = await api.registerUser(form);
             showToast('User created');
             setShowModal(false);
-            setForm({ name: '', email: '', password: '', role: 'pca' });
+            setForm({ name: '', email: '', password: '', role: 'pca', permissionGroupId: null });
             fetchUsers();
             if (created?.id) {
                 undoState.pushAction(`Created user "${form.name}"`,
@@ -137,7 +144,12 @@ export default function UsersPage() {
             <ContextBar>
                 <ContextBar.Right>
                     {!showArchived && (
-                        <button className="btn btn--primary" onClick={() => setShowModal(true)}>{Icons.plus} Add User</button>
+                        <>
+                            <button className="btn btn--ghost" onClick={() => setManageRolesOpen(true)}>
+                                Manage Roles
+                            </button>
+                            <button className="btn btn--primary" onClick={() => setShowModal(true)}>{Icons.plus} Add User</button>
+                        </>
                     )}
                 </ContextBar.Right>
             </ContextBar>
@@ -166,13 +178,40 @@ export default function UsersPage() {
                     <div className="sheet-card">
                       <div className="table-scroll">
                         <table className="data-table data-table--sheet data-table--dark-header">
-                            <thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Created</th><th scope="col">Actions</th></tr></thead>
+                            <thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Permission Group</th><th scope="col">Status</th><th scope="col">Created</th><th scope="col">Actions</th></tr></thead>
                             <tbody>
                                 {users.filter((u) => u.role !== 'admin').map((u) => (
                                     <tr key={u.id}>
                                         <td style={{ fontWeight: 500 }}>{u.name}</td>
                                         <td>{u.email}</td>
                                         <td><span className={`ts-badge ts-badge--${u.role === 'admin' ? 'submitted' : 'draft'}`}>{u.role}</span></td>
+                                        <td>
+                                            {u.role === 'admin' ? (
+                                                <span style={{ color: 'hsl(var(--muted-foreground))' }}>—</span>
+                                            ) : u.role === 'pca' ? (
+                                                <span style={{ color: 'hsl(var(--muted-foreground))' }}>Employee app</span>
+                                            ) : (
+                                                <select
+                                                    className="form-input form-input--sm"
+                                                    value={u.permissionGroupId ?? ''}
+                                                    onChange={async (e) => {
+                                                        const val = e.target.value === '' ? null : parseInt(e.target.value);
+                                                        try {
+                                                            await api.assignUserPermissionGroup(u.id, val);
+                                                            showToast(`${u.name} must log in again to apply new permissions.`);
+                                                            await fetchUsers();
+                                                        } catch (err) {
+                                                            showToast(err.message || 'Failed to update role', 'error');
+                                                        }
+                                                    }}
+                                                >
+                                                    <option value="">No restrictions</option>
+                                                    {permissionGroups.map(g => (
+                                                        <option key={g.id} value={g.id}>{g.name}</option>
+                                                    ))}
+                                                </select>
+                                            )}
+                                        </td>
                                         <td>
                                             <span className={`ts-badge ts-badge--${u.active ? 'submitted' : 'draft'}`}>
                                                 {u.active ? 'Active' : 'Inactive'}
@@ -228,6 +267,21 @@ export default function UsersPage() {
                                 <option value="user">User (Staff)</option>
                             </select>
                         </div>
+                        {form.role === 'user' && (
+                            <div className="form-group">
+                                <label className="form-label">Permission Group</label>
+                                <select
+                                    className="form-input"
+                                    value={form.permissionGroupId ?? ''}
+                                    onChange={(e) => setForm({ ...form, permissionGroupId: e.target.value === '' ? null : parseInt(e.target.value) })}
+                                >
+                                    <option value="">No restrictions</option>
+                                    {permissionGroups.map(g => (
+                                        <option key={g.id} value={g.id}>{g.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                         <div className="form-actions">
                             <button type="button" className="btn btn--outline" onClick={() => setShowModal(false)}>Cancel</button>
                             <button type="submit" className="btn btn--primary" disabled={saving || !form.name || !form.email || !form.password}>{saving ? 'Creating...' : 'Create User'}</button>
@@ -307,6 +361,7 @@ export default function UsersPage() {
                     onClose={() => setConfirmBulkPermanentDelete(false)}
                 />
             )}
+            <ManageRolesModal open={manageRolesOpen} onClose={() => setManageRolesOpen(false)} />
         </>
     );
 }

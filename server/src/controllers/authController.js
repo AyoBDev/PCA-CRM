@@ -148,10 +148,19 @@ async function listUsers(req, res, next) {
         const where = req.query.archived === 'true' ? { archivedAt: { not: null } } : { archivedAt: null };
         const users = await prisma.user.findMany({
             where,
-            select: { id: true, email: true, name: true, role: true, phone: true, active: true, createdAt: true, archivedAt: true },
+            select: {
+                id: true, email: true, name: true, role: true, phone: true, active: true,
+                createdAt: true, archivedAt: true, permissionGroupId: true,
+                permissionGroup: { select: { id: true, name: true } },
+            },
             orderBy: { createdAt: 'desc' },
         });
-        res.json(users);
+        res.json(users.map(u => ({
+            id: u.id, email: u.email, name: u.name, role: u.role, phone: u.phone,
+            active: u.active, createdAt: u.createdAt, archivedAt: u.archivedAt,
+            permissionGroupId: u.permissionGroupId,
+            permissionGroupName: u.permissionGroup?.name ?? null,
+        })));
     } catch (err) { next(err); }
 }
 
