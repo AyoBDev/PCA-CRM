@@ -51,12 +51,109 @@ async function getNextShift(req, res) {
 }
 
 async function getActivity(req, res) {
-  const notifications = await prisma.notification.findMany({
-    where: { employeeId: req.employee.id },
-    orderBy: { createdAt: 'desc' },
-    take: 10,
-  });
-  res.json(notifications);
+  const employeeId = req.employee.id;
+  const since = new Date(Date.now() - 14 * 86400000);
+
+  const [shifts, messages, auditLogs, tasks, timeOff] = await Promise.all([
+    prisma.shift.findMany({
+      where: { employeeId, OR: [{ createdAt: { gte: since } }, { updatedAt: { gte: since } }] },
+      include: { client: { select: { clientName: true } } },
+      orderBy: { updatedAt: 'desc' },
+      take: 20,
+    }),
+    prisma.message.findMany({
+      where: { recipientEmployeeId: employeeId, senderRole: 'admin', createdAt: { gte: since } },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    }).catch(() => []),
+    prisma.auditLog.findMany({
+      where: {
+        entityType: { in: ['CertificationUpload', 'EmployeeCertification'] },
+        createdAt: { gte: since },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    }).catch(() => []),
+    prisma.employeeTask.findMany({
+      where: { employeeId, createdAt: { gte: since } },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    }),
+    prisma.timeOffRequest.findMany({
+      where: { employeeId, decidedAt: { gte: since, not: null } },
+      orderBy: { decidedAt: 'desc' },
+      take: 20,
+    }).catch(() => []),
+  ]);
+
+  const items = [];
+
+  for (const s of shifts) {
+    const isNew = +s.createdAt >= +since;
+    const isChanged = +s.updatedAt > +s.createdAt;
+    items.push({
+      id: `shift-${s.id}-${isChanged ? 'u' : 'c'}`,
+      type: isChanged ? 'shift-changed' : 'new-shift',
+      title: isChanged ? 'Shift updated' : 'New shift assigned',
+      subtitle: `${s.client?.clientName || ''} · ${new Date(s.shiftDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`,
+      timestamp: (isChanged ? s.updatedAt : s.createdAt).toISOString(),
+      href: '/schedule',
+    });
+  }
+
+  for (const m of messages) {
+    items.push({
+      id: `msg-${m.id}`,
+      type: 'admin-message',
+      title: 'Message from Office',
+      subtitle: m.content.slice(0, 80),
+      timestamp: new Date(m.createdAt).toISOString(),
+      href: '/messages',
+    });
+  }
+
+  for (const a of auditLogs) {
+    if (a.metadata && a.metadata.employeeId !== employeeId) continue;
+    let type = 'cert-uploaded';
+    let title = 'Certification uploaded';
+    if (a.action === 'UPDATE') {
+      if (a.metadata && a.metadata.newStatus === 'approved') { type = 'cert-approved'; title = 'Certification approved'; }
+      else if (a.metadata && a.metadata.newStatus === 'rejected') { type = 'cert-rejected'; title = 'Certification needs attention'; }
+    }
+    items.push({
+      id: `audit-${a.id}`,
+      type,
+      title,
+      subtitle: a.entityName,
+      timestamp: new Date(a.createdAt).toISOString(),
+      href: '/account/certs',
+    });
+  }
+
+  for (const t of tasks) {
+    items.push({
+      id: `task-${t.id}`,
+      type: 'task-assigned',
+      title: 'New task',
+      subtitle: t.title,
+      timestamp: new Date(t.createdAt).toISOString(),
+      href: '/account/tasks',
+    });
+  }
+
+  for (const r of timeOff) {
+    items.push({
+      id: `timeoff-${r.id}`,
+      type: 'time-off-decided',
+      title: `Time off ${r.status}`,
+      subtitle: `${new Date(r.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(r.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+      timestamp: new Date(r.decidedAt).toISOString(),
+      href: '/account/availability',
+    });
+  }
+
+  items.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  res.json(items.slice(0, 20));
 }
 
 module.exports = { getHomeSummary, getNextShift, getActivity };
