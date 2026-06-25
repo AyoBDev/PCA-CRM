@@ -24,7 +24,28 @@ The bottom nav (Home, Schedule, Timesheet, Messages, Account) is unchanged.
 - No socket-stream activity feed (poll instead)
 - No read receipts, typing indicators, or message reactions
 - No Timesheet, Pay Stubs, or Onboarding changes
-- No new Vitest setup (manual smoke verification)
+
+## Design system constraint
+
+The employee-app must reuse the admin app's design system rather than diverge into its own visual language. Source of truth: `client/src/index.css`, `DESIGN_SYSTEM.md`, `DESIGN.md`, and `docs/superpowers/specs/2026-06-01-design-system-design.md`.
+
+Concretely:
+
+- **Tokens** — color, radius, shadow, spacing, and typography tokens are copied from the admin app to `employee-app/src/index.css` (HSL channel variables in the same names: `--primary`, `--foreground`, `--background`, `--card`, `--border`, `--success`, `--warning`, `--destructive`, etc.). Any token used by a primitive must come from this set, not a one-off literal.
+- **Shared visual patterns** — badge classes (`.badge--success/warning/danger/muted`), button system (`.btn`, `.btn--primary`, `.btn--outline`, `.btn--ghost`), form controls, and status colors map 1:1 to the admin app.
+- **Service-code colors** — `--svc-pas`, `--svc-homemaker`, `--svc-respite`, `--svc-companion` already exist in the employee-app and match the admin app; preserve them.
+- **Mobile-specific primitives** (bottom nav, week-strip, cert cards, summary chips) still get built fresh, but their internals derive from the shared tokens. No new color literals.
+- **Reusable utilities** — where a helper already exists in `client/src/utils/` and is needed in the employee-app (`hhmm12`, `getInitials`, `getAvatarColor`, etc.), copy it into `employee-app/src/utils/` rather than re-implementing inline. If the same helper is needed in both apps long-term, eventually extract to a shared package — out of scope for this work.
+
+## Development discipline — TDD
+
+Every primitive and backend addition in this work is built test-first.
+
+- The employee-app has no test runner today. **First implementation step is setting up Vitest + React Testing Library + jsdom** (`employee-app/vitest.config.js`, `package.json` scripts: `test`, `test:watch`).
+- For every primitive (`useNotifications`, `WeekStrip`, `CertCard`, `CertSummary`, `ScheduleWeekHeader`, `ComplianceBanner`, etc.): write a failing test that pins behavior (renders correct branch, derives correct count, handles null gracefully), then implement.
+- For every backend addition: write a failing supertest integration test against the route (auth required, expected response shape, audit log entry created), then implement the controller.
+- Page assemblies (HomePage, SchedulePage, etc.) still get manual visual verification in the browser; the unit tests cover the logic-bearing pieces they compose from.
+- The `superpowers:test-driven-development` skill is invoked when implementation begins.
 
 ## Architecture
 
@@ -313,9 +334,31 @@ Existing classes (`.shift-card`, `.cert-card`, `.badge`, `.stat-pill`, `.alert-b
 - Upload failures: inline error toast above the card, file preserved client-side for retry
 - Network offline: provider keeps last-known data; chips and badges show stale values without erroring; new request retried on next poll
 
-## Verification (manual, no Vitest)
+## Verification
 
-After each primitive lands:
+### Automated tests (TDD-driven)
+
+Unit tests (Vitest + React Testing Library + jsdom), written before implementation:
+
+- `useNotifications` — derives correct counts for each combo of cert states; `complianceState` resolves to `compliant`/`attention`/`overdue` per the rules; failed slice stays `null` without breaking other slices; `refresh()` re-fetches.
+- `CertCard` — renders each of the 5 statuses correctly (missing/expired/expiring/approved/pending); Upload vs. Replace label by presence of cert; "Other" slot stacks multiple entries.
+- `CertSummary` — counts compute correctly from a `certsByType` map.
+- `WeekStrip` — highlights today; days with shifts get the active class with correct hours; tap dispatches navigation with `?date=`.
+- `ScheduleWeekHeader` — total hours, shift count, per-client breakdown sorted by hours desc; handles overnight shift (end < start).
+- `ComplianceBanner` — renders only on `overdue`.
+- `ComplianceBadge` — three states render with correct class.
+- `NotificationCountPill` — returns null when count <= 0.
+- `AvailabilityDayRow` — toggle hides/shows times; emits the expected onChange shape.
+- `ActivityFeed` — renders top N, "See more" toggle expands.
+
+Backend tests (Jest + supertest, written before controller):
+
+- `GET /api/employee/home/activity` — returns mixed event types sorted desc, capped at 20, scoped to the authenticated employee.
+- `POST /api/employee/certifications` — requires auth; creates row; stores file via storageService; audit log entry created; validates `certType` is in `CERT_TYPES`; rejects oversized files.
+
+### Manual visual verification (post-implementation)
+
+Run on iPhone viewport (390×844) and desktop (≥768px, left rail):
 
 - [ ] Compliance banner appears only when a cert is expired or missing
 - [ ] WeekStrip highlights today, blue days match `/schedule/week` response
@@ -327,41 +370,44 @@ After each primitive lands:
 - [ ] Messages auto-scroll fires on send and on receive
 - [ ] Messages unread divider appears once and disappears after scroll
 - [ ] Deep link `/schedule?date=...` opens the correct week and scrolls
-- [ ] Backend additions (widened `/home/activity`, `POST /employee/certifications`) work via the UI
+- [ ] Visual parity with admin app: badges, buttons, forms, type scale all match
 
-Backend additions get a Jest test alongside existing employee-portal tests if a pattern exists; otherwise a single integration test via supertest.
+## Implementation order (primitives-first, TDD throughout)
 
-Visual review in Chrome DevTools at iPhone 13 viewport (390×844) after each page assembly.
+**Pass 0 — test tooling & design tokens**
 
-## Implementation order (primitives-first)
+1. Install Vitest + React Testing Library + jsdom in `employee-app`. Add `test` and `test:watch` scripts. Add a smoke test that imports `App.jsx` and renders without crashing.
+2. Copy missing design tokens from `client/src/index.css` into `employee-app/src/index.css` so the two apps share the same HSL channel variables. Add a tokens-parity test that asserts known tokens are defined.
 
-**Pass 1 — primitives**
+**Pass 1 — primitives (each: failing test → implement → refactor)**
 
-1. `utils/certTypes.js`
-2. `hooks/useNotifications.jsx` + `NotificationsProvider`
-3. Wire provider into `App.jsx`
-4. `ComplianceBanner`, `ComplianceBadge`, `NotificationCountPill`, `SummaryChip`
-5. `WeekStrip`, `ScheduleWeekHeader`
-6. `CertCard`, `CertSummary`
-7. `ActivityFeed`, `ActivityFeedItem`
-8. `NextShiftCard`, `AvailabilityDayRow`, `TimeOffRequestRow`
-9. CSS additions to `index.css`
+3. `utils/certTypes.js`
+4. `hooks/useNotifications.jsx` + `NotificationsProvider`
+5. Wire provider into `App.jsx`
+6. `ComplianceBanner`, `ComplianceBadge`, `NotificationCountPill`, `SummaryChip`
+7. `WeekStrip`, `ScheduleWeekHeader`
+8. `CertCard`, `CertSummary`
+9. `ActivityFeed`, `ActivityFeedItem`
+10. `NextShiftCard`, `AvailabilityDayRow`, `TimeOffRequestRow`
+11. CSS additions to `index.css`
 
-**Pass 2 — backend additions**
+**Pass 2 — backend additions (each: failing supertest → implement)**
 
-10. Widen `/api/employee/home/activity` to return unified feed
-11. New `POST /api/employee/certifications` endpoint
+12. Widen `/api/employee/home/activity` to return unified feed (20-item cap, scoped to employee)
+13. New `POST /api/employee/certifications` endpoint (self-upload, audit-logged)
 
 **Pass 3 — page assemblies**
 
-12. HomePage
-13. SchedulePage (with `?date=` deep link)
-14. CertificationsPage
-15. AccountPage
-16. AvailabilityPage
-17. MessagesPage polish
+14. HomePage
+15. SchedulePage (with `?date=` deep link)
+16. CertificationsPage
+17. AccountPage
+18. AvailabilityPage
+19. MessagesPage polish
 
 **Pass 4 — verification**
 
-18. Run the manual smoke checklist on iPhone viewport
-19. Spot-check on desktop viewport (≥768px) since the left rail layout differs
+20. `npm test` green for the full suite
+21. Run the manual smoke checklist on iPhone viewport (390×844)
+22. Spot-check on desktop viewport (≥768px) since the left rail layout differs
+23. Visual parity check against admin app (badges, buttons, type scale, status colors)
