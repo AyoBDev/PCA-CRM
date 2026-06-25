@@ -33,14 +33,14 @@ const FilesPage = lazy(() => import('./pages/FilesPage'));
 const PdfEditorPage = lazy(() => import('./pages/PdfEditorPage'));
 const MessagesPage = lazy(() => import('./pages/MessagesPage'));
 
-function ProtectedRoute({ children, adminOnly = false, staffOnly = false, officeOnly = false }) {
-    const { user, isAdmin, isStaff, loading } = useAuth();
-    const isOffice = user?.role === 'admin' || user?.role === 'user';
+function ProtectedRoute({ children, adminOnly = false, staffOnly = false, officeOnly = false, permission = null }) {
+    const { user, isAdmin, isOffice, isStaff, hasPermission, loading } = useAuth();
     if (loading) return <div className="page-loading" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 48, color: 'hsl(var(--muted-foreground))' }}>Loading…</div>;
     if (!user) return <Navigate to="/login" replace />;
     if (adminOnly && !isAdmin) return <Navigate to="/timesheets" replace />;
     if (officeOnly && !isOffice) return <Navigate to="/timesheets" replace />;
     if (staffOnly && !isStaff) return <Navigate to="/timesheets" replace />;
+    if (permission && !hasPermission(permission)) return <Navigate to="/dashboard" replace />;
     return children;
 }
 
@@ -63,27 +63,27 @@ function AppRoutes() {
 
                 {/* Protected routes with layout */}
                 <Route path="/dashboard" element={<ProtectedRoute staffOnly><Layout><DashboardPage /></Layout></ProtectedRoute>} />
-                <Route path="/clients" element={<ProtectedRoute staffOnly><Layout><ClientsListPage /></Layout></ProtectedRoute>} />
-                <Route path="/clients/:clientId" element={<ProtectedRoute staffOnly><Layout><ClientDetailPage /></Layout></ProtectedRoute>} />
-                <Route path="/clients/:clientId/service/:serviceCode" element={<ProtectedRoute staffOnly><Layout><ClientServicePage /></Layout></ProtectedRoute>} />
-                <Route path="/authorizations" element={<ProtectedRoute staffOnly><Layout><AuthorizationsPage /></Layout></ProtectedRoute>} />
-                <Route path="/timesheets" element={<ProtectedRoute><Layout><TimesheetsListPage /></Layout></ProtectedRoute>} />
-                <Route path="/permanent-links" element={<ProtectedRoute staffOnly><Layout><PermanentLinksPage /></Layout></ProtectedRoute>} />
-                <Route path="/scheduling" element={<ProtectedRoute staffOnly><Layout><SchedulingPage /></Layout></ProtectedRoute>} />
-                <Route path="/tasks" element={<ProtectedRoute staffOnly><Layout><TasksPage /></Layout></ProtectedRoute>} />
-                <Route path="/payroll" element={<ProtectedRoute staffOnly><Layout><PayrollPage /></Layout></ProtectedRoute>} />
-                <Route path="/payroll/runs/:runId" element={<ProtectedRoute staffOnly><Layout><PayrollPage /></Layout></ProtectedRoute>} />
-                <Route path="/receipts" element={<ProtectedRoute adminOnly><Layout><ReceiptsPage /></Layout></ProtectedRoute>} />
-                <Route path="/insurance-types" element={<ProtectedRoute staffOnly><Layout><InsuranceTypesPage /></Layout></ProtectedRoute>} />
-                <Route path="/services" element={<ProtectedRoute staffOnly><Layout><ServicesPage /></Layout></ProtectedRoute>} />
-                <Route path="/employees" element={<ProtectedRoute staffOnly><Layout><EmployeesPage /></Layout></ProtectedRoute>} />
-                <Route path="/employees/:employeeId" element={<ProtectedRoute staffOnly><Layout><EmployeeDetailPage /></Layout></ProtectedRoute>} />
-                <Route path="/users" element={<ProtectedRoute adminOnly><Layout><UsersPage /></Layout></ProtectedRoute>} />
-                <Route path="/history" element={<ProtectedRoute staffOnly><Layout><HistoryPage /></Layout></ProtectedRoute>} />
-                <Route path="/sandata" element={<ProtectedRoute adminOnly><Layout><SandataImportPage /></Layout></ProtectedRoute>} />
-                <Route path="/files" element={<ProtectedRoute officeOnly><Layout><FilesPage /></Layout></ProtectedRoute>} />
-                <Route path="/files/edit/:fileId" element={<ProtectedRoute officeOnly><Layout><PdfEditorPage /></Layout></ProtectedRoute>} />
-                <Route path="/messages" element={<ProtectedRoute staffOnly><Layout><MessagesPage /></Layout></ProtectedRoute>} />
+                <Route path="/clients" element={<ProtectedRoute staffOnly permission="clients"><Layout><ClientsListPage /></Layout></ProtectedRoute>} />
+                <Route path="/clients/:clientId" element={<ProtectedRoute staffOnly permission="clients"><Layout><ClientDetailPage /></Layout></ProtectedRoute>} />
+                <Route path="/clients/:clientId/service/:serviceCode" element={<ProtectedRoute staffOnly permission="clients"><Layout><ClientServicePage /></Layout></ProtectedRoute>} />
+                <Route path="/authorizations" element={<ProtectedRoute staffOnly permission="authorizations"><Layout><AuthorizationsPage /></Layout></ProtectedRoute>} />
+                <Route path="/timesheets" element={<ProtectedRoute permission="timesheets"><Layout><TimesheetsListPage /></Layout></ProtectedRoute>} />
+                <Route path="/permanent-links" element={<ProtectedRoute staffOnly permission="permanent-links"><Layout><PermanentLinksPage /></Layout></ProtectedRoute>} />
+                <Route path="/scheduling" element={<ProtectedRoute staffOnly permission="scheduling"><Layout><SchedulingPage /></Layout></ProtectedRoute>} />
+                <Route path="/tasks" element={<ProtectedRoute staffOnly permission="tasks"><Layout><TasksPage /></Layout></ProtectedRoute>} />
+                <Route path="/payroll" element={<ProtectedRoute staffOnly permission="payroll"><Layout><PayrollPage /></Layout></ProtectedRoute>} />
+                <Route path="/payroll/runs/:runId" element={<ProtectedRoute staffOnly permission="payroll"><Layout><PayrollPage /></Layout></ProtectedRoute>} />
+                <Route path="/receipts" element={<ProtectedRoute adminOnly permission="receipts"><Layout><ReceiptsPage /></Layout></ProtectedRoute>} />
+                <Route path="/insurance-types" element={<ProtectedRoute staffOnly permission="insurance-types"><Layout><InsuranceTypesPage /></Layout></ProtectedRoute>} />
+                <Route path="/services" element={<ProtectedRoute staffOnly permission="services"><Layout><ServicesPage /></Layout></ProtectedRoute>} />
+                <Route path="/employees" element={<ProtectedRoute staffOnly permission="employees"><Layout><EmployeesPage /></Layout></ProtectedRoute>} />
+                <Route path="/employees/:employeeId" element={<ProtectedRoute staffOnly permission="employees"><Layout><EmployeeDetailPage /></Layout></ProtectedRoute>} />
+                <Route path="/users" element={<ProtectedRoute adminOnly permission="users"><Layout><UsersPage /></Layout></ProtectedRoute>} />
+                <Route path="/history" element={<ProtectedRoute staffOnly permission="history"><Layout><HistoryPage /></Layout></ProtectedRoute>} />
+                <Route path="/sandata" element={<ProtectedRoute adminOnly permission="sandata"><Layout><SandataImportPage /></Layout></ProtectedRoute>} />
+                <Route path="/files" element={<ProtectedRoute officeOnly permission="files"><Layout><FilesPage /></Layout></ProtectedRoute>} />
+                <Route path="/files/edit/:fileId" element={<ProtectedRoute officeOnly permission="files"><Layout><PdfEditorPage /></Layout></ProtectedRoute>} />
+                <Route path="/messages" element={<ProtectedRoute staffOnly permission="messages"><Layout><MessagesPage /></Layout></ProtectedRoute>} />
 
                 {/* Default redirect */}
                 <Route path="*" element={<Navigate to={user ? (isStaff ? '/dashboard' : '/timesheets') : '/login'} replace />} />
