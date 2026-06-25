@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+const { seedPermissionGroups } = require('./seed-permission-groups');
 
 const prisma = new PrismaClient();
 
@@ -93,6 +94,8 @@ async function main() {
             throw err;
         }
     }
+
+    await seedPermissionGroups(prisma);
 }
 
 main()
