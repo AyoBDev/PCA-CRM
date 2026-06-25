@@ -14069,3 +14069,36 @@ tr:hover .auth-note-icon--empty {
     accent-color: hsl(var(--primary));
     cursor: pointer;
 }
+
+/* === IN-CELL SELECT + MUTED PLACEHOLDER (inline editors inside .data-table) === */
+.cell-select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    padding: 4px 28px 4px 10px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+    background: hsl(var(--background)) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 8px center;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    line-height: 1.4;
+    max-width: 200px;
+}
+
+.cell-select:hover {
+    border-color: hsl(var(--ring));
+}
+
+.cell-select:focus {
+    outline: none;
+    border-color: hsl(var(--ring));
+    box-shadow: 0 0 0 2px hsl(var(--ring) / 0.15);
+}
+
+.cell-muted {
+    color: hsl(var(--muted-foreground));
+    font-size: 13px;
+}

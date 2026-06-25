@@ -187,12 +187,12 @@ export default function UsersPage() {
                                         <td><span className={`ts-badge ts-badge--${u.role === 'admin' ? 'submitted' : 'draft'}`}>{u.role}</span></td>
                                         <td>
                                             {u.role === 'admin' ? (
-                                                <span style={{ color: 'hsl(var(--muted-foreground))' }}>—</span>
+                                                <span className="cell-muted">—</span>
                                             ) : u.role === 'pca' ? (
-                                                <span style={{ color: 'hsl(var(--muted-foreground))' }}>Employee app</span>
+                                                <span className="cell-muted">Employee app</span>
                                             ) : (
                                                 <select
-                                                    className="form-input form-input--sm"
+                                                    className="cell-select"
                                                     value={u.permissionGroupId ?? ''}
                                                     onChange={async (e) => {
                                                         const val = e.target.value === '' ? null : parseInt(e.target.value);
