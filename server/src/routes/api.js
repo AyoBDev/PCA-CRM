@@ -164,6 +164,15 @@ const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalize
 const { previewSandata, applySandata, undoSandata } = require('../controllers/sandataController');
 const { listConversations, getConversationMessages, adminSendMessage, markConversationRead, getUnreadSummary } = require('../controllers/employeePortal/adminChatController');
 const { getOnboardingInfo, completeOnboarding, resendInvite, approveOnboarding, getOnboardingLink } = require('../controllers/onboardingController');
+const {
+    listPermissionGroups,
+    getPermissionGroup,
+    createPermissionGroup,
+    updatePermissionGroup,
+    archivePermissionGroup,
+    getPermissionKeys,
+    assignUserPermissionGroup,
+} = require('../controllers/permissionGroupController');
 const { authenticate, requireRole } = require('../middleware/authMiddleware');
 const employeeRoutes = require('./employee');
 
@@ -223,6 +232,15 @@ router.put('/auth/users/:id/restore', requireRole('admin'), restoreUser);
 router.put('/auth/users/:id/reset-password', requireRole('admin'), resetPassword);
 router.put('/auth/users/:id/toggle-active', requireRole('admin'), toggleUserActive);
 router.delete('/auth/users/:id/permanent', requireRole('admin'), permanentlyDeleteUser);
+
+// Permission groups (admin only)
+router.get('/permissions/keys', requireRole('admin'), getPermissionKeys);
+router.get('/permission-groups', requireRole('admin'), listPermissionGroups);
+router.get('/permission-groups/:id', requireRole('admin'), getPermissionGroup);
+router.post('/permission-groups', requireRole('admin'), createPermissionGroup);
+router.patch('/permission-groups/:id', requireRole('admin'), updatePermissionGroup);
+router.delete('/permission-groups/:id', requireRole('admin'), archivePermissionGroup);
+router.patch('/users/:id/permission-group', requireRole('admin'), assignUserPermissionGroup);
 
 // Dashboard
 router.get('/dashboard/stats', requireRole('admin', 'user', 'pca'), getDashboardStats);
