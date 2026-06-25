@@ -21,6 +21,7 @@ async function listPermissionGroups(req, res) {
 
 async function getPermissionGroup(req, res) {
   const id = parseInt(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' });
   const g = await prisma.permissionGroup.findUnique({
     where: { id },
     include: { _count: { select: { users: true } } },
@@ -81,6 +82,7 @@ async function createPermissionGroup(req, res) {
 
 async function updatePermissionGroup(req, res) {
   const id = parseInt(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' });
   const existing = await prisma.permissionGroup.findUnique({ where: { id } });
   if (!existing || existing.archivedAt) return res.status(404).json({ error: 'Permission group not found' });
 
@@ -140,6 +142,7 @@ async function updatePermissionGroup(req, res) {
 
 async function archivePermissionGroup(req, res) {
   const id = parseInt(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' });
   const existing = await prisma.permissionGroup.findUnique({ where: { id } });
   if (!existing || existing.archivedAt) return res.status(404).json({ error: 'Permission group not found' });
 
@@ -171,6 +174,7 @@ async function getPermissionKeys(req, res) {
 
 async function assignUserPermissionGroup(req, res) {
   const userId = parseInt(req.params.id);
+  if (!Number.isInteger(userId)) return res.status(400).json({ error: 'Invalid id' });
   const { permissionGroupId } = req.body || {};
 
   const target = await prisma.user.findUnique({

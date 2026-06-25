@@ -103,6 +103,12 @@ async function register(req, res, next) {
         if (existing) {
             return res.status(409).json({ error: 'A user with this email already exists' });
         }
+        if (validRole === 'user' && Number.isInteger(permissionGroupId)) {
+            const group = await prisma.permissionGroup.findUnique({ where: { id: permissionGroupId } });
+            if (!group || group.archivedAt) {
+                return res.status(400).json({ error: 'Invalid permission group' });
+            }
+        }
         const passwordHash = await bcrypt.hash(password, 10);
         const user = await prisma.user.create({
             data: {

@@ -226,7 +226,7 @@ router.get('/auth/me', getMe);
 
 // Auth — user management (admin only)
 router.post('/auth/register', requireRole('admin'), requirePermission('users'), register);
-router.get('/auth/users', requireRole('admin', 'user', 'pca'), requirePermission('users'), listUsers);
+router.get('/auth/users', requireRole('admin', 'user', 'pca'), listUsers);
 router.delete('/auth/users/bulk-permanent', requireRole('admin'), requirePermission('users'), bulkPermanentlyDeleteUsers);
 router.delete('/auth/users/:id', requireRole('admin'), requirePermission('users'), deleteUser);
 router.put('/auth/users/:id/restore', requireRole('admin'), requirePermission('users'), restoreUser);

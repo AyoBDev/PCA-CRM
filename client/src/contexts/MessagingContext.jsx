@@ -1,11 +1,13 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { useSocket } from '../hooks/useSocket';
+import { useAuth } from '../hooks/useAuth';
 import { getConversations, markConversationRead as apiMarkRead, getUnreadSummary } from '../api';
 
 const MessagingContext = createContext(null);
 
 export function MessagingProvider({ children }) {
     const { socket, connected } = useSocket();
+    const { hasPermission } = useAuth();
     const [conversations, setConversations] = useState([]);
     const [activeConversationId, setActiveConversationId] = useState(null);
     const activeIdRef = useRef(null);
@@ -25,9 +27,10 @@ export function MessagingProvider({ children }) {
     }, []);
 
     useEffect(() => {
+        if (!hasPermission('messages')) return;
         refresh();
         getUnreadSummary().then(setSummary).catch(() => {});
-    }, [refresh]);
+    }, [refresh, hasPermission]);
 
     const markRead = useCallback(async (id) => {
         try {

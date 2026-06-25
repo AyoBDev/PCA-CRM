@@ -19,14 +19,13 @@ describe('requirePermission', () => {
     expect(res.status).not.toHaveBeenCalled();
   });
 
-  test('pca denied with 403', () => {
+  test('pca allowed (permission system does not restrict PCAs)', () => {
     const req = { user: { role: 'pca', id: 2 } };
     const res = mockRes();
     const next = jest.fn();
     mw(req, res, next);
-    expect(next).not.toHaveBeenCalled();
-    expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ missingPermission: 'files' }));
+    expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
   });
 
   test('user with null permissionGroupId allowed (legacy default)', () => {

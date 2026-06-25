@@ -53,7 +53,8 @@ export function AuthProvider({ children }) {
     const hasPermission = useCallback((key) => {
         if (!user) return false;
         if (user.role === 'admin') return true;
-        if (user.role !== 'user') return false;
+        if (user.role === 'pca')   return true;
+        if (user.role !== 'user')  return false;
         if (user.permissionGroupId == null) return true;
         return Array.isArray(user.permissions) && user.permissions.includes(key);
     }, [user]);
