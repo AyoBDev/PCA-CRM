@@ -4,7 +4,7 @@ const { authenticate } = require('../middleware/authMiddleware');
 const { requireEmployeeLink } = require('../middleware/requireEmployeeLink');
 const { getProfile, updateProfile } = require('../controllers/employeePortal/profileController');
 const { getHomeSummary, getNextShift, getActivity } = require('../controllers/employeePortal/homeController');
-const { getCertifications, uploadCertification } = require('../controllers/employeePortal/requirementsController');
+const { getCertifications, uploadCertification, createCertification } = require('../controllers/employeePortal/requirementsController');
 const { getWeekSchedule, getScheduleHistory } = require('../controllers/employeePortal/scheduleController');
 const { getAvailability, submitAvailabilityRequest, getTimeOffRequests, submitTimeOff } = require('../controllers/employeePortal/availabilityController');
 const { getPayrollSummary, getPaystubs, downloadPaystub } = require('../controllers/employeePortal/payrollController');
@@ -32,6 +32,7 @@ router.patch('/profile', updateProfile);
 // Requirements
 router.get('/certifications', getCertifications);
 router.post('/certifications/:certId/upload', certUpload.single('file'), uploadCertification);
+router.post('/certifications', certUpload.single('file'), createCertification);
 
 // Schedule
 router.get('/schedule/week', getWeekSchedule);
