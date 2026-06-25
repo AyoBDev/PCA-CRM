@@ -1,6 +1,6 @@
 jest.mock('../../lib/prisma', () => ({
     employeeScheduleLink: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
-    scheduleNotification: { findFirst: jest.fn(), update: jest.fn(), create: jest.fn(), findMany: jest.fn() },
+    scheduleNotification: { findFirst: jest.fn(), update: jest.fn(), create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn() },
     shift: { findMany: jest.fn() },
 }));
 
@@ -15,7 +15,7 @@ jest.mock('../../services/schedulingService', () => ({
 }));
 
 const prisma = require('../../lib/prisma');
-const { recordOpen, getNotificationForView, sendSchedules, getNotificationStatus } = require('../scheduleNotificationController');
+const { recordOpen, getNotificationForView, sendSchedules, getNotificationStatus, respondToSchedule } = require('../scheduleNotificationController');
 const notifService = require('../../services/notificationService');
 
 function mockReqRes(overrides = {}) {
@@ -155,5 +155,115 @@ describe('getNotificationStatus', () => {
             }),
         }));
         expect(res.json).toHaveBeenCalled();
+    });
+});
+
+describe('respondToSchedule', () => {
+    beforeEach(() => jest.clearAllMocks());
+
+    test('rejects empty note when response is "rejected"', async () => {
+        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok' });
+        const { req, res } = mockReqRes({
+            params: { token: 'tok' },
+            body: { response: 'rejected', notes: '' },
+        });
+        await respondToSchedule(req, res);
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            error: expect.stringContaining('5 characters'),
+        }));
+        expect(prisma.scheduleNotification.update).not.toHaveBeenCalled();
+    });
+
+    test('rejects 4-character note when response is "changes_requested"', async () => {
+        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok' });
+        const { req, res } = mockReqRes({
+            params: { token: 'tok' },
+            body: { response: 'changes_requested', notes: 'four' },
+        });
+        await respondToSchedule(req, res);
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(prisma.scheduleNotification.update).not.toHaveBeenCalled();
+    });
+
+    test('rejects whitespace-only note when response is "rejected"', async () => {
+        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok' });
+        const { req, res } = mockReqRes({
+            params: { token: 'tok' },
+            body: { response: 'rejected', notes: '       ' },
+        });
+        await respondToSchedule(req, res);
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(prisma.scheduleNotification.update).not.toHaveBeenCalled();
+    });
+
+    test('accepts 5-character note when response is "rejected"', async () => {
+        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok' });
+        prisma.scheduleNotification.update.mockResolvedValue({ id: 1 });
+        const { req, res } = mockReqRes({
+            params: { token: 'tok' },
+            body: { response: 'rejected', notes: 'sick.' },
+        });
+        await respondToSchedule(req, res);
+        expect(prisma.scheduleNotification.update).toHaveBeenCalledWith(expect.objectContaining({
+            where: { id: 1 },
+            data: expect.objectContaining({
+                response: 'rejected',
+                responseNotes: 'sick.',
+                status: 'rejected',
+            }),
+        }));
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+
+    test('accepts empty note when response is "accepted"', async () => {
+        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok' });
+        prisma.scheduleNotification.update.mockResolvedValue({ id: 1 });
+        const { req, res } = mockReqRes({
+            params: { token: 'tok' },
+            body: { response: 'accepted', notes: '' },
+        });
+        await respondToSchedule(req, res);
+        expect(prisma.scheduleNotification.update).toHaveBeenCalledWith(expect.objectContaining({
+            data: expect.objectContaining({
+                response: 'accepted',
+                responseNotes: '',
+                status: 'confirmed',
+            }),
+        }));
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+
+    test('rejects invalid response value with existing 400 handler', async () => {
+        const { req, res } = mockReqRes({
+            params: { token: 'tok' },
+            body: { response: 'maybe', notes: 'long enough' },
+        });
+        await respondToSchedule(req, res);
+        expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    test('coerces non-string notes to string before validating (number)', async () => {
+        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok' });
+        const { req, res } = mockReqRes({
+            params: { token: 'tok' },
+            body: { response: 'rejected', notes: 12345 },
+        });
+        await respondToSchedule(req, res);
+        // 12345 stringifies to "12345" (5 chars) which trims to length 5 — passes
+        expect(res.status).not.toHaveBeenCalledWith(400);
+        expect(prisma.scheduleNotification.update).toHaveBeenCalled();
+    });
+
+    test('coerces non-string notes to string before validating (array)', async () => {
+        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok' });
+        const { req, res } = mockReqRes({
+            params: { token: 'tok' },
+            body: { response: 'rejected', notes: [] },
+        });
+        await respondToSchedule(req, res);
+        // [] stringifies to "" — fails the 5-char rule
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(prisma.scheduleNotification.update).not.toHaveBeenCalled();
     });
 });
