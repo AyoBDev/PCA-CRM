@@ -1073,3 +1073,78 @@ body {
         align-items: stretch;
     }
 }
+
+/* === REFINEMENT (2026-06) === */
+
+/* Cert summary tiles */
+.cert-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
+.cert-summary__tile { background: hsl(var(--card)); border: 1.5px solid hsl(var(--border)); border-radius: var(--radius); padding: 12px; text-align: center; }
+.cert-summary__tile--approved { border-top: 3px solid hsl(var(--success)); }
+.cert-summary__tile--pending { border-top: 3px solid hsl(var(--muted-foreground)); }
+.cert-summary__tile--action { border-top: 3px solid hsl(var(--destructive)); }
+.cert-summary__tile--total { border-top: 3px solid hsl(var(--primary)); }
+.cert-summary__count { font-size: 22px; font-weight: 800; }
+.cert-summary__label { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: hsl(var(--muted-foreground)); margin-top: 4px; }
+
+/* Cert card status borders */
+.cert-card--missing { border-left-color: hsl(var(--destructive)); }
+.cert-card--expired { border-left-color: hsl(var(--destructive)); }
+.cert-card--expiring { border-left-color: hsl(var(--warning)); }
+.cert-card--approved { border-left-color: hsl(var(--success)); }
+.cert-card--pending { border-left-color: hsl(var(--muted-foreground)); }
+
+/* Week strip */
+.week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 8px; }
+.week-strip__day { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 2px; border: 1.5px solid hsl(var(--border)); background: hsl(var(--card)); border-radius: 8px; cursor: pointer; min-height: 60px; color: hsl(var(--foreground)); font-family: inherit; }
+.week-strip__day--active { background: hsl(var(--primary)); color: white; border-color: hsl(var(--primary)); }
+.week-strip__day--today { box-shadow: 0 0 0 2px hsl(var(--primary)); }
+.week-strip__label { font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.week-strip__date { font-size: 14px; font-weight: 700; }
+.week-strip__hours { font-size: 10px; font-weight: 600; }
+
+/* Activity feed */
+.activity-feed { display: flex; flex-direction: column; gap: 4px; }
+.activity-feed--empty { color: hsl(var(--muted-foreground)); padding: 16px; text-align: center; font-size: 13px; }
+.activity-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: hsl(var(--card)); border: 1.5px solid hsl(var(--border)); border-radius: var(--radius); text-decoration: none; color: hsl(var(--foreground)); }
+.activity-item__icon { font-size: 16px; flex-shrink: 0; }
+.activity-item__body { flex: 1; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.activity-item__time { font-size: 11px; color: hsl(var(--muted-foreground)); flex-shrink: 0; }
+
+/* Compliance badge */
+.compliance-badge { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+.compliance-badge--compliant { background: hsl(var(--success) / 0.12); color: hsl(var(--success)); }
+.compliance-badge--attention { background: hsl(var(--warning) / 0.12); color: hsl(var(--warning)); }
+.compliance-badge--overdue { background: hsl(var(--destructive) / 0.12); color: hsl(var(--destructive)); }
+
+/* Notification pill */
+.notification-pill { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; background: hsl(var(--destructive)); color: white; border-radius: 10px; font-size: 11px; font-weight: 700; }
+
+/* Stat pill variants (extend existing) */
+.stat-pill--success { border-color: hsl(var(--success)); color: hsl(var(--success)); }
+.stat-pill--warning { border-color: hsl(var(--warning)); color: hsl(var(--warning)); }
+.stat-pill--danger { border-color: hsl(var(--destructive)); color: hsl(var(--destructive)); }
+.stat-pill--neutral { /* default */ }
+
+/* Schedule week header */
+.schedule-week-header { background: hsl(var(--card)); border: 1.5px solid hsl(var(--border)); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 12px; }
+.schedule-week-header__total { font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: hsl(var(--foreground)); }
+.schedule-week-header__breakdown { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.schedule-week-header__row { display: flex; justify-content: space-between; font-size: 13px; color: hsl(var(--foreground)); }
+
+/* Availability */
+.availability-day-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; background: hsl(var(--card)); border: 1.5px solid hsl(var(--border)); border-radius: var(--radius); margin-bottom: 6px; }
+.availability-day-row--off { opacity: 0.6; }
+.availability-day-row__toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.availability-day-row__times { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.availability-day-row__times input[type="time"] { padding: 6px 8px; border: 1.5px solid hsl(var(--border)); border-radius: 6px; font-size: 13px; font-family: inherit; }
+
+/* Time-off row */
+.timeoff-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: hsl(var(--card)); border: 1.5px solid hsl(var(--border)); border-radius: var(--radius); margin-bottom: 6px; }
+.timeoff-row__dates { font-size: 13px; font-weight: 700; }
+.timeoff-row__reason { flex: 1; font-size: 13px; color: hsl(var(--muted-foreground)); }
+
+/* Skeleton loaders */
+@keyframes skeleton-shimmer { 0% { background-position: -200px 0; } 100% { background-position: calc(200px + 100%) 0; } }
+.skeleton { background: linear-gradient(90deg, hsl(var(--border) / 0.4) 0px, hsl(var(--border) / 0.7) 40px, hsl(var(--border) / 0.4) 80px); background-size: 200px 100%; animation: skeleton-shimmer 1.2s infinite linear; border-radius: 6px; }
+.skeleton--text { height: 14px; margin-bottom: 6px; }
+.skeleton--card { height: 80px; margin-bottom: 12px; }
