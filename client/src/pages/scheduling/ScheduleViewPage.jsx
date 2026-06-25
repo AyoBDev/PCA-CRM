@@ -4,6 +4,7 @@ import * as api from '../../api';
 import { CLIENT_COLORS } from '../../utils/ui';
 import { hhmm12 } from '../../utils/time';
 import { DAY_NAMES_FULL as DAY_NAMES } from '../../utils/constants';
+import { useToast } from '../../hooks/useToast';
 
 function computeShiftHours(startTime, endTime) {
     if (!startTime || !endTime) return 0;
@@ -60,6 +61,10 @@ export default function ScheduleViewPage() {
     const [responding, setResponding] = useState(false);
     const [responseNotes, setResponseNotes] = useState('');
     const [showResponseForm, setShowResponseForm] = useState(false);
+
+    const { showToast } = useToast();
+    const noteTrimmedLength = responseNotes.trim().length;
+    const noteValid = noteTrimmedLength >= 5;
 
     useEffect(() => {
         setLoading(true);
@@ -144,7 +149,7 @@ export default function ScheduleViewPage() {
             setShowResponseForm(false);
             setResponseNotes('');
         } catch (err) {
-            // silently fail — employee can retry
+            showToast(err.message || 'Failed to submit response', 'error');
         } finally {
             setResponding(false);
         }
@@ -346,23 +351,32 @@ export default function ScheduleViewPage() {
                                                 <p style={{ margin: '4px 0 0', fontSize: 13, color: '#374151' }}>{notification.message}</p>
                                             </div>
                                         )}
-                                        <p style={{ margin: '0 0 12px', fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>
+                                        <p style={{ margin: '0 0 8px', fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>
                                             Please confirm you've reviewed your schedule:
                                         </p>
+                                        <p style={{ margin: '0 0 8px', fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
+                                            Notes required for <strong>Reject</strong> or <strong>Request Changes</strong> (min 5 characters).
+                                        </p>
                                         <textarea
-                                            placeholder="Notes (optional)"
+                                            placeholder="Notes (required for Reject / Request Changes)"
                                             value={responseNotes}
                                             onChange={e => setResponseNotes(e.target.value)}
-                                            style={{ width: '100%', minHeight: 60, padding: 8, borderRadius: 6, border: '1px solid hsl(var(--border))', fontSize: 13, marginBottom: 12, resize: 'vertical' }}
+                                            style={{ width: '100%', minHeight: 60, padding: 8, borderRadius: 6, border: '1px solid hsl(var(--border))', fontSize: 13, marginBottom: 6, resize: 'vertical' }}
                                         />
+                                        {noteTrimmedLength > 0 && (
+                                            <div style={{ fontSize: 11, marginBottom: 12, color: noteValid ? '#166534' : 'hsl(var(--muted-foreground))' }}>
+                                                {noteValid ? '✓ Note ready' : `${noteTrimmedLength} / 5 minimum`}
+                                            </div>
+                                        )}
+                                        {noteTrimmedLength === 0 && <div style={{ marginBottom: 12 }} />}
                                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                             <button className="btn btn--primary btn--sm" disabled={responding} onClick={() => handleRespond('accepted')}>
                                                 Accept Schedule
                                             </button>
-                                            <button className="btn btn--outline btn--sm" disabled={responding} onClick={() => handleRespond('changes_requested')} style={{ borderColor: '#f59e0b', color: '#92400e' }}>
+                                            <button className="btn btn--outline btn--sm" disabled={responding || !noteValid} onClick={() => handleRespond('changes_requested')} style={{ borderColor: '#f59e0b', color: '#92400e' }}>
                                                 Request Changes
                                             </button>
-                                            <button className="btn btn--outline btn--sm" disabled={responding} onClick={() => handleRespond('rejected')} style={{ borderColor: '#ef4444', color: '#991b1b' }}>
+                                            <button className="btn btn--outline btn--sm" disabled={responding || !noteValid} onClick={() => handleRespond('rejected')} style={{ borderColor: '#ef4444', color: '#991b1b' }}>
                                                 Reject
                                             </button>
                                         </div>
