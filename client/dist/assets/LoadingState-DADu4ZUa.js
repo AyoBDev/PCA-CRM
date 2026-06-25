@@ -1,0 +1,1 @@
+import{j as e}from"./index-CN7Nfpke.js";function r({rows:s=4}){return e.jsx("div",{className:"loading-state",children:Array.from({length:s},(a,t)=>e.jsx("div",{className:"skeleton skeleton-row"},t))})}export{r as L};
