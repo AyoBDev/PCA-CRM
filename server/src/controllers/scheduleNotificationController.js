@@ -6,6 +6,9 @@ const {
     formatScheduleEmailHtml,
 } = require('../services/notificationService');
 
+const NOTE_REQUIRED_RESPONSES = ['rejected', 'changes_requested'];
+const MIN_NOTE_LENGTH = 5;
+
 async function sendSchedules(req, res) {
     const { weekStart, employeeIds, message } = req.body;
     if (!weekStart) return res.status(400).json({ error: 'weekStart required' });
@@ -165,6 +168,16 @@ async function respondToSchedule(req, res) {
     const { response, notes } = req.body;
     if (!response || !['accepted', 'rejected', 'changes_requested'].includes(response)) {
         return res.status(400).json({ error: 'response must be: accepted, rejected, or changes_requested' });
+    }
+
+    if (NOTE_REQUIRED_RESPONSES.includes(response)) {
+        const trimmed = (notes || '').trim();
+        if (trimmed.length < MIN_NOTE_LENGTH) {
+            const action = response === 'rejected' ? 'rejecting' : 'requesting changes to';
+            return res.status(400).json({
+                error: `A note of at least ${MIN_NOTE_LENGTH} characters is required when ${action} a schedule.`,
+            });
+        }
     }
 
     const notification = await prisma.scheduleNotification.findUnique({
