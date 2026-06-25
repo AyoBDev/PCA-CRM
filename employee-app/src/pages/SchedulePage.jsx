@@ -1,12 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
-
-function hhmm12(t) {
-  if (!t) return '';
-  const [h, m] = t.split(':').map(Number);
-  const hr = h % 12 || 12;
-  return `${hr}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
-}
+import ScheduleWeekHeader from '../components/common/ScheduleWeekHeader';
+import { hhmm12 } from '../utils/timeFormat';
 
 function getServiceClass(code) {
   if (!code) return '';
@@ -19,9 +15,9 @@ function getServiceClass(code) {
 }
 
 function getSunday(d) {
-  const date = new Date(d);
+  const date = new Date(d + 'T12:00:00');
   date.setDate(date.getDate() - date.getDay());
-  return date.toISOString().split('T')[0];
+  return date.toISOString().slice(0, 10);
 }
 
 function formatWeekLabel(sunday) {
@@ -37,10 +33,14 @@ function mapsUrl(address) {
 }
 
 export default function SchedulePage() {
-  const [sunday, setSunday] = useState(getSunday(new Date()));
+  const [params] = useSearchParams();
+  const initialDate = params.get('date');
+  const initialSunday = initialDate ? getSunday(initialDate) : getSunday(new Date().toISOString().slice(0, 10));
+  const [sunday, setSunday] = useState(initialSunday);
   const [shifts, setShifts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
+  const dayRefs = useRef({});
 
   const fetchShifts = useCallback(() => {
     setLoading(true);
@@ -51,12 +51,18 @@ export default function SchedulePage() {
 
   useEffect(() => { fetchShifts(); }, [fetchShifts]);
 
-  const prevWeek = () => { const d = new Date(sunday + 'T12:00:00'); d.setDate(d.getDate() - 7); setSunday(d.toISOString().split('T')[0]); };
-  const nextWeek = () => { const d = new Date(sunday + 'T12:00:00'); d.setDate(d.getDate() + 7); setSunday(d.toISOString().split('T')[0]); };
+  useEffect(() => {
+    if (loading || !initialDate) return;
+    const target = dayRefs.current[initialDate];
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [loading, initialDate]);
+
+  const prevWeek = () => { const d = new Date(sunday + 'T12:00:00'); d.setDate(d.getDate() - 7); setSunday(d.toISOString().slice(0, 10)); };
+  const nextWeek = () => { const d = new Date(sunday + 'T12:00:00'); d.setDate(d.getDate() + 7); setSunday(d.toISOString().slice(0, 10)); };
 
   const grouped = {};
   for (const s of shifts) {
-    const d = (s.shiftDate || '').split('T')[0];
+    const d = (s.shiftDate || '').slice(0, 10);
     if (!grouped[d]) grouped[d] = [];
     grouped[d].push(s);
   }
@@ -65,77 +71,50 @@ export default function SchedulePage() {
   return (
     <div>
       <div className="week-nav">
-        <button className="week-nav__arrow" onClick={prevWeek}>
+        <button className="week-nav__arrow" onClick={prevWeek} aria-label="Previous week">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
         </button>
         <span className="week-nav__label">{formatWeekLabel(sunday)}</span>
-        <button className="week-nav__arrow" onClick={nextWeek}>
+        <button className="week-nav__arrow" onClick={nextWeek} aria-label="Next week">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
         </button>
       </div>
 
       {loading ? (
-        <div className="page-loading">Loading...</div>
-      ) : sortedDays.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state__icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-          </div>
-          <p className="empty-state__text">No shifts this week</p>
-        </div>
+        <div className="skeleton skeleton--card" />
       ) : (
-        sortedDays.map(day => (
-          <div key={day}>
-            <h3 className="day-header">
-              {new Date(day + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {grouped[day].map(shift => (
-                <div
-                  key={shift.id}
-                  className={`shift-card shift-card--${getServiceClass(shift.serviceCode)}`}
-                  onClick={() => setExpanded(expanded === shift.id ? null : shift.id)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span className="shift-card__client">{shift.client?.clientName || shift.clientName}</span>
-                    <span className={`badge badge--${getServiceClass(shift.serviceCode)}`}>{shift.serviceCode}</span>
-                  </div>
-                  <p className="shift-card__time">{hhmm12(shift.startTime)} – {hhmm12(shift.endTime)}</p>
-                  {shift.client?.address && (
-                    <a href={mapsUrl(shift.client.address)} target="_blank" rel="noopener" className="shift-card__address" onClick={e => e.stopPropagation()}>
-                      {shift.client.address}
-                    </a>
-                  )}
-                  <div className={`shift-card__details ${expanded === shift.id ? 'shift-card__details--open' : ''}`}>
-                    {shift.client?.phone && (
-                      <p className="shift-card__detail-row">
-                        <span className="shift-card__detail-label">Phone:</span>
-                        <a href={`tel:${shift.client.phone}`}>{shift.client.phone}</a>
-                      </p>
-                    )}
-                    {shift.client?.gateCode && (
-                      <p className="shift-card__detail-row">
-                        <span className="shift-card__detail-label">Gate Code:</span>{shift.client.gateCode}
-                      </p>
-                    )}
-                    {shift.notes && (
-                      <p className="shift-card__detail-row">
-                        <span className="shift-card__detail-label">Notes:</span>{shift.notes}
-                      </p>
-                    )}
-                    {shift.client?.address && (
-                      <a href={mapsUrl(shift.client.address)} target="_blank" rel="noopener" className="btn btn--primary btn--sm" style={{ marginTop: 8, textDecoration: 'none' }} onClick={e => e.stopPropagation()}>
-                        Navigate
-                      </a>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))
+        <ScheduleWeekHeader shifts={shifts} />
       )}
+
+      {!loading && sortedDays.map(day => (
+        <div key={day} ref={el => { dayRefs.current[day] = el; }}>
+          <h3 className="day-header">
+            {new Date(day + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {grouped[day].map(shift => (
+              <div key={shift.id} className={`shift-card shift-card--${getServiceClass(shift.serviceCode)}`} onClick={() => setExpanded(expanded === shift.id ? null : shift.id)} style={{ cursor: 'pointer' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="shift-card__client">{shift.client?.clientName || shift.clientName}</span>
+                  <span className={`badge badge--${getServiceClass(shift.serviceCode)}`}>{shift.serviceCode}</span>
+                </div>
+                <p className="shift-card__time">{hhmm12(shift.startTime)} – {hhmm12(shift.endTime)}</p>
+                {shift.client?.address && (
+                  <a href={mapsUrl(shift.client.address)} target="_blank" rel="noopener" className="shift-card__address" onClick={e => e.stopPropagation()}>{shift.client.address}</a>
+                )}
+                <div className={`shift-card__details ${expanded === shift.id ? 'shift-card__details--open' : ''}`}>
+                  {shift.client?.phone && <p className="shift-card__detail-row"><span className="shift-card__detail-label">Phone:</span><a href={`tel:${shift.client.phone}`}>{shift.client.phone}</a></p>}
+                  {shift.client?.gateCode && <p className="shift-card__detail-row"><span className="shift-card__detail-label">Gate Code:</span>{shift.client.gateCode}</p>}
+                  {shift.notes && <p className="shift-card__detail-row"><span className="shift-card__detail-label">Notes:</span>{shift.notes}</p>}
+                  {shift.client?.address && (
+                    <a href={mapsUrl(shift.client.address)} target="_blank" rel="noopener" className="btn btn--primary btn--sm" style={{ marginTop: 8, textDecoration: 'none' }} onClick={e => e.stopPropagation()}>Navigate</a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
