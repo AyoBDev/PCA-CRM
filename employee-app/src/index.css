@@ -1148,3 +1148,8 @@ body {
 .skeleton { background: linear-gradient(90deg, hsl(var(--border) / 0.4) 0px, hsl(var(--border) / 0.7) 40px, hsl(var(--border) / 0.4) 80px); background-size: 200px 100%; animation: skeleton-shimmer 1.2s infinite linear; border-radius: 6px; }
 .skeleton--text { height: 14px; margin-bottom: 6px; }
 .skeleton--card { height: 80px; margin-bottom: 12px; }
+
+/* Messages page polish */
+.chat-sender-label { font-size: 11px; font-weight: 700; color: hsl(var(--muted-foreground)); margin: 8px 0 2px; }
+.chat-unread-divider { text-align: center; font-size: 11px; font-weight: 700; color: hsl(var(--destructive)); margin: 12px 0; }
+.chat-date-separator { text-align: center; font-size: 11px; color: hsl(var(--muted-foreground)); margin: 12px 0; }
