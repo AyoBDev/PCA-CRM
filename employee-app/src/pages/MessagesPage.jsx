@@ -13,7 +13,6 @@ export default function MessagesPage() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
-  const bottomRef = useRef(null);
   const messagesRef = useRef(null);
   const [unreadIndex, setUnreadIndex] = useState(-1);
 

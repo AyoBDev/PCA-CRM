@@ -26,13 +26,13 @@ describe('getActivity (widened)', () => {
       { id: 5, content: 'Hello', createdAt: new Date('2026-06-21'), senderRole: 'admin' },
     ]);
     prisma.auditLog.findMany.mockResolvedValue([
-      { id: 9, action: 'CREATE', entityType: 'CertificationUpload', entityName: 'CPR.pdf', createdAt: new Date('2026-06-20'), metadata: { employeeId: 7 } },
+      { id: 9, action: 'CREATE', entityType: 'CertificationUpload', entityName: 'CPR.pdf', createdAt: new Date('2026-06-20'), metadata: JSON.stringify({ employeeId: 7 }) },
     ]);
     prisma.employeeTask.findMany.mockResolvedValue([
       { id: 12, title: 'Sign handbook', createdAt: new Date('2026-06-19') },
     ]);
     prisma.timeOffRequest.findMany.mockResolvedValue([
-      { id: 22, startDate: '2026-07-04', endDate: '2026-07-06', status: 'approved', decidedAt: new Date('2026-06-22') },
+      { id: 22, dateFrom: '2026-07-04', dateTo: '2026-07-06', status: 'approved', reviewedAt: new Date('2026-06-22') },
     ]);
 
     const { req, res } = mockReqRes();
@@ -62,5 +62,22 @@ describe('getActivity (widened)', () => {
     const { req, res } = mockReqRes({ id: 42 });
     await getActivity(req, res);
     expect(prisma.shift.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ employeeId: 42 }) }));
+  });
+
+  test('includes audit logs with no employeeId in metadata', async () => {
+    prisma.shift.findMany.mockResolvedValue([]);
+    prisma.message.findMany.mockResolvedValue([]);
+    prisma.auditLog.findMany.mockResolvedValue([
+      { id: 10, action: 'CREATE', entityType: 'CertificationUpload', entityName: 'BG.pdf', createdAt: new Date('2026-06-20'), metadata: '{}' },
+    ]);
+    prisma.employeeTask.findMany.mockResolvedValue([]);
+    prisma.timeOffRequest.findMany.mockResolvedValue([]);
+
+    const { req, res } = mockReqRes();
+    await getActivity(req, res);
+
+    const out = res.json.mock.calls[0][0];
+    expect(out).toHaveLength(1);
+    expect(out[0].type).toBe('cert-uploaded');
   });
 });

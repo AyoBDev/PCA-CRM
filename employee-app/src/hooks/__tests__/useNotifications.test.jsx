@@ -131,4 +131,18 @@ describe('useNotifications', () => {
     await act(async () => { await captured.refresh(); });
     expect(api.getCertifications).toHaveBeenCalledTimes(2);
   });
+
+  it("does not count 'Other' as action-needed when stacked", async () => {
+    api.getCertifications.mockResolvedValue({ certifications: [
+      { id: 1, certType: 'Some Custom Cert', expirationDate: null, status: 'active' },
+    ]});
+    api.getTasks.mockResolvedValue([]);
+    api.getMessageUnreadCount.mockResolvedValue({ count: 0 });
+
+    render(<NotificationsProvider><Probe /></NotificationsProvider>);
+
+    await waitFor(() => expect(screen.getByTestId('total').textContent).toBe('8'));
+    // The unknown cert lands in 'Other'. Action needed should only be the 7 missing canonical slots, not 8.
+    expect(screen.getByTestId('actionNeeded').textContent).toBe('7');
+  });
 });

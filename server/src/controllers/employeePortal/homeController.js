@@ -62,7 +62,7 @@ async function getActivity(req, res) {
       take: 20,
     }),
     prisma.message.findMany({
-      where: { recipientEmployeeId: employeeId, senderRole: 'admin', createdAt: { gte: since } },
+      where: { senderRole: 'admin', createdAt: { gte: since }, conversation: { employeeId } },
       orderBy: { createdAt: 'desc' },
       take: 20,
     }).catch(() => []),
@@ -80,8 +80,8 @@ async function getActivity(req, res) {
       take: 20,
     }),
     prisma.timeOffRequest.findMany({
-      where: { employeeId, decidedAt: { gte: since, not: null } },
-      orderBy: { decidedAt: 'desc' },
+      where: { employeeId, reviewedAt: { gte: since, not: null } },
+      orderBy: { reviewedAt: 'desc' },
       take: 20,
     }).catch(() => []),
   ]);
@@ -113,12 +113,14 @@ async function getActivity(req, res) {
   }
 
   for (const a of auditLogs) {
-    if (a.metadata && a.metadata.employeeId !== employeeId) continue;
+    let meta = {};
+    try { meta = typeof a.metadata === 'string' ? JSON.parse(a.metadata || '{}') : (a.metadata || {}); } catch (_) { meta = {}; }
+    if (meta.employeeId && meta.employeeId !== employeeId) continue;
     let type = 'cert-uploaded';
     let title = 'Certification uploaded';
     if (a.action === 'UPDATE') {
-      if (a.metadata && a.metadata.newStatus === 'approved') { type = 'cert-approved'; title = 'Certification approved'; }
-      else if (a.metadata && a.metadata.newStatus === 'rejected') { type = 'cert-rejected'; title = 'Certification needs attention'; }
+      if (meta.newStatus === 'approved') { type = 'cert-approved'; title = 'Certification approved'; }
+      else if (meta.newStatus === 'rejected') { type = 'cert-rejected'; title = 'Certification needs attention'; }
     }
     items.push({
       id: `audit-${a.id}`,
@@ -146,8 +148,8 @@ async function getActivity(req, res) {
       id: `timeoff-${r.id}`,
       type: 'time-off-decided',
       title: `Time off ${r.status}`,
-      subtitle: `${new Date(r.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(r.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
-      timestamp: new Date(r.decidedAt).toISOString(),
+      subtitle: `${new Date(r.dateFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(r.dateTo).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+      timestamp: new Date(r.reviewedAt).toISOString(),
       href: '/account/availability',
     });
   }

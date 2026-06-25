@@ -39,7 +39,12 @@ function derive(certsArray, tasksArray, unread) {
   let approved = 0, pending = 0, actionNeeded = 0, expiringSoon = 0, overdue = 0;
   for (const t of CERT_TYPES) {
     const cert = certsByType.get(t);
-    const s = statusOfCert(cert && cert.others ? null : cert);
+    let s;
+    if (cert && Array.isArray(cert.others) && cert.others.length > 0) {
+      s = 'approved';
+    } else {
+      s = statusOfCert(cert);
+    }
     if (s === 'approved') approved++;
     else if (s === 'pending') pending++;
     else { actionNeeded++; if (s === 'expiring') expiringSoon++; if (s === 'missing' || s === 'expired') overdue++; }
