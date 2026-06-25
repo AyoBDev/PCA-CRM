@@ -55,6 +55,7 @@ export const api = {
   submitTimeOff: (data) => request('/time-off', { method: 'POST', body: JSON.stringify(data) }),
   getCertifications: () => request('/certifications'),
   uploadCertification: (certId, formData) => request(`/certifications/${certId}/upload`, { method: 'POST', body: formData }),
+  createCertification: (formData) => request('/certifications', { method: 'POST', body: formData }),
   getPayrollSummary: () => request('/payroll/summary'),
   getPaystubs: () => request('/payroll/stubs'),
   getPaystubDownload: (id) => request(`/payroll/stubs/${id}/download`),
