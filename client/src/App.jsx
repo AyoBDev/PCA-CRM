@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import Layout from './components/layout/Layout';
+import AttentionToastWatcher from './components/AttentionToastWatcher';
 
 // Lazy-loaded pages
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -93,5 +94,10 @@ function AppRoutes() {
 }
 
 export default function App() {
-    return <AppRoutes />;
+    return (
+        <>
+            <AppRoutes />
+            <AttentionToastWatcher />
+        </>
+    );
 }
