@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Icons from '../components/common/Icons';
 import * as api from '../api';
 import { useAuth } from '../hooks/useAuth';
+import { useEmployeeAttention } from '../hooks/useEmployeeAttention';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 
 export default function DashboardPage() {
@@ -14,6 +15,7 @@ export default function DashboardPage() {
     const [error, setError] = useState(null);
     const [backingUp, setBackingUp] = useState(false);
     const [drawerOpen, setDrawerOpen] = useState(false);
+    const { counts: employeeAttentionCounts, recentEvents: employeeAttentionEvents } = useEmployeeAttention();
 
     useEffect(() => {
         api.getDashboardStats()
@@ -55,6 +57,45 @@ export default function DashboardPage() {
     if (taskSummary?.overdue > 0) attentionItems.push({ icon: Icons.alertCircle, label: `${taskSummary.overdue} overdue task${taskSummary.overdue > 1 ? 's' : ''}`, severity: 'destructive', action: () => navigate('/tasks') });
     if (taskSummary?.dueToday > 0) attentionItems.push({ icon: Icons.checkSquare, label: `${taskSummary.dueToday} task${taskSummary.dueToday > 1 ? 's' : ''} due today`, severity: 'warning', action: () => navigate('/tasks') });
     if (stats.pendingOnboarding > 0) attentionItems.push({ icon: Icons.user, label: `${stats.pendingOnboarding} employee${stats.pendingOnboarding > 1 ? 's' : ''} completed onboarding — review and approve`, severity: 'warning', action: () => navigate('/employees?onboarding=submitted') });
+
+    const firstOfType = (type) => employeeAttentionEvents.find(e => e.type === type);
+
+    if (employeeAttentionCounts.certsPendingReview > 0) {
+        const e = firstOfType('cert-pending');
+        attentionItems.push({
+            icon: Icons.alertCircle,
+            label: `${employeeAttentionCounts.certsPendingReview} certification${employeeAttentionCounts.certsPendingReview > 1 ? 's' : ''} awaiting review`,
+            severity: 'warning',
+            action: () => navigate(e ? `/employees/${e.employeeId}#certs` : '/employees'),
+        });
+    }
+    if (employeeAttentionCounts.timeOffPending > 0) {
+        const e = firstOfType('time-off-pending');
+        attentionItems.push({
+            icon: Icons.alertCircle,
+            label: `${employeeAttentionCounts.timeOffPending} time-off request${employeeAttentionCounts.timeOffPending > 1 ? 's' : ''} pending`,
+            severity: 'warning',
+            action: () => navigate(e ? `/employees/${e.employeeId}#availability` : '/employees'),
+        });
+    }
+    if (employeeAttentionCounts.availabilityPending > 0) {
+        const e = firstOfType('availability-pending');
+        attentionItems.push({
+            icon: Icons.alertCircle,
+            label: `${employeeAttentionCounts.availabilityPending} availability change${employeeAttentionCounts.availabilityPending > 1 ? 's' : ''} pending`,
+            severity: 'warning',
+            action: () => navigate(e ? `/employees/${e.employeeId}#availability` : '/employees'),
+        });
+    }
+    if (employeeAttentionCounts.profileChangesUnseen > 0) {
+        const e = firstOfType('profile-change');
+        attentionItems.push({
+            icon: Icons.alertCircle,
+            label: `${employeeAttentionCounts.profileChangesUnseen} profile change${employeeAttentionCounts.profileChangesUnseen > 1 ? 's' : ''} to review`,
+            severity: 'warning',
+            action: () => navigate(e ? `/employees/${e.employeeId}#profile` : '/employees'),
+        });
+    }
 
     return (
         <>

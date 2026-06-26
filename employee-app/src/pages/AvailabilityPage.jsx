@@ -46,7 +46,7 @@ export default function AvailabilityPage() {
     setSubmitting(true);
     setError('');
     try {
-      await api.submitAvailabilityRequest({ schedule: form });
+      await api.submitAvailabilityRequest({ requestedChanges: form });
       setServer(form);
     } catch (e) {
       setError(e.message || 'Save failed');

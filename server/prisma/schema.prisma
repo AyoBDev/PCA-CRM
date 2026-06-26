@@ -31,9 +31,22 @@ model User {
   adminFiles              AdminFile[]
   messages                  Message[]
   pushSubscriptions         PushSubscription[]
+  seenAttentionEvents       AdminEventSeen[]
   permissionGroup         PermissionGroup?  @relation(fields: [permissionGroupId], references: [id], onDelete: SetNull)
 
   @@map("users")
+}
+
+model AdminEventSeen {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  eventKey  String   @map("event_key")
+  seenAt    DateTime @default(now()) @map("seen_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventKey])
+  @@index([userId])
+  @@map("admin_event_seen")
 }
 
 model PasswordResetToken {
