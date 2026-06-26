@@ -14104,81 +14104,6 @@ tr:hover .auth-note-icon--empty {
 }
 
 /* === SAVE AS MODAL (PDF editor) === */
-.save-as__search {
-    width: 100%;
-    margin-bottom: 8px;
-}
-
-.save-as__folder-list {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    max-height: 260px;
-    overflow-y: auto;
-    border: 1px solid hsl(var(--border));
-    border-radius: var(--radius);
-    background: hsl(var(--card));
-    padding: 6px;
-}
-
-.save-as__folder-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    padding: 8px 12px;
-    border-radius: 6px;
-    border: none;
-    background: transparent;
-    color: hsl(var(--foreground));
-    font-size: 13px;
-    text-align: left;
-    cursor: pointer;
-    transition: background 0.15s ease;
-}
-
-.save-as__folder-item:hover {
-    background: hsl(var(--accent));
-}
-
-.save-as__folder-item--active {
-    background: hsl(var(--accent));
-    color: hsl(var(--accent-foreground));
-    font-weight: 600;
-    box-shadow: inset 2px 0 0 hsl(var(--primary));
-}
-
-.save-as__folder-icon {
-    display: inline-flex;
-    align-items: center;
-    color: hsl(var(--muted-foreground));
-    flex-shrink: 0;
-}
-
-.save-as__folder-item--active .save-as__folder-icon {
-    color: hsl(var(--primary));
-}
-
-.save-as__folder-path {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.save-as__folder-check {
-    color: hsl(var(--primary));
-    display: inline-flex;
-    align-items: center;
-}
-
-.save-as__folder-empty {
-    padding: 24px 8px;
-    text-align: center;
-    color: hsl(var(--muted-foreground));
-    font-size: 12px;
-}
-
 .save-as__error {
     margin-top: 12px;
     padding: 8px 12px;
@@ -14186,4 +14111,165 @@ tr:hover .auth-note-icon--empty {
     background: hsl(var(--danger-bg));
     color: hsl(var(--danger));
     font-size: 13px;
+}
+
+/* === FOLDER TREE PICKER (modal folder selection — Finder-style) === */
+.tree-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.tree-picker__breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 10px;
+    background: hsl(var(--accent));
+    border-radius: var(--radius);
+    font-size: 12px;
+    color: hsl(var(--accent-foreground));
+    min-height: 30px;
+}
+
+.tree-picker__breadcrumb-label {
+    color: hsl(var(--muted-foreground));
+    font-weight: 500;
+    margin-right: 4px;
+}
+
+.tree-picker__breadcrumb-segment {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.tree-picker__breadcrumb-sep {
+    color: hsl(var(--muted-foreground));
+    margin: 0 2px;
+}
+
+.tree-picker__breadcrumb-name {
+    font-weight: 600;
+    color: hsl(var(--foreground));
+}
+
+.tree-picker__body {
+    max-height: 320px;
+    min-height: 200px;
+    overflow-y: auto;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    background: hsl(var(--card));
+    padding: 4px;
+}
+
+.tree-picker__row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s ease;
+    font-size: 13px;
+    color: hsl(var(--foreground));
+}
+
+.tree-picker__row:hover {
+    background: hsl(var(--muted));
+}
+
+.tree-picker__row:focus {
+    outline: none;
+    background: hsl(var(--muted));
+    box-shadow: inset 0 0 0 2px hsl(var(--ring) / 0.25);
+}
+
+.tree-picker__row--selected,
+.tree-picker__row--selected:hover {
+    background: hsl(var(--primary) / 0.12);
+    color: hsl(var(--foreground));
+    font-weight: 600;
+}
+
+.tree-picker__row--selected:focus {
+    background: hsl(var(--primary) / 0.18);
+}
+
+.tree-picker__chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.tree-picker__chevron:hover {
+    background: hsl(var(--accent));
+    color: hsl(var(--accent-foreground));
+}
+
+.tree-picker__chevron-icon {
+    display: inline-block;
+    font-size: 11px;
+    line-height: 1;
+    transition: transform 0.12s ease;
+}
+
+.tree-picker__chevron-icon--open {
+    transform: rotate(90deg);
+}
+
+.tree-picker__chevron-spacer {
+    display: inline-block;
+    width: 11px;
+}
+
+.tree-picker__spinner {
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+}
+
+.tree-picker__icon {
+    display: inline-flex;
+    align-items: center;
+    color: hsl(217 91% 60%);
+    flex-shrink: 0;
+}
+
+.tree-picker__icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.tree-picker__row--selected .tree-picker__icon {
+    color: hsl(var(--primary));
+}
+
+.tree-picker__name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tree-picker__empty {
+    padding: 24px 8px;
+    text-align: center;
+    color: hsl(var(--muted-foreground));
+    font-size: 13px;
+}
+
+.tree-picker__empty--error {
+    color: hsl(var(--danger));
 }
