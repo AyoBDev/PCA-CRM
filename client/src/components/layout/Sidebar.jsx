@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import Icons from '../common/Icons';
 import { useAuth } from '../../hooks/useAuth';
 import { useMessaging } from '../../contexts/MessagingContext';
+import { useEmployeeAttention } from '../../hooks/useEmployeeAttention';
 
 // Map route paths to page keys for active state
 const PATH_TO_PAGE = {
@@ -28,6 +29,7 @@ const PATH_TO_PAGE = {
 export default function Sidebar({ onMobileClose }) {
     const { user, isAdmin, isOffice, isStaff, hasPermission, logout } = useAuth();
     const { unreadConversations } = useMessaging();
+    const { totalCount: employeeAttentionTotal } = useEmployeeAttention();
     const navigate = useNavigate();
     const location = useLocation();
     const [collapsed, setCollapsed] = useState(
@@ -126,6 +128,11 @@ export default function Sidebar({ onMobileClose }) {
                 {hasPermission('employees') && (
                     <button className={`sidebar__nav-item ${activePage === 'employees' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/employees')} title="Employees">
                         {Icons.user} Employees
+                        {employeeAttentionTotal > 0 && (
+                            <span className="sidebar__nav-pill">
+                                {employeeAttentionTotal > 99 ? '99+' : employeeAttentionTotal}
+                            </span>
+                        )}
                     </button>
                 )}
                 {hasPermission('payroll') && (
