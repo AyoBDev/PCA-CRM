@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
@@ -323,7 +323,20 @@ export default function EmployeeDetailPage() {
     const [employee, setEmployee] = useState(null);
     const [loading, setLoading] = useState(true);
     const [users, setUsers] = useState([]);
-    const [activeTab, setActiveTab] = useState('profile');
+    const location = useLocation();
+    const initialTab = useMemo(() => {
+        const map = {
+            '#certs': 'certifications',
+            '#certifications': 'certifications',
+            '#availability': 'availability',
+            '#profile': 'profile',
+            '#timesheets': 'timesheets',
+            '#schedule': 'schedule',
+        };
+        return map[location.hash] || 'profile';
+    }, [location.hash]);
+    const [activeTab, setActiveTab] = useState(initialTab);
+    useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showCertModal, setShowCertModal] = useState(false);
     const [shifts, setShifts] = useState([]);
