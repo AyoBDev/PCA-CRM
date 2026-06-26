@@ -819,3 +819,10 @@ export const sendConversationMessage = (id, content) =>
 export const markConversationRead = (id) =>
     request(`/conversations/${id}/read`, { method: 'POST' });
 export const getUnreadSummary = () => request('/conversations/unread-summary');
+
+// ── Employee Attention ──
+export const getEmployeeAttention = () => request('/admin/employee-attention');
+export const markAttentionSeen = (keys) => {
+    const body = Array.isArray(keys) ? { eventKeys: keys } : { eventKey: keys };
+    return request('/admin/employee-attention/mark-seen', { method: 'POST', body: JSON.stringify(body) });
+};
