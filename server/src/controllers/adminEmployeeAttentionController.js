@@ -123,4 +123,21 @@ async function getEmployeeAttention(req, res) {
   });
 }
 
-module.exports = { getEmployeeAttention };
+async function markAttentionSeen(req, res) {
+  const userId = req.user.id;
+  const keys = Array.isArray(req.body?.eventKeys)
+    ? req.body.eventKeys
+    : (req.body?.eventKey ? [req.body.eventKey] : []);
+  if (keys.length === 0) return res.status(400).json({ error: 'eventKey or eventKeys required' });
+
+  for (const eventKey of keys) {
+    await prisma.adminEventSeen.upsert({
+      where: { userId_eventKey: { userId, eventKey } },
+      create: { userId, eventKey },
+      update: {},
+    });
+  }
+  res.json({ success: true, count: keys.length });
+}
+
+module.exports = { getEmployeeAttention, markAttentionSeen };

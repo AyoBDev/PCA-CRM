@@ -7,7 +7,7 @@ jest.mock('../../lib/prisma', () => ({
   employee: { findMany: jest.fn() },
 }));
 const prisma = require('../../lib/prisma');
-const { getEmployeeAttention } = require('../adminEmployeeAttentionController');
+const { getEmployeeAttention, markAttentionSeen } = require('../adminEmployeeAttentionController');
 
 function mockReqRes(user = { id: 11, name: 'Admin', role: 'admin' }) {
   const req = { user };
@@ -176,5 +176,40 @@ describe('getEmployeeAttention', () => {
 
     const out = res.json.mock.calls[0][0];
     expect(out.recentEvents).toHaveLength(10);
+  });
+});
+
+describe('markAttentionSeen', () => {
+  test('returns 400 when no keys provided', async () => {
+    const req = { user: { id: 11 }, body: {} };
+    const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
+    await markAttentionSeen(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  test('upserts a single eventKey', async () => {
+    prisma.adminEventSeen.upsert.mockResolvedValue({ id: 1 });
+    const req = { user: { id: 11 }, body: { eventKey: 'cert-pending:42' } };
+    const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
+
+    await markAttentionSeen(req, res);
+
+    expect(prisma.adminEventSeen.upsert).toHaveBeenCalledWith({
+      where: { userId_eventKey: { userId: 11, eventKey: 'cert-pending:42' } },
+      create: { userId: 11, eventKey: 'cert-pending:42' },
+      update: {},
+    });
+    expect(res.json).toHaveBeenCalledWith({ success: true, count: 1 });
+  });
+
+  test('upserts multiple eventKeys from an array', async () => {
+    prisma.adminEventSeen.upsert.mockResolvedValue({ id: 1 });
+    const req = { user: { id: 11 }, body: { eventKeys: ['cert-pending:42', 'profile-change:100'] } };
+    const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
+
+    await markAttentionSeen(req, res);
+
+    expect(prisma.adminEventSeen.upsert).toHaveBeenCalledTimes(2);
+    expect(res.json).toHaveBeenCalledWith({ success: true, count: 2 });
   });
 });
