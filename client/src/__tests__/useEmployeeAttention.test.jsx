@@ -8,6 +8,11 @@ vi.mock('../api', () => ({
 }));
 import * as api from '../api';
 
+vi.mock('../hooks/useAuth', () => ({
+  useAuth: vi.fn(() => ({ user: { id: 1, role: 'admin' } })),
+}));
+import * as useAuthModule from '../hooks/useAuth';
+
 function Probe() {
   const n = useEmployeeAttention();
   if (n.loading) return <div>loading</div>;
@@ -22,6 +27,7 @@ function Probe() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useAuthModule.useAuth.mockReturnValue({ user: { id: 1, role: 'admin' } });
 });
 
 describe('useEmployeeAttention', () => {
@@ -62,6 +68,19 @@ describe('useEmployeeAttention', () => {
 
     expect(api.markAttentionSeen).toHaveBeenCalledWith('cert-pending:42');
     expect(api.getEmployeeAttention).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not call the API when user is null', async () => {
+    useAuthModule.useAuth.mockReturnValue({ user: null });
+    api.getEmployeeAttention.mockResolvedValue({
+      counts: { certsPendingReview: 0, timeOffPending: 0, availabilityPending: 0, profileChangesUnseen: 0 },
+      recentEvents: [],
+    });
+    render(<EmployeeAttentionProvider><Probe /></EmployeeAttentionProvider>);
+
+    // Give it time to attempt any async calls
+    await new Promise(r => setTimeout(r, 100));
+    expect(api.getEmployeeAttention).not.toHaveBeenCalled();
   });
 
   it('throws when used outside the provider', () => {

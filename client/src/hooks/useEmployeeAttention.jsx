@@ -1,11 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import * as api from '../api';
+import { useAuth } from './useAuth';
 
 const Ctx = createContext(null);
 
 const ZERO_COUNTS = { certsPendingReview: 0, timeOffPending: 0, availabilityPending: 0, profileChangesUnseen: 0 };
 
 export function EmployeeAttentionProvider({ children }) {
+  const { user } = useAuth();
   const [counts, setCounts] = useState(ZERO_COUNTS);
   const [recentEvents, setRecentEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,14 +34,20 @@ export function EmployeeAttentionProvider({ children }) {
     await refresh();
   }, [refresh]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    const isStaffUser = user && (user.role === 'admin' || user.role === 'user');
+    if (isStaffUser) refresh();
+  }, [refresh, user]);
 
   useEffect(() => {
+    const isStaffUser = user && (user.role === 'admin' || user.role === 'user');
+    if (!isStaffUser) return;
+
     function tick() { if (document.visibilityState === 'visible') refresh(); }
     const id = setInterval(tick, 60000);
     document.addEventListener('visibilitychange', tick);
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', tick); };
-  }, [refresh]);
+  }, [refresh, user]);
 
   const totalCount =
     (counts.certsPendingReview || 0) +
