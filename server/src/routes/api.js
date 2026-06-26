@@ -133,6 +133,7 @@ const {
     getEmployeeAvailability,
 } = require('../controllers/employeeController');
 const { listCertifications, createCertification, updateCertification, deleteCertification, downloadCertification } = require('../controllers/employeeCertController');
+const { getEmployeeAttention, markAttentionSeen } = require('../controllers/adminEmployeeAttentionController');
 const { getDashboardStats } = require('../controllers/dashboardController');
 const { sendSchedules, getNotificationStatus, getScheduleConfirm, confirmSchedule, respondToSchedule, getScheduleResponses, recordOpen, getNotificationForView, getEmployeeNotificationHistory } = require('../controllers/scheduleNotificationController');
 const { createLink, listLinks, deleteLink, getScheduleView } = require('../controllers/employeeScheduleLinkController');
@@ -393,6 +394,10 @@ router.post('/employees/:employeeId/certifications', requireRole('admin', 'user'
 router.put('/certifications/:id', requireRole('admin', 'user', 'pca'), requirePermission('employees'), upload.single('file'), updateCertification);
 router.delete('/certifications/:id', requireRole('admin', 'user', 'pca'), requirePermission('employees'), deleteCertification);
 router.get('/certifications/:id/download', requireRole('admin', 'user', 'pca'), requirePermission('employees'), downloadCertification);
+
+// Employee Attention
+router.get('/admin/employee-attention', requireRole('admin', 'user'), requirePermission('employees'), getEmployeeAttention);
+router.post('/admin/employee-attention/mark-seen', requireRole('admin', 'user'), requirePermission('employees'), markAttentionSeen);
 
 // Scheduling
 router.get('/shifts',                       requireRole('admin', 'user', 'pca'), requirePermission('scheduling'), listShifts);
