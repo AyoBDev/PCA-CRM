@@ -2665,6 +2665,56 @@ export default function SchedulingPage() {
                                         </tbody>
                                     </table>
                                 )}
+                                {clientShifts.length > 0 && (() => {
+                                    const activeShifts = clientShifts.filter(s => s.status !== 'cancelled');
+                                    const weeklyHrs = Math.round(activeShifts.reduce((sum, s) => sum + (s.hours || 0), 0) * 100) / 100;
+
+                                    const ws = new Date(clientWeekStart + 'T00:00:00');
+                                    const dayAbbr = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                                    const dailyTotals = [];
+                                    for (let i = 0; i < 7; i++) {
+                                        const d = new Date(ws);
+                                        d.setDate(ws.getDate() + i);
+                                        const dateStr = toLocalDateStr(d);
+                                        const dayHrs = activeShifts.filter(s => toLocalDateStr(s.shiftDate) === dateStr).reduce((sum, s) => sum + (s.hours || 0), 0);
+                                        dailyTotals.push({ abbr: dayAbbr[i], hrs: Math.round(dayHrs * 100) / 100 });
+                                    }
+
+                                    const employeeMap = new Map();
+                                    for (const s of activeShifts) {
+                                        const name = s.employee?.name || s.displayEmployeeName || s.employeeName || 'Unassigned';
+                                        employeeMap.set(name, (employeeMap.get(name) || 0) + (s.hours || 0));
+                                    }
+                                    const employeeBreakdown = [...employeeMap.entries()].sort((a, b) => b[1] - a[1]).map(([name, hrs]) => ({ name, hrs: Math.round(hrs * 100) / 100 }));
+
+                                    return (
+                                        <div className="sched-emp-totals">
+                                            <div className="sched-emp-totals__weekly">
+                                                <span className="sched-emp-totals__weekly-label">Weekly Total</span>
+                                                <span className="sched-emp-totals__weekly-value">{weeklyHrs} hrs</span>
+                                            </div>
+                                            <div className="sched-emp-totals__daily">
+                                                {dailyTotals.map(d => (
+                                                    <div key={d.abbr} className={`sched-emp-totals__day ${d.hrs > 0 ? 'sched-emp-totals__day--active' : ''}`}>
+                                                        <span className="sched-emp-totals__day-name">{d.abbr}</span>
+                                                        <span className="sched-emp-totals__day-hrs">{d.hrs > 0 ? `${d.hrs}h` : '—'}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            {employeeBreakdown.length > 0 && (
+                                                <div className="sched-emp-totals__clients">
+                                                    <span className="sched-emp-totals__clients-label">Per Employee</span>
+                                                    {employeeBreakdown.map(e => (
+                                                        <div key={e.name} className="sched-emp-totals__client-row">
+                                                            <span>{e.name}</span>
+                                                            <span className="sched-emp-totals__client-hrs">{e.hrs} hrs</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                                 <div className="sched-card__view-tabs">
                                     <button className={`sched-card__view-tab ${clientScheduleView === 'matrix' ? 'sched-card__view-tab--active' : ''}`} onClick={() => setClientScheduleView('matrix')}>List</button>
                                     <button className={`sched-card__view-tab ${clientScheduleView === 'calendar' ? 'sched-card__view-tab--active' : ''}`} onClick={() => setClientScheduleView('calendar')}>Calendar</button>
@@ -2710,7 +2760,7 @@ export default function SchedulingPage() {
                                         <strong>{employeeInfo.name}</strong>
                                         {employeeInfo.phone && <span>{employeeInfo.phone}</span>}
                                         {employeeInfo.email && <span>{employeeInfo.email}</span>}
-                                        {employeeInfo.address && <span>{employeeInfo.address}</span>}
+                                        {employeeInfo.address && <span><a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(employeeInfo.address)}`} target="_blank" rel="noopener noreferrer">{employeeInfo.address}</a></span>}
                                     </div>
                                 )}
                                 {employeeShifts.length > 0 && (() => {
