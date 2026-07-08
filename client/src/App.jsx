@@ -33,6 +33,7 @@ const SandataImportPage = lazy(() => import('./pages/SandataImportPage'));
 const FilesPage = lazy(() => import('./pages/FilesPage'));
 const PdfEditorPage = lazy(() => import('./pages/PdfEditorPage'));
 const MessagesPage = lazy(() => import('./pages/MessagesPage'));
+const LeadsPage = lazy(() => import('./pages/LeadsPage'));
 
 function ProtectedRoute({ children, adminOnly = false, staffOnly = false, officeOnly = false, permission = null }) {
     const { user, isAdmin, isOffice, isStaff, hasPermission, loading } = useAuth();
@@ -64,6 +65,7 @@ function AppRoutes() {
 
                 {/* Protected routes with layout */}
                 <Route path="/dashboard" element={<ProtectedRoute staffOnly><Layout><DashboardPage /></Layout></ProtectedRoute>} />
+                <Route path="/leads" element={<ProtectedRoute staffOnly permission="leads"><Layout><LeadsPage /></Layout></ProtectedRoute>} />
                 <Route path="/clients" element={<ProtectedRoute staffOnly permission="clients"><Layout><ClientsListPage /></Layout></ProtectedRoute>} />
                 <Route path="/clients/:clientId" element={<ProtectedRoute staffOnly permission="clients"><Layout><ClientDetailPage /></Layout></ProtectedRoute>} />
                 <Route path="/clients/:clientId/service/:serviceCode" element={<ProtectedRoute staffOnly permission="clients"><Layout><ClientServicePage /></Layout></ProtectedRoute>} />

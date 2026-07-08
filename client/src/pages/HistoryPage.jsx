@@ -10,7 +10,7 @@ const ALL_ACTIONS = Object.keys(ACTION_COLORS);
 
 const ENTITY_TYPES = [
     'Client', 'Employee', 'User', 'Shift', 'Timesheet',
-    'Authorization', 'PayrollRun', 'PermanentLink', 'PermissionGroup', 'InsuranceType', 'Service', 'Task', 'Receipt', 'AdminFile', 'Message', 'CertificationUpload',
+    'Authorization', 'PayrollRun', 'PermanentLink', 'PermissionGroup', 'InsuranceType', 'Service', 'Task', 'Receipt', 'AdminFile', 'Message', 'CertificationUpload', 'Lead',
 ];
 
 export default function HistoryPage() {

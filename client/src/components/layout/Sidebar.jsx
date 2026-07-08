@@ -8,6 +8,7 @@ import { useEmployeeAttention } from '../../hooks/useEmployeeAttention';
 // Map route paths to page keys for active state
 const PATH_TO_PAGE = {
     '/dashboard': 'dashboard',
+    '/leads': 'leads',
     '/clients': 'clients',
     '/authorizations': 'authorizations',
     '/timesheets': 'timesheets',
@@ -82,6 +83,11 @@ export default function Sidebar({ onMobileClose }) {
                 {isStaff && (
                     <button className={`sidebar__nav-item ${activePage === 'dashboard' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/dashboard')} title="Dashboard">
                         {Icons.layoutDashboard} Dashboard
+                    </button>
+                )}
+                {hasPermission('leads') && (
+                    <button className={`sidebar__nav-item ${activePage === 'leads' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/leads')} title="Leads">
+                        {Icons.users} Potential Clients
                     </button>
                 )}
                 {hasPermission('clients') && (
