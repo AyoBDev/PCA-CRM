@@ -145,3 +145,29 @@ describe('convertLead', () => {
     await expect(convertLead(prisma, 7)).rejects.toThrow('already converted');
   });
 });
+
+const { computeStats } = require('../src/services/leadService');
+
+describe('computeStats', () => {
+  const now = new Date('2026-07-08T12:00:00Z');
+  const leads = [
+    { status: 'new', archivedAt: null, followUpDate: null },
+    { status: 'waiting_insurance', archivedAt: null, followUpDate: new Date('2026-07-01') }, // overdue
+    { status: 'waiting_insurance', archivedAt: null, followUpDate: new Date('2026-07-20') }, // future
+    { status: 'converted', archivedAt: new Date('2026-07-05'), convertedAt: new Date('2026-07-05'), followUpDate: null },
+    { status: 'converted', archivedAt: new Date('2026-06-05'), convertedAt: new Date('2026-06-05'), followUpDate: null },
+    { status: 'archived', archivedAt: new Date('2026-07-02'), followUpDate: null },
+  ];
+  test('counts active (non-archived) leads as total', () => {
+    expect(computeStats(leads, now).total).toBe(3);
+  });
+  test('counts overdue follow-ups among active leads', () => {
+    expect(computeStats(leads, now).followUpOverdue).toBe(1);
+  });
+  test('counts active waiting-insurance leads', () => {
+    expect(computeStats(leads, now).waitingInsurance).toBe(2);
+  });
+  test('counts conversions in the current month', () => {
+    expect(computeStats(leads, now).convertedThisMonth).toBe(1);
+  });
+});

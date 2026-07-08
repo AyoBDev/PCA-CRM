@@ -84,4 +84,16 @@ async function convertLead(prisma, id) {
   });
 }
 
-module.exports = { LEAD_COLUMNS, statusToColumn, columnToStatus, mapLeadToClientData, servicesToEnabledServices, convertLead };
+function computeStats(leads, now = new Date()) {
+  const active = leads.filter(l => !l.archivedAt);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  return {
+    total: active.length,
+    followUpOverdue: active.filter(l => l.followUpDate && new Date(l.followUpDate) < now).length,
+    waitingInsurance: active.filter(l => l.status === 'waiting_insurance').length,
+    convertedThisMonth: leads.filter(l => l.status === 'converted' && l.convertedAt && new Date(l.convertedAt) >= monthStart).length,
+    archived: leads.filter(l => l.status === 'archived').length,
+  };
+}
+
+module.exports = { LEAD_COLUMNS, statusToColumn, columnToStatus, mapLeadToClientData, servicesToEnabledServices, convertLead, computeStats };
