@@ -65,4 +65,23 @@ function mapLeadToClientData(lead) {
   };
 }
 
-module.exports = { LEAD_COLUMNS, statusToColumn, columnToStatus, mapLeadToClientData, servicesToEnabledServices };
+async function convertLead(prisma, id) {
+  const lead = await prisma.lead.findUnique({ where: { id: Number(id) } });
+  if (!lead) throw new Error('Lead not found');
+  if (lead.status === 'converted') throw new Error('Lead already converted');
+
+  return prisma.$transaction(async (tx) => {
+    const client = await tx.client.create({
+      data: mapLeadToClientData(lead),
+      include: { authorizations: true },
+    });
+    const now = new Date();
+    const updatedLead = await tx.lead.update({
+      where: { id: lead.id },
+      data: { status: 'converted', convertedClientId: client.id, convertedAt: now, archivedAt: now },
+    });
+    return { client, lead: updatedLead };
+  });
+}
+
+module.exports = { LEAD_COLUMNS, statusToColumn, columnToStatus, mapLeadToClientData, servicesToEnabledServices, convertLead };
