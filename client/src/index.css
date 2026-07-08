@@ -14273,3 +14273,568 @@ tr:hover .auth-note-icon--empty {
 .tree-picker__empty--error {
     color: hsl(var(--danger));
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Lead & Referral Management
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Stats strip (reuses .stat-card; adds container + color modifiers) ── */
+.stats-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin: 16px 24px;
+}
+
+.stat-card--amber {
+    border-color: hsl(var(--warning) / 0.3);
+    background: hsl(var(--warning-bg));
+}
+
+.stat-card--amber .stat-card__value {
+    color: hsl(var(--warning));
+}
+
+.stat-card--green {
+    border-color: hsl(var(--success) / 0.3);
+    background: hsl(var(--success-bg));
+}
+
+.stat-card--green .stat-card__value {
+    color: hsl(var(--success));
+}
+
+/* ── Button green alias (used by lead detail/convert actions) ── */
+.btn--green {
+    background: hsl(var(--success));
+    color: hsl(var(--success-foreground));
+    border-color: hsl(var(--success));
+}
+
+.btn--green:hover {
+    background: hsl(var(--success) / 0.9);
+}
+
+/* ── Kanban board ── */
+.kanban-wrap {
+    padding: 0 24px 24px;
+    overflow-x: auto;
+}
+
+.kanban {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(240px, 1fr));
+    gap: 16px;
+    min-width: 1200px;
+}
+
+.k-col {
+    display: flex;
+    flex-direction: column;
+    background: hsl(var(--muted) / 0.4);
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    overflow: hidden;
+    min-height: 200px;
+}
+
+.k-col__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    background: hsl(var(--card));
+    border-bottom: 1px solid hsl(var(--border));
+    border-top: 3px solid hsl(var(--border));
+}
+
+.k-col__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+}
+
+.k-col__count {
+    font-size: 12px;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    background: hsl(var(--muted));
+    border-radius: 999px;
+    padding: 1px 8px;
+    min-width: 20px;
+    text-align: center;
+}
+
+.k-col__body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+    transition: background 0.15s ease;
+}
+
+.k-col__body--over {
+    background: hsl(var(--primary) / 0.08);
+}
+
+.k-empty {
+    text-align: center;
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+    padding: 24px 8px;
+    border: 1px dashed hsl(var(--border));
+    border-radius: calc(var(--radius) - 2px);
+}
+
+/* ── Lead card ── */
+.lead-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: calc(var(--radius) - 2px);
+    padding: 12px;
+    cursor: grab;
+    box-shadow: 0 1px 2px hsl(var(--foreground) / 0.04);
+    transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.lead-card:hover {
+    box-shadow: 0 2px 8px hsl(var(--foreground) / 0.1);
+}
+
+.lead-card--dragging {
+    opacity: 0.6;
+    cursor: grabbing;
+}
+
+.lead-card__name {
+    font-size: 14px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin-bottom: 4px;
+}
+
+.lead-card__source,
+.lead-card__date {
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+    margin-bottom: 2px;
+}
+
+.lead-card__tags {
+    margin: 8px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.lead-card__actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+/* ── Tags (case type + services) ── */
+.tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: hsl(var(--muted));
+    color: hsl(var(--foreground));
+    white-space: nowrap;
+}
+
+.tag--initial {
+    background: hsl(var(--primary) / 0.12);
+    color: hsl(var(--primary));
+}
+
+.tag--transfer {
+    background: hsl(var(--warning-bg));
+    color: hsl(var(--warning));
+}
+
+.tag--private {
+    background: hsl(var(--success-bg));
+    color: hsl(var(--success));
+}
+
+/* ── Context bar filter chips ── */
+.chip {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--card));
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.chip:hover {
+    background: hsl(var(--accent));
+    color: hsl(var(--accent-foreground));
+}
+
+.chip--on {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    border-color: hsl(var(--primary));
+}
+
+/* ── Wizard step bar ── */
+.step-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 600;
+    background: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+    flex-shrink: 0;
+}
+
+.step-dot--active {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+}
+
+.step-dot--done {
+    background: hsl(var(--success));
+    color: hsl(var(--success-foreground));
+}
+
+.step-label {
+    color: hsl(var(--muted-foreground));
+}
+
+.step-connector {
+    background: hsl(var(--border));
+}
+
+/* ── Form field (reused across wizard steps) ── */
+.fld {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.fld label {
+    font-size: 12px;
+    font-weight: 500;
+    color: hsl(var(--muted-foreground));
+}
+
+.finput {
+    padding: 8px 10px;
+    border: 1px solid hsl(var(--input));
+    border-radius: calc(var(--radius) - 2px);
+    font-size: 14px;
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
+}
+
+.finput:focus {
+    outline: none;
+    border-color: hsl(var(--ring));
+    box-shadow: 0 0 0 2px hsl(var(--ring) / 0.2);
+}
+
+.lead-step-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin: 16px 0 8px;
+}
+
+.lead-step-title:first-child {
+    margin-top: 0;
+}
+
+/* ── Checkbox grid (services requested) ── */
+.chk-item {
+    font-size: 13px;
+    color: hsl(var(--foreground));
+    padding: 4px 6px;
+    border-radius: calc(var(--radius) - 4px);
+}
+
+.chk-item--on {
+    background: hsl(var(--accent));
+}
+
+/* ── Case type selector cards ── */
+.ctype-card {
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.ctype-card--selected,
+.ctype-card--on {
+    border-color: hsl(var(--primary)) !important;
+    background: hsl(var(--primary) / 0.06);
+}
+
+.ctype-card__label {
+    font-size: 13px;
+    font-weight: 500;
+    margin-top: 6px;
+    color: hsl(var(--foreground));
+}
+
+/* ── Conditional panels (initial / transfer / private-pay) ── */
+.ctype-panel {
+    background: hsl(var(--muted) / 0.4);
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    padding: 12px;
+    margin-top: 4px;
+}
+
+/* ── Private-pay deposit box ── */
+.dep-box {
+    background: hsl(var(--accent));
+}
+
+.dep-box__row {
+    font-size: 13px;
+    padding: 2px 0;
+    color: hsl(var(--foreground));
+}
+
+.dep-total {
+    font-weight: 700;
+    color: hsl(var(--primary));
+}
+
+/* ── Preference chips (shift preferences) ── */
+.pref-chip {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--card));
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.pref-chip:hover {
+    background: hsl(var(--accent));
+    color: hsl(var(--accent-foreground));
+}
+
+.pref-chip--selected,
+.pref-chip--on {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    border-color: hsl(var(--primary));
+}
+
+.pref-chip--multi {
+    border-style: dashed;
+}
+
+/* ── Status selector list ── */
+.status-item {
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.status-item--selected,
+.status-item--on {
+    border-color: hsl(var(--primary)) !important;
+    background: hsl(var(--primary) / 0.06);
+}
+
+.status-dot {
+    box-shadow: 0 0 0 2px hsl(var(--card));
+}
+
+/* ── Lead detail modal ── */
+.det-tags {
+    display: flex;
+    gap: 8px;
+    margin: 4px 0 12px;
+}
+
+.det-section {
+    margin-bottom: 16px;
+}
+
+.det-section__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid hsl(var(--border));
+}
+
+.det-section__body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.det-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 0;
+    font-size: 13px;
+    border-bottom: 1px solid hsl(var(--border) / 0.5);
+}
+
+.det-row:last-child {
+    border-bottom: none;
+}
+
+.det-row__label,
+.det-k {
+    color: hsl(var(--muted-foreground));
+}
+
+.det-row__value,
+.det-v {
+    color: hsl(var(--foreground));
+    font-weight: 500;
+    text-align: right;
+}
+
+.det-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.det-chip {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: hsl(var(--muted));
+    color: hsl(var(--foreground));
+}
+
+.det-empty,
+.det-notes {
+    font-size: 13px;
+    color: hsl(var(--muted-foreground));
+    white-space: pre-wrap;
+}
+
+/* ── Convert-to-client overlay ── */
+.convert-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: hsl(var(--foreground) / 0.5);
+}
+
+.convert-overlay--open {
+    display: flex;
+}
+
+.convert-box {
+    background: hsl(var(--card));
+    border-radius: var(--radius);
+    padding: 32px;
+    max-width: 420px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 10px 40px hsl(var(--foreground) / 0.2);
+}
+
+.convert-anim {
+    font-size: 40px;
+    margin-bottom: 12px;
+    animation: convert-spin 1.2s linear infinite;
+}
+
+@keyframes convert-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.convert-bar {
+    height: 6px;
+    border-radius: 999px;
+    background: hsl(var(--muted));
+    overflow: hidden;
+    margin: 16px 0;
+}
+
+.convert-fill {
+    height: 100%;
+    background: hsl(var(--primary));
+    transition: width 0.3s ease;
+}
+
+.convert-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin-bottom: 6px;
+}
+
+.convert-sub {
+    font-size: 13px;
+    color: hsl(var(--muted-foreground));
+    margin-bottom: 16px;
+}
+
+.cs-check {
+    font-size: 40px;
+    margin-bottom: 12px;
+}
+
+/* ── Wizard form section helpers (if used) ── */
+.form-section {
+    margin-bottom: 16px;
+}
+
+.fs-head {
+    font-size: 13px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin-bottom: 8px;
+}
+
+.fs-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.fg {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+}
+
+.fg.g1 {
+    grid-template-columns: 1fr;
+}
+
+.fg.g3 {
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
+@media (max-width: 900px) {
+    .kanban {
+        grid-template-columns: 1fr;
+        min-width: 0;
+    }
+}

@@ -1,5 +1,6 @@
 import Modal from '../common/Modal';
 import { LEAD_CASE_TYPES, LEAD_STATUSES } from '../../utils/leadConstants';
+import { formatDate } from '../../utils/dates';
 
 function safeArr(v) {
     try {
@@ -53,7 +54,7 @@ export default function LeadDetailModal({ lead, onClose, onEdit, onArchive, onCo
                     <DetRow label="Phone" value={lead.phone} />
                     <DetRow label="Alternate Phone" value={lead.alternatePhone} />
                     <DetRow label="Address" value={lead.address} />
-                    <DetRow label="Date of Birth" value={lead.dob ? new Date(lead.dob).toLocaleDateString() : ''} />
+                    <DetRow label="Date of Birth" value={lead.dob ? formatDate(lead.dob) : ''} />
                     <DetRow label="Gender" value={lead.gender} />
                     <DetRow label="Medicaid ID" value={lead.medicaidId} />
                     <DetRow label="Insurance Number" value={lead.insuranceNumber} />

@@ -96,15 +96,27 @@ export default function LeadsPage() {
 
     const handleArchive = useCallback(async () => {
         if (!detailLead) return;
+        const leadId = detailLead.id;
         try {
-            await api.archiveLead(detailLead.id);
+            await api.archiveLead(leadId);
             setDetailLead(null);
             showToast('Lead archived', 'success');
+            undoState.pushAction(
+                'Archive lead',
+                async () => {
+                    const r = await api.restoreLead(leadId);
+                    setLeads((c) => (c.some((x) => x.id === r.id) ? c.map((x) => (x.id === r.id ? r : x)) : [r, ...c]));
+                },
+                async () => {
+                    await api.archiveLead(leadId);
+                    setLeads((c) => c.filter((x) => x.id !== leadId));
+                }
+            );
             load();
         } catch (err) {
             showToast(err.message, 'error');
         }
-    }, [detailLead, showToast, load]);
+    }, [detailLead, undoState, showToast, load]);
 
     const onConverted = useCallback((result) => {
         setConvertLeadObj(null);
