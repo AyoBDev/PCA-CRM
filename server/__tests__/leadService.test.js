@@ -57,6 +57,11 @@ describe('servicesToEnabledServices', () => {
     expect(servicesToEnabledServices('[]')).toBe('["PAS","Homemaker"]');
     expect(servicesToEnabledServices('')).toBe('["PAS","Homemaker"]');
   });
+  test('produces the same ordering regardless of input service order', () => {
+    const a = servicesToEnabledServices('["Shower Assistance","Meal Preparation"]');
+    const b = servicesToEnabledServices('["Meal Preparation","Shower Assistance"]');
+    expect(a).toBe(b);
+  });
 });
 
 describe('mapLeadToClientData', () => {

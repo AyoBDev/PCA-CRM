@@ -34,7 +34,7 @@ function servicesToEnabledServices(servicesRequestedJson) {
     }
   }
   if (buckets.size === 0) return '["PAS","Homemaker"]';
-  return JSON.stringify([...buckets]);
+  return JSON.stringify([...buckets].sort());
 }
 
 function mapLeadToClientData(lead) {
