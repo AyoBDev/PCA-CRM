@@ -1,5 +1,6 @@
 const PERMISSIONS = [
   { key: 'clients',         label: 'Clients',          group: 'People & Records' },
+  { key: 'leads',           label: 'Leads & Referrals', group: 'People & Records' },
   { key: 'authorizations',  label: 'Authorizations',   group: 'People & Records' },
   { key: 'employees',       label: 'Employees',        group: 'People & Records' },
   { key: 'users',           label: 'Users',            group: 'People & Records' },
