@@ -12,7 +12,7 @@ function leadName(lead) {
 
 async function listLeads(req, res, next) {
   try {
-    const where = req.query.archived === 'true' ? { archivedAt: { not: null } } : { archivedAt: null };
+    const where = req.query.archived === 'true' ? { archivedAt: { not: null }, status: { not: 'converted' } } : { archivedAt: null };
     const leads = await prisma.lead.findMany({ where, orderBy: { createdAt: 'desc' } });
     res.json(leads);
   } catch (err) { next(err); }
@@ -63,8 +63,7 @@ async function setLeadStatus(req, res, next) {
     if (!WORKFLOW_STATUSES.includes(status)) return res.status(400).json({ error: 'invalid status' });
     const existing = await prisma.lead.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Lead not found' });
-    const data = { status };
-    if (status === 'archived') data.archivedAt = new Date();
+    const data = { status, archivedAt: status === 'archived' ? new Date() : null };
     const lead = await prisma.lead.update({ where: { id }, data });
     audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Lead', entityId: id, entityName: leadName(lead), changes: [{ field: 'status', oldValue: existing.status, newValue: status }] });
     res.json(lead);
