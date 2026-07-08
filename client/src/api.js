@@ -147,6 +147,17 @@ export const bulkRestoreClients = (clientIds) => request('/clients/restore', { m
 export const mergeClients = (keepId, mergeId) =>
     request(`/clients/${keepId}/merge`, { method: 'POST', body: JSON.stringify({ mergeId }) });
 
+// Leads
+export const getLeads = ({ archived } = {}) => request(`/leads${archived ? '?archived=true' : ''}`);
+export const getLead = (id) => request(`/leads/${id}`);
+export const createLead = (data) => request('/leads', { method: 'POST', body: JSON.stringify(data) });
+export const updateLead = (id, data) => request(`/leads/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const setLeadStatus = (id, status) => request(`/leads/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+export const archiveLead = (id) => request(`/leads/${id}/archive`, { method: 'POST' });
+export const restoreLead = (id) => request(`/leads/${id}/restore`, { method: 'POST' });
+export const convertLead = (id) => request(`/leads/${id}/convert`, { method: 'POST' });
+export const getLeadStats = () => request('/leads/stats');
+
 // Bulk Import
 export const bulkImport = (file) => {
     const fd = new FormData();
