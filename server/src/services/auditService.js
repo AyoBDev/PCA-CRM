@@ -1,4 +1,5 @@
 const prisma = require('../lib/prisma');
+const { getAgencyId, getImpersonatorId } = require('../lib/tenantContext');
 
 /**
  * Log an audit action.
@@ -16,7 +17,12 @@ async function logAction({ userId, userName, userRole, action, entityType, entit
                 entityId: entityId || 0,
                 entityName: entityName || '',
                 changes: JSON.stringify(changes || []),
-                metadata: JSON.stringify(metadata || {}),
+                metadata: JSON.stringify(
+                    getImpersonatorId() != null
+                        ? { ...(metadata || {}), impersonatorId: getImpersonatorId() }
+                        : (metadata || {})
+                ),
+                agencyId: getAgencyId(),
             },
         });
     } catch (err) {
