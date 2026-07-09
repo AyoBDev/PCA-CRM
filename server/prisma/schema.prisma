@@ -67,7 +67,7 @@ model Agency {
 
 model User {
   id                        Int                       @id @default(autoincrement())
-  email                     String                    @unique
+  email                     String
   passwordHash              String                    @map("password_hash")
   name                      String
   role                      String                    @default("pca")
@@ -94,6 +94,7 @@ model User {
   agencyId                  Int?                      @map("agency_id")
   agency                    Agency?                   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  @@unique([agencyId, email])
   @@index([agencyId])
   @@map("users")
 }
@@ -104,8 +105,8 @@ model AdminEventSeen {
   eventKey String   @map("event_key")
   seenAt   DateTime @default(now()) @map("seen_at")
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  agencyId Int?     @map("agency_id")
-  agency   Agency?  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId Int      @map("agency_id")
+  agency   Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@unique([userId, eventKey])
   @@index([userId])
@@ -120,8 +121,8 @@ model PasswordResetToken {
   expiresAt DateTime  @map("expires_at")
   usedAt    DateTime? @map("used_at")
   createdAt DateTime  @default(now()) @map("created_at")
-  agencyId  Int?      @map("agency_id")
-  agency    Agency?   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId  Int       @map("agency_id")
+  agency    Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([agencyId])
@@ -138,8 +139,8 @@ model OnboardingToken {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
   employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  agencyId    Int?      @map("agency_id")
-  agency      Agency?   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId    Int       @map("agency_id")
+  agency      Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([agencyId])
   @@map("onboarding_tokens")
@@ -162,8 +163,8 @@ model EmployeeAvailability {
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
   employee             Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  agencyId             Int?      @map("agency_id")
-  agency               Agency?   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId             Int       @map("agency_id")
+  agency               Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([agencyId])
   @@map("employee_availability")
@@ -212,8 +213,8 @@ model Employee {
   conversation           Conversation?
   employeeTasks          EmployeeTask[]
   portalNotifications    Notification[]
-  agencyId               Int?                    @map("agency_id")
-  agency                 Agency?                 @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId               Int                     @map("agency_id")
+  agency                 Agency                  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([agencyId])
   @@map("employees")
@@ -235,8 +236,8 @@ model EmployeeCertification {
 
   employee Employee              @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   uploads  CertificationUpload[]
-  agencyId Int?                  @map("agency_id")
-  agency   Agency?               @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId Int                   @map("agency_id")
+  agency   Agency                @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId, certType])
   @@index([agencyId])
@@ -253,8 +254,8 @@ model CertificationUpload {
   note            String                @default("") @map("note")
   submittedAt     DateTime              @default(now()) @map("submitted_at")
   certification   EmployeeCertification @relation(fields: [certificationId], references: [id], onDelete: Cascade)
-  agencyId        Int?                  @map("agency_id")
-  agency          Agency?               @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId        Int                   @map("agency_id")
+  agency          Agency                @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([certificationId])
   @@index([agencyId])
@@ -268,8 +269,8 @@ model EmployeeScheduleLink {
   active     Boolean  @default(true)
   createdAt  DateTime @default(now()) @map("created_at")
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  agencyId   Int?     @map("agency_id")
-  agency     Agency?  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId   Int      @map("agency_id")
+  agency     Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([agencyId])
   @@map("employee_schedule_links")
@@ -295,8 +296,8 @@ model ScheduleNotification {
   createdAt         DateTime  @default(now()) @map("created_at")
   employee          Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   sentByUser        User?     @relation("ScheduleSentBy", fields: [sentById], references: [id])
-  agencyId          Int?      @map("agency_id")
-  agency            Agency?   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId          Int       @map("agency_id")
+  agency            Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
   @@index([weekStart])
@@ -348,8 +349,8 @@ model Client {
   permanentLinks             PermanentLink[]
   shifts                     Shift[]
   timesheets                 Timesheet[]
-  agencyId                   Int?             @map("agency_id")
-  agency                     Agency?          @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId                   Int              @map("agency_id")
+  agency                     Agency           @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([agencyId])
   @@map("clients")
@@ -363,8 +364,8 @@ model ClientNote {
   content   String   @default("")
   createdAt DateTime @default(now()) @map("created_at")
   client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  agencyId  Int?     @map("agency_id")
-  agency    Agency?  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId  Int      @map("agency_id")
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@index([agencyId])
@@ -382,8 +383,8 @@ model ClientCareTeam {
   updatedAt  DateTime @updatedAt @map("updated_at")
   client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  agencyId   Int?     @map("agency_id")
-  agency     Agency?  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId   Int      @map("agency_id")
+  agency     Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@index([employeeId])
@@ -406,8 +407,8 @@ model ClientDocument {
   updatedAt  DateTime @updatedAt @map("updated_at")
   client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   uploader   User?    @relation(fields: [uploadedBy], references: [id])
-  agencyId   Int?     @map("agency_id")
-  agency     Agency?  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId   Int      @map("agency_id")
+  agency     Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@index([agencyId])
@@ -427,8 +428,8 @@ model HospitalVisit {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
   client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  agencyId     Int?     @map("agency_id")
-  agency       Agency?  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId     Int      @map("agency_id")
+  agency       Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@index([agencyId])
@@ -449,8 +450,8 @@ model Incident {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
   client       Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  agencyId     Int?      @map("agency_id")
-  agency       Agency?   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId     Int       @map("agency_id")
+  agency       Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@index([agencyId])
@@ -469,8 +470,8 @@ model ClientActivity {
   createdAt   DateTime @default(now()) @map("created_at")
   client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   user        User     @relation(fields: [userId], references: [id])
-  agencyId    Int?     @map("agency_id")
-  agency      Agency?  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId    Int      @map("agency_id")
+  agency      Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@index([agencyId])
@@ -497,8 +498,8 @@ model Authorization {
   manualStatus            String                    @default("active") @map("manual_status")
   authorization_documents authorization_documents[]
   client                  Client                    @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  agencyId                Int?                      @map("agency_id")
-  agency                  Agency?                   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId                Int                       @map("agency_id")
+  agency                  Agency                    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@index([agencyId])
@@ -568,8 +569,8 @@ model Lead {
   archivedAt DateTime? @map("archived_at")
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
-  agencyId   Int?      @map("agency_id")
-  agency     Agency?   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId   Int       @map("agency_id")
+  agency     Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([status])
   @@index([agencyId])
@@ -578,14 +579,15 @@ model Lead {
 
 model InsuranceType {
   id         Int       @id @default(autoincrement())
-  name       String    @unique
+  name       String
   color      String    @default("#9E9E9E")
   archivedAt DateTime? @map("archived_at")
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
-  agencyId   Int?      @map("agency_id")
-  agency     Agency?   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId   Int       @map("agency_id")
+  agency     Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  @@unique([agencyId, name])
   @@index([agencyId])
   @@map("insurance_types")
 }
@@ -593,14 +595,15 @@ model InsuranceType {
 model Service {
   id         Int       @id @default(autoincrement())
   category   String
-  code       String    @unique
+  code       String
   name       String    @default("")
   archivedAt DateTime? @map("archived_at")
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
-  agencyId   Int?      @map("agency_id")
-  agency     Agency?   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId   Int       @map("agency_id")
+  agency     Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  @@unique([agencyId, code])
   @@index([agencyId])
   @@map("services")
 }
@@ -635,8 +638,8 @@ model Timesheet {
   entries             TimesheetEntry[]
   reminders           TimesheetReminder[]
   client              Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  agencyId            Int?                @map("agency_id")
-  agency              Agency?             @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId            Int                 @map("agency_id")
+  agency              Agency              @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@unique([clientId, pcaName, weekStart])
   @@index([agencyId])
@@ -677,8 +680,8 @@ model TimesheetEntry {
   companionClientInitials String    @default("") @map("companion_client_initials")
   companionTimeBlocks     String    @default("[]") @map("companion_time_blocks")
   timesheet               Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
-  agencyId                Int?      @map("agency_id")
-  agency                  Agency?   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId                Int       @map("agency_id")
+  agency                  Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([agencyId])
   @@map("timesheet_entries")
@@ -693,8 +696,8 @@ model SigningToken {
   usedAt      DateTime? @map("used_at")
   createdAt   DateTime  @default(now()) @map("created_at")
   timesheet   Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
-  agencyId    Int?      @map("agency_id")
-  agency      Agency?   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId    Int       @map("agency_id")
+  agency      Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([agencyId])
   @@map("signing_tokens")
@@ -715,8 +718,8 @@ model PayrollRun {
   createdAt             DateTime       @default(now()) @map("created_at")
   updatedAt             DateTime       @updatedAt @map("updated_at")
   visits                PayrollVisit[]
-  agencyId              Int?           @map("agency_id")
-  agency                Agency?        @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId              Int            @map("agency_id")
+  agency                Agency         @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([agencyId])
   @@map("payroll_runs")
@@ -753,8 +756,8 @@ model PayrollVisit {
   nextDayCallOut    Boolean    @default(false) @map("next_day_call_out")
   createdAt         DateTime   @default(now()) @map("created_at")
   run               PayrollRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  agencyId          Int?       @map("agency_id")
-  agency            Agency?    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId          Int        @map("agency_id")
+  agency            Agency     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([runId])
   @@index([agencyId])
@@ -781,8 +784,8 @@ model PayrollProfile {
   updatedAt              DateTime @updatedAt @map("updated_at")
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  agencyId Int?     @map("agency_id")
-  agency   Agency?  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId Int      @map("agency_id")
+  agency   Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([agencyId])
   @@map("payroll_profiles")
@@ -814,8 +817,8 @@ model PayReceipt {
   updatedAt            DateTime  @updatedAt @map("updated_at")
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  agencyId Int?     @map("agency_id")
-  agency   Agency?  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId Int      @map("agency_id")
+  agency   Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, periodStart])
   @@index([employeeId])
@@ -844,8 +847,8 @@ model Shift {
   updatedAt        DateTime  @updatedAt @map("updated_at")
   client           Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
   employee         Employee? @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  agencyId         Int?      @map("agency_id")
-  agency           Agency?   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId         Int       @map("agency_id")
+  agency           Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@index([employeeId])
@@ -884,8 +887,8 @@ model PermanentLink {
   active    Boolean  @default(true)
   createdAt DateTime @default(now()) @map("created_at")
   client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  agencyId  Int?     @map("agency_id")
-  agency    Agency?  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId  Int      @map("agency_id")
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@unique([clientId, pcaName])
   @@index([agencyId])
@@ -905,8 +908,8 @@ model authorization_documents {
   created_at       DateTime      @default(now())
   authorizations   Authorization @relation(fields: [authorization_id], references: [id], onDelete: Cascade)
   users            User?         @relation(fields: [uploaded_by], references: [id])
-  agencyId         Int?          @map("agency_id")
-  agency           Agency?       @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId         Int           @map("agency_id")
+  agency           Agency        @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([authorization_id])
   @@index([agencyId])
@@ -921,8 +924,8 @@ model BulkEditBatch {
   snapshot   String    @default("[]")
   undoneAt   DateTime? @map("undone_at")
   createdAt  DateTime  @default(now()) @map("created_at")
-  agencyId   Int?      @map("agency_id")
-  agency     Agency?   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId   Int       @map("agency_id")
+  agency     Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([createdAt])
@@ -939,8 +942,8 @@ model TimesheetReminder {
   status      String   @default("sent")
 
   timesheet Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
-  agencyId  Int?      @map("agency_id")
-  agency    Agency?   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId  Int       @map("agency_id")
+  agency    Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([agencyId])
   @@map("timesheet_reminders")
@@ -966,8 +969,8 @@ model Task {
   assignedToUser User?            @relation("TaskAssignee", fields: [assignedToUserId], references: [id])
   trigger        WorkflowTrigger? @relation(fields: [triggerId], references: [id])
   reminders      TaskReminder[]
-  agencyId       Int?             @map("agency_id")
-  agency         Agency?          @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId       Int              @map("agency_id")
+  agency         Agency           @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([status])
   @@index([assignedToUserId])
@@ -989,9 +992,9 @@ model WorkflowTrigger {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   tasks        Task[]
-  assignToUser User?   @relation("TriggerAssignee", fields: [assignToUserId], references: [id])
-  agencyId     Int?    @map("agency_id")
-  agency       Agency? @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  assignToUser User?  @relation("TriggerAssignee", fields: [assignToUserId], references: [id])
+  agencyId     Int    @map("agency_id")
+  agency       Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([agencyId])
   @@map("workflow_triggers")
@@ -1004,9 +1007,9 @@ model TaskReminder {
   channel String
   status  String
 
-  task     Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  agencyId Int?    @map("agency_id")
-  agency   Agency? @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  task     Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  agencyId Int    @map("agency_id")
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([taskId])
   @@index([agencyId])
@@ -1024,8 +1027,8 @@ model AdminFolder {
   files      AdminFile[]
   createdAt  DateTime      @default(now()) @map("created_at")
   updatedAt  DateTime      @updatedAt @map("updated_at")
-  agencyId   Int?          @map("agency_id")
-  agency     Agency?       @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId   Int           @map("agency_id")
+  agency     Agency        @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@unique([parentId, name])
   @@index([parentId])
@@ -1045,8 +1048,8 @@ model AdminFile {
   uploader   User?       @relation(fields: [uploadedBy], references: [id])
   createdAt  DateTime    @default(now()) @map("created_at")
   updatedAt  DateTime    @updatedAt @map("updated_at")
-  agencyId   Int?        @map("agency_id")
-  agency     Agency?     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId   Int         @map("agency_id")
+  agency     Agency      @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@unique([folderId, name])
   @@index([folderId])
@@ -1064,8 +1067,8 @@ model AvailabilityRequest {
   reviewedAt       DateTime? @map("reviewed_at")
   createdAt        DateTime  @default(now()) @map("created_at")
   employee         Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  agencyId         Int?      @map("agency_id")
-  agency           Agency?   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId         Int       @map("agency_id")
+  agency           Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
   @@index([agencyId])
@@ -1084,8 +1087,8 @@ model TimeOffRequest {
   reviewedAt DateTime? @map("reviewed_at")
   createdAt  DateTime  @default(now()) @map("created_at")
   employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  agencyId   Int?      @map("agency_id")
-  agency     Agency?   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId   Int       @map("agency_id")
+  agency     Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
   @@index([agencyId])
@@ -1099,8 +1102,8 @@ model Conversation {
   createdAt     DateTime  @default(now()) @map("created_at")
   employee      Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   messages      Message[]
-  agencyId      Int?      @map("agency_id")
-  agency        Agency?   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId      Int       @map("agency_id")
+  agency        Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([agencyId])
   @@map("conversations")
@@ -1116,8 +1119,8 @@ model Message {
   createdAt      DateTime     @default(now()) @map("created_at")
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender         User         @relation(fields: [senderId], references: [id])
-  agencyId       Int?         @map("agency_id")
-  agency         Agency?      @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId       Int          @map("agency_id")
+  agency         Agency       @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
   @@index([agencyId])
@@ -1134,8 +1137,8 @@ model EmployeeTask {
   completedAt  DateTime? @map("completed_at")
   createdAt    DateTime  @default(now()) @map("created_at")
   employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  agencyId     Int?      @map("agency_id")
-  agency       Agency?   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId     Int       @map("agency_id")
+  agency       Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
   @@index([agencyId])
@@ -1151,8 +1154,8 @@ model Notification {
   readAt     DateTime? @map("read_at")
   createdAt  DateTime  @default(now()) @map("created_at")
   employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  agencyId   Int?      @map("agency_id")
-  agency     Agency?   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId   Int       @map("agency_id")
+  agency     Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
   @@index([agencyId])
@@ -1167,8 +1170,8 @@ model PushSubscription {
   auth      String
   createdAt DateTime @default(now()) @map("created_at")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  agencyId  Int?     @map("agency_id")
-  agency    Agency?  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId  Int      @map("agency_id")
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([agencyId])
@@ -1177,16 +1180,17 @@ model PushSubscription {
 
 model PermissionGroup {
   id          Int       @id @default(autoincrement())
-  name        String    @unique
+  name        String
   description String    @default("")
   permissions Json
   archivedAt  DateTime? @map("archived_at")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
   users       User[]
-  agencyId    Int?      @map("agency_id")
-  agency      Agency?   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId    Int       @map("agency_id")
+  agency      Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  @@unique([agencyId, name])
   @@index([agencyId])
   @@map("permission_groups")
 }

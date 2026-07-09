@@ -66,7 +66,7 @@ async function completeOnboarding(tokenStr, { password, availability }) {
     const passwordHash = await bcrypt.hash(password, 10);
     const email = employee.email.toLowerCase().trim();
 
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+    const existingUser = await prisma.user.findFirst({ where: { email } });
     let user;
     let skipApproval = false;
     if (existingUser) {

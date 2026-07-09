@@ -30,7 +30,7 @@ async function login(req, res, next) {
         if (!email || !password) {
             return res.status(400).json({ error: 'Email and password are required' });
         }
-        const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+        const user = await prisma.user.findFirst({ where: { email: email.toLowerCase().trim() } });
         if (!user) {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
@@ -99,7 +99,7 @@ async function register(req, res, next) {
             return res.status(400).json({ error: 'Email, password, and name are required' });
         }
         const validRole = ['admin', 'user', 'pca'].includes(role) ? role : 'pca';
-        const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+        const existing = await prisma.user.findFirst({ where: { email: email.toLowerCase().trim() } });
         if (existing) {
             return res.status(409).json({ error: 'A user with this email already exists' });
         }
@@ -282,7 +282,7 @@ async function forgotPassword(req, res, next) {
         const { email } = req.body;
         if (!email) return res.status(400).json({ error: 'Email is required' });
 
-        const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+        const user = await prisma.user.findFirst({ where: { email: email.toLowerCase().trim() } });
         // Always return success to avoid revealing whether email exists
         if (!user || user.archivedAt) {
             return res.json({ success: true });
@@ -364,7 +364,7 @@ async function employeeLogin(req, res, next) {
         if (!email || !password) {
             return res.status(400).json({ error: 'Email and password are required' });
         }
-        const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+        const user = await prisma.user.findFirst({ where: { email: email.toLowerCase().trim() } });
         if (!user) {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
