@@ -1,8 +1,7 @@
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const prisma = require('./lib/prisma');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'nvbestpca-secret';
+const { JWT_SECRET } = require('./config/secrets');
 let io;
 
 function initSocket(httpServer) {

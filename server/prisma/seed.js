@@ -13,7 +13,14 @@ async function main() {
     if (existing) {
         console.log('✅ Admin already exists — skipping admin creation');
     } else {
-        // Only create on first deploy; use env vars or fallbacks
+        // Only create on first deploy. In production we refuse to seed a
+        // default-credential admin: a known password committed in source would
+        // be an immediate account-takeover foothold. Non-production keeps a
+        // convenience fallback for local setup.
+        const isProd = process.env.NODE_ENV === 'production';
+        if (isProd && !process.env.ADMIN_PASSWORD) {
+            throw new Error('ADMIN_PASSWORD is not set. Refusing to create a default-credential admin in production.');
+        }
         const password = process.env.ADMIN_PASSWORD || 'admin123';
         const passwordHash = await bcrypt.hash(password, 10);
 

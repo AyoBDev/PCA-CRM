@@ -18,7 +18,9 @@ const TABLES = [
   { name: 'employee_schedule_links', model: 'employeeScheduleLink' },
   { name: 'schedule_notifications', model: 'scheduleNotification' },
   { name: 'audit_logs', model: 'auditLog' },
-  { name: 'password_reset_tokens', model: 'passwordResetToken' },
+  // Deliberately excluded from backups:
+  //  - password_reset_tokens: live single-use bearer credentials with no restore
+  //    value; including them lets anyone holding a backup take over accounts.
 ];
 
 async function exportBackup(req, res, next) {
