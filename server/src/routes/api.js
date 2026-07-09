@@ -177,17 +177,30 @@ const {
 } = require('../controllers/permissionGroupController');
 const { authenticate, requireRole } = require('../middleware/authMiddleware');
 const { requirePermission } = require('../middleware/permissionMiddleware');
+const rateLimit = require('express-rate-limit');
 const employeeRoutes = require('./employee');
 
 const router = express.Router();
+
+// Throttle credential-guessing on the unauthenticated auth endpoints.
+// 10 attempts per IP per 15 min; only failed responses count toward the limit
+// so a legitimate user who logs in successfully is never blocked.
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skipSuccessfulRequests: true,
+    message: { error: 'Too many attempts. Please try again in a few minutes.' },
+});
 
 // ── Employee Portal routes (own auth middleware) ──
 router.use('/employee', employeeRoutes);
 
 // ── Public routes (no auth) ──
-router.post('/auth/login', login);
-router.post('/auth/employee-login', employeeLogin);
-router.post('/auth/forgot-password', forgotPassword);
+router.post('/auth/login', authLimiter, login);
+router.post('/auth/employee-login', authLimiter, employeeLogin);
+router.post('/auth/forgot-password', authLimiter, forgotPassword);
 router.post('/auth/reset-password-with-token', resetPasswordWithToken);
 router.get('/sign/:token', getSigningForm);
 router.put('/sign/:token', submitSigningForm);

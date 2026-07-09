@@ -545,7 +545,73 @@ function processPayrollRows(rawRows, clientsWithAuths) {
     return [...visits, ...reviewRows];
 }
 
+/**
+ * Max units a single visit may be manually set to, enforcing the same caps the
+ * automated pipeline applies:
+ *   - Daily cap: MAX_UNITS per employee+client+day, minus units already on
+ *     OTHER same-day visits for that pair.
+ *   - Auth cap: the client's remaining authorized units for that service+week,
+ *     minus units already consumed by OTHER visits that week. A visit with no
+ *     matching authorization is not blocked by the auth cap (mirrors the
+ *     pipeline, which keeps it payable and flags it), only by the daily cap.
+ *
+ * @param {object} edited   the visit being edited (with its NEW serviceCode/date/etc.)
+ * @param {object[]} runVisits  all visits in the run (including `edited`)
+ * @param {object[]} clientsWithAuths  [{ clientName, authorizations: [...] }]
+ * @returns {number} non-negative integer unit ceiling
+ */
+function computeManualUnitLimit(edited, runVisits, clientsWithAuths) {
+    const dateStr = (d) => (d instanceof Date ? d : new Date(d)).toISOString().split('T')[0];
+    const isCounted = (v) => !v.voidFlag && !v.needsReview && v.mergedInto == null;
+
+    // ── Daily cap: MAX_UNITS minus other same-day (employee+client) visits ──
+    let dailyRemaining = MAX_UNITS;
+    if (edited.visitDate) {
+        const eKey = `${normalizeName(edited.employeeName)}||${normalizeName(edited.clientName)}||${dateStr(edited.visitDate)}`;
+        const siblingDayUnits = runVisits
+            .filter((v) => v.id !== edited.id && isCounted(v) && v.visitDate &&
+                `${normalizeName(v.employeeName)}||${normalizeName(v.clientName)}||${dateStr(v.visitDate)}` === eKey)
+            .reduce((s, v) => s + (v.finalPayableUnits || 0), 0);
+        dailyRemaining = MAX_UNITS - siblingDayUnits;
+    }
+
+    // ── Auth cap: remaining authorized units for client+serviceCode this week ──
+    let authRemaining = Infinity; // Infinity = no matching auth → not auth-blocked
+    if (edited.serviceCode && edited.visitDate) {
+        const weekKey = getWeekKey(edited.visitDate);
+        const weekStart = new Date(weekKey + 'T00:00:00.000Z');
+        const weekEnd = new Date(weekStart);
+        weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
+
+        const normClient = normalizeName(edited.clientName);
+        let authorized = 0;
+        let hasAuth = false;
+        for (const client of clientsWithAuths) {
+            if (normalizeName(client.clientName) !== normClient) continue;
+            for (const auth of filterAuthsByWeek(client.authorizations, weekStart, weekEnd)) {
+                if (auth.serviceCode === edited.serviceCode) {
+                    authorized += auth.authorizedUnits || 0;
+                    hasAuth = true;
+                }
+            }
+        }
+
+        if (hasAuth) {
+            const siblingWeekUnits = runVisits
+                .filter((v) => v.id !== edited.id && isCounted(v) && v.serviceCode === edited.serviceCode &&
+                    v.visitDate && normalizeName(v.clientName) === normClient &&
+                    getWeekKey(v.visitDate) === weekKey)
+                .reduce((s, v) => s + (v.finalPayableUnits || 0), 0);
+            authRemaining = authorized - siblingWeekUnits;
+        }
+    }
+
+    return Math.max(0, Math.min(dailyRemaining, authRemaining));
+}
+
 module.exports = {
+    MAX_UNITS,
+    computeManualUnitLimit,
     processPayrollRows,
     parseTimeToMinutes,
     parseDate,

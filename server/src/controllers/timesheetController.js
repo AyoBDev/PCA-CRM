@@ -178,8 +178,11 @@ async function updateTimesheet(req, res, next) {
         const id = Number(req.params.id);
         const existing = await prisma.timesheet.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Timesheet not found' });
-        if ((existing.status === 'submitted' || existing.status === 'accepted') && (!req.user || req.user.role !== 'admin')) {
-            return res.status(400).json({ error: 'Cannot edit a submitted or accepted timesheet' });
+        // Submitted/accepted timesheets are signed Medicaid records — immutable
+        // for everyone, admins included. To correct one, reject it back to draft
+        // via PUT /timesheets/:id/status (audited), then edit the draft.
+        if (existing.status === 'submitted' || existing.status === 'accepted') {
+            return res.status(400).json({ error: 'Cannot edit a submitted or accepted timesheet. Send it back to draft to make corrections.' });
         }
 
         const { entries, recipientName, recipientSignature, pcaSignature, pcaFullName, supervisorSignature, completionDate, clientPhone, clientIdNumber } = req.body;
