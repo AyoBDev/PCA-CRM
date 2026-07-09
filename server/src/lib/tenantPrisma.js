@@ -57,6 +57,12 @@ function tenantClient(agencyId) {
       $executeRaw({ args, query }) {
         return scoped(agencyId, query(args));
       },
+      $queryRawUnsafe() {
+        throw new Error('$queryRawUnsafe is not allowed on tenant clients — use $queryRaw (tagged template) or tenantTransaction');
+      },
+      $executeRawUnsafe() {
+        throw new Error('$executeRawUnsafe is not allowed on tenant clients — use $executeRaw (tagged template) or tenantTransaction');
+      },
     },
   });
   clientCache.set(agencyId, client);

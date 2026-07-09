@@ -59,3 +59,9 @@ test('rejects garbage agencyId', () => {
   expect(() => tenantClient('1; DROP TABLE clients')).toThrow();
   expect(() => tenantClient(undefined)).toThrow();
 });
+
+test('$queryRawUnsafe and $executeRawUnsafe are blocked on tenant clients', async () => {
+  const db = tenantClient(a.id);
+  await expect(db.$queryRawUnsafe('SELECT 1')).rejects.toThrow(/not allowed on tenant clients/);
+  await expect(db.$executeRawUnsafe('SELECT 1')).rejects.toThrow(/not allowed on tenant clients/);
+});
