@@ -2,7 +2,7 @@ const { execSync } = require('child_process');
 const path = require('path');
 
 module.exports = async () => {
-  const testDbUrl = 'postgresql://mac@localhost:5432/nvbestpca_test';
+  const testDbUrl = process.env.TEST_DATABASE_URL || 'postgresql://mac@localhost:5432/nvbestpca_test';
   const env = {
     ...process.env,
     DATABASE_URL: testDbUrl,
