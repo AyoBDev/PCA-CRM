@@ -22,4 +22,9 @@ module.exports = async () => {
     env,
     stdio: 'inherit',
   });
+  execSync('node prisma/setup-app-role.js', {
+    cwd: serverDir,
+    env: { ...process.env, DATABASE_URL: testDbUrl, APP_DB_PASSWORD: process.env.APP_DB_PASSWORD || 'app_password' },
+    stdio: 'inherit',
+  });
 };
