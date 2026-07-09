@@ -30,6 +30,13 @@ async function revealSensitiveField(req, res) {
         where: { employeeId: Number(employeeId) },
     });
     if (!profile) return res.status(404).json({ error: 'Profile not found' });
+    // HIPAA/PII traceability: record every full decryption of an SSN/EIN so
+    // there is an audit trail of who viewed the raw value and when.
+    audit.logAction({
+        userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+        action: 'REVEAL', entityType: 'PayrollProfile', entityId: profile.id,
+        entityName: `Employee #${employeeId}`, metadata: { field },
+    });
     res.json({ value: decrypt(profile[field]) });
 }
 
@@ -52,12 +59,12 @@ async function upsertPayrollProfile(req, res) {
             where: { employeeId: empId },
             data,
         });
-        audit.logAction(req.user.id, req.user.name, req.user.role, 'UPDATE', 'PayrollProfile', profile.id, `Employee #${empId}`, [], {});
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'PayrollProfile', entityId: profile.id, entityName: `Employee #${empId}` });
     } else {
         profile = await prisma.payrollProfile.create({
             data: { employeeId: empId, ...data },
         });
-        audit.logAction(req.user.id, req.user.name, req.user.role, 'CREATE', 'PayrollProfile', profile.id, `Employee #${empId}`, [], {});
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'PayrollProfile', entityId: profile.id, entityName: `Employee #${empId}` });
     }
 
     res.json({

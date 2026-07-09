@@ -128,6 +128,7 @@ export const ACTION_COLORS = {
     TOGGLE_ACTIVE: { bg: 'hsl(38 92% 92%)', text: 'hsl(38 92% 35%)', hex: '#f59e0b', label: 'Toggled Active' },
     RESET_PASSWORD: { bg: 'hsl(270 60% 93%)', text: 'hsl(270 60% 35%)', hex: '#f59e0b', label: 'Password Reset' },
     LOGIN: { bg: 'hsl(220 9% 93%)', text: 'hsl(220 9% 40%)', hex: '#6b7280', label: 'Login' },
+    REVEAL: { bg: 'hsl(270 60% 93%)', text: 'hsl(270 60% 35%)', hex: '#9333ea', label: 'Revealed' },
 };
 
 // ─── Certification Colors (employee) ───
