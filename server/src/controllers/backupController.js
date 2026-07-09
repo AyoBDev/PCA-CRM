@@ -3,6 +3,8 @@ const prisma = require('../lib/prisma');
 // Tables in dependency order with their Prisma model names
 const TABLES = [
   { name: 'insurance_types', model: 'insuranceType' },
+  // users includes passwordHash (bcrypt) intentionally: a backup without it
+  // cannot restore logins. This is a disaster-recovery dump, not a data export.
   { name: 'users', model: 'user' },
   { name: 'employees', model: 'employee' },
   { name: 'clients', model: 'client' },
