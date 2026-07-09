@@ -393,6 +393,74 @@ model Authorization {
   @@map("authorizations")
 }
 
+model Lead {
+  id                       Int       @id @default(autoincrement())
+
+  // Step 1 — Basic info
+  firstName                String    @default("") @map("first_name")
+  lastName                 String    @default("") @map("last_name")
+  phone                    String    @default("")
+  alternatePhone           String    @default("") @map("alternate_phone")
+  address                  String    @default("")
+  dob                      DateTime? @map("dob")
+  gender                   String    @default("")
+  medicaidId               String    @default("") @map("medicaid_id")
+  insuranceNumber          String    @default("") @map("insurance_number")
+  insuranceType            String    @default("") @map("insurance_type")
+  referralSource           String    @default("") @map("referral_source")
+  doctorName               String    @default("") @map("doctor_name")
+  doctorPhone              String    @default("") @map("doctor_phone")
+  caseworkerName           String    @default("") @map("caseworker_name")
+  caseworkerPhone          String    @default("") @map("caseworker_phone")
+  emergencyContactName     String    @default("") @map("emergency_contact_name")
+  emergencyContactRelation String    @default("") @map("emergency_contact_relation")
+  emergencyContactPhone    String    @default("") @map("emergency_contact_phone")
+  emergencyContactEmail    String    @default("") @map("emergency_contact_email")
+  callNotes                String    @default("") @map("call_notes")
+
+  // Step 2 — Service needs
+  servicesRequested        String    @default("[]") @map("services_requested")
+  daysPerWeek              String    @default("") @map("days_per_week")
+  hoursPerDay              String    @default("") @map("hours_per_day")
+  startDateNeeded          String    @default("") @map("start_date_needed")
+
+  // Step 3 — Case type + conditional
+  caseType                 String    @default("initial") @map("case_type")
+  authStatus               String    @default("") @map("auth_status")
+  expectedStartDate        DateTime? @map("expected_start_date")
+  currentAgencyName        String    @default("") @map("current_agency_name")
+  currentAuthHoursMonth    Int       @default(0) @map("current_auth_hours_month")
+  authNumber               String    @default("") @map("auth_number")
+  transferReason           String    @default("") @map("transfer_reason")
+  transferNotes            String    @default("") @map("transfer_notes")
+  ppRate                   Float     @default(0) @map("pp_rate")
+  ppHoursPerWeek           Float     @default(0) @map("pp_hours_per_week")
+  ppDepositHours           Float     @default(0) @map("pp_deposit_hours")
+
+  // Step 4 — Preferences
+  genderPreference         String    @default("No preference") @map("gender_preference")
+  agePreference            String    @default("No preference") @map("age_preference")
+  shiftPreferences         String    @default("[]") @map("shift_preferences")
+  languagePreference       String    @default("English") @map("language_preference")
+  scheduleNotes            String    @default("") @map("schedule_notes")
+
+  // Step 5 — Status routing
+  status                   String    @default("new")
+  assignedTo               String    @default("") @map("assigned_to")
+  followUpDate             DateTime? @map("follow_up_date")
+
+  // Conversion linkage
+  convertedClientId        Int?      @map("converted_client_id")
+  convertedAt              DateTime? @map("converted_at")
+
+  archivedAt               DateTime? @map("archived_at")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("leads")
+}
+
 model InsuranceType {
   id         Int       @id @default(autoincrement())
   name       String    @unique

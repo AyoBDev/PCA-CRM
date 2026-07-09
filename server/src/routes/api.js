@@ -165,6 +165,7 @@ const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalize
 const { previewSandata, applySandata, undoSandata } = require('../controllers/sandataController');
 const { listConversations, getConversationMessages, adminSendMessage, markConversationRead, getUnreadSummary } = require('../controllers/employeePortal/adminChatController');
 const { getOnboardingInfo, completeOnboarding, resendInvite, approveOnboarding, getOnboardingLink } = require('../controllers/onboardingController');
+const { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, getLeadStats } = require('../controllers/leadController');
 const {
     listPermissionGroups,
     getPermissionGroup,
@@ -262,6 +263,17 @@ router.patch('/clients/:id', requireRole('admin', 'user', 'pca'), requirePermiss
 router.delete('/clients/:id', requireRole('admin', 'user', 'pca'), requirePermission('clients'), deleteClient);
 router.delete('/clients/:id/permanent', requireRole('admin'), requirePermission('clients'), permanentlyDeleteClient);
 router.post('/clients/:id/merge', requireRole('admin'), requirePermission('clients'), mergeClients);
+
+// Lead routes (place /leads/stats BEFORE /leads/:id so 'stats' isn't captured as an id)
+router.get('/leads/stats', requireRole('admin', 'user'), requirePermission('leads'), getLeadStats);
+router.get('/leads', requireRole('admin', 'user'), requirePermission('leads'), listLeads);
+router.post('/leads', requireRole('admin', 'user'), requirePermission('leads'), createLead);
+router.get('/leads/:id', requireRole('admin', 'user'), requirePermission('leads'), getLead);
+router.put('/leads/:id', requireRole('admin', 'user'), requirePermission('leads'), updateLead);
+router.patch('/leads/:id/status', requireRole('admin', 'user'), requirePermission('leads'), setLeadStatus);
+router.post('/leads/:id/archive', requireRole('admin', 'user'), requirePermission('leads'), archiveLead);
+router.post('/leads/:id/restore', requireRole('admin', 'user'), requirePermission('leads'), restoreLead);
+router.post('/leads/:id/convert', requireRole('admin', 'user'), requirePermission('leads'), convertLead);
 
 // Authorization routes
 router.post('/clients/:clientId/authorizations', requireRole('admin', 'user', 'pca'), requirePermission('authorizations'), createAuthorization);
