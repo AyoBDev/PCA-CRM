@@ -1,12 +1,22 @@
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const compression = require('compression');
 const apiRoutes = require('./routes/api');
 
 const app = express();
 
+// Behind Railway's proxy — needed for secure cookies / correct client IPs
+// (rate limiting keys on IP).
+app.set('trust proxy', 1);
+
 // ── Middleware ──
+// Security headers (HSTS, X-Content-Type-Options, frameguard, etc.).
+// Content-Security-Policy is left disabled: the app serves a bundled React SPA
+// from this same origin and a strict default CSP would block it. A tailored CSP
+// can be added later once tested against the built client.
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
 app.use(cors({
   origin: [

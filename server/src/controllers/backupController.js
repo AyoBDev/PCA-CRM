@@ -3,6 +3,8 @@ const prisma = require('../lib/prisma');
 // Tables in dependency order with their Prisma model names
 const TABLES = [
   { name: 'insurance_types', model: 'insuranceType' },
+  // users includes passwordHash (bcrypt) intentionally: a backup without it
+  // cannot restore logins. This is a disaster-recovery dump, not a data export.
   { name: 'users', model: 'user' },
   { name: 'employees', model: 'employee' },
   { name: 'clients', model: 'client' },
@@ -18,7 +20,9 @@ const TABLES = [
   { name: 'employee_schedule_links', model: 'employeeScheduleLink' },
   { name: 'schedule_notifications', model: 'scheduleNotification' },
   { name: 'audit_logs', model: 'auditLog' },
-  { name: 'password_reset_tokens', model: 'passwordResetToken' },
+  // Deliberately excluded from backups:
+  //  - password_reset_tokens: live single-use bearer credentials with no restore
+  //    value; including them lets anyone holding a backup take over accounts.
 ];
 
 async function exportBackup(req, res, next) {

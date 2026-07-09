@@ -19,13 +19,13 @@ describe('requirePermission', () => {
     expect(res.status).not.toHaveBeenCalled();
   });
 
-  test('pca allowed (permission system does not restrict PCAs)', () => {
+  test('pca denied on the staff permission system (caregivers use the employee portal)', () => {
     const req = { user: { role: 'pca', id: 2 } };
     const res = mockRes();
     const next = jest.fn();
     mw(req, res, next);
-    expect(next).toHaveBeenCalled();
-    expect(res.status).not.toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
   });
 
   test('user with null permissionGroupId allowed (legacy default)', () => {

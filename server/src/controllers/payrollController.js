@@ -2,7 +2,7 @@
 
 const XLSX = require('xlsx');
 const prisma = require('../lib/prisma');
-const { processPayrollRows, parseTimeToMinutes, minutesToHHMM, applyTimeRules, calcUnits, normalizeName } = require('../services/payrollService');
+const { processPayrollRows, parseTimeToMinutes, minutesToHHMM, applyTimeRules, calcUnits, normalizeName, computeManualUnitLimit } = require('../services/payrollService');
 const { filterAuthsByWeek } = require('../services/authorizationService');
 const audit = require('../services/auditService');
 
@@ -634,9 +634,11 @@ async function updatePayrollVisit(req, res, next) {
 
         const data = {};
 
+        let requestedUnits; // manual override, clamped against caps below
         if (req.body.finalPayableUnits !== undefined) {
             const u = parseInt(req.body.finalPayableUnits);
             if (isNaN(u) || u < 0) return res.status(400).json({ error: 'finalPayableUnits must be a non-negative integer.' });
+            requestedUnits = u;
             data.finalPayableUnits = u;
         }
 
@@ -700,6 +702,31 @@ async function updatePayrollVisit(req, res, next) {
             data.earlyCallIn       = v.earlyCallIn;
             data.lateCallOut       = v.lateCallOut;
             data.nextDayCallOut    = v.nextDayCallOut;
+        }
+
+        // Clamp a MANUAL unit override to the daily + authorization caps so an
+        // admin edit cannot pay more than the automated pipeline would allow
+        // (Medicaid over-payment prevention). Only applies when the request set
+        // finalPayableUnits directly; time-recomputed values already respect the
+        // per-visit cap in calcUnits.
+        if (requestedUnits !== undefined) {
+            const editedFinal = {
+                id,
+                clientName:  data.clientName  !== undefined ? data.clientName  : current.clientName,
+                employeeName: data.employeeName !== undefined ? data.employeeName : current.employeeName,
+                serviceCode: current.serviceCode,
+                visitDate:   data.visitDate !== undefined ? data.visitDate : current.visitDate,
+                finalPayableUnits: requestedUnits,
+                voidFlag: false, needsReview: false, mergedInto: current.mergedInto,
+            };
+            const runVisits = await prisma.payrollVisit.findMany({ where: { runId: current.runId } });
+            const clientsWithAuths = await prisma.client.findMany({ include: { authorizations: true } });
+            const limit = computeManualUnitLimit(editedFinal, runVisits, clientsWithAuths);
+            if (requestedUnits > limit) {
+                data.finalPayableUnits = limit;
+                const note = `Auto-capped ${requestedUnits}→${limit} (daily/authorization limit)`;
+                data.voidReason = data.voidReason ? `${data.voidReason}; ${note}` : note;
+            }
         }
 
         if (Object.keys(data).length === 0) {

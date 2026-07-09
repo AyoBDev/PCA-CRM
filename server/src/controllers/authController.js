@@ -3,8 +3,8 @@ const jwt = require('jsonwebtoken');
 const prisma = require('../lib/prisma');
 const { isEmailConfigured, sendEmail } = require('../services/notificationService');
 const audit = require('../services/auditService');
+const { JWT_SECRET } = require('../config/secrets');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'nvbestpca-secret';
 const TOKEN_EXPIRY = '24h';
 
 function signToken(user, permissions) {
@@ -135,14 +135,14 @@ async function register(req, res, next) {
                     <p>Your account has been created. Here are your login details:</p>
                     <table cellpadding="8" cellspacing="0" style="border:1px solid #e4e4e7;border-radius:6px;width:100%">
                         <tr><td style="color:#71717a">Email</td><td><strong>${user.email}</strong></td></tr>
-                        <tr><td style="color:#71717a">Password</td><td><strong>${password}</strong></td></tr>
                         <tr><td style="color:#71717a">Role</td><td>${user.role}</td></tr>
                     </table>
+                    <p style="margin-top:16px">To set your password, use the <strong>Forgot Password</strong> link on the login page, or ask your administrator for the password you were assigned.</p>
                     <p style="margin-top:20px">
                         <a href="${loginUrl}" style="display:inline-block;padding:12px 24px;background:#18181b;color:#fff;text-decoration:none;border-radius:6px;">Log In</a>
                     </p>
                 </div>`,
-                `Welcome to NV Best PCA\n\nEmail: ${user.email}\nPassword: ${password}\nRole: ${user.role}\n\nLog in at: ${loginUrl}`
+                `Welcome to NV Best PCA\n\nEmail: ${user.email}\nRole: ${user.role}\n\nTo set your password, use the "Forgot Password" link on the login page, or ask your administrator for the password you were assigned.\n\nLog in at: ${loginUrl}`
             ).catch(err => console.error('Welcome email failed:', err.message));
         }
     } catch (err) { next(err); }
@@ -219,16 +219,16 @@ async function resetPassword(req, res, next) {
                 `<div style="font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:500px;margin:0 auto">
                     <h2 style="color:#09090b">Password Reset</h2>
                     <p>Hi ${user.name},</p>
-                    <p>Your password has been reset by an administrator. Here are your updated login details:</p>
+                    <p>Your password has been reset by an administrator.</p>
                     <table cellpadding="8" cellspacing="0" style="border:1px solid #e4e4e7;border-radius:6px;width:100%">
                         <tr><td style="color:#71717a">Email</td><td><strong>${user.email}</strong></td></tr>
-                        <tr><td style="color:#71717a">New Password</td><td><strong>${password}</strong></td></tr>
                     </table>
+                    <p style="margin-top:16px">Your administrator will share your new password with you directly. If you did not expect this change, use the <strong>Forgot Password</strong> link to set your own password.</p>
                     <p style="margin-top:20px">
                         <a href="${loginUrl}" style="display:inline-block;padding:12px 24px;background:#3b82f6;color:#fff;text-decoration:none;border-radius:6px;">Log In</a>
                     </p>
                 </div>`,
-                `Your password has been reset.\n\nEmail: ${user.email}\nNew Password: ${password}\n\nLog in at: ${loginUrl}`
+                `Your password has been reset by an administrator.\n\nEmail: ${user.email}\n\nYour administrator will share your new password with you directly. If you did not expect this change, use the "Forgot Password" link to set your own password.\n\nLog in at: ${loginUrl}`
             ).catch(err => console.error('Password reset email failed:', err.message));
         }
 
