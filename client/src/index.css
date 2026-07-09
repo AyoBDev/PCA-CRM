@@ -14278,41 +14278,13 @@ tr:hover .auth-note-icon--empty {
    Lead & Referral Management
    ═══════════════════════════════════════════════════════════ */
 
-/* ── Stats strip (reuses .stat-card; adds container + color modifiers) ── */
-.stats-strip {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 16px;
-    margin: 16px 24px;
+/* ── Stats (reuses the shared .stats-grid + .card KPI pattern) ── */
+.leads-stats {
+    padding: 20px 24px 4px;
 }
 
-.stat-card--amber {
-    border-color: hsl(var(--warning) / 0.3);
-    background: hsl(var(--warning-bg));
-}
-
-.stat-card--amber .stat-card__value {
-    color: hsl(var(--warning));
-}
-
-.stat-card--green {
-    border-color: hsl(var(--success) / 0.3);
-    background: hsl(var(--success-bg));
-}
-
-.stat-card--green .stat-card__value {
-    color: hsl(var(--success));
-}
-
-/* ── Button green alias (used by lead detail/convert actions) ── */
-.btn--green {
-    background: hsl(var(--success));
-    color: hsl(var(--success-foreground));
-    border-color: hsl(var(--success));
-}
-
-.btn--green:hover {
-    background: hsl(var(--success) / 0.9);
+.leads-stats .stats-grid {
+    margin-bottom: 16px;
 }
 
 /* ── Kanban board ── */
@@ -14323,9 +14295,8 @@ tr:hover .auth-note-icon--empty {
 
 .kanban {
     display: grid;
-    grid-template-columns: repeat(5, minmax(240px, 1fr));
+    grid-template-columns: repeat(5, minmax(180px, 1fr));
     gap: 16px;
-    min-width: 1200px;
 }
 
 .k-col {
@@ -14758,9 +14729,13 @@ tr:hover .auth-note-icon--empty {
 }
 
 .convert-anim {
-    font-size: 40px;
-    margin-bottom: 12px;
-    animation: convert-spin 1.2s linear infinite;
+    width: 40px;
+    height: 40px;
+    margin: 0 auto 12px;
+    border: 3px solid hsl(var(--muted));
+    border-top-color: hsl(var(--primary));
+    border-radius: 50%;
+    animation: convert-spin 0.8s linear infinite;
 }
 
 @keyframes convert-spin {
@@ -14796,8 +14771,13 @@ tr:hover .auth-note-icon--empty {
 }
 
 .cs-check {
-    font-size: 40px;
     margin-bottom: 12px;
+    color: hsl(var(--success));
+}
+
+.cs-check svg {
+    width: 40px;
+    height: 40px;
 }
 
 /* ── Wizard form section helpers (if used) ── */

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Modal from '../common/Modal';
 import * as api from '../../api';
+import * as Icons from '../common/Icons';
 import { LEAD_STATUSES, LEAD_CASE_TYPES, computeDeposit, computeWeekly } from '../../utils/leadConstants';
 
 const SERVICE_OPTIONS = [
@@ -8,7 +9,8 @@ const SERVICE_OPTIONS = [
     'Diaper Change', 'Transfer Assistance', 'Toileting', 'Medication Reminders',
     'Companionship', 'Grocery Shopping', 'Other',
 ];
-const SHIFT_OPTIONS = ['Day shift', 'Evening shift', 'Overnight shift', 'Weekend only', 'Holiday okay'];
+const SHIFT_OPTIONS = ['Morning shift', 'Afternoon shift', 'Evening shift'];
+const AUTH_STATUS_OPTIONS = ['Not started', 'Application in process', 'Auth received'];
 const GENDER_PREF_OPTIONS = ['No preference', 'Male', 'Female'];
 const AGE_PREF_OPTIONS = ['No preference', 'Similar age', 'Younger', 'Older'];
 const LANGUAGE_OPTIONS = ['English', 'Spanish', 'French', 'Creole', 'Other'];
@@ -20,10 +22,10 @@ const EMPTY = {
     medicaidId: '', insuranceNumber: '', insuranceType: '',
     referralSource: '', doctorName: '', doctorPhone: '', caseworkerName: '', caseworkerPhone: '',
     emergencyContactName: '', emergencyContactRelation: '', emergencyContactPhone: '', emergencyContactEmail: '', callNotes: '',
-    servicesRequested: [], daysPerWeek: '', hoursPerDay: '', startDateNeeded: '',
+    servicesRequested: [], otherService: '', daysPerWeek: '', hoursPerDay: '', startDateNeeded: '',
     caseType: 'initial', authStatus: '', expectedStartDate: '', currentAgencyName: '', currentAuthHoursMonth: 0, authNumber: '', transferReason: '', transferNotes: '',
     ppRate: 0, ppHoursPerWeek: 0, ppDepositHours: 0,
-    genderPreference: 'No preference', agePreference: 'No preference', shiftPreferences: ['Day shift'], languagePreference: 'English', scheduleNotes: '',
+    genderPreference: 'No preference', agePreference: 'No preference', shiftPreferences: ['Morning shift'], languagePreference: 'English', otherLanguage: '', scheduleNotes: '',
     status: 'new', assignedTo: '', followUpDate: '',
 };
 
@@ -34,11 +36,22 @@ function safeArr(v) {
 
 function hydrate(lead) {
     if (!lead) return EMPTY;
+    // Split any "Other: <text>" service entry back into the "Other" checkbox + free text.
+    const rawServices = safeArr(lead.servicesRequested);
+    const otherEntry = rawServices.find((s) => typeof s === 'string' && s.startsWith('Other:'));
+    const services = rawServices.map((s) => (s === otherEntry ? 'Other' : s));
+    const otherService = otherEntry ? otherEntry.slice('Other:'.length).trim() : '';
+    // A stored language not in the preset list is treated as a custom "Other" value.
+    const storedLang = lead.languagePreference || 'English';
+    const isCustomLang = storedLang && !LANGUAGE_OPTIONS.includes(storedLang);
     return {
         ...EMPTY,
         ...lead,
-        servicesRequested: safeArr(lead.servicesRequested),
-        shiftPreferences: safeArr(lead.shiftPreferences).length ? safeArr(lead.shiftPreferences) : ['Day shift'],
+        servicesRequested: services,
+        otherService,
+        shiftPreferences: safeArr(lead.shiftPreferences).length ? safeArr(lead.shiftPreferences) : ['Morning shift'],
+        languagePreference: isCustomLang ? 'Other' : storedLang,
+        otherLanguage: isCustomLang ? storedLang : '',
         dob: lead.dob ? lead.dob.slice(0, 10) : '',
         expectedStartDate: lead.expectedStartDate ? lead.expectedStartDate.slice(0, 10) : '',
         followUpDate: lead.followUpDate ? lead.followUpDate.slice(0, 10) : '',
@@ -55,7 +68,7 @@ function StepBar({ step }) {
                 return (
                     <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, flex: i < STEP_LABELS.length - 1 ? 1 : 'initial' }}>
                         <span className={`step-dot${isActive ? ' step-dot--active' : ''}${isDone ? ' step-dot--done' : ''}`}>
-                            {isDone ? '✓' : n}
+                            {isDone ? Icons.check : n}
                         </span>
                         <span className="step-label" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{label}</span>
                         {i < STEP_LABELS.length - 1 && <span className="step-connector" style={{ flex: 1, height: 1, background: 'hsl(var(--border))' }} />}
@@ -205,6 +218,15 @@ function Step2Services({ form, set, toggleArr }) {
                         </label>
                     ))}
                 </div>
+                {form.servicesRequested.includes('Other') && (
+                    <input
+                        className="finput"
+                        style={{ marginTop: 8 }}
+                        value={form.otherService}
+                        onChange={(e) => set('otherService', e.target.value)}
+                        placeholder="Please specify other service"
+                    />
+                )}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="fld">
@@ -256,7 +278,10 @@ function Step3CaseType({ form, set }) {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                         <div className="fld">
                             <label>Auth Status</label>
-                            <input className="finput" value={form.authStatus} onChange={(e) => set('authStatus', e.target.value)} placeholder="e.g. Pending, Approved" />
+                            <select className="finput" value={form.authStatus} onChange={(e) => set('authStatus', e.target.value)}>
+                                <option value="">Select...</option>
+                                {AUTH_STATUS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                            </select>
                         </div>
                         <div className="fld">
                             <label>Expected Start Date</label>
@@ -367,6 +392,15 @@ function Step4Preferences({ form, set, toggleArr }) {
                 <select className="finput" value={form.languagePreference} onChange={(e) => set('languagePreference', e.target.value)}>
                     {LANGUAGE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
+                {form.languagePreference === 'Other' && (
+                    <input
+                        className="finput"
+                        style={{ marginTop: 8 }}
+                        value={form.otherLanguage}
+                        onChange={(e) => set('otherLanguage', e.target.value)}
+                        placeholder="Please specify other language"
+                    />
+                )}
             </div>
 
             <div className="fld">
@@ -377,7 +411,9 @@ function Step4Preferences({ form, set, toggleArr }) {
     );
 }
 
-function Step5Status({ form, set }) {
+function Step5Status({ form, set, users }) {
+    // Preserve a legacy free-text value that isn't a current user name.
+    const knownName = users.some((u) => u.name === form.assignedTo);
     return (
         <>
             <h3 className="lead-step-title">Status Routing</h3>
@@ -404,7 +440,11 @@ function Step5Status({ form, set }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="fld">
                     <label>Assigned To</label>
-                    <input className="finput" value={form.assignedTo} onChange={(e) => set('assignedTo', e.target.value)} placeholder="Staff name" />
+                    <select className="finput" value={form.assignedTo} onChange={(e) => set('assignedTo', e.target.value)}>
+                        <option value="">Unassigned</option>
+                        {form.assignedTo && !knownName && <option value={form.assignedTo}>{form.assignedTo}</option>}
+                        {users.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
+                    </select>
                 </div>
                 <div className="fld">
                     <label>Follow-up Date</label>
@@ -419,6 +459,7 @@ export default function LeadIntakeWizard({ open = true, initialLead, onClose, on
     const [step, setStep] = useState(1);
     const [form, setForm] = useState(() => hydrate(initialLead));
     const [insuranceTypes, setInsuranceTypes] = useState([]);
+    const [users, setUsers] = useState([]);
     const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
@@ -432,6 +473,9 @@ export default function LeadIntakeWizard({ open = true, initialLead, onClose, on
     useEffect(() => {
         if (!open) return;
         api.getInsuranceTypes().then(setInsuranceTypes).catch(() => setInsuranceTypes([]));
+        api.getUsers()
+            .then((data) => setUsers(Array.isArray(data) ? data : data.users || []))
+            .catch(() => setUsers([]));
     }, [open]);
 
     if (!open) return null;
@@ -447,13 +491,24 @@ export default function LeadIntakeWizard({ open = true, initialLead, onClose, on
     async function submit() {
         setSubmitting(true);
         try {
+            // Fold the free-text "Other" values into the persisted fields, then drop the
+            // transient helper keys so they aren't sent as unknown Prisma columns.
+            const { otherService, otherLanguage, ...rest } = form;
+            const services = form.servicesRequested.map((s) =>
+                s === 'Other' && otherService.trim() ? `Other: ${otherService.trim()}` : s
+            );
+            const languagePreference =
+                form.languagePreference === 'Other' && otherLanguage.trim()
+                    ? otherLanguage.trim()
+                    : form.languagePreference;
             await onSave({
-                ...form,
+                ...rest,
+                languagePreference,
                 currentAuthHoursMonth: Number(form.currentAuthHoursMonth) || 0,
                 ppRate: Number(form.ppRate) || 0,
                 ppHoursPerWeek: Number(form.ppHoursPerWeek) || 0,
                 ppDepositHours: Number(form.ppDepositHours) || 0,
-                servicesRequested: JSON.stringify(form.servicesRequested),
+                servicesRequested: JSON.stringify(services),
                 shiftPreferences: JSON.stringify(form.shiftPreferences),
             });
         } finally {
@@ -474,7 +529,7 @@ export default function LeadIntakeWizard({ open = true, initialLead, onClose, on
                 {step === 2 && <Step2Services form={form} set={set} toggleArr={toggleArr} />}
                 {step === 3 && <Step3CaseType form={form} set={set} />}
                 {step === 4 && <Step4Preferences form={form} set={set} toggleArr={toggleArr} />}
-                {step === 5 && <Step5Status form={form} set={set} />}
+                {step === 5 && <Step5Status form={form} set={set} users={users} />}
             </div>
 
             <div className="wizard-nav" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>

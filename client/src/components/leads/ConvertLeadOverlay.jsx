@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as api from '../../api';
+import * as Icons from '../common/Icons';
 
 const STEPS = ['Validating lead data...', 'Copying profile to Active Clients...', 'Migrating records...', 'Finalizing client profile...', 'Conversion complete!'];
 
@@ -35,16 +36,16 @@ export default function ConvertLeadOverlay({ open, lead, onConfirmed, onClose })
                     </>
                 ) : !done ? (
                     <>
-                        <div className="convert-anim">🔄</div>
+                        <div className="convert-anim" aria-hidden="true" />
                         <div className="convert-title">Converting Lead to Active Client</div>
                         <div className="convert-sub">{STEPS[idx]}</div>
                     </>
                 ) : (
                     <>
-                        <div className="cs-check">✅</div>
+                        <div className="cs-check">{Icons.checkCircle}</div>
                         <div className="convert-title">Conversion Complete!</div>
                         <div className="convert-sub">Profile migrated to Active Clients.</div>
-                        <button className="btn btn--green" onClick={() => onConfirmed(result)}>View Active Clients →</button>
+                        <button className="btn btn--success" onClick={() => onConfirmed(result)}>View Client</button>
                     </>
                 )}
             </div>

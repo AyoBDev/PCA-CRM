@@ -122,7 +122,8 @@ export default function LeadsPage() {
         setConvertLeadObj(null);
         setLeads((c) => c.filter((x) => x.id !== result.lead.id));
         load();
-        navigate('/clients');
+        const clientId = result?.client?.id;
+        navigate(clientId ? `/clients/${clientId}` : '/clients');
     }, [navigate, load]);
 
     return (
@@ -161,23 +162,41 @@ export default function LeadsPage() {
             </ContextBar>
 
             {stats && (
-                <div className="stats-strip">
-                    <div className="stat-card">
-                        <div className="stat-card__value">{stats.total}</div>
-                        <div className="stat-card__label">Total active leads</div>
+                <div className="leads-stats">
+                <div className="stats-grid">
+                    <div className="card">
+                        <div className="card__header">
+                            <span className="card__title">Total Active Leads</span>
+                            <span className="card__icon">{Icons.users}</span>
+                        </div>
+                        <div className="card__value">{stats.total}</div>
+                        <div className="card__description">Currently in the pipeline</div>
                     </div>
-                    <div className="stat-card stat-card--amber">
-                        <div className="stat-card__value">{stats.followUpOverdue}</div>
-                        <div className="stat-card__label">Follow-up overdue</div>
+                    <div className="card">
+                        <div className="card__header">
+                            <span className="card__title">Follow-up Overdue</span>
+                            <span className="card__icon">{Icons.alertTriangle}</span>
+                        </div>
+                        <div className="card__value">{stats.followUpOverdue}</div>
+                        <div className="card__description">Past their follow-up date</div>
                     </div>
-                    <div className="stat-card stat-card--amber">
-                        <div className="stat-card__value">{stats.waitingInsurance}</div>
-                        <div className="stat-card__label">Waiting for insurance</div>
+                    <div className="card">
+                        <div className="card__header">
+                            <span className="card__title">Waiting for Insurance</span>
+                            <span className="card__icon">{Icons.clock}</span>
+                        </div>
+                        <div className="card__value">{stats.waitingInsurance}</div>
+                        <div className="card__description">Auth / eligibility pending</div>
                     </div>
-                    <div className="stat-card stat-card--green">
-                        <div className="stat-card__value">{stats.convertedThisMonth}</div>
-                        <div className="stat-card__label">Converted this month</div>
+                    <div className="card">
+                        <div className="card__header">
+                            <span className="card__title">Converted This Month</span>
+                            <span className="card__icon">{Icons.checkCircle}</span>
+                        </div>
+                        <div className="card__value">{stats.convertedThisMonth}</div>
+                        <div className="card__description">Became active clients</div>
                     </div>
+                </div>
                 </div>
             )}
 

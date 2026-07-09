@@ -110,7 +110,7 @@ export default function LeadDetailModal({ lead, onClose, onEdit, onArchive, onCo
                         <button type="button" className="btn btn--outline" onClick={() => onArchive && onArchive(lead)}>Archive</button>
                     )}
                     {!isArchived && (
-                        <button type="button" className="btn btn--green" onClick={() => onConvert && onConvert(lead)}>Convert to Active Client</button>
+                        <button type="button" className="btn btn--success" onClick={() => onConvert && onConvert(lead)}>Convert to Active Client</button>
                     )}
                 </div>
             </div>
