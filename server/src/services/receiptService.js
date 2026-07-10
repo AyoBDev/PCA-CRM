@@ -1,4 +1,4 @@
-const prisma = require('../lib/prisma');
+const { getTenantDb } = require('../lib/tenantContext');
 const PDFDocument = require('pdfkit');
 
 const GARNISHMENT_RATE = 0.18;
@@ -72,9 +72,10 @@ function computeYTD(priorReceipts, current, overrides) {
 }
 
 async function getEmployeeHours(employeeId, employeeName, periodStart, periodEnd) {
+    const db = getTenantDb();
     const midpoint = new Date(periodStart.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    const evvVisits = await prisma.payrollVisit.findMany({
+    const evvVisits = await db.payrollVisit.findMany({
         where: {
             employeeName: { contains: employeeName, mode: 'insensitive' },
             visitDate: { gte: periodStart, lte: periodEnd },
@@ -89,7 +90,7 @@ async function getEmployeeHours(employeeId, employeeName, periodStart, periodEnd
         else evvW2 += hrs;
     }
 
-    const timesheets = await prisma.timesheet.findMany({
+    const timesheets = await db.timesheet.findMany({
         where: {
             pcaName: { contains: employeeName, mode: 'insensitive' },
             status: { in: ['submitted', 'accepted'] },
@@ -109,8 +110,9 @@ async function getEmployeeHours(employeeId, employeeName, periodStart, periodEnd
 }
 
 async function getPriorReceipts(employeeId, periodStart) {
+    const db = getTenantDb();
     const yearStart = new Date(periodStart.getUTCFullYear(), 0, 1);
-    return prisma.payReceipt.findMany({
+    return db.payReceipt.findMany({
         where: {
             employeeId,
             periodStart: { gte: yearStart, lt: periodStart },

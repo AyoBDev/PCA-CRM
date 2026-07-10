@@ -1,4 +1,3 @@
-const prisma = require('../lib/prisma');
 const storage = require('../services/storageService');
 const audit = require('../services/auditService');
 
@@ -14,11 +13,11 @@ async function listFolders(req, res, next) {
             where.parentId = parentId;
             where.archivedAt = null;
         }
-        const folders = await prisma.adminFolder.findMany({
+        const folders = await req.db.adminFolder.findMany({
             where,
             orderBy: { name: 'asc' },
         });
-        const files = await prisma.adminFile.findMany({
+        const files = await req.db.adminFile.findMany({
             where: { folderId: parentId || -1 },
             orderBy: { name: 'asc' },
             include: { uploader: { select: { id: true, name: true } } },
@@ -31,14 +30,14 @@ async function listFolders(req, res, next) {
 async function getFolder(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const folder = await prisma.adminFolder.findUnique({ where: { id } });
+        const folder = await req.db.adminFolder.findUnique({ where: { id } });
         if (!folder) return res.status(404).json({ error: 'Folder not found' });
 
-        const children = await prisma.adminFolder.findMany({
+        const children = await req.db.adminFolder.findMany({
             where: { parentId: id, archivedAt: null },
             orderBy: { name: 'asc' },
         });
-        const files = await prisma.adminFile.findMany({
+        const files = await req.db.adminFile.findMany({
             where: { folderId: id },
             orderBy: { name: 'asc' },
             include: { uploader: { select: { id: true, name: true } } },
@@ -56,17 +55,17 @@ async function createFolder(req, res, next) {
         const pid = parentId ? Number(parentId) : null;
         let parentPath = '';
         if (pid) {
-            const parent = await prisma.adminFolder.findUnique({ where: { id: pid } });
+            const parent = await req.db.adminFolder.findUnique({ where: { id: pid } });
             if (!parent) return res.status(404).json({ error: 'Parent folder not found' });
             parentPath = parent.path;
         }
 
-        const duplicate = await prisma.adminFolder.findFirst({
+        const duplicate = await req.db.adminFolder.findFirst({
             where: { name: name.trim(), parentId: pid },
         });
         if (duplicate) return res.status(409).json({ error: 'A folder with that name already exists here' });
 
-        const folder = await prisma.adminFolder.create({
+        const folder = await req.db.adminFolder.create({
             data: {
                 name: name.trim(),
                 parentId: pid,
@@ -93,7 +92,7 @@ async function updateFolder(req, res, next) {
         const id = Number(req.params.id);
         const { name, parentId } = req.body;
 
-        const folder = await prisma.adminFolder.findUnique({ where: { id } });
+        const folder = await req.db.adminFolder.findUnique({ where: { id } });
         if (!folder) return res.status(404).json({ error: 'Folder not found' });
 
         const data = {};
@@ -104,15 +103,15 @@ async function updateFolder(req, res, next) {
         let parentPath = '';
         const newParentId = data.parentId !== undefined ? data.parentId : folder.parentId;
         if (newParentId) {
-            const parent = await prisma.adminFolder.findUnique({ where: { id: newParentId } });
+            const parent = await req.db.adminFolder.findUnique({ where: { id: newParentId } });
             if (parent) parentPath = parent.path;
         }
         data.path = `${parentPath}/${data.name || folder.name}`;
 
-        const updated = await prisma.adminFolder.update({ where: { id }, data });
+        const updated = await req.db.adminFolder.update({ where: { id }, data });
 
         // Recursively update children paths
-        await updateChildPaths(id, updated.path);
+        await updateChildPaths(req.db, id, updated.path);
 
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
@@ -128,12 +127,12 @@ async function updateFolder(req, res, next) {
     }
 }
 
-async function updateChildPaths(parentId, parentPath) {
-    const children = await prisma.adminFolder.findMany({ where: { parentId } });
+async function updateChildPaths(db, parentId, parentPath) {
+    const children = await db.adminFolder.findMany({ where: { parentId } });
     for (const child of children) {
         const newPath = `${parentPath}/${child.name}`;
-        await prisma.adminFolder.update({ where: { id: child.id }, data: { path: newPath } });
-        await updateChildPaths(child.id, newPath);
+        await db.adminFolder.update({ where: { id: child.id }, data: { path: newPath } });
+        await updateChildPaths(db, child.id, newPath);
     }
 }
 
@@ -141,14 +140,14 @@ async function updateChildPaths(parentId, parentPath) {
 async function deleteFolder(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const folder = await prisma.adminFolder.findUnique({ where: { id } });
+        const folder = await req.db.adminFolder.findUnique({ where: { id } });
         if (!folder) return res.status(404).json({ error: 'Folder not found' });
 
         const now = new Date();
-        await prisma.adminFolder.update({ where: { id }, data: { archivedAt: now } });
+        await req.db.adminFolder.update({ where: { id }, data: { archivedAt: now } });
 
         // Also soft-archive child folders recursively
-        await archiveChildFolders(id, now);
+        await archiveChildFolders(req.db, id, now);
 
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
@@ -160,24 +159,24 @@ async function deleteFolder(req, res, next) {
     } catch (err) { next(err); }
 }
 
-async function archiveChildFolders(parentId, archivedAt) {
-    const children = await prisma.adminFolder.findMany({ where: { parentId }, select: { id: true } });
+async function archiveChildFolders(db, parentId, archivedAt) {
+    const children = await db.adminFolder.findMany({ where: { parentId }, select: { id: true } });
     for (const child of children) {
-        await prisma.adminFolder.update({ where: { id: child.id }, data: { archivedAt } });
-        await archiveChildFolders(child.id, archivedAt);
+        await db.adminFolder.update({ where: { id: child.id }, data: { archivedAt } });
+        await archiveChildFolders(db, child.id, archivedAt);
     }
 }
 
 async function restoreFolder(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const folder = await prisma.adminFolder.findUnique({ where: { id } });
+        const folder = await req.db.adminFolder.findUnique({ where: { id } });
         if (!folder) return res.status(404).json({ error: 'Folder not found' });
 
-        await prisma.adminFolder.update({ where: { id }, data: { archivedAt: null } });
+        await req.db.adminFolder.update({ where: { id }, data: { archivedAt: null } });
 
         // Also restore child folders
-        await restoreChildFolders(id);
+        await restoreChildFolders(req.db, id);
 
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
@@ -189,21 +188,21 @@ async function restoreFolder(req, res, next) {
     } catch (err) { next(err); }
 }
 
-async function restoreChildFolders(parentId) {
-    const children = await prisma.adminFolder.findMany({ where: { parentId, archivedAt: { not: null } }, select: { id: true } });
+async function restoreChildFolders(db, parentId) {
+    const children = await db.adminFolder.findMany({ where: { parentId, archivedAt: { not: null } }, select: { id: true } });
     for (const child of children) {
-        await prisma.adminFolder.update({ where: { id: child.id }, data: { archivedAt: null } });
-        await restoreChildFolders(child.id);
+        await db.adminFolder.update({ where: { id: child.id }, data: { archivedAt: null } });
+        await restoreChildFolders(db, child.id);
     }
 }
 
-async function collectStorageKeys(folderId) {
+async function collectStorageKeys(db, folderId) {
     const keys = [];
-    const files = await prisma.adminFile.findMany({ where: { folderId }, select: { storageKey: true } });
+    const files = await db.adminFile.findMany({ where: { folderId }, select: { storageKey: true } });
     keys.push(...files.map(f => f.storageKey));
-    const children = await prisma.adminFolder.findMany({ where: { parentId: folderId }, select: { id: true } });
+    const children = await db.adminFolder.findMany({ where: { parentId: folderId }, select: { id: true } });
     for (const child of children) {
-        keys.push(...await collectStorageKeys(child.id));
+        keys.push(...await collectStorageKeys(db, child.id));
     }
     return keys;
 }
@@ -214,7 +213,7 @@ async function uploadFile(req, res, next) {
         const folderId = Number(req.body.folderId);
         if (!folderId) return res.status(400).json({ error: 'folderId is required' });
 
-        const folder = await prisma.adminFolder.findUnique({ where: { id: folderId } });
+        const folder = await req.db.adminFolder.findUnique({ where: { id: folderId } });
         if (!folder) return res.status(404).json({ error: 'Folder not found' });
 
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
@@ -223,7 +222,7 @@ async function uploadFile(req, res, next) {
 
         await storage.upload(storageKey, req.file.buffer, req.file.mimetype || 'application/octet-stream');
 
-        const file = await prisma.adminFile.create({
+        const file = await req.db.adminFile.create({
             data: {
                 name: req.file.originalname,
                 folderId,
@@ -252,7 +251,7 @@ async function uploadFile(req, res, next) {
 async function downloadFile(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const file = await prisma.adminFile.findUnique({ where: { id } });
+        const file = await req.db.adminFile.findUnique({ where: { id } });
         if (!file) return res.status(404).json({ error: 'File not found' });
 
         const stream = await storage.download(file.storageKey);
@@ -276,7 +275,7 @@ async function downloadFile(req, res, next) {
 async function replaceFile(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const file = await prisma.adminFile.findUnique({ where: { id } });
+        const file = await req.db.adminFile.findUnique({ where: { id } });
         if (!file) return res.status(404).json({ error: 'File not found' });
 
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
@@ -284,7 +283,7 @@ async function replaceFile(req, res, next) {
         await storage.upload(file.storageKey, req.file.buffer, file.mimeType || 'application/octet-stream');
 
         const oldSize = file.fileSize;
-        await prisma.adminFile.update({
+        await req.db.adminFile.update({
             where: { id },
             data: { fileSize: req.file.size },
         });
@@ -306,14 +305,14 @@ async function updateFile(req, res, next) {
         const id = Number(req.params.id);
         const { name, folderId } = req.body;
 
-        const file = await prisma.adminFile.findUnique({ where: { id } });
+        const file = await req.db.adminFile.findUnique({ where: { id } });
         if (!file) return res.status(404).json({ error: 'File not found' });
 
         const data = {};
         if (name && name.trim()) data.name = name.trim();
         if (folderId) data.folderId = Number(folderId);
 
-        const updated = await prisma.adminFile.update({ where: { id }, data });
+        const updated = await req.db.adminFile.update({ where: { id }, data });
 
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
@@ -333,11 +332,11 @@ async function updateFile(req, res, next) {
 async function deleteFile(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const file = await prisma.adminFile.findUnique({ where: { id } });
+        const file = await req.db.adminFile.findUnique({ where: { id } });
         if (!file) return res.status(404).json({ error: 'File not found' });
 
         await storage.remove(file.storageKey);
-        await prisma.adminFile.delete({ where: { id } });
+        await req.db.adminFile.delete({ where: { id } });
 
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
@@ -357,12 +356,12 @@ async function copyFile(req, res, next) {
             return res.status(400).json({ error: 'fileIds and targetFolderId are required' });
         }
 
-        const target = await prisma.adminFolder.findUnique({ where: { id: Number(targetFolderId) } });
+        const target = await req.db.adminFolder.findUnique({ where: { id: Number(targetFolderId) } });
         if (!target) return res.status(404).json({ error: 'Target folder not found' });
 
         const copies = [];
         for (const fileId of fileIds) {
-            const original = await prisma.adminFile.findUnique({ where: { id: Number(fileId) } });
+            const original = await req.db.adminFile.findUnique({ where: { id: Number(fileId) } });
             if (!original) continue;
 
             const stream = await storage.download(original.storageKey);
@@ -387,7 +386,7 @@ async function copyFile(req, res, next) {
             const newKey = `admin-files${target.path}/${Date.now()}-${original.name}`;
             await storage.upload(newKey, buffer, original.mimeType || 'application/octet-stream');
 
-            const copy = await prisma.adminFile.create({
+            const copy = await req.db.adminFile.create({
                 data: {
                     name: original.name,
                     folderId: Number(targetFolderId),
@@ -414,12 +413,12 @@ async function searchFiles(req, res, next) {
         const q = (req.query.q || '').trim();
         if (!q) return res.json({ folders: [], files: [] });
 
-        const folders = await prisma.adminFolder.findMany({
+        const folders = await req.db.adminFolder.findMany({
             where: { name: { contains: q, mode: 'insensitive' } },
             orderBy: { path: 'asc' },
             take: 50,
         });
-        const files = await prisma.adminFile.findMany({
+        const files = await req.db.adminFile.findMany({
             where: { name: { contains: q, mode: 'insensitive' } },
             orderBy: { name: 'asc' },
             include: { folder: { select: { path: true } }, uploader: { select: { id: true, name: true } } },
@@ -434,7 +433,7 @@ async function searchFiles(req, res, next) {
 async function exportFiles(req, res, next) {
     try {
         const archiver = require('archiver');
-        const allFiles = await prisma.adminFile.findMany({
+        const allFiles = await req.db.adminFile.findMany({
             include: { folder: { select: { path: true } } },
         });
 

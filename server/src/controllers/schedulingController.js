@@ -1,4 +1,3 @@
-const prisma = require('../lib/prisma');
 const {
     computeShiftHours,
     detectOverlaps,
@@ -30,7 +29,7 @@ function deriveCodeFromName(name) {
 
 // Check if adding proposed units would exceed authorized limits for a client+serviceCode.
 // Returns { allowed: true } or { allowed: false, serviceCode, authorized, currentlyScheduled, proposed, overage }.
-async function checkAuthorizationLimits(clientId, proposedShifts, excludeShiftId) {
+async function checkAuthorizationLimits(db, clientId, proposedShifts, excludeShiftId) {
     // Group proposed units by serviceCode and by week
     const proposedByCodeWeek = {};
     for (const s of proposedShifts) {
@@ -42,7 +41,7 @@ async function checkAuthorizationLimits(clientId, proposedShifts, excludeShiftId
     }
 
     // Fetch all auths for this client once
-    const allAuths = await prisma.authorization.findMany({
+    const allAuths = await db.authorization.findMany({
         where: { clientId: Number(clientId) },
     });
 
@@ -78,7 +77,7 @@ async function checkAuthorizationLimits(clientId, proposedShifts, excludeShiftId
         };
         if (excludeShiftId) where.id = { not: Number(excludeShiftId) };
 
-        const existing = await prisma.shift.findMany({ where, select: { units: true } });
+        const existing = await db.shift.findMany({ where, select: { units: true } });
         const currentlyScheduled = existing.reduce((sum, s) => sum + s.units, 0);
 
         if (currentlyScheduled + proposedUnits > authorized) {
@@ -100,8 +99,8 @@ async function checkAuthorizationLimits(clientId, proposedShifts, excludeShiftId
 // Get the set of real service codes authorized for a client (resolves TIMESHEETS via serviceName)
 // Optional shiftDates: array of YYYY-MM-DD strings — if provided, checks each date's week for active auths
 // Returns: { codes: Set, hasAuthorizations: boolean }
-async function getAuthorizedServiceCodes(clientId, shiftDates) {
-    const allAuths = await prisma.authorization.findMany({
+async function getAuthorizedServiceCodes(db, clientId, shiftDates) {
+    const allAuths = await db.authorization.findMany({
         where: { clientId: Number(clientId), manualStatus: 'active', archivedAt: null },
         select: { serviceCode: true, serviceName: true, authorizationStartDate: true, authorizationEndDate: true, manualStatus: true, archivedAt: true },
     });
@@ -156,7 +155,7 @@ const shiftInclude = {
  * Check if a proposed shift overlaps with existing shifts for the same employee on the same date.
  * Returns array of conflicting shifts (empty = no conflicts).
  */
-async function checkOverlaps({ employeeId, shiftDate, startTime, endTime, excludeId }) {
+async function checkOverlaps(db, { employeeId, shiftDate, startTime, endTime, excludeId }) {
     if (!employeeId) return [];
 
     const dateStart = new Date(shiftDate + 'T00:00:00.000Z');
@@ -171,7 +170,7 @@ async function checkOverlaps({ employeeId, shiftDate, startTime, endTime, exclud
 
     if (excludeId) where.id = { not: Number(excludeId) };
 
-    const existing = await prisma.shift.findMany({ where, include: shiftInclude });
+    const existing = await req.db.shift.findMany({ where, include: shiftInclude });
 
     const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
     let sNew = toMin(startTime), eNew = toMin(endTime);
@@ -194,42 +193,42 @@ async function checkOverlaps({ employeeId, shiftDate, startTime, endTime, exclud
  */
 async function autoNotify(employeeId, shiftDate, req) {
     if (!employeeId) return;
-    const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+    const employee = await req.db.employee.findUnique({ where: { id: employeeId } });
     if (!employee) return;
 
     const { weekStart: ws } = getWeekRange(shiftDate instanceof Date ? shiftDate.toISOString().split('T')[0] : shiftDate);
     const baseUrl = `${req.protocol}://${req.get('host')}`;
 
     // Auto-generate permanent schedule link
-    let scheduleLink = await prisma.employeeScheduleLink.findUnique({ where: { employeeId } });
+    let scheduleLink = await req.db.employeeScheduleLink.findUnique({ where: { employeeId } });
     if (!scheduleLink) {
-        scheduleLink = await prisma.employeeScheduleLink.create({ data: { employeeId } });
+        scheduleLink = await req.db.employeeScheduleLink.create({ data: { employeeId } });
     } else if (!scheduleLink.active) {
-        scheduleLink = await prisma.employeeScheduleLink.update({ where: { id: scheduleLink.id }, data: { active: true } });
+        scheduleLink = await req.db.employeeScheduleLink.update({ where: { id: scheduleLink.id }, data: { active: true } });
     }
     const scheduleUrl = `${baseUrl}/schedule/view/${scheduleLink.token}`;
 
     if (isSmsConfigured() && employee.phone) {
-        const notification = await prisma.scheduleNotification.create({
+        const notification = await req.db.scheduleNotification.create({
             data: { employeeId, weekStart: new Date(ws), method: 'sms', destination: employee.phone },
         });
         try {
             await sendSms(employee.phone, `NV Best PCA - Your schedule has been updated. View: ${scheduleUrl}`);
-            await prisma.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'sent', sentAt: new Date() } });
+            await req.db.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'sent', sentAt: new Date() } });
         } catch (err) {
-            await prisma.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'failed', failureReason: err.message } });
+            await req.db.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'failed', failureReason: err.message } });
         }
     }
 
     if (isEmailConfigured() && employee.email) {
-        const notification = await prisma.scheduleNotification.create({
+        const notification = await req.db.scheduleNotification.create({
             data: { employeeId, weekStart: new Date(ws), method: 'email', destination: employee.email },
         });
         try {
             await sendEmail(employee.email, 'Schedule Updated', `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:500px;margin:0 auto"><p>Hi ${employee.name},</p><p>Your schedule has been updated.</p><p style="text-align:center"><a href="${scheduleUrl}" style="display:inline-block;padding:12px 28px;background:#18181b;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:500">View Schedule</a></p></div>`, `Schedule updated. View: ${scheduleUrl}`);
-            await prisma.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'sent', sentAt: new Date() } });
+            await req.db.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'sent', sentAt: new Date() } });
         } catch (err) {
-            await prisma.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'failed', failureReason: err.message } });
+            await req.db.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'failed', failureReason: err.message } });
         }
     }
 }
@@ -268,7 +267,7 @@ async function listShifts(req, res, next) {
         if (clientId) where.clientId = Number(clientId);
         if (employeeId) where.employeeId = Number(employeeId);
 
-        const shifts = await prisma.shift.findMany({
+        const shifts = await req.db.shift.findMany({
             where,
             include: shiftInclude,
             orderBy: [{ shiftDate: 'asc' }, { startTime: 'asc' }],
@@ -281,7 +280,7 @@ async function listShifts(req, res, next) {
         let unitSummaries = {};
         if (!skipUnitSummaries) {
             const clientIds = [...new Set(shifts.map(s => s.clientId))];
-            const auths = await prisma.authorization.findMany({
+            const auths = await req.db.authorization.findMany({
                 where: { clientId: { in: clientIds } },
             });
             const authsByClient = {};
@@ -322,7 +321,7 @@ async function createShift(req, res, next) {
 
             // Validate all service codes are authorized for this client (check each shift's date)
             // Skip validation for clients with no authorizations (e.g. Private Pay, CognitiveCare)
-            const { codes: authorizedCodes, hasAuthorizations } = await getAuthorizedServiceCodes(clientId, bulkShifts.map(s => s.shiftDate));
+            const { codes: authorizedCodes, hasAuthorizations } = await getAuthorizedServiceCodes(req.db, clientId, bulkShifts.map(s => s.shiftDate));
             if (hasAuthorizations) {
                 const unauthorized = [...new Set(bulkShifts.map(s => s.serviceCode))].filter(c => c !== 'TIMESHEETS' && !authorizedCodes.has(c));
                 if (unauthorized.length > 0) {
@@ -330,7 +329,7 @@ async function createShift(req, res, next) {
                 }
 
                 // Check authorization limits
-                const authLimitCheck = await checkAuthorizationLimits(clientId, bulkShifts);
+                const authLimitCheck = await checkAuthorizationLimits(req.db, clientId, bulkShifts);
                 if (!authLimitCheck.allowed) {
                     const authHrs = Math.round((authLimitCheck.authorized / 4) * 100) / 100;
                     const schedHrs = Math.round((authLimitCheck.currentlyScheduled / 4) * 100) / 100;
@@ -347,7 +346,7 @@ async function createShift(req, res, next) {
             if (true) {
                 const allConflicts = [];
                 for (const entry of bulkShifts) {
-                    const conflicts = await checkOverlaps({
+                    const conflicts = await checkOverlaps(req.db, {
                         employeeId: Number(employeeId),
                         shiftDate: entry.shiftDate,
                         startTime: entry.startTime,
@@ -361,7 +360,7 @@ async function createShift(req, res, next) {
                     }
                 }
                 if (allConflicts.length > 0) {
-                    const empName = (await prisma.employee.findUnique({ where: { id: Number(employeeId) } }))?.name || '';
+                    const empName = (await req.db.employee.findUnique({ where: { id: Number(employeeId) } }))?.name || '';
                     return res.status(409).json({
                         error: 'overlap',
                         message: `${empName} already has ${allConflicts.length} overlapping shift${allConflicts.length > 1 ? 's' : ''}`,
@@ -378,7 +377,7 @@ async function createShift(req, res, next) {
                 if (entryAccount && !VALID_ACCOUNT_NUMBERS.includes(entryAccount)) {
                     return res.status(400).json({ error: `Invalid account number: ${entryAccount}. Must be one of: ${VALID_ACCOUNT_NUMBERS.join(', ')}` });
                 }
-                const shift = await prisma.shift.create({
+                const shift = await req.db.shift.create({
                     data: {
                         clientId: Number(clientId),
                         employeeId: Number(employeeId),
@@ -446,7 +445,7 @@ async function createShift(req, res, next) {
 
         // Validate service is authorized for this client (check shift dates)
         // Skip validation for clients with no authorizations (e.g. Private Pay, CognitiveCare)
-        const { codes: singleAuthorizedCodes, hasAuthorizations: singleHasAuths } = await getAuthorizedServiceCodes(clientId, dates);
+        const { codes: singleAuthorizedCodes, hasAuthorizations: singleHasAuths } = await getAuthorizedServiceCodes(req.db, clientId, dates);
         if (singleHasAuths) {
             if (serviceCode !== 'TIMESHEETS' && !singleAuthorizedCodes.has(serviceCode)) {
                 return res.status(400).json({ error: `Service ${serviceCode} is not authorized for this client` });
@@ -454,7 +453,7 @@ async function createShift(req, res, next) {
 
             // Check authorization limits for all dates
             const singleProposed = dates.map(d => ({ serviceCode, shiftDate: d, startTime, endTime }));
-            const singleAuthCheck = await checkAuthorizationLimits(clientId, singleProposed);
+            const singleAuthCheck = await checkAuthorizationLimits(req.db, clientId, singleProposed);
             if (!singleAuthCheck.allowed) {
                 const authHrs = Math.round((singleAuthCheck.authorized / 4) * 100) / 100;
                 const schedHrs = Math.round((singleAuthCheck.currentlyScheduled / 4) * 100) / 100;
@@ -471,7 +470,7 @@ async function createShift(req, res, next) {
         if (true) {
             const allConflicts = [];
             for (const date of dates) {
-                const conflicts = await checkOverlaps({
+                const conflicts = await checkOverlaps(req.db, {
                     employeeId: Number(employeeId),
                     shiftDate: date,
                     startTime,
@@ -490,7 +489,7 @@ async function createShift(req, res, next) {
                 }
             }
             if (allConflicts.length > 0) {
-                const empName = (await prisma.employee.findUnique({ where: { id: Number(employeeId) } }))?.name || '';
+                const empName = (await req.db.employee.findUnique({ where: { id: Number(employeeId) } }))?.name || '';
                 return res.status(409).json({
                     error: 'overlap',
                     message: `${empName} already has ${allConflicts.length} overlapping shift${allConflicts.length > 1 ? 's' : ''}`,
@@ -504,7 +503,7 @@ async function createShift(req, res, next) {
 
         const created = [];
         for (const date of dates) {
-            const shift = await prisma.shift.create({
+            const shift = await req.db.shift.create({
                 data: { ...baseData, shiftDate: new Date(date + 'T00:00:00.000Z'), recurringGroupId: groupId },
                 include: shiftInclude,
             });
@@ -530,7 +529,7 @@ async function updateShift(req, res, next) {
         const id = Number(req.params.id);
         const { clientId, employeeId, serviceCode, shiftDate, startTime, endTime, notes, status, accountNumber, sandataClientId } = req.body;
 
-        const existing = await prisma.shift.findUnique({ where: { id } });
+        const existing = await req.db.shift.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Shift not found' });
 
         const data = {};
@@ -564,7 +563,7 @@ async function updateShift(req, res, next) {
         const finalCID = clientId !== undefined ? Number(clientId) : existing.clientId;
         const finalShiftDate = shiftDate !== undefined ? shiftDate : existing.shiftDate.toISOString().slice(0, 10);
         if (serviceCode !== undefined || startTime !== undefined || endTime !== undefined || shiftDate !== undefined || clientId !== undefined) {
-            const updateAuthCheck = await checkAuthorizationLimits(finalCID, [{ serviceCode: finalSC, shiftDate: finalShiftDate, startTime: st, endTime: et }], id);
+            const updateAuthCheck = await checkAuthorizationLimits(req.db, finalCID, [{ serviceCode: finalSC, shiftDate: finalShiftDate, startTime: st, endTime: et }], id);
             if (!updateAuthCheck.allowed) {
                 const authHrs = Math.round((updateAuthCheck.authorized / 4) * 100) / 100;
                 const schedHrs = Math.round((updateAuthCheck.currentlyScheduled / 4) * 100) / 100;
@@ -583,7 +582,7 @@ async function updateShift(req, res, next) {
             const finalEmpId = employeeId !== undefined ? Number(employeeId) : existing.employeeId;
             const finalDate = shiftDate !== undefined ? shiftDate : existing.shiftDate.toISOString().slice(0, 10);
 
-            const conflicts = await checkOverlaps({
+            const conflicts = await checkOverlaps(req.db, {
                 employeeId: finalEmpId,
                 shiftDate: finalDate,
                 startTime: st,
@@ -591,7 +590,7 @@ async function updateShift(req, res, next) {
                 excludeId: id,
             });
             if (conflicts.length > 0) {
-                const empName = (finalEmpId ? (await prisma.employee.findUnique({ where: { id: finalEmpId } }))?.name : '') || '';
+                const empName = (finalEmpId ? (await req.db.employee.findUnique({ where: { id: finalEmpId } }))?.name : '') || '';
                 return res.status(409).json({
                     error: 'overlap',
                     message: `${empName} already has an overlapping shift`,
@@ -603,7 +602,7 @@ async function updateShift(req, res, next) {
             }
         }
 
-        const shift = await prisma.shift.update({
+        const shift = await req.db.shift.update({
             where: { id },
             data,
             include: shiftInclude,
@@ -632,7 +631,7 @@ async function repeatShift(req, res, next) {
         const { repeatUntil } = req.body;
         if (!repeatUntil) return res.status(400).json({ error: 'repeatUntil date is required' });
 
-        const existing = await prisma.shift.findUnique({ where: { id }, include: shiftInclude });
+        const existing = await req.db.shift.findUnique({ where: { id }, include: shiftInclude });
         if (!existing) return res.status(404).json({ error: 'Shift not found' });
         if (existing.archivedAt) return res.status(400).json({ error: 'Cannot repeat an archived shift' });
 
@@ -652,14 +651,14 @@ async function repeatShift(req, res, next) {
 
         // Check authorization (pass proposed dates for date-aware filtering)
         // Skip for clients with no authorizations (e.g. Private Pay, CognitiveCare)
-        const { codes: repeatAuthCodes, hasAuthorizations: repeatHasAuths } = await getAuthorizedServiceCodes(existing.clientId, dates);
+        const { codes: repeatAuthCodes, hasAuthorizations: repeatHasAuths } = await getAuthorizedServiceCodes(req.db, existing.clientId, dates);
         if (repeatHasAuths) {
             if (!repeatAuthCodes.has(existing.serviceCode)) {
                 return res.status(400).json({ error: `Service ${existing.serviceCode} is no longer authorized for this client` });
             }
 
             const proposed = dates.map(d => ({ serviceCode: existing.serviceCode, shiftDate: d, startTime: existing.startTime, endTime: existing.endTime }));
-            const authCheck = await checkAuthorizationLimits(existing.clientId, proposed);
+            const authCheck = await checkAuthorizationLimits(req.db, existing.clientId, proposed);
             if (!authCheck.allowed) {
                 const authHrs = Math.round((authCheck.authorized / 4) * 100) / 100;
                 const schedHrs = Math.round((authCheck.currentlyScheduled / 4) * 100) / 100;
@@ -675,7 +674,7 @@ async function repeatShift(req, res, next) {
         // Check overlaps
         const allConflicts = [];
         for (const date of dates) {
-            const conflicts = await checkOverlaps({
+            const conflicts = await checkOverlaps(req.db, {
                 employeeId: existing.employeeId,
                 shiftDate: date,
                 startTime: existing.startTime,
@@ -700,14 +699,14 @@ async function repeatShift(req, res, next) {
         // Generate recurring group ID and update original shift
         const groupId = existing.recurringGroupId || `rg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         if (!existing.recurringGroupId) {
-            await prisma.shift.update({ where: { id }, data: { recurringGroupId: groupId } });
+            await req.db.shift.update({ where: { id }, data: { recurringGroupId: groupId } });
         }
 
         // Create weekly copies
         const { hours, units } = computeShiftHours(existing.startTime, existing.endTime);
         const created = [];
         for (const date of dates) {
-            const shift = await prisma.shift.create({
+            const shift = await req.db.shift.create({
                 data: {
                     clientId: existing.clientId,
                     employeeId: existing.employeeId,
@@ -747,11 +746,11 @@ async function deleteShift(req, res, next) {
         const deleteGroup = req.query.group === 'true';
         const now = new Date();
 
-        const shiftToDelete = await prisma.shift.findUnique({ where: { id } });
+        const shiftToDelete = await req.db.shift.findUnique({ where: { id } });
         if (!shiftToDelete) return res.status(404).json({ error: 'Shift not found' });
 
         if (deleteGroup && shiftToDelete.recurringGroupId) {
-            const result = await prisma.shift.updateMany({ where: { recurringGroupId: shiftToDelete.recurringGroupId }, data: { archivedAt: now } });
+            const result = await req.db.shift.updateMany({ where: { recurringGroupId: shiftToDelete.recurringGroupId }, data: { archivedAt: now } });
             audit.logAction({
                 userId: req.user.id, userName: req.user.name, userRole: req.user.role,
                 action: 'ARCHIVE', entityType: 'Shift', entityId: id,
@@ -760,7 +759,7 @@ async function deleteShift(req, res, next) {
             return res.json({ archived: result.count });
         }
 
-        await prisma.shift.update({ where: { id }, data: { archivedAt: now } });
+        await req.db.shift.update({ where: { id }, data: { archivedAt: now } });
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             action: 'ARCHIVE', entityType: 'Shift', entityId: id,
@@ -775,7 +774,7 @@ async function deleteShift(req, res, next) {
 // DELETE /api/shifts (bulk archive all shifts)
 async function deleteAllShifts(req, res, next) {
     try {
-        const result = await prisma.shift.updateMany({ where: { archivedAt: null }, data: { archivedAt: new Date() } });
+        const result = await req.db.shift.updateMany({ where: { archivedAt: null }, data: { archivedAt: new Date() } });
         res.json({ archived: result.count });
     } catch (err) { next(err); }
 }
@@ -784,9 +783,9 @@ async function deleteAllShifts(req, res, next) {
 async function restoreShift(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const shift = await prisma.shift.findUnique({ where: { id } });
+        const shift = await req.db.shift.findUnique({ where: { id } });
         if (!shift) return res.status(404).json({ error: 'Shift not found' });
-        const restored = await prisma.shift.update({ where: { id }, data: { archivedAt: null }, include: shiftInclude });
+        const restored = await req.db.shift.update({ where: { id }, data: { archivedAt: null }, include: shiftInclude });
         res.json(enrichShift(restored));
     } catch (err) { next(err); }
 }
@@ -797,13 +796,13 @@ async function getClientSchedule(req, res, next) {
         const clientId = Number(req.params.clientId);
         const range = getWeekRange(req.query.weekStart || undefined);
 
-        const client = await prisma.client.findUnique({
+        const client = await req.db.client.findUnique({
             where: { id: clientId },
             include: { authorizations: true },
         });
         if (!client) return res.status(404).json({ error: 'Client not found' });
 
-        const shifts = await prisma.shift.findMany({
+        const shifts = await req.db.shift.findMany({
             where: {
                 clientId,
                 archivedAt: null,
@@ -825,7 +824,7 @@ async function getClientSchedule(req, res, next) {
 
         let allEmpShifts = shifts;
         if (employeeIds.length > 0) {
-            allEmpShifts = await prisma.shift.findMany({
+            allEmpShifts = await req.db.shift.findMany({
                 where: {
                     employeeId: { in: employeeIds },
                     archivedAt: null,
@@ -856,7 +855,7 @@ async function getEmployeeSchedule(req, res, next) {
         const employeeId = Number(req.params.employeeId);
         const allShifts = req.query.all === 'true';
 
-        const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+        const employee = await req.db.employee.findUnique({ where: { id: employeeId } });
         if (!employee) return res.status(404).json({ error: 'Employee not found' });
 
         const where = { employeeId, archivedAt: null };
@@ -868,7 +867,7 @@ async function getEmployeeSchedule(req, res, next) {
             };
         }
 
-        const shifts = await prisma.shift.findMany({
+        const shifts = await req.db.shift.findMany({
             where,
             include: shiftInclude,
             orderBy: [{ shiftDate: 'asc' }, { startTime: 'asc' }],
@@ -903,10 +902,10 @@ async function authCheck(req, res, next) {
         const { weekStart: ws, weekEnd: we } = getWeekRange(weekStart);
 
         const [allAuths, scheduledShifts] = await Promise.all([
-            prisma.authorization.findMany({
+            req.db.authorization.findMany({
                 where: { clientId: Number(clientId) },
             }),
-            prisma.shift.findMany({
+            req.db.shift.findMany({
                 where: {
                     clientId: Number(clientId),
                     serviceCode,
@@ -961,7 +960,7 @@ async function bulkUpdateShifts(req, res, next) {
             return res.status(400).json({ error: `Invalid account number. Must be one of: ${VALID_ACCOUNT_NUMBERS.join(', ')}` });
         }
 
-        const shifts = await prisma.shift.findMany({
+        const shifts = await req.db.shift.findMany({
             where: { id: { in: shiftIds.map(Number) }, archivedAt: null },
             include: shiftInclude,
         });
@@ -981,7 +980,7 @@ async function bulkUpdateShifts(req, res, next) {
                 hours: s.hours, units: s.units,
             }
         }));
-        const batch = await prisma.bulkEditBatch.create({
+        const batch = await req.db.bulkEditBatch.create({
             data: {
                 userId: req.user.id, userName: req.user.name,
                 action: 'UPDATE', shiftCount: shifts.length,
@@ -1013,7 +1012,7 @@ async function bulkUpdateShifts(req, res, next) {
             }
 
             try {
-                const shift = await prisma.shift.update({
+                const shift = await req.db.shift.update({
                     where: { id: existing.id },
                     data,
                     include: shiftInclude,
@@ -1047,7 +1046,7 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
 
         const shiftIds = Object.keys(perShiftUpdates).map(Number);
 
-        const shifts = await prisma.shift.findMany({
+        const shifts = await req.db.shift.findMany({
             where: { id: { in: shiftIds }, archivedAt: null },
             include: shiftInclude,
         });
@@ -1075,7 +1074,7 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
             if (recurringGroupIds.length > 0) {
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
-                futureShifts = await prisma.shift.findMany({
+                futureShifts = await req.db.shift.findMany({
                     where: {
                         recurringGroupId: { in: recurringGroupIds },
                         archivedAt: null,
@@ -1096,7 +1095,7 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
             }
         }
 
-        const batch = await prisma.bulkEditBatch.create({
+        const batch = await req.db.bulkEditBatch.create({
             data: {
                 userId: req.user.id, userName: req.user.name,
                 action: 'UPDATE', shiftCount: shifts.length + futureShifts.length,
@@ -1121,7 +1120,7 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
             if (updates.employeeId !== undefined) {
                 const empId = updates.employeeId ? Number(updates.employeeId) : null;
                 if (empId) {
-                    const empExists = await prisma.employee.findUnique({ where: { id: empId }, select: { id: true } });
+                    const empExists = await req.db.employee.findUnique({ where: { id: empId }, select: { id: true } });
                     if (!empExists) { errors.push({ id: existing.id, error: 'Employee not found' }); continue; }
                 }
                 data.employeeId = empId;
@@ -1142,7 +1141,7 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
             }
 
             try {
-                const shift = await prisma.shift.update({
+                const shift = await req.db.shift.update({
                     where: { id: existing.id },
                     data,
                     include: shiftInclude,
@@ -1204,7 +1203,7 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
                 }
 
                 try {
-                    await prisma.shift.update({ where: { id: futureShift.id }, data });
+                    await req.db.shift.update({ where: { id: futureShift.id }, data });
                     futureUpdated++;
                 } catch (err) {
                     // skip individual failures
@@ -1223,7 +1222,7 @@ async function bulkDeleteShifts(req, res, next) {
             return res.status(400).json({ error: 'shiftIds array is required' });
         }
 
-        const batch = await prisma.bulkEditBatch.create({
+        const batch = await req.db.bulkEditBatch.create({
             data: {
                 userId: req.user.id, userName: req.user.name,
                 action: 'ARCHIVE', shiftCount: shiftIds.length,
@@ -1232,7 +1231,7 @@ async function bulkDeleteShifts(req, res, next) {
         });
 
         const now = new Date();
-        const result = await prisma.shift.updateMany({
+        const result = await req.db.shift.updateMany({
             where: { id: { in: shiftIds.map(Number) }, archivedAt: null },
             data: { archivedAt: now },
         });
@@ -1248,7 +1247,7 @@ async function bulkDeleteShifts(req, res, next) {
 async function bulkUndoBatch(req, res, next) {
     try {
         const batchId = Number(req.params.batchId);
-        const batch = await prisma.bulkEditBatch.findUnique({ where: { id: batchId } });
+        const batch = await req.db.bulkEditBatch.findUnique({ where: { id: batchId } });
         if (!batch) return res.status(404).json({ error: 'Batch not found' });
         if (batch.undoneAt) return res.status(400).json({ error: 'Already undone' });
 
@@ -1263,19 +1262,19 @@ async function bulkUndoBatch(req, res, next) {
                     data.hours = hours;
                     data.units = units;
                 }
-                await prisma.shift.update({ where: { id: shiftId }, data });
+                await req.db.shift.update({ where: { id: shiftId }, data });
                 restored++;
             }
         } else if (batch.action === 'ARCHIVE') {
             const ids = snapshot.map(s => s.shiftId);
-            const result = await prisma.shift.updateMany({
+            const result = await req.db.shift.updateMany({
                 where: { id: { in: ids } },
                 data: { archivedAt: null },
             });
             restored = result.count;
         }
 
-        await prisma.bulkEditBatch.update({
+        await req.db.bulkEditBatch.update({
             where: { id: batchId },
             data: { undoneAt: new Date() },
         });
@@ -1293,7 +1292,7 @@ async function bulkUndoBatch(req, res, next) {
 async function listBulkEditBatches(req, res, next) {
     try {
         const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        const batches = await prisma.bulkEditBatch.findMany({
+        const batches = await req.db.bulkEditBatch.findMany({
             where: { createdAt: { gte: since } },
             orderBy: { createdAt: 'desc' },
             take: 20,
@@ -1317,7 +1316,7 @@ async function restoreShifts(req, res, next) {
         if (!Array.isArray(shiftIds) || shiftIds.length === 0) {
             return res.status(400).json({ error: 'shiftIds array is required' });
         }
-        const result = await prisma.shift.updateMany({
+        const result = await req.db.shift.updateMany({
             where: { id: { in: shiftIds.map(Number) }, archivedAt: { not: null } },
             data: { archivedAt: null },
         });
@@ -1337,7 +1336,7 @@ async function permanentDeleteShifts(req, res, next) {
         if (!Array.isArray(shiftIds) || shiftIds.length === 0) {
             return res.status(400).json({ error: 'shiftIds array is required' });
         }
-        const result = await prisma.shift.deleteMany({
+        const result = await req.db.shift.deleteMany({
             where: { id: { in: shiftIds.map(Number) }, archivedAt: { not: null } },
         });
         audit.logAction({
@@ -1352,7 +1351,7 @@ async function permanentDeleteShifts(req, res, next) {
 // GET /api/shifts/archived
 async function listArchivedShifts(req, res, next) {
     try {
-        const shifts = await prisma.shift.findMany({
+        const shifts = await req.db.shift.findMany({
             where: { archivedAt: { not: null } },
             include: { client: { select: { clientName: true } }, employee: { select: { name: true } } },
             orderBy: { archivedAt: 'desc' },

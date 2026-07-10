@@ -16,7 +16,7 @@ describe('FileManager Controller', () => {
 
     test('create root folder', async () => {
         const folder = await prisma.adminFolder.create({
-            data: { name: 'TestFolder', path: '/TestFolder', parentId: null },
+            data: { name: 'TestFolder', path: '/TestFolder', parentId: null, agencyId: 1 },
         });
         testFolderId = folder.id;
         expect(folder.name).toBe('TestFolder');
@@ -25,7 +25,7 @@ describe('FileManager Controller', () => {
 
     test('create subfolder', async () => {
         const sub = await prisma.adminFolder.create({
-            data: { name: 'SubFolder', path: '/TestFolder/SubFolder', parentId: testFolderId },
+            data: { name: 'SubFolder', path: '/TestFolder/SubFolder', parentId: testFolderId, agencyId: 1 },
         });
         expect(sub.parentId).toBe(testFolderId);
     });
@@ -33,7 +33,7 @@ describe('FileManager Controller', () => {
     test('unique constraint prevents duplicate names in same parent', async () => {
         await expect(
             prisma.adminFolder.create({
-                data: { name: 'SubFolder', path: '/TestFolder/SubFolder', parentId: testFolderId },
+                data: { name: 'SubFolder', path: '/TestFolder/SubFolder', parentId: testFolderId, agencyId: 1 },
             })
         ).rejects.toThrow();
     });
@@ -46,6 +46,7 @@ describe('FileManager Controller', () => {
                 storageKey: 'admin-files/TestFolder/123-test.pdf',
                 fileSize: 1024,
                 mimeType: 'application/pdf',
+                agencyId: 1,
             },
         });
         expect(file.name).toBe('test.pdf');
