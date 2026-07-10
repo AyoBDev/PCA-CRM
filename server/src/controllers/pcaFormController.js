@@ -79,6 +79,9 @@ async function getPcaForm(req, res, next) {
     if (!link.active) return res.status(403).json({ error: 'This link has been deactivated' });
     if (link.client.archivedAt) return res.status(403).json({ error: 'This client is no longer active. The timesheet link has been disabled.' });
 
+    // Warm the service registry cache so deriveTimesheetService (sync) reflects DB values
+    await serviceRegistry.getServiceMap();
+
     let weekStart;
     if (req.query.weekStart) {
       weekStart = normalizeWeekStart(req.query.weekStart);
@@ -227,6 +230,9 @@ async function updatePcaForm(req, res, next) {
     if (!link) return res.status(404).json({ error: 'Invalid link' });
     if (!link.active) return res.status(403).json({ error: 'This link has been deactivated' });
     if (link.client.archivedAt) return res.status(403).json({ error: 'This client is no longer active. The timesheet link has been disabled.' });
+
+    // Warm the service registry cache so deriveTimesheetService (sync) reflects DB values
+    await serviceRegistry.getServiceMap();
 
     let weekStart;
     if (req.body.weekStart) {

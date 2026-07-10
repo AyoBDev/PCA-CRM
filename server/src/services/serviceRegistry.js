@@ -26,9 +26,15 @@ function buildMap(rows) {
 
 async function getServiceMap() {
   if (cache) return cache;
-  const rows = await prisma.service.findMany({ where: { archivedAt: null } });
-  cache = buildMap(rows);
-  return cache;
+  try {
+    const rows = await prisma.service.findMany({ where: { archivedAt: null } });
+    cache = buildMap(rows);
+    return cache;
+  } catch (err) {
+    // DB unavailable — fall back to defaults-only, but don't cache so a later
+    // successful call can still populate the real cache.
+    return buildMap([]);
+  }
 }
 
 function getServiceMapSync() {

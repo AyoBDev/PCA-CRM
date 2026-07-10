@@ -1,3 +1,6 @@
+// Manual break-glass tool for reconciling duplicate service codes before applying the
+// unique constraint on Service.code. NOT part of the deploy pipeline — run by hand only
+// when the DB has pre-existing duplicate codes that would violate the constraint.
 const prisma = require('../src/lib/prisma');
 
 async function main() {

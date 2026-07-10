@@ -1,5 +1,6 @@
 const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
+const serviceRegistry = require('../services/serviceRegistry');
 const { isOverdue, roundTo15, computeHours, computeTotalHoursWithBlocks, deriveTimesheetService, ADL_ACTIVITIES, IADL_ACTIVITIES, RESPITE_ACTIVITIES, COMPANION_ACTIVITIES } = require('../lib/timesheetUtils');
 function filterActiveAuthsForWeek(auths, weekStart, weekEnd) {
     const wsMs = Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate());
@@ -21,6 +22,8 @@ function filterActiveAuthsForWeek(auths, weekStart, weekEnd) {
 
 async function listTimesheets(req, res, next) {
     try {
+        // Warm the service registry cache so deriveTimesheetService (sync) reflects DB values
+        await serviceRegistry.getServiceMap();
         const where = req.query.archived === 'true' ? { archivedAt: { not: null } } : { archivedAt: null };
         if (req.query.status) where.status = req.query.status;
         if (req.query.weekStart) {
@@ -71,6 +74,8 @@ async function listTimesheets(req, res, next) {
 // GET /api/timesheets/:id
 async function getTimesheet(req, res, next) {
     try {
+        // Warm the service registry cache so deriveTimesheetService (sync) reflects DB values
+        await serviceRegistry.getServiceMap();
         const id = Number(req.params.id);
         const ts = await prisma.timesheet.findUnique({
             where: { id },

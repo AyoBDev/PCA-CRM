@@ -45,9 +45,22 @@ export function ServicesProvider({ children }) {
     const groups = {};
     for (const s of services) {
       const g = s.category || 'Other';
-      (groups[g] = groups[g] || []).push({ value: s.code, label: s.label || s.code });
+      (groups[g] = groups[g] || []).push({ value: s.code, label: s.label || s.code, sortOrder: s.sortOrder });
     }
-    return Object.entries(groups).map(([group, codes]) => ({ group, codes }));
+    // within each group, admin-controlled sortOrder governs dropdown order (ascending),
+    // tiebreak by code for stable ordering when sortOrder is equal/absent
+    for (const codes of Object.values(groups)) {
+      codes.sort((a, b) => {
+        const ao = a.sortOrder != null ? a.sortOrder : 50;
+        const bo = b.sortOrder != null ? b.sortOrder : 50;
+        if (ao !== bo) return ao - bo;
+        return a.value.localeCompare(b.value);
+      });
+    }
+    return Object.entries(groups).map(([group, codes]) => ({
+      group,
+      codes: codes.map(({ value, label }) => ({ value, label })),
+    }));
   }, [services]);
 
   const value = { services, refetch, serviceMeta, serviceOptions, serviceName, serviceColor, accountForCode, sortKey };
