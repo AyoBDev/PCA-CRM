@@ -22,7 +22,8 @@ beforeEach(() => jest.clearAllMocks());
 
 const adminReq = (status) => ({
     params: { id: '5' },
-    user: { id: 1, name: 'Admin', role: 'admin' },
+    user: { id: 1, name: 'Admin', role: 'admin', agencyId: 1 },
+    db: prisma,
     body: { entries: [], recipientName: 'X' },
     __status: status,
 });

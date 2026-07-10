@@ -4,6 +4,7 @@ const prisma = require('../lib/prisma');
 const { isEmailConfigured, sendEmail } = require('../services/notificationService');
 const audit = require('../services/auditService');
 const { JWT_SECRET } = require('../config/secrets');
+const { runWithTenant } = require('../lib/tenantContext');
 
 const TOKEN_EXPIRY = '24h';
 
@@ -67,7 +68,11 @@ async function login(req, res, next) {
         const permissions = group && Array.isArray(group.permissions) ? group.permissions : [];
         user._agencySlug = req.agency ? req.agency.slug : null;
         const token = signToken(user, permissions);
-        audit.logAction({ userId: user.id, userName: user.name, userRole: user.role, action: 'LOGIN', entityType: 'User', entityId: user.id, entityName: user.name });
+        // login fires before tenantMiddleware establishes context; wrap the
+        // fire-and-forget audit call so getAgencyId() stamps it correctly.
+        runWithTenant({ agencyId: user.agencyId ?? null, db: null }, () => {
+            audit.logAction({ userId: user.id, userName: user.name, userRole: user.role, action: 'LOGIN', entityType: 'User', entityId: user.id, entityName: user.name });
+        });
         res.json({
             token,
             user: {
@@ -407,7 +412,11 @@ async function employeeLogin(req, res, next) {
         const permissions = group && Array.isArray(group.permissions) ? group.permissions : [];
         user._agencySlug = req.agency ? req.agency.slug : null;
         const token = signToken(user, permissions);
-        audit.logAction({ userId: user.id, userName: user.name, userRole: user.role, action: 'LOGIN', entityType: 'User', entityId: user.id, entityName: user.name, metadata: { portal: 'employee' } });
+        // employeeLogin fires before tenantMiddleware establishes context; wrap
+        // the fire-and-forget audit call so getAgencyId() stamps it correctly.
+        runWithTenant({ agencyId: user.agencyId ?? null, db: null }, () => {
+            audit.logAction({ userId: user.id, userName: user.name, userRole: user.role, action: 'LOGIN', entityType: 'User', entityId: user.id, entityName: user.name, metadata: { portal: 'employee' } });
+        });
         res.json({
             token,
             user: {

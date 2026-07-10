@@ -1,6 +1,6 @@
-const prisma = require('../lib/prisma');
 const { enrichAuthorization, enrichClient } = require('../services/authorizationService');
 const audit = require('../services/auditService');
+const { tenantTransaction } = require('../lib/tenantPrisma');
 
 const VALID_SERVICE_CODES = ['PCS', 'SDPC', 'TIMESHEETS', 'TIMESHEET_PCS', 'TIMESHEET_HOMEMAKER', 'TIMESHEET_RESPITE', 'TIMESHEET_COMPANION', 'TIMESHEET_CHORE', 'S5120', 'S5125', 'S5130', 'S5135', 'S5150', 'PAS', 'COPE'];
 
@@ -16,7 +16,7 @@ function validateBody(body) {
 // Program codes that allow multiple active authorizations (different services under same program)
 const MULTI_AUTH_CODES = ['COPE', 'PAS'];
 
-async function deactivatePreviousAuths(clientId, serviceCode, serviceName, excludeId, auditContext) {
+async function deactivatePreviousAuths(db, clientId, serviceCode, serviceName, excludeId, auditContext) {
     // Program codes allow multiple active auths with different service names
     const where = {
         clientId,
@@ -28,9 +28,9 @@ async function deactivatePreviousAuths(clientId, serviceCode, serviceName, exclu
     if (MULTI_AUTH_CODES.includes(serviceCode) && serviceName) {
         where.serviceName = serviceName;
     }
-    const existing = await prisma.authorization.findMany({ where });
+    const existing = await db.authorization.findMany({ where });
     if (existing.length === 0) return;
-    await prisma.authorization.updateMany({
+    await db.authorization.updateMany({
         where: { id: { in: existing.map(a => a.id) } },
         data: { manualStatus: 'inactive' },
     });
@@ -51,13 +51,13 @@ async function deactivatePreviousAuths(clientId, serviceCode, serviceName, exclu
 async function createAuthorization(req, res, next) {
     try {
         const clientId = Number(req.params.clientId);
-        const client = await prisma.client.findUnique({ where: { id: clientId } });
+        const client = await req.db.client.findUnique({ where: { id: clientId } });
         if (!client) return res.status(404).json({ error: 'Client not found' });
 
         const errors = validateBody(req.body);
         if (errors.length) return res.status(400).json({ errors });
 
-        const auth = await prisma.authorization.create({
+        const auth = await req.db.authorization.create({
             data: {
                 clientId,
                 serviceCategory: (req.body.serviceCategory || '').trim(),
@@ -77,7 +77,7 @@ async function createAuthorization(req, res, next) {
         });
 
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Authorization', entityId: auth.id, entityName: `${client.clientName} - ${auth.serviceCode}` });
-        await deactivatePreviousAuths(clientId, req.body.serviceCode, (req.body.serviceName || '').trim(), auth.id, {
+        await deactivatePreviousAuths(req.db, clientId, req.body.serviceCode, (req.body.serviceName || '').trim(), auth.id, {
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
         });
         res.status(201).json(enrichAuthorization(auth));
@@ -93,8 +93,8 @@ async function updateAuthorization(req, res, next) {
         const errors = validateBody(req.body);
         if (errors.length) return res.status(400).json({ errors });
 
-        const oldAuth = await prisma.authorization.findUnique({ where: { id } });
-        const auth = await prisma.authorization.update({
+        const oldAuth = await req.db.authorization.findUnique({ where: { id } });
+        const auth = await req.db.authorization.update({
             where: { id },
             data: {
                 serviceCategory: (req.body.serviceCategory || '').trim(),
@@ -117,7 +117,7 @@ async function updateAuthorization(req, res, next) {
         const serviceNameChanged = MULTI_AUTH_CODES.includes(auth.serviceCode) &&
             (auth.serviceName || '') !== (oldAuth.serviceName || '');
         if (req.body.serviceCode !== oldAuth.serviceCode || serviceNameChanged || (auth.manualStatus === 'active' && (oldAuth.manualStatus || 'active') !== 'active')) {
-            await deactivatePreviousAuths(auth.clientId, auth.serviceCode, auth.serviceName || '', auth.id, {
+            await deactivatePreviousAuths(req.db, auth.clientId, auth.serviceCode, auth.serviceName || '', auth.id, {
                 userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             });
         }
@@ -135,16 +135,16 @@ async function updateAuthorization(req, res, next) {
 async function archiveAuthorization(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const auth = await prisma.authorization.findUnique({ where: { id } });
+        const auth = await req.db.authorization.findUnique({ where: { id } });
         if (!auth) return res.status(404).json({ error: 'Authorization not found' });
 
-        const archived = await prisma.authorization.update({
+        const archived = await req.db.authorization.update({
             where: { id },
             data: { archivedAt: new Date() },
         });
 
         // Log affected shifts for visibility
-        const affectedShifts = await prisma.shift.count({
+        const affectedShifts = await req.db.shift.count({
             where: { clientId: auth.clientId, serviceCode: auth.serviceCode, archivedAt: null },
         });
 
@@ -159,16 +159,16 @@ async function archiveAuthorization(req, res, next) {
 async function restoreAuthorization(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const auth = await prisma.authorization.findUnique({ where: { id } });
+        const auth = await req.db.authorization.findUnique({ where: { id } });
         if (!auth) return res.status(404).json({ error: 'Authorization not found' });
 
-        const restored = await prisma.authorization.update({
+        const restored = await req.db.authorization.update({
             where: { id },
             data: { archivedAt: null },
         });
 
         if ((restored.manualStatus || 'active') === 'active') {
-            await deactivatePreviousAuths(restored.clientId, restored.serviceCode, restored.serviceName || '', restored.id, {
+            await deactivatePreviousAuths(req.db, restored.clientId, restored.serviceCode, restored.serviceName || '', restored.id, {
                 userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             });
         }
@@ -184,13 +184,13 @@ async function restoreAuthorization(req, res, next) {
 async function deleteAuthorization(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const auth = await prisma.authorization.findUnique({ where: { id } });
+        const auth = await req.db.authorization.findUnique({ where: { id } });
         if (!auth) return res.status(404).json({ error: 'Authorization not found' });
 
-        await prisma.authorization.delete({ where: { id } });
+        await req.db.authorization.delete({ where: { id } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'DELETE', entityType: 'Authorization', entityId: id, entityName: auth.serviceCode });
 
-        const client = await prisma.client.findUnique({
+        const client = await req.db.client.findUnique({
             where: { id: auth.clientId },
             include: { authorizations: { orderBy: { createdAt: 'asc' } } },
         });
@@ -206,12 +206,12 @@ async function updateAccountNumber(req, res, next) {
     try {
         const id = Number(req.params.id);
         const { accountNumber } = req.body;
-        const auth = await prisma.authorization.update({
+        const auth = await req.db.authorization.update({
             where: { id },
             data: { accountNumber: (accountNumber || '').trim() },
         });
         // Propagate to active shifts for this client + serviceCode
-        await prisma.shift.updateMany({
+        await req.db.shift.updateMany({
             where: { clientId: auth.clientId, serviceCode: auth.serviceCode, archivedAt: null },
             data: { accountNumber: (accountNumber || '').trim() },
         });
@@ -227,12 +227,12 @@ async function updateSandataClientId(req, res, next) {
     try {
         const id = Number(req.params.id);
         const { sandataClientId } = req.body;
-        const auth = await prisma.authorization.update({
+        const auth = await req.db.authorization.update({
             where: { id },
             data: { sandataClientId: (sandataClientId || '').trim() },
         });
         // Propagate to active shifts for this client + serviceCode
-        await prisma.shift.updateMany({
+        await req.db.shift.updateMany({
             where: { clientId: auth.clientId, serviceCode: auth.serviceCode, archivedAt: null },
             data: { sandataClientId: (sandataClientId || '').trim() },
         });
@@ -250,16 +250,16 @@ async function updateAuthManualStatus(req, res, next) {
         if (!['active', 'pending', 'inactive'].includes(manualStatus)) {
             return res.status(400).json({ error: 'Invalid status. Must be active, pending, or inactive.' });
         }
-        const oldAuth = await prisma.authorization.findUnique({ where: { id } });
+        const oldAuth = await req.db.authorization.findUnique({ where: { id } });
         if (!oldAuth) return res.status(404).json({ error: 'Authorization not found' });
 
-        const auth = await prisma.authorization.update({
+        const auth = await req.db.authorization.update({
             where: { id },
             data: { manualStatus },
         });
 
         if (manualStatus === 'active') {
-            await deactivatePreviousAuths(oldAuth.clientId, auth.serviceCode, auth.serviceName || '', auth.id, {
+            await deactivatePreviousAuths(req.db, oldAuth.clientId, auth.serviceCode, auth.serviceName || '', auth.id, {
                 userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             });
         }
@@ -273,15 +273,17 @@ async function updateAuthManualStatus(req, res, next) {
 async function renewAuthorization(req, res, next) {
     try {
         const oldId = Number(req.params.id);
-        const oldAuth = await prisma.authorization.findUnique({ where: { id: oldId } });
+        const oldAuth = await req.db.authorization.findUnique({ where: { id: oldId } });
         if (!oldAuth) return res.status(404).json({ error: 'Authorization not found' });
 
         const errors = validateBody(req.body);
         if (errors.length) return res.status(400).json({ errors });
 
         const clientId = oldAuth.clientId;
-        const [newAuth] = await prisma.$transaction([
-            prisma.authorization.create({
+        // Batch $transaction([...]) arrays are not supported on the extended
+        // tenant client — use an interactive transaction instead.
+        const newAuth = await tenantTransaction(req.user.agencyId, async (tx) => {
+            const created = await tx.authorization.create({
                 data: {
                     clientId,
                     serviceCategory: (req.body.serviceCategory || '').trim(),
@@ -301,17 +303,18 @@ async function renewAuthorization(req, res, next) {
                     sandataClientId: (req.body.sandataClientId || '').trim(),
                     manualStatus: 'active',
                 },
-            }),
-            prisma.authorization.update({
+            });
+            await tx.authorization.update({
                 where: { id: oldId },
                 data: { manualStatus: 'inactive' },
-            }),
-        ]);
+            });
+            return created;
+        });
 
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Authorization', entityId: newAuth.id, entityName: `${req.body.serviceCode} (renewal)`, metadata: { renewedFromId: oldId } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: oldId, entityName: oldAuth.serviceCode, changes: [{ field: 'manualStatus', oldValue: oldAuth.manualStatus, newValue: 'inactive' }], metadata: { reason: 'renewed' } });
 
-        await deactivatePreviousAuths(clientId, newAuth.serviceCode, (req.body.serviceName || '').trim(), newAuth.id, {
+        await deactivatePreviousAuths(req.db, clientId, newAuth.serviceCode, (req.body.serviceName || '').trim(), newAuth.id, {
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
         });
 
@@ -324,7 +327,7 @@ async function renewAuthorization(req, res, next) {
 // POST /api/authorizations/dedup — one-time cleanup of duplicate authorizations
 async function dedupAuthorizations(req, res, next) {
     try {
-        const auths = await prisma.authorization.findMany({
+        const auths = await req.db.authorization.findMany({
             where: { archivedAt: null, manualStatus: 'active' },
             orderBy: [{ clientId: 'asc' }, { serviceCode: 'asc' }, { createdAt: 'asc' }],
             include: { client: { select: { clientName: true } } }
@@ -386,12 +389,12 @@ async function dedupAuthorizations(req, res, next) {
         let inactiveCount = 0;
 
         if (toDelete.length > 0) {
-            const result = await prisma.authorization.deleteMany({ where: { id: { in: toDelete } } });
+            const result = await req.db.authorization.deleteMany({ where: { id: { in: toDelete } } });
             deletedCount = result.count;
         }
 
         if (toMarkInactive.length > 0) {
-            const result = await prisma.authorization.updateMany({ where: { id: { in: toMarkInactive } }, data: { manualStatus: 'inactive' } });
+            const result = await req.db.authorization.updateMany({ where: { id: { in: toMarkInactive } }, data: { manualStatus: 'inactive' } });
             inactiveCount = result.count;
         }
 

@@ -16,7 +16,7 @@ const { createClient, updateClient } = require('../clientController');
 
 
 function mockReqRes(overrides = {}) {
-  const req = { params: {}, body: {}, query: {}, user: { id: 1, name: 'Test Admin', role: 'admin' }, ...overrides };
+  const req = { params: {}, body: {}, query: {}, user: { id: 1, name: 'Test Admin', role: 'admin', agencyId: 1 }, db: prisma, ...overrides };
   const res = {
     status: jest.fn().mockReturnThis(),
     json: jest.fn().mockReturnThis(),

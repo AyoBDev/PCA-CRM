@@ -1,14 +1,18 @@
+// Cron driver: enumerates active agencies on the owner connection, then runs
+// trigger evaluation for each agency inside its own tenant context.
 const prisma = require('../lib/prisma');
+const { tenantClient } = require('../lib/tenantPrisma');
+const { runWithTenant } = require('../lib/tenantContext');
 const { generateTaskTitle, shouldCreateTask, CREDENTIAL_FIELDS } = require('../services/taskService');
 const { isOverdue } = require('../lib/timesheetUtils');
 const audit = require('../services/auditService');
 
-async function evaluateAuthExpiry(trigger, existingTasks) {
+async function evaluateAuthExpiry(db, trigger, existingTasks) {
     const now = new Date();
     const thresholdDate = new Date();
     thresholdDate.setUTCDate(thresholdDate.getUTCDate() + trigger.thresholdDays);
 
-    const authorizations = await prisma.authorization.findMany({
+    const authorizations = await db.authorization.findMany({
         where: {
             authorizationEndDate: { gt: now, lte: thresholdDate },
             archivedAt: null,
@@ -36,8 +40,8 @@ async function evaluateAuthExpiry(trigger, existingTasks) {
     return tasksToCreate;
 }
 
-async function evaluateTimesheetOverdue(trigger, existingTasks) {
-    const overdueTimesheets = await prisma.timesheet.findMany({
+async function evaluateTimesheetOverdue(db, trigger, existingTasks) {
+    const overdueTimesheets = await db.timesheet.findMany({
         where: {
             status: 'draft',
             archivedAt: null,
@@ -67,12 +71,12 @@ async function evaluateTimesheetOverdue(trigger, existingTasks) {
     return tasksToCreate;
 }
 
-async function evaluateCredentialExpiry(trigger, existingTasks) {
+async function evaluateCredentialExpiry(db, trigger, existingTasks) {
     const now = new Date();
     const thresholdDate = new Date();
     thresholdDate.setUTCDate(thresholdDate.getUTCDate() + trigger.thresholdDays);
 
-    const employees = await prisma.employee.findMany({
+    const employees = await db.employee.findMany({
         where: { archivedAt: null, status: 'active' },
     });
 
@@ -103,7 +107,7 @@ async function evaluateCredentialExpiry(trigger, existingTasks) {
         }
     }
 
-    const certifications = await prisma.employeeCertification.findMany({
+    const certifications = await db.employeeCertification.findMany({
         where: {
             expirationDate: { gt: now, lte: thresholdDate },
             status: 'active',
@@ -134,14 +138,15 @@ async function evaluateCredentialExpiry(trigger, existingTasks) {
     return tasksToCreate;
 }
 
-async function runTaskTriggers() {
-    const triggers = await prisma.workflowTrigger.findMany({ where: { enabled: true } });
+// Runs trigger evaluation for a single tenant's `db`.
+async function runTaskTriggersForAgency(db) {
+    const triggers = await db.workflowTrigger.findMany({ where: { enabled: true } });
     if (triggers.length === 0) {
         console.log('[TaskTriggers] No enabled triggers, skipping.');
         return { created: 0 };
     }
 
-    const existingTasks = await prisma.task.findMany({
+    const existingTasks = await db.task.findMany({
         where: { status: { in: ['open', 'in_progress'] } },
         select: { triggerId: true, entityType: true, entityId: true, status: true },
     });
@@ -153,13 +158,13 @@ async function runTaskTriggers() {
         try {
             switch (trigger.type) {
                 case 'auth_expiry':
-                    tasksToCreate = await evaluateAuthExpiry(trigger, existingTasks);
+                    tasksToCreate = await evaluateAuthExpiry(db, trigger, existingTasks);
                     break;
                 case 'timesheet_overdue':
-                    tasksToCreate = await evaluateTimesheetOverdue(trigger, existingTasks);
+                    tasksToCreate = await evaluateTimesheetOverdue(db, trigger, existingTasks);
                     break;
                 case 'credential_expiry':
-                    tasksToCreate = await evaluateCredentialExpiry(trigger, existingTasks);
+                    tasksToCreate = await evaluateCredentialExpiry(db, trigger, existingTasks);
                     break;
                 default:
                     console.log(`[TaskTriggers] Unknown trigger type: ${trigger.type}`);
@@ -171,7 +176,7 @@ async function runTaskTriggers() {
 
         for (const taskData of tasksToCreate) {
             try {
-                const task = await prisma.task.create({ data: taskData });
+                const task = await db.task.create({ data: taskData });
                 audit.logAction({
                     userId: 0,
                     userName: 'System',
@@ -194,4 +199,16 @@ async function runTaskTriggers() {
     return { created };
 }
 
-module.exports = { runTaskTriggers };
+// Cron entry point: iterates every active agency and runs evaluation for each.
+async function runTaskTriggers() {
+    const agencies = await prisma.agency.findMany({ where: { status: 'active' } });
+    const totals = { created: 0 };
+    for (const agency of agencies) {
+        const db = tenantClient(agency.id);
+        const result = await runWithTenant({ agencyId: agency.id, db }, () => runTaskTriggersForAgency(db));
+        totals.created += result.created;
+    }
+    return totals;
+}
+
+module.exports = { runTaskTriggers, runTaskTriggersForAgency };

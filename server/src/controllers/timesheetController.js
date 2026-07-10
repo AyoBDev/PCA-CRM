@@ -1,4 +1,3 @@
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 const { isOverdue, roundTo15, computeHours, computeTotalHoursWithBlocks, deriveTimesheetService, ADL_ACTIVITIES, IADL_ACTIVITIES, RESPITE_ACTIVITIES, COMPANION_ACTIVITIES } = require('../lib/timesheetUtils');
 function filterActiveAuthsForWeek(auths, weekStart, weekEnd) {
@@ -27,7 +26,7 @@ async function listTimesheets(req, res, next) {
             const [y, m, d] = req.query.weekStart.split('-').map(Number);
             where.weekStart = new Date(Date.UTC(y, m - 1, d));
         }
-        const timesheets = await prisma.timesheet.findMany({
+        const timesheets = await req.db.timesheet.findMany({
             where,
             include: { client: { select: { id: true, clientName: true } }, entries: true },
             orderBy: { weekStart: 'desc' },
@@ -35,7 +34,7 @@ async function listTimesheets(req, res, next) {
 
         // Build auth limits per client, filtered by each timesheet's week dates
         const clientIds = [...new Set(timesheets.map(t => t.clientId).filter(Boolean))];
-        const auths = clientIds.length > 0 ? await prisma.authorization.findMany({
+        const auths = clientIds.length > 0 ? await req.db.authorization.findMany({
             where: { clientId: { in: clientIds } },
             select: { clientId: true, serviceCode: true, serviceName: true, serviceCategory: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true, manualStatus: true, archivedAt: true },
         }) : [];
@@ -72,7 +71,7 @@ async function listTimesheets(req, res, next) {
 async function getTimesheet(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const ts = await prisma.timesheet.findUnique({
+        const ts = await req.db.timesheet.findUnique({
             where: { id },
             include: { client: true, entries: { orderBy: { dayOfWeek: 'asc' } } },
         });
@@ -80,7 +79,7 @@ async function getTimesheet(req, res, next) {
 
         let authLimits = null;
         if (ts.clientId) {
-            const auths = await prisma.authorization.findMany({
+            const auths = await req.db.authorization.findMany({
                 where: { clientId: ts.clientId },
                 select: { serviceCode: true, serviceName: true, serviceCategory: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true, manualStatus: true, archivedAt: true },
             });
@@ -122,7 +121,7 @@ async function createTimesheet(req, res, next) {
         const pName = pcaName.trim();
 
         // Check for existing timesheet (active or archived)
-        const existing = await prisma.timesheet.findFirst({
+        const existing = await req.db.timesheet.findFirst({
             where: { clientId: cId, pcaName: pName, weekStart: ws },
             include: { client: { select: { id: true, clientName: true } }, entries: { orderBy: { dayOfWeek: 'asc' } } },
         });
@@ -130,8 +129,8 @@ async function createTimesheet(req, res, next) {
         if (existing) {
             if (existing.archivedAt) {
                 // Archived — hard-delete it so we can create fresh
-                await prisma.timesheetEntry.deleteMany({ where: { timesheetId: existing.id } });
-                await prisma.timesheet.delete({ where: { id: existing.id } });
+                await req.db.timesheetEntry.deleteMany({ where: { timesheetId: existing.id } });
+                await req.db.timesheet.delete({ where: { id: existing.id } });
             } else {
                 // Active — just return it instead of erroring
                 return res.status(200).json(existing);
@@ -143,12 +142,13 @@ async function createTimesheet(req, res, next) {
             const date = new Date(ws);
             date.setUTCDate(ws.getUTCDate() + dow);
             return {
+                agencyId: req.user.agencyId,
                 dayOfWeek: dow,
                 dateOfService: date.toISOString().split('T')[0],
             };
         });
 
-        const ts = await prisma.timesheet.create({
+        const ts = await req.db.timesheet.create({
             data: {
                 clientId: cId,
                 pcaName: pName,
@@ -176,7 +176,7 @@ async function createTimesheet(req, res, next) {
 async function updateTimesheet(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const existing = await prisma.timesheet.findUnique({ where: { id } });
+        const existing = await req.db.timesheet.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Timesheet not found' });
         // Submitted/accepted timesheets are signed Medicaid records — immutable
         // for everyone, admins included. To correct one, reject it back to draft
@@ -203,7 +203,7 @@ async function updateTimesheet(req, res, next) {
                 totalRespiteHours += respiteHours;
                 totalCompanionHours += companionHours;
 
-                await prisma.timesheetEntry.update({
+                await req.db.timesheetEntry.update({
                     where: { id: entry.id },
                     data: {
                         dateOfService: entry.dateOfService || '',
@@ -256,7 +256,7 @@ async function updateTimesheet(req, res, next) {
         if (clientPhone !== undefined) updateData.clientPhone = clientPhone;
         if (clientIdNumber !== undefined) updateData.clientIdNumber = clientIdNumber;
 
-        const ts = await prisma.timesheet.update({
+        const ts = await req.db.timesheet.update({
             where: { id },
             data: updateData,
             include: { client: { select: { id: true, clientName: true } }, entries: { orderBy: { dayOfWeek: 'asc' } } },
@@ -276,11 +276,11 @@ async function updateTimesheet(req, res, next) {
 async function submitTimesheet(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const existing = await prisma.timesheet.findUnique({ where: { id } });
+        const existing = await req.db.timesheet.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Timesheet not found' });
         if (existing.status === 'submitted' || existing.status === 'accepted') return res.status(400).json({ error: 'Already submitted' });
 
-        const ts = await prisma.timesheet.update({
+        const ts = await req.db.timesheet.update({
             where: { id },
             data: { status: 'submitted', submittedAt: new Date() },
             include: { client: { select: { id: true, clientName: true } }, entries: { orderBy: { dayOfWeek: 'asc' } } },
@@ -298,12 +298,12 @@ async function submitTimesheet(req, res, next) {
 async function deleteTimesheet(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const existing = await prisma.timesheet.findUnique({ where: { id } });
+        const existing = await req.db.timesheet.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Timesheet not found' });
         if (existing.status !== 'draft' && (!req.user || req.user.role !== 'admin')) {
             return res.status(400).json({ error: 'Only admins can delete submitted timesheets' });
         }
-        const archived = await prisma.timesheet.update({ where: { id }, data: { archivedAt: new Date() } });
+        const archived = await req.db.timesheet.update({ where: { id }, data: { archivedAt: new Date() } });
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             action: 'ARCHIVE', entityType: 'Timesheet', entityId: id,
@@ -316,9 +316,9 @@ async function deleteTimesheet(req, res, next) {
 async function restoreTimesheet(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const existing = await prisma.timesheet.findUnique({ where: { id } });
+        const existing = await req.db.timesheet.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Timesheet not found' });
-        const restored = await prisma.timesheet.update({
+        const restored = await req.db.timesheet.update({
             where: { id }, data: { archivedAt: null },
             include: { client: { select: { id: true, clientName: true } }, entries: true },
         });
@@ -334,11 +334,11 @@ async function restoreTimesheet(req, res, next) {
 async function permanentlyDeleteTimesheet(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const existing = await prisma.timesheet.findUnique({ where: { id } });
+        const existing = await req.db.timesheet.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Timesheet not found' });
         if (!existing.archivedAt) return res.status(400).json({ error: 'Only archived timesheets can be permanently deleted' });
-        await prisma.timesheetEntry.deleteMany({ where: { timesheetId: id } });
-        await prisma.timesheet.delete({ where: { id } });
+        await req.db.timesheetEntry.deleteMany({ where: { timesheetId: id } });
+        await req.db.timesheet.delete({ where: { id } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'PERMANENT_DELETE', entityType: 'Timesheet', entityId: id, entityName: existing.pcaName });
         res.json({ success: true });
     } catch (err) { next(err); }
@@ -685,7 +685,7 @@ function renderTimesheetPage(doc, ts) {
 async function exportTimesheetPdf(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const ts = await prisma.timesheet.findUnique({
+        const ts = await req.db.timesheet.findUnique({
             where: { id },
             include: { client: true, entries: { orderBy: { dayOfWeek: 'asc' } } },
         });
@@ -706,7 +706,7 @@ async function exportBulkTimesheetPdf(req, res, next) {
         if (!ids || !Array.isArray(ids) || ids.length === 0) {
             return res.status(400).json({ error: 'Provide an array of timesheet ids' });
         }
-        const timesheets = await prisma.timesheet.findMany({
+        const timesheets = await req.db.timesheet.findMany({
             where: { id: { in: ids.map(Number) } },
             include: { client: true, entries: { orderBy: { dayOfWeek: 'asc' } } },
             orderBy: [{ pcaName: 'asc' }, { weekStart: 'asc' }],
@@ -734,7 +734,7 @@ async function updateTimesheetStatus(req, res, next) {
         if (!['draft', 'submitted', 'accepted', 'rejected'].includes(status)) {
             return res.status(400).json({ error: 'Invalid status' });
         }
-        const existing = await prisma.timesheet.findUnique({ where: { id } });
+        const existing = await req.db.timesheet.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Timesheet not found' });
 
         const data = { status };
@@ -750,7 +750,7 @@ async function updateTimesheetStatus(req, res, next) {
             data.correctionNote = '';
         }
 
-        const ts = await prisma.timesheet.update({
+        const ts = await req.db.timesheet.update({
             where: { id },
             data,
             include: { client: { select: { id: true, clientName: true } }, entries: { orderBy: { dayOfWeek: 'asc' } } },
@@ -773,16 +773,16 @@ async function updateTimesheetStatus(req, res, next) {
 
 async function bulkPermanentlyDeleteTimesheets(req, res, next) {
     try {
-        const result = await prisma.timesheet.deleteMany({ where: { archivedAt: { not: null } } });
+        const result = await req.db.timesheet.deleteMany({ where: { archivedAt: { not: null } } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'BULK_DELETE', entityType: 'Timesheet', entityId: 0, metadata: { count: result.count } });
         res.json({ success: true, count: result.count });
     } catch (err) { next(err); }
 }
 
 async function sendTimesheetReminders(req, res) {
-    const { sendOverdueReminders } = require('../jobs/timesheetReminders');
+    const { sendOverdueRemindersForAgency } = require('../jobs/timesheetReminders');
     try {
-        const result = await sendOverdueReminders();
+        const result = await sendOverdueRemindersForAgency(req.db);
         res.json({ success: true, ...result });
     } catch (err) {
         res.status(500).json({ error: err.message });

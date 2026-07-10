@@ -1,4 +1,4 @@
-const prisma = require('../lib/prisma');
+const { getTenantDb } = require('../lib/tenantContext');
 const { emitToEmployee } = require('../socket');
 
 const RENEWAL_YEARS = {
@@ -11,8 +11,9 @@ const RENEWAL_YEARS = {
 };
 
 async function evaluateCompliance(employeeId) {
+  const db = getTenantDb();
   const now = new Date();
-  const certs = await prisma.employeeCertification.findMany({
+  const certs = await db.employeeCertification.findMany({
     where: { employeeId },
   });
 
@@ -21,7 +22,7 @@ async function evaluateCompliance(employeeId) {
   );
 
   const newStatus = hasExpired ? 'blocked' : 'ok';
-  await prisma.employee.update({
+  await db.employee.update({
     where: { id: employeeId },
     data: { complianceStatus: newStatus },
   });
@@ -30,19 +31,21 @@ async function evaluateCompliance(employeeId) {
 }
 
 async function createComplianceTask(employeeId, certType, certId) {
-  const existing = await prisma.employeeTask.findFirst({
+  const db = getTenantDb();
+  const existing = await db.employeeTask.findFirst({
     where: { employeeId, linkedCertId: certId, completedAt: null },
   });
   if (existing) return existing;
 
   const title = `Renew ${certType.replace(/_/g, ' ')}`;
-  return prisma.employeeTask.create({
+  return db.employeeTask.create({
     data: { employeeId, title, source: 'compliance', linkedCertId: certId },
   });
 }
 
 async function createNotification(employeeId, type, title, body) {
-  const notif = await prisma.notification.create({
+  const db = getTenantDb();
+  const notif = await db.notification.create({
     data: { employeeId, type, title, body },
   });
   emitToEmployee(employeeId, 'notification:new', notif);
@@ -50,7 +53,8 @@ async function createNotification(employeeId, type, title, body) {
 }
 
 async function resolveComplianceTasks(certId) {
-  await prisma.employeeTask.updateMany({
+  const db = getTenantDb();
+  await db.employeeTask.updateMany({
     where: { linkedCertId: certId, completedAt: null },
     data: { completedAt: new Date() },
   });

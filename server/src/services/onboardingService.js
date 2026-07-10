@@ -66,7 +66,9 @@ async function completeOnboarding(tokenStr, { password, availability }) {
     const passwordHash = await bcrypt.hash(password, 10);
     const email = employee.email.toLowerCase().trim();
 
-    const existingUser = await prisma.user.findFirst({ where: { email } });
+    // Runs on public token paths without tenant context (Task 10 wires that).
+    // Scope explicitly by the already-loaded employee's agencyId instead.
+    const existingUser = await prisma.user.findFirst({ where: { email, agencyId: employee.agencyId } });
     let user;
     let skipApproval = false;
     if (existingUser) {
@@ -74,7 +76,7 @@ async function completeOnboarding(tokenStr, { password, availability }) {
         skipApproval = true;
     } else {
         user = await prisma.user.create({
-            data: { email, passwordHash, name: employee.name, role: 'pca', status: 'pending' },
+            data: { email, passwordHash, name: employee.name, role: 'pca', status: 'pending', agencyId: employee.agencyId },
         });
     }
 
