@@ -19,7 +19,7 @@ async function listServices(req, res, next) {
 // POST /api/services
 async function createService(req, res, next) {
     try {
-        const { category, code, name } = req.body;
+        const { category, code, name, label, accountNumber, color, timesheetSection, sortOrder, enforceAuthLimit } = req.body;
         if (!code || typeof code !== 'string' || !code.trim()) {
             return res.status(400).json({ error: 'code is required' });
         }
@@ -28,6 +28,12 @@ async function createService(req, res, next) {
                 category: (category || '').trim().toUpperCase(),
                 code: code.trim().toUpperCase(),
                 name: (name || '').trim(),
+                label: (label || '').trim(),
+                accountNumber: (accountNumber || '').trim(),
+                color: (color || '').trim(),
+                timesheetSection: (timesheetSection || '').trim(),
+                sortOrder: Number.isFinite(Number(sortOrder)) ? Number(sortOrder) : 50,
+                enforceAuthLimit: enforceAuthLimit === undefined ? true : !!enforceAuthLimit,
             },
         });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Service', entityId: service.id, entityName: service.code });
@@ -43,7 +49,7 @@ async function createService(req, res, next) {
 async function updateService(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const { category, code, name } = req.body;
+        const { category, code, name, label, accountNumber, color, timesheetSection, sortOrder, enforceAuthLimit } = req.body;
         if (!code || typeof code !== 'string' || !code.trim()) {
             return res.status(400).json({ error: 'code is required' });
         }
@@ -54,9 +60,15 @@ async function updateService(req, res, next) {
                 category: (category || '').trim().toUpperCase(),
                 code: code.trim().toUpperCase(),
                 name: (name || '').trim(),
+                label: (label || '').trim(),
+                accountNumber: (accountNumber || '').trim(),
+                color: (color || '').trim(),
+                timesheetSection: (timesheetSection || '').trim(),
+                sortOrder: Number.isFinite(Number(sortOrder)) ? Number(sortOrder) : 50,
+                enforceAuthLimit: enforceAuthLimit === undefined ? true : !!enforceAuthLimit,
             },
         });
-        const changes = audit.diffFields(oldService, service, ['category', 'code', 'name']);
+        const changes = audit.diffFields(oldService, service, ['category', 'code', 'name', 'label', 'accountNumber', 'color', 'timesheetSection', 'sortOrder', 'enforceAuthLimit']);
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Service', entityId: service.id, entityName: service.code, changes });
         serviceRegistry.invalidate();
         res.json(service);
