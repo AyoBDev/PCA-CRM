@@ -1,14 +1,14 @@
 const prisma = require('../lib/prisma');
 const { enrichAuthorization, enrichClient } = require('../services/authorizationService');
 const audit = require('../services/auditService');
+const serviceRegistry = require('../services/serviceRegistry');
 
-const VALID_SERVICE_CODES = ['PCS', 'SDPC', 'TIMESHEETS', 'TIMESHEET_PCS', 'TIMESHEET_HOMEMAKER', 'TIMESHEET_RESPITE', 'TIMESHEET_COMPANION', 'TIMESHEET_CHORE', 'S5120', 'S5125', 'S5130', 'S5135', 'S5150', 'PAS', 'COPE'];
-
-function validateBody(body) {
+async function validateBody(body) {
     const { serviceCode } = body;
     const errors = [];
-    if (!serviceCode || !VALID_SERVICE_CODES.includes(serviceCode)) {
-        errors.push(`serviceCode must be one of: ${VALID_SERVICE_CODES.join(', ')}`);
+    const serviceMap = await serviceRegistry.getServiceMap();
+    if (!serviceCode || !serviceMap[serviceCode]) {
+        errors.push(`Unknown service code: ${serviceCode}`);
     }
     return errors;
 }
@@ -54,7 +54,7 @@ async function createAuthorization(req, res, next) {
         const client = await prisma.client.findUnique({ where: { id: clientId } });
         if (!client) return res.status(404).json({ error: 'Client not found' });
 
-        const errors = validateBody(req.body);
+        const errors = await validateBody(req.body);
         if (errors.length) return res.status(400).json({ errors });
 
         const auth = await prisma.authorization.create({
@@ -90,7 +90,7 @@ async function createAuthorization(req, res, next) {
 async function updateAuthorization(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const errors = validateBody(req.body);
+        const errors = await validateBody(req.body);
         if (errors.length) return res.status(400).json({ errors });
 
         const oldAuth = await prisma.authorization.findUnique({ where: { id } });
@@ -276,7 +276,7 @@ async function renewAuthorization(req, res, next) {
         const oldAuth = await prisma.authorization.findUnique({ where: { id: oldId } });
         if (!oldAuth) return res.status(404).json({ error: 'Authorization not found' });
 
-        const errors = validateBody(req.body);
+        const errors = await validateBody(req.body);
         if (errors.length) return res.status(400).json({ errors });
 
         const clientId = oldAuth.clientId;
