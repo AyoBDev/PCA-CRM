@@ -4,6 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const apiRoutes = require('./routes/api');
+const { resolveAgency } = require('./middleware/resolveAgency');
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+app.use(resolveAgency);
 
 // ── Routes ──
 app.use('/api', apiRoutes);
