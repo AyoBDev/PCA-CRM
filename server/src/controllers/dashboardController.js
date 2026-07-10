@@ -1,4 +1,3 @@
-const prisma = require('../lib/prisma');
 const { enrichClient } = require('../services/authorizationService');
 const { getWeekRange } = require('../services/schedulingService');
 const { isOverdue } = require('../lib/timesheetUtils');
@@ -18,16 +17,16 @@ async function getDashboardStats(req, res) {
         timesheetSubmitted,
         payrollRuns,
     ] = await Promise.all([
-        prisma.client.count({ where: { archivedAt: null } }),
-        prisma.employee.count({ where: { active: true, archivedAt: null } }),
-        prisma.shift.count({
+        req.db.client.count({ where: { archivedAt: null } }),
+        req.db.employee.count({ where: { active: true, archivedAt: null } }),
+        req.db.shift.count({
             where: {
                 archivedAt: null,
                 shiftDate: { gte: new Date(today + 'T00:00:00.000Z'), lte: new Date(today + 'T23:59:59.999Z') },
                 status: { not: 'cancelled' },
             },
         }),
-        prisma.shift.findMany({
+        req.db.shift.findMany({
             where: {
                 archivedAt: null,
                 shiftDate: { gte: new Date(weekStart + 'T00:00:00.000Z'), lte: new Date(weekEnd + 'T23:59:59.999Z') },
@@ -35,16 +34,16 @@ async function getDashboardStats(req, res) {
             },
             select: { hours: true, units: true },
         }),
-        prisma.scheduleNotification.count({
+        req.db.scheduleNotification.count({
             where: { status: { in: ['pending', 'sent'] }, confirmedAt: null },
         }),
-        prisma.client.findMany({
+        req.db.client.findMany({
             where: { archivedAt: null },
             include: { authorizations: true },
         }),
-        prisma.timesheet.count({ where: { status: 'draft', archivedAt: null } }),
-        prisma.timesheet.count({ where: { status: 'submitted', archivedAt: null } }),
-        prisma.payrollRun.findMany({
+        req.db.timesheet.count({ where: { status: 'draft', archivedAt: null } }),
+        req.db.timesheet.count({ where: { status: 'submitted', archivedAt: null } }),
+        req.db.payrollRun.findMany({
             where: { archivedAt: null },
             orderBy: { createdAt: 'desc' },
             take: 3,
@@ -52,11 +51,11 @@ async function getDashboardStats(req, res) {
         }),
     ]);
 
-    const pendingOnboarding = await prisma.employee.count({
+    const pendingOnboarding = await req.db.employee.count({
         where: { onboardingStatus: 'submitted' },
     });
 
-    const overdueRaw = await prisma.timesheet.findMany({
+    const overdueRaw = await req.db.timesheet.findMany({
         where: { status: 'draft', archivedAt: null },
         select: { id: true, pcaName: true, weekStart: true, status: true, client: { select: { clientName: true } } },
     });

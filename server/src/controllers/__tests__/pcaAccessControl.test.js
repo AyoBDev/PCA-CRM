@@ -19,17 +19,17 @@ beforeAll(async () => {
     const passwordHash = await bcrypt.hash('secret123', 10);
 
     const admin = await prisma.user.create({
-        data: { email: ADMIN_EMAIL, passwordHash, name: 'Sec Admin', role: 'admin' },
+        data: { email: ADMIN_EMAIL, passwordHash, name: 'Sec Admin', role: 'admin', agencyId: 1 },
     });
     pcaUser = await prisma.user.create({
-        data: { email: PCA_EMAIL, passwordHash, name: 'Sec PCA', role: 'pca', status: 'active', active: true },
+        data: { email: PCA_EMAIL, passwordHash, name: 'Sec PCA', role: 'pca', status: 'active', active: true, agencyId: 1 },
     });
     pcaEmployee = await prisma.employee.create({
-        data: { name: 'Sec PCA', email: PCA_EMAIL, userId: pcaUser.id },
+        data: { name: 'Sec PCA', email: PCA_EMAIL, userId: pcaUser.id, agencyId: 1 },
     });
 
-    adminToken = (await request(app).post('/api/auth/login').send({ email: ADMIN_EMAIL, password: 'secret123' })).body.token;
-    pcaToken = (await request(app).post('/api/auth/employee-login').send({ email: PCA_EMAIL, password: 'secret123' })).body.token;
+    adminToken = (await request(app).post('/api/auth/login').set('Host', 'nvbest.localhost').send({ email: ADMIN_EMAIL, password: 'secret123' })).body.token;
+    pcaToken = (await request(app).post('/api/auth/employee-login').set('Host', 'nvbest.localhost').send({ email: PCA_EMAIL, password: 'secret123' })).body.token;
 });
 
 afterAll(async () => {

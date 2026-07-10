@@ -65,14 +65,19 @@ function mapLeadToClientData(lead) {
   };
 }
 
-async function convertLead(prisma, id) {
-  const lead = await prisma.lead.findUnique({ where: { id: Number(id) } });
+async function convertLead(db, agencyId, id) {
+  const lead = await db.lead.findUnique({ where: { id: Number(id) } });
   if (!lead) throw new Error('Lead not found');
   if (lead.status === 'converted') throw new Error('Lead already converted');
 
-  return prisma.$transaction(async (tx) => {
+  // Interactive $transaction(callback) on the extended tenant client would
+  // hand the callback a raw (non-RLS-scoped) tx — use tenantTransaction so
+  // the agency GUC is set for the whole transaction, and stamp agencyId
+  // explicitly since tenantTransaction does not auto-stamp creates.
+  const { tenantTransaction } = require('../lib/tenantPrisma');
+  return tenantTransaction(agencyId, async (tx) => {
     const client = await tx.client.create({
-      data: mapLeadToClientData(lead),
+      data: { agencyId, ...mapLeadToClientData(lead) },
       include: { authorizations: true },
     });
     const now = new Date();

@@ -17,7 +17,7 @@ const prisma = require('../../lib/prisma');
 const { listEmployees, createEmployee } = require('../employeeController');
 
 function mockReqRes(overrides = {}) {
-    const req = { query: {}, params: {}, body: {}, user: { id: 1, name: 'Admin', role: 'admin' }, ...overrides };
+    const req = { query: {}, params: {}, body: {}, user: { id: 1, name: 'Admin', role: 'admin', agencyId: 1 }, db: prisma, ...overrides };
     const res = {
         json: jest.fn(),
         status: jest.fn().mockReturnThis(),

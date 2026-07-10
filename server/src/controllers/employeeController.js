@@ -1,4 +1,3 @@
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 const onboarding = require('../services/onboardingService');
 
@@ -8,7 +7,7 @@ async function listEmployees(req, res, next) {
         if (req.query.active === 'true') where.active = true;
         if (req.query.active === 'false') where.active = false;
 
-        const employees = await prisma.employee.findMany({
+        const employees = await req.db.employee.findMany({
             where,
             include: { user: { select: { id: true, name: true, email: true, role: true } } },
             orderBy: { name: 'asc' },
@@ -19,7 +18,7 @@ async function listEmployees(req, res, next) {
 
 async function getEmployee(req, res, next) {
     try {
-        const employee = await prisma.employee.findUnique({
+        const employee = await req.db.employee.findUnique({
             where: { id: Number(req.params.id) },
             include: { user: { select: { id: true, name: true, email: true, role: true } } },
         });
@@ -33,7 +32,7 @@ async function createEmployee(req, res, next) {
         const { name, phone, email, userId } = req.body;
         if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
 
-        const employee = await prisma.employee.create({
+        const employee = await req.db.employee.create({
             data: {
                 name: name.trim(),
                 phone: phone || '',
@@ -46,7 +45,7 @@ async function createEmployee(req, res, next) {
 
         // Auto-send onboarding invite if email provided and no user account linked
         if (employee.email && !userId) {
-            await prisma.employee.update({ where: { id: employee.id }, data: { onboardingStatus: 'invited' } });
+            await req.db.employee.update({ where: { id: employee.id }, data: { onboardingStatus: 'invited' } });
             employee.onboardingStatus = 'invited';
             const token = await onboarding.createOnboardingToken(employee.id);
             onboarding.sendOnboardingEmail(employee, token).catch(err => console.error('Onboarding email failed:', err.message));
@@ -60,7 +59,7 @@ async function createEmployee(req, res, next) {
 async function updateEmployee(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const oldEmployee = await prisma.employee.findUnique({ where: { id } });
+        const oldEmployee = await req.db.employee.findUnique({ where: { id } });
         if (!oldEmployee) return res.status(404).json({ error: 'Employee not found' });
 
         const fields = ['name', 'phone', 'email', 'userId', 'active', 'address', 'clientAssignment', 'npi', 'dob', 'idExpDate', 'firstAssignmentDate', 'tbDueDate', 'tbType', 'cprDueDate', 'trainingDueDate', 'backgroundCheckDueDate', 'dischargeDate', 'status', 'notes', 'critical'];
@@ -70,7 +69,7 @@ async function updateEmployee(req, res, next) {
         }
         if (data.name) data.name = data.name.trim();
 
-        const employee = await prisma.employee.update({
+        const employee = await req.db.employee.update({
             where: { id },
             data,
             include: { user: { select: { id: true, name: true, email: true, role: true } } },
@@ -87,9 +86,9 @@ async function updateEmployee(req, res, next) {
 async function deleteEmployee(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const employee = await prisma.employee.findUnique({ where: { id } });
+        const employee = await req.db.employee.findUnique({ where: { id } });
         if (!employee) return res.status(404).json({ error: 'Employee not found' });
-        const archived = await prisma.employee.update({ where: { id }, data: { archivedAt: new Date() } });
+        const archived = await req.db.employee.update({ where: { id }, data: { archivedAt: new Date() } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'ARCHIVE', entityType: 'Employee', entityId: id, entityName: employee.name });
         res.json(archived);
     } catch (err) { next(err); }
@@ -98,9 +97,9 @@ async function deleteEmployee(req, res, next) {
 async function restoreEmployee(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const employee = await prisma.employee.findUnique({ where: { id } });
+        const employee = await req.db.employee.findUnique({ where: { id } });
         if (!employee) return res.status(404).json({ error: 'Employee not found' });
-        const restored = await prisma.employee.update({
+        const restored = await req.db.employee.update({
             where: { id }, data: { archivedAt: null },
             include: { user: { select: { id: true, name: true, email: true, role: true } } },
         });
@@ -112,12 +111,12 @@ async function restoreEmployee(req, res, next) {
 async function permanentlyDeleteEmployee(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const emp = await prisma.employee.findUnique({ where: { id } });
+        const emp = await req.db.employee.findUnique({ where: { id } });
         if (!emp) return res.status(404).json({ error: 'Employee not found' });
         if (!emp.archivedAt) return res.status(400).json({ error: 'Only archived employees can be permanently deleted' });
         // Clear shifts referencing this employee (Shift uses onDelete: Restrict)
-        await prisma.shift.deleteMany({ where: { employeeId: id } });
-        await prisma.employee.delete({ where: { id } });
+        await req.db.shift.deleteMany({ where: { employeeId: id } });
+        await req.db.employee.delete({ where: { id } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'PERMANENT_DELETE', entityType: 'Employee', entityId: id, entityName: emp.name });
         res.json({ success: true });
     } catch (err) { next(err); }
@@ -126,8 +125,8 @@ async function permanentlyDeleteEmployee(req, res, next) {
 async function bulkPermanentlyDeleteEmployees(req, res, next) {
     try {
         // Clear shifts referencing archived employees (Shift uses onDelete: Restrict)
-        await prisma.shift.deleteMany({ where: { employee: { archivedAt: { not: null } } } });
-        const result = await prisma.employee.deleteMany({ where: { archivedAt: { not: null } } });
+        await req.db.shift.deleteMany({ where: { employee: { archivedAt: { not: null } } } });
+        const result = await req.db.employee.deleteMany({ where: { archivedAt: { not: null } } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'BULK_DELETE', entityType: 'Employee', entityId: 0, metadata: { count: result.count } });
         res.json({ success: true, count: result.count });
     } catch (err) { next(err); }
@@ -196,12 +195,12 @@ async function bulkImportEmployees(req, res, next) {
                     archivedAt: isInactive ? new Date() : null,
                 };
 
-                const existing = await prisma.employee.findFirst({ where: { name } });
+                const existing = await req.db.employee.findFirst({ where: { name } });
                 if (existing) {
-                    await prisma.employee.update({ where: { id: existing.id }, data: employeeData });
+                    await req.db.employee.update({ where: { id: existing.id }, data: employeeData });
                     updated++;
                 } else {
-                    await prisma.employee.create({ data: employeeData });
+                    await req.db.employee.create({ data: employeeData });
                     created++;
                 }
             }
@@ -209,7 +208,7 @@ async function bulkImportEmployees(req, res, next) {
 
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Employee', entityId: 0, entityName: 'Bulk Import', metadata: { created, updated } });
 
-        const employees = await prisma.employee.findMany({
+        const employees = await req.db.employee.findMany({
             where: { archivedAt: null },
             include: { user: { select: { id: true, name: true, email: true, role: true } } },
             orderBy: { name: 'asc' },
@@ -225,7 +224,7 @@ async function restoreEmployees(req, res, next) {
         if (!Array.isArray(employeeIds) || employeeIds.length === 0) {
             return res.status(400).json({ error: 'employeeIds array is required' });
         }
-        const result = await prisma.employee.updateMany({
+        const result = await req.db.employee.updateMany({
             where: { id: { in: employeeIds.map(Number) }, archivedAt: { not: null } },
             data: { archivedAt: null },
         });
@@ -241,7 +240,7 @@ async function restoreEmployees(req, res, next) {
 // GET /api/employees/archived
 async function listArchivedEmployees(req, res, next) {
     try {
-        const employees = await prisma.employee.findMany({
+        const employees = await req.db.employee.findMany({
             where: { archivedAt: { not: null } },
             orderBy: { archivedAt: 'desc' },
             take: 200,
@@ -260,7 +259,7 @@ async function listArchivedEmployees(req, res, next) {
 async function getEmployeeAvailability(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const availability = await prisma.employeeAvailability.findUnique({
+        const availability = await req.db.employeeAvailability.findUnique({
             where: { employeeId: id },
         });
         if (!availability) return res.status(404).json({ error: 'No availability data found' });

@@ -6,10 +6,14 @@ const ONBOARDING_EXPIRY_DAYS = 7;
 const EMPLOYEE_APP_URL = process.env.EMPLOYEE_APP_URL || 'http://localhost:4000/employee';
 
 async function createOnboardingToken(employeeId) {
+    // Owner-connection client does not auto-stamp agencyId — derive it from
+    // the employee row so the token lands in the right tenant.
+    const employee = await prisma.employee.findUnique({ where: { id: employeeId }, select: { agencyId: true } });
+    if (!employee) throw new Error('Employee not found');
     await prisma.onboardingToken.deleteMany({ where: { employeeId } });
     const expiresAt = new Date(Date.now() + ONBOARDING_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
     return prisma.onboardingToken.create({
-        data: { employeeId, expiresAt },
+        data: { employeeId, expiresAt, agencyId: employee.agencyId },
     });
 }
 
@@ -91,6 +95,7 @@ async function completeOnboarding(tokenStr, { password, availability }) {
         }),
         prisma.employeeAvailability.create({
             data: {
+                agencyId: employee.agencyId,
                 employeeId: employee.id,
                 availableFrom: new Date(availability.availableFrom),
                 availableUntil: availability.availableUntil ? new Date(availability.availableUntil) : null,

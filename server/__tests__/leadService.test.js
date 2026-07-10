@@ -101,17 +101,22 @@ describe('mapLeadToClientData', () => {
   });
 });
 
-function makeFakePrisma(lead) {
+jest.mock('../src/lib/tenantPrisma', () => ({
+  tenantTransaction: jest.fn((agencyId, fn) => fn(global.__leadServiceTestTx)),
+}));
+const { tenantTransaction } = require('../src/lib/tenantPrisma');
+
+function makeFakeDb(lead) {
   const createdClient = { id: 99, clientName: 'Jane Doe', authorizations: [] };
   const calls = { clientCreate: null, leadUpdate: null };
   const tx = {
     client: { create: async ({ data }) => { calls.clientCreate = data; return createdClient; } },
     lead: { update: async ({ where, data }) => { calls.leadUpdate = { where, data }; return { ...lead, ...data }; } },
   };
+  global.__leadServiceTestTx = tx;
   return {
     calls,
     lead: { findUnique: async () => lead },
-    $transaction: async (fn) => fn(tx),
   };
 }
 
@@ -119,30 +124,36 @@ describe('convertLead', () => {
   const baseLead = { id: 7, firstName: 'Jane', lastName: 'Doe', servicesRequested: '[]', status: 'quoted' };
 
   test('creates a client from the lead', async () => {
-    const prisma = makeFakePrisma(baseLead);
-    const { client } = await convertLead(prisma, 7);
+    const db = makeFakeDb(baseLead);
+    const { client } = await convertLead(db, 1, 7);
     expect(client.id).toBe(99);
-    expect(prisma.calls.clientCreate.clientName).toBe('Jane Doe');
+    expect(db.calls.clientCreate.clientName).toBe('Jane Doe');
+  });
+
+  test('stamps agencyId on the created client', async () => {
+    const db = makeFakeDb(baseLead);
+    await convertLead(db, 1, 7);
+    expect(db.calls.clientCreate.agencyId).toBe(1);
   });
 
   test('marks the lead converted + archived + linked', async () => {
-    const prisma = makeFakePrisma(baseLead);
-    await convertLead(prisma, 7);
-    expect(prisma.calls.leadUpdate.data.status).toBe('converted');
-    expect(prisma.calls.leadUpdate.data.convertedClientId).toBe(99);
-    expect(prisma.calls.leadUpdate.data.archivedAt).toBeInstanceOf(Date);
-    expect(prisma.calls.leadUpdate.data.convertedAt).toBeInstanceOf(Date);
+    const db = makeFakeDb(baseLead);
+    await convertLead(db, 1, 7);
+    expect(db.calls.leadUpdate.data.status).toBe('converted');
+    expect(db.calls.leadUpdate.data.convertedClientId).toBe(99);
+    expect(db.calls.leadUpdate.data.archivedAt).toBeInstanceOf(Date);
+    expect(db.calls.leadUpdate.data.convertedAt).toBeInstanceOf(Date);
   });
 
   test('throws when lead is missing', async () => {
-    const prisma = makeFakePrisma(null);
-    prisma.lead.findUnique = async () => null;
-    await expect(convertLead(prisma, 7)).rejects.toThrow('Lead not found');
+    const db = makeFakeDb(null);
+    db.lead.findUnique = async () => null;
+    await expect(convertLead(db, 1, 7)).rejects.toThrow('Lead not found');
   });
 
   test('throws when already converted', async () => {
-    const prisma = makeFakePrisma({ ...baseLead, status: 'converted' });
-    await expect(convertLead(prisma, 7)).rejects.toThrow('already converted');
+    const db = makeFakeDb({ ...baseLead, status: 'converted' });
+    await expect(convertLead(db, 1, 7)).rejects.toThrow('already converted');
   });
 });
 

@@ -13,8 +13,9 @@ const { createCertification } = require('../requirementsController');
 
 function mockReqRes(file, body = {}) {
   const req = {
-    employee: { id: 7 },
-    user: { id: 11, name: 'Tester', role: 'pca' },
+    employee: { id: 7, agencyId: 1 },
+    user: { id: 11, name: 'Tester', role: 'pca', agencyId: 1 },
+    db: prisma,
     file,
     body,
   };

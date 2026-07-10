@@ -1,5 +1,3 @@
-const prisma = require('../lib/prisma');
-
 async function listActivities(req, res, next) {
     try {
         const clientId = Number(req.params.clientId);
@@ -8,14 +6,14 @@ async function listActivities(req, res, next) {
         const skip = (page - 1) * limit;
 
         const [activities, total] = await Promise.all([
-            prisma.clientActivity.findMany({
+            req.db.clientActivity.findMany({
                 where: { clientId },
                 include: { user: { select: { id: true, name: true } } },
                 orderBy: { occurredAt: 'desc' },
                 skip,
                 take: limit,
             }),
-            prisma.clientActivity.count({ where: { clientId } }),
+            req.db.clientActivity.count({ where: { clientId } }),
         ]);
 
         res.json({ activities, total, page, pages: Math.ceil(total / limit) });
@@ -34,7 +32,7 @@ async function createActivity(req, res, next) {
             return res.status(400).json({ error: 'type and subject are required' });
         }
 
-        const activity = await prisma.clientActivity.create({
+        const activity = await req.db.clientActivity.create({
             data: {
                 clientId,
                 userId,
@@ -56,7 +54,7 @@ async function createActivity(req, res, next) {
 async function deleteActivity(req, res, next) {
     try {
         const id = Number(req.params.id);
-        await prisma.clientActivity.delete({ where: { id } });
+        await req.db.clientActivity.delete({ where: { id } });
         res.json({ success: true });
     } catch (err) {
         next(err);

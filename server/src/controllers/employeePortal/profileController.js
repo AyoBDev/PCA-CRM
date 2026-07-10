@@ -1,7 +1,6 @@
-const prisma = require('../../lib/prisma');
 
 async function getProfile(req, res) {
-  const emp = await prisma.employee.findUnique({
+  const emp = await req.db.employee.findUnique({
     where: { id: req.employee.id },
     select: {
       id: true, name: true, phone: true, email: true, address: true,
@@ -13,7 +12,7 @@ async function getProfile(req, res) {
 
 async function updateProfile(req, res) {
   const { name, phone, email, address } = req.body;
-  const updated = await prisma.employee.update({
+  const updated = await req.db.employee.update({
     where: { id: req.employee.id },
     data: {
       ...(name !== undefined && { name }),

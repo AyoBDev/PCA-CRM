@@ -1,4 +1,5 @@
 const prisma = require('../src/lib/prisma');
+const { tenantClient } = require('../src/lib/tenantPrisma');
 const {
   listPermissionGroups,
   createPermissionGroup,
@@ -15,7 +16,9 @@ function mockRes() {
   return res;
 }
 
-const adminReq = { user: { id: 1, name: 'Admin', role: 'admin' } };
+// Controllers read req.db; use a real tenant-scoped client so creates
+// auto-stamp agencyId (agency 1 = the backfilled default agency).
+const adminReq = { user: { id: 1, name: 'Admin', role: 'admin', agencyId: 1 }, db: tenantClient(1) };
 
 describe('permissionGroupController', () => {
   let createdGroupId;
@@ -28,6 +31,7 @@ describe('permissionGroupController', () => {
         passwordHash: 'x',
         name: 'PgTest',
         role: 'user',
+        agencyId: 1,
       },
     });
   });

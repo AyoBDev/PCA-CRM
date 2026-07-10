@@ -1,11 +1,10 @@
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 
 // GET /api/services
 async function listServices(req, res, next) {
     try {
         const where = req.query.archived === 'true' ? { archivedAt: { not: null } } : { archivedAt: null };
-        const services = await prisma.service.findMany({
+        const services = await req.db.service.findMany({
             where,
             orderBy: [{ category: 'asc' }, { code: 'asc' }],
         });
@@ -22,7 +21,7 @@ async function createService(req, res, next) {
         if (!code || typeof code !== 'string' || !code.trim()) {
             return res.status(400).json({ error: 'code is required' });
         }
-        const service = await prisma.service.create({
+        const service = await req.db.service.create({
             data: {
                 category: (category || '').trim().toUpperCase(),
                 code: code.trim().toUpperCase(),
@@ -45,8 +44,8 @@ async function updateService(req, res, next) {
         if (!code || typeof code !== 'string' || !code.trim()) {
             return res.status(400).json({ error: 'code is required' });
         }
-        const oldService = await prisma.service.findUnique({ where: { id } });
-        const service = await prisma.service.update({
+        const oldService = await req.db.service.findUnique({ where: { id } });
+        const service = await req.db.service.update({
             where: { id },
             data: {
                 category: (category || '').trim().toUpperCase(),
@@ -68,9 +67,9 @@ async function updateService(req, res, next) {
 async function deleteService(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const svc = await prisma.service.findUnique({ where: { id } });
+        const svc = await req.db.service.findUnique({ where: { id } });
         if (!svc) return res.status(404).json({ error: 'Service not found' });
-        const archived = await prisma.service.update({ where: { id }, data: { archivedAt: new Date() } });
+        const archived = await req.db.service.update({ where: { id }, data: { archivedAt: new Date() } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'ARCHIVE', entityType: 'Service', entityId: id, entityName: svc.code });
         res.json(archived);
     } catch (err) { next(err); }
@@ -80,9 +79,9 @@ async function deleteService(req, res, next) {
 async function restoreService(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const svc = await prisma.service.findUnique({ where: { id } });
+        const svc = await req.db.service.findUnique({ where: { id } });
         if (!svc) return res.status(404).json({ error: 'Service not found' });
-        const restored = await prisma.service.update({ where: { id }, data: { archivedAt: null } });
+        const restored = await req.db.service.update({ where: { id }, data: { archivedAt: null } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'RESTORE', entityType: 'Service', entityId: id, entityName: restored.code });
         res.json(restored);
     } catch (err) { next(err); }
@@ -91,10 +90,10 @@ async function restoreService(req, res, next) {
 async function permanentlyDeleteService(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const svc = await prisma.service.findUnique({ where: { id } });
+        const svc = await req.db.service.findUnique({ where: { id } });
         if (!svc) return res.status(404).json({ error: 'Service not found' });
         if (!svc.archivedAt) return res.status(400).json({ error: 'Only archived services can be permanently deleted' });
-        await prisma.service.delete({ where: { id } });
+        await req.db.service.delete({ where: { id } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'PERMANENT_DELETE', entityType: 'Service', entityId: id, entityName: svc.code });
         res.json({ success: true });
     } catch (err) { next(err); }
@@ -102,7 +101,7 @@ async function permanentlyDeleteService(req, res, next) {
 
 async function bulkPermanentlyDeleteServices(req, res, next) {
     try {
-        const result = await prisma.service.deleteMany({ where: { archivedAt: { not: null } } });
+        const result = await req.db.service.deleteMany({ where: { archivedAt: { not: null } } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'BULK_DELETE', entityType: 'Service', entityId: 0, metadata: { count: result.count } });
         res.json({ success: true, count: result.count });
     } catch (err) { next(err); }

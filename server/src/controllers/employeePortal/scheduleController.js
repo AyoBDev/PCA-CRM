@@ -1,4 +1,3 @@
-const prisma = require('../../lib/prisma');
 
 async function getWeekSchedule(req, res) {
   const dateParam = req.query.date;
@@ -13,7 +12,7 @@ async function getWeekSchedule(req, res) {
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 7);
 
-  const shifts = await prisma.shift.findMany({
+  const shifts = await req.db.shift.findMany({
     where: {
       employeeId: req.employee.id,
       shiftDate: { gte: weekStart, lt: weekEnd },
@@ -27,7 +26,7 @@ async function getWeekSchedule(req, res) {
 }
 
 async function getScheduleHistory(req, res) {
-  const notifications = await prisma.scheduleNotification.findMany({
+  const notifications = await req.db.scheduleNotification.findMany({
     where: { employeeId: req.employee.id },
     orderBy: { createdAt: 'desc' },
     take: 20,

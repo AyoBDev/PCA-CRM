@@ -1,9 +1,9 @@
-const prisma = require('../../lib/prisma');
 const { uploadFile } = require('../../lib/storage');
 const audit = require('../../services/auditService');
+const { tenantTransaction } = require('../../lib/tenantPrisma');
 
 async function getCertifications(req, res) {
-  const certs = await prisma.employeeCertification.findMany({
+  const certs = await req.db.employeeCertification.findMany({
     where: { employeeId: req.employee.id },
     select: {
       id: true, certType: true, expirationDate: true, status: true, notes: true, updatedAt: true,
@@ -25,7 +25,7 @@ async function uploadCertification(req, res) {
   const certId = parseInt(req.params.certId);
   if (!req.file) return res.status(400).json({ error: 'No file provided' });
 
-  const cert = await prisma.employeeCertification.findFirst({
+  const cert = await req.db.employeeCertification.findFirst({
     where: { id: certId, employeeId: req.employee.id },
   });
   if (!cert) return res.status(404).json({ error: 'Certification not found' });
@@ -43,9 +43,12 @@ async function uploadCertification(req, res) {
   await uploadFile(key, req.file.buffer, req.file.mimetype);
 
   const note = req.body.note || '';
-  await prisma.$transaction([
-    prisma.certificationUpload.create({
+  // Batch $transaction([...]) arrays are not supported on the extended tenant
+  // client — use an interactive transaction and stamp agencyId explicitly.
+  await tenantTransaction(req.employee.agencyId, async (tx) => {
+    await tx.certificationUpload.create({
       data: {
+        agencyId: req.employee.agencyId,
         certificationId: certId,
         bucketKey: key,
         fileName: req.file.originalname,
@@ -53,12 +56,12 @@ async function uploadCertification(req, res) {
         fileType: req.file.mimetype,
         note,
       },
-    }),
-    prisma.employeeCertification.update({
+    });
+    await tx.employeeCertification.update({
       where: { id: certId },
       data: { status: 'pending' },
-    }),
-  ]);
+    });
+  });
 
   audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'CertificationUpload', entityId: certId, entityName: `${cert.certType} - ${req.file.originalname}`, metadata: { employeeId: req.employee.id, fileName: req.file.originalname } });
   res.json({ success: true, status: 'pending' });
@@ -89,11 +92,11 @@ async function createCertification(req, res) {
   const key = `certs/${req.employee.id}/${certType}/${timestamp}-${req.file.originalname}`;
   await uploadFile(key, req.file.buffer, req.file.mimetype);
 
-  const cert = await prisma.employeeCertification.create({
+  const cert = await req.db.employeeCertification.create({
     data: { employeeId: req.employee.id, certType, status: 'pending', expirationDate, fileName: req.file.originalname, fileSize: req.file.size, fileType: req.file.mimetype },
   });
 
-  await prisma.certificationUpload.create({
+  await req.db.certificationUpload.create({
     data: {
       certificationId: cert.id,
       bucketKey: key,

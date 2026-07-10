@@ -1,7 +1,6 @@
-const prisma = require('../../lib/prisma');
 
 async function getAvailability(req, res) {
-  const emp = await prisma.employee.findUnique({
+  const emp = await req.db.employee.findUnique({
     where: { id: req.employee.id },
     select: { availability: true },
   });
@@ -12,14 +11,14 @@ async function submitAvailabilityRequest(req, res) {
   const { requestedChanges } = req.body;
   if (!requestedChanges) return res.status(400).json({ error: 'requestedChanges is required' });
 
-  const request = await prisma.availabilityRequest.create({
+  const request = await req.db.availabilityRequest.create({
     data: { employeeId: req.employee.id, requestedChanges },
   });
   res.status(201).json(request);
 }
 
 async function getTimeOffRequests(req, res) {
-  const requests = await prisma.timeOffRequest.findMany({
+  const requests = await req.db.timeOffRequest.findMany({
     where: { employeeId: req.employee.id },
     orderBy: { createdAt: 'desc' },
   });
@@ -36,7 +35,7 @@ async function submitTimeOff(req, res) {
     return res.status(400).json({ error: 'Invalid reason' });
   }
 
-  const request = await prisma.timeOffRequest.create({
+  const request = await req.db.timeOffRequest.create({
     data: {
       employeeId: req.employee.id,
       dateFrom: new Date(dateFrom),

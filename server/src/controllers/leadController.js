@@ -1,4 +1,3 @@
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 const { enrichClient } = require('../services/authorizationService');
 const leadService = require('../services/leadService');
@@ -13,14 +12,14 @@ function leadName(lead) {
 async function listLeads(req, res, next) {
   try {
     const where = req.query.archived === 'true' ? { archivedAt: { not: null }, status: { not: 'converted' } } : { archivedAt: null };
-    const leads = await prisma.lead.findMany({ where, orderBy: { createdAt: 'desc' } });
+    const leads = await req.db.lead.findMany({ where, orderBy: { createdAt: 'desc' } });
     res.json(leads);
   } catch (err) { next(err); }
 }
 
 async function getLead(req, res, next) {
   try {
-    const lead = await prisma.lead.findUnique({ where: { id: Number(req.params.id) } });
+    const lead = await req.db.lead.findUnique({ where: { id: Number(req.params.id) } });
     if (!lead) return res.status(404).json({ error: 'Lead not found' });
     res.json(lead);
   } catch (err) { next(err); }
@@ -40,7 +39,7 @@ async function createLead(req, res, next) {
     if (!(firstName || '').trim() && !(lastName || '').trim()) {
       return res.status(400).json({ error: 'firstName or lastName is required' });
     }
-    const lead = await prisma.lead.create({ data: sanitizeLeadBody(req.body) });
+    const lead = await req.db.lead.create({ data: sanitizeLeadBody(req.body) });
     audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Lead', entityId: lead.id, entityName: leadName(lead) });
     res.status(201).json(lead);
   } catch (err) { next(err); }
@@ -49,7 +48,7 @@ async function createLead(req, res, next) {
 async function updateLead(req, res, next) {
   try {
     const id = Number(req.params.id);
-    const lead = await prisma.lead.update({ where: { id }, data: sanitizeLeadBody(req.body) });
+    const lead = await req.db.lead.update({ where: { id }, data: sanitizeLeadBody(req.body) });
     audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Lead', entityId: id, entityName: leadName(lead) });
     res.json(lead);
   } catch (err) { next(err); }
@@ -61,10 +60,10 @@ async function setLeadStatus(req, res, next) {
     let { status } = req.body;
     if (COLUMN_IDS.includes(status)) status = leadService.columnToStatus(status);
     if (!WORKFLOW_STATUSES.includes(status)) return res.status(400).json({ error: 'invalid status' });
-    const existing = await prisma.lead.findUnique({ where: { id } });
+    const existing = await req.db.lead.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Lead not found' });
     const data = { status, archivedAt: status === 'archived' ? new Date() : null };
-    const lead = await prisma.lead.update({ where: { id }, data });
+    const lead = await req.db.lead.update({ where: { id }, data });
     audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Lead', entityId: id, entityName: leadName(lead), changes: [{ field: 'status', oldValue: existing.status, newValue: status }] });
     res.json(lead);
   } catch (err) { next(err); }
@@ -73,7 +72,7 @@ async function setLeadStatus(req, res, next) {
 async function archiveLead(req, res, next) {
   try {
     const id = Number(req.params.id);
-    const lead = await prisma.lead.update({ where: { id }, data: { status: 'archived', archivedAt: new Date() } });
+    const lead = await req.db.lead.update({ where: { id }, data: { status: 'archived', archivedAt: new Date() } });
     audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'ARCHIVE', entityType: 'Lead', entityId: id, entityName: leadName(lead) });
     res.json(lead);
   } catch (err) { next(err); }
@@ -82,7 +81,7 @@ async function archiveLead(req, res, next) {
 async function restoreLead(req, res, next) {
   try {
     const id = Number(req.params.id);
-    const lead = await prisma.lead.update({ where: { id }, data: { status: 'new', archivedAt: null } });
+    const lead = await req.db.lead.update({ where: { id }, data: { status: 'new', archivedAt: null } });
     audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'RESTORE', entityType: 'Lead', entityId: id, entityName: leadName(lead) });
     res.json(lead);
   } catch (err) { next(err); }
@@ -91,7 +90,7 @@ async function restoreLead(req, res, next) {
 async function convertLead(req, res, next) {
   try {
     const id = Number(req.params.id);
-    const { client, lead } = await leadService.convertLead(prisma, id);
+    const { client, lead } = await leadService.convertLead(req.db, req.user.agencyId, id);
     audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Client', entityId: client.id, entityName: client.clientName });
     audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Lead', entityId: id, entityName: leadName(lead), metadata: { action: 'lead_converted', clientId: client.id } });
     res.json({ client: enrichClient(client), lead });
@@ -103,7 +102,7 @@ async function convertLead(req, res, next) {
 
 async function getLeadStats(req, res, next) {
   try {
-    const leads = await prisma.lead.findMany();
+    const leads = await req.db.lead.findMany();
     res.json(leadService.computeStats(leads, new Date()));
   } catch (err) { next(err); }
 }

@@ -1,10 +1,9 @@
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 
 async function listCertifications(req, res, next) {
     try {
         const employeeId = Number(req.params.employeeId);
-        const certs = await prisma.employeeCertification.findMany({
+        const certs = await req.db.employeeCertification.findMany({
             where: { employeeId },
             orderBy: [{ certType: 'asc' }, { createdAt: 'desc' }],
             select: {
@@ -50,9 +49,9 @@ async function createCertification(req, res, next) {
             data.fileData = file.buffer;
         }
 
-        const cert = await prisma.employeeCertification.create({ data });
+        const cert = await req.db.employeeCertification.create({ data });
 
-        const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+        const employee = await req.db.employee.findUnique({ where: { id: employeeId } });
         audit.logAction(
             req.user.id, req.user.name, req.user.role,
             'CREATE', 'EmployeeCertification', cert.id,
@@ -70,7 +69,7 @@ async function updateCertification(req, res, next) {
         const { expirationDate, status, notes } = req.body;
         const file = req.file;
 
-        const old = await prisma.employeeCertification.findUnique({ where: { id } });
+        const old = await req.db.employeeCertification.findUnique({ where: { id } });
         if (!old) return res.status(404).json({ error: 'Certification not found' });
 
         const data = {};
@@ -85,7 +84,7 @@ async function updateCertification(req, res, next) {
             data.fileData = file.buffer;
         }
 
-        const cert = await prisma.employeeCertification.update({ where: { id }, data });
+        const cert = await req.db.employeeCertification.update({ where: { id }, data });
 
         const changes = audit.diffFields(old, cert, ['expirationDate', 'status', 'notes', 'fileName']);
         audit.logAction(
@@ -102,10 +101,10 @@ async function updateCertification(req, res, next) {
 async function deleteCertification(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const cert = await prisma.employeeCertification.findUnique({ where: { id } });
+        const cert = await req.db.employeeCertification.findUnique({ where: { id } });
         if (!cert) return res.status(404).json({ error: 'Certification not found' });
 
-        await prisma.employeeCertification.delete({ where: { id } });
+        await req.db.employeeCertification.delete({ where: { id } });
 
         audit.logAction(
             req.user.id, req.user.name, req.user.role,
@@ -120,7 +119,7 @@ async function deleteCertification(req, res, next) {
 async function downloadCertification(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const cert = await prisma.employeeCertification.findUnique({ where: { id } });
+        const cert = await req.db.employeeCertification.findUnique({ where: { id } });
         if (!cert || !cert.fileData) return res.status(404).json({ error: 'File not found' });
 
         const isPdf = cert.fileType === 'application/pdf';

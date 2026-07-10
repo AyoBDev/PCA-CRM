@@ -1,9 +1,8 @@
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 
 async function listWorkflowTriggers(req, res, next) {
     try {
-        const triggers = await prisma.workflowTrigger.findMany({
+        const triggers = await req.db.workflowTrigger.findMany({
             include: { assignToUser: { select: { id: true, name: true, email: true } } },
             orderBy: { id: 'asc' },
         });
@@ -16,7 +15,7 @@ async function listWorkflowTriggers(req, res, next) {
 async function updateWorkflowTrigger(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const existing = await prisma.workflowTrigger.findUnique({ where: { id } });
+        const existing = await req.db.workflowTrigger.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Trigger not found' });
 
         const { enabled, thresholdDays, urgency, assignToRole, assignToUserId } = req.body;
@@ -27,7 +26,7 @@ async function updateWorkflowTrigger(req, res, next) {
         if (assignToRole !== undefined) data.assignToRole = assignToRole || null;
         if (assignToUserId !== undefined) data.assignToUserId = assignToUserId ? Number(assignToUserId) : null;
 
-        const trigger = await prisma.workflowTrigger.update({
+        const trigger = await req.db.workflowTrigger.update({
             where: { id },
             data,
             include: { assignToUser: { select: { id: true, name: true, email: true } } },
