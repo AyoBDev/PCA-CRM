@@ -6,7 +6,7 @@ let cache = null;
 function buildMap(rows) {
   const map = {};
   // start with defaults
-  for (const [code, d] of Object.entries(SERVICE_DEFAULTS)) map[code] = { ...d };
+  for (const [code, d] of Object.entries(SERVICE_DEFAULTS)) map[code] = { ...d, enforceAuthLimit: d.enforceAuthLimit };
   // DB overrides defaults; non-empty DB fields win
   for (const r of rows) {
     const base = map[r.code] || {};
@@ -18,6 +18,7 @@ function buildMap(rows) {
       color: r.color || base.color || '',
       timesheetSection: r.timesheetSection || base.timesheetSection || '',
       sortOrder: (r.sortOrder != null ? r.sortOrder : (base.sortOrder ?? 50)),
+      enforceAuthLimit: (r.enforceAuthLimit != null ? r.enforceAuthLimit : (base.enforceAuthLimit ?? true)),
     };
   }
   return map;
@@ -37,6 +38,12 @@ function getServiceMapSync() {
 
 function invalidate() { cache = null; }
 
+async function sectionEnforcesLimit(section) {
+  if (!section) return false;
+  const map = await getServiceMap();
+  return Object.values(map).some(s => s.timesheetSection === section && s.enforceAuthLimit === true);
+}
+
 function deriveTimesheetSection(code, serviceName) {
   if (code === 'COPE' || code === 'PAS') {
     const name = (serviceName || '').toLowerCase();
@@ -51,4 +58,4 @@ function deriveTimesheetSection(code, serviceName) {
   return null;
 }
 
-module.exports = { getServiceMap, getServiceMapSync, invalidate, deriveTimesheetSection };
+module.exports = { getServiceMap, getServiceMapSync, invalidate, deriveTimesheetSection, sectionEnforcesLimit };
