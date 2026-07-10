@@ -25,11 +25,6 @@ const ALLOWLIST = new Set([
   // context yet — Task 10 wires that). Queries are explicitly scoped by the
   // already-loaded employee's agencyId instead of req.db/getTenantDb().
   'src/services/onboardingService.js',
-  // Employee portal auth guard: resolves req.employee (and its agencyId) from
-  // the JWT before tenant context exists on this route tree. Not swept by
-  // Task 9 (no controller/service in scope) — wiring employeePortal routes
-  // through tenantMiddleware/req.db is a routing change tracked separately.
-  'src/middleware/requireEmployeeLink.js',
   // Cron drivers: enumerate active agencies on the owner connection, then run
   // each job body inside runWithTenant with a per-agency tenantClient.
   'src/jobs/complianceCron.js',
