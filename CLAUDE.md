@@ -456,7 +456,9 @@ Full-featured file management system for administrative documents (insurance, el
 
 ## Service Code System — Cross-Entity Trace
 
-Service codes are the connective tissue of the app. A change to service codes must be traced through every layer:
+Service codes are the connective tissue of the app. A change to service codes must be traced through every layer.
+
+> **Runtime source of truth**: the DB `Service` table (managed via the `/services` page) is the RUNTIME SOURCE OF TRUTH for service **name, label, account number, color, timesheetSection, sortOrder, and enforceAuthLimit**. The constants in `client/src/utils/serviceCodes.jsx`, `client/src/utils/constants.js`, `client/src/utils/accountMapping.js`, and the server's `server/src/lib/serviceDefaults.js` are FALLBACK DEFAULTS ONLY — used to seed the DB and as a safety net when a code has no DB row. They are merged UNDER live DB values by `server/src/services/serviceRegistry.js` (server) and the `useServices()` hook / `ServicesProvider` (`client/src/hooks/useServices.jsx`) on the client. To change a service's display name, color, account, timesheet section, or whether it enforces authorization limits, edit it on the `/services` page — do not edit the frontend/backend constant files for that purpose. Only edit the constants files when adding a brand-new service code (see Impact Checklist below) or changing the pre-DB fallback behavior.
 
 ### Canonical Service Codes
 **EVV Services**: `PCS`, `S5120`, `S5125`, `S5130`, `S5135`, `S5150`, `SDPC`
@@ -466,13 +468,18 @@ Service codes are the connective tissue of the app. A change to service codes mu
 ### Where Service Codes Live (must stay in sync)
 | Location | Purpose |
 |----------|---------|
-| `server/src/controllers/authorizationController.js` → `VALID_SERVICE_CODES` | Server-side validation of allowed codes |
-| `server/src/services/authorizationService.js` → `REMINDER_WINDOWS`, `RENEWAL_COLORS` | Expiry reminder config per code |
-| `server/prisma/seed-services.js` → `DEFAULT_SERVICES` | Reference data seeder |
-| `server/src/lib/timesheetUtils.js` → `deriveTimesheetService()` | **Single source** for auth code → timesheet section mapping (used by both timesheetController and pcaFormController) |
-| `client/src/utils/serviceCodes.jsx` → `SERVICE_CODE_OPTIONS` | **Single source** for all frontend service code dropdowns |
-| `client/src/utils/constants.js` → `AUTH_COLORS`, `SERVICE_CODE_NAMES` | **Single source** for all frontend display colors/names |
-| `client/src/utils/accountMapping.js` → `SERVICE_CODE_ACCOUNT_MAP` | Service code → account number auto-fill |
+| **DB `Service` table** (via `/services` page, `serviceController.js`) | **Runtime source of truth** for name/label/account/color/timesheetSection/sortOrder/enforceAuthLimit per code |
+| `server/src/services/serviceRegistry.js` → `getServiceMap()`/`getServiceMapSync()`/`invalidate()`/`deriveTimesheetSection()`/`sectionEnforcesLimit()` | Cached DB-over-defaults registry; single place server code reads service metadata from. `invalidate()` clears cache after CRUD writes. `deriveTimesheetSection(code, serviceName)` maps an auth to a PCA-form section; `sectionEnforcesLimit(section)` gates whether that section's hours are capped by authorized units |
+| `server/src/lib/serviceDefaults.js` → `SERVICE_DEFAULTS`, `getDefault()` | **Fallback defaults only** — merged under DB values by `serviceRegistry`; also used to seed the DB |
+| `client/src/hooks/useServices.jsx` → `ServicesProvider`, `useServices()` | Cached DB-over-constants registry on the client; single place frontend code reads service metadata from (`serviceMeta`, `serviceOptions`, `serviceName`, `serviceColor`, `accountForCode`, `sortKey`, `refetch`) |
+| `server/src/controllers/authorizationController.js` → `VALID_SERVICE_CODES` | Server-side validation of allowed codes (registry-backed) |
+| `server/src/services/authorizationService.js` → `REMINDER_WINDOWS`, `RENEWAL_COLORS` | Expiry reminder config per code (unchanged — not part of the Service table migration) |
+| `server/prisma/seed-services.js` | Reference data seeder — imports `SERVICE_DEFAULTS` from `serviceDefaults.js` (not a local `DEFAULT_SERVICES` constant) and creates any DB `Service` rows that don't already exist (create-missing-only; never overwrites existing rows) |
+| `server/src/lib/timesheetUtils.js` → `deriveTimesheetService()` | Legacy hardcoded auth code → timesheet section mapping; superseded at runtime by `serviceRegistry.deriveTimesheetSection()`, which is DB-aware and falls back to the same logic |
+| `server/src/controllers/pcaFormController.js` | Gates the PCA-form authorized-hours ceiling per section using `serviceRegistry.sectionEnforcesLimit('PAS'|'Homemaker'|'Respite'|...)` — sections whose codes have `enforceAuthLimit: false` (e.g. private Timesheets codes) are not capped |
+| `client/src/utils/serviceCodes.jsx` → `SERVICE_CODE_OPTIONS` | Fallback dropdown options; merged under DB via `useServices()` |
+| `client/src/utils/constants.js` → `AUTH_COLORS`, `SERVICE_CODE_NAMES` | Fallback display colors/names; merged under DB via `useServices()` |
+| `client/src/utils/accountMapping.js` → `SERVICE_CODE_ACCOUNT_MAP` | Fallback service code → account number auto-fill; merged under DB via `useServices()` |
 | `server/src/services/payrollService.js` → `SERVICE_CODE_RULES` | Maps EVV service names → codes for payroll |
 | `server/src/controllers/authorizationController.js` → `MULTI_AUTH_CODES` | Program codes allowing multiple active auths (COPE, PAS) |
 | `client/src/utils/constants.js` → `getAuthSortKey()` | **Single source** for auth display sort order across all pages |
@@ -508,15 +515,17 @@ Employee
 | S5150, TIMESHEET_RESPITE | Respite |
 | S5135, TIMESHEET_COMPANION | Companion |
 
-### Impact Checklist (when adding/changing a service code)
+### Impact Checklist (when adding a brand-new service code)
+Adding a code still requires updating the fallback constants below (they seed the DB and back-stop any code that has no DB row yet). Changing an *existing* code's name/label/account/color/timesheetSection/sortOrder/enforceAuthLimit should be done on the `/services` page, not by editing these files.
 1. Add to `VALID_SERVICE_CODES` in `server/src/controllers/authorizationController.js`
 2. Add to `REMINDER_WINDOWS` and `RENEWAL_COLORS` in `server/src/services/authorizationService.js`
-3. Add to `server/prisma/seed-services.js`
-4. Update `deriveTimesheetService()` mapping in `server/src/lib/timesheetUtils.js`
-5. Add to `SERVICE_CODE_OPTIONS` in `client/src/utils/serviceCodes.jsx` (all dropdowns update automatically)
-6. Add to `AUTH_COLORS` and `SERVICE_CODE_NAMES` in `client/src/utils/constants.js` (all pages update automatically)
-7. Add to `SERVICE_CODE_ACCOUNT_MAP` in `client/src/utils/accountMapping.js` (auto-fill updates automatically)
-8. If it maps to a new timesheet section: add DB fields, update controller totals, update PCA form + admin form + list page
+3. Add to `SERVICE_DEFAULTS` in `server/src/lib/serviceDefaults.js` (include `enforceAuthLimit`) — `server/prisma/seed-services.js` picks it up automatically and create-only-seeds it into the DB `Service` table on next run
+4. Update `deriveTimesheetSection()` in `server/src/services/serviceRegistry.js` (and, for parity, the legacy `deriveTimesheetService()` in `server/src/lib/timesheetUtils.js`)
+5. Add to `SERVICE_CODE_OPTIONS` in `client/src/utils/serviceCodes.jsx` (fallback for `useServices()`; all dropdowns update automatically once the DB row exists)
+6. Add to `AUTH_COLORS` and `SERVICE_CODE_NAMES` in `client/src/utils/constants.js` (fallback for `useServices()`; all pages update automatically once the DB row exists)
+7. Add to `SERVICE_CODE_ACCOUNT_MAP` in `client/src/utils/accountMapping.js` (fallback auto-fill; updates automatically once the DB row exists)
+8. If it maps to a new timesheet section: add DB fields, update controller totals, update PCA form + admin form + list page, and confirm `sectionEnforcesLimit()` behaves as intended for that section
+9. Verify the new code appears correctly on the `/services` page (name/account/color/section/sortOrder/enforceAuthLimit editable) — that page is the source of truth going forward
 
 ## Spreadsheet Import Format (Client Data)
 The client XLSX uses a parent-child row layout:
