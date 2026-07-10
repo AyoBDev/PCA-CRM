@@ -6,6 +6,7 @@ import { getAccountForCategory, getAccountForServiceCode, ACCOUNT_NUMBER_OPTIONS
 import { ServiceCodeSelect, SERVICE_CATEGORIES, SERVICE_NAME_SUGGESTIONS } from '../utils/serviceCodes';
 import { SERVICE_CODE_NAMES } from '../utils/constants';
 import AutocompleteInput from './common/AutocompleteInput';
+import { useServices } from '../hooks/useServices';
 
 const EMPTY_AUTH = {
     serviceCategory: '',
@@ -139,6 +140,7 @@ function StepClientInfo({ form, setForm, insuranceTypes, onDatePaste }) {
 }
 
 function AuthCard({ index, auth, onChange, onRemove }) {
+    const { serviceOptions } = useServices();
     const update = (field, value) => onChange(index, { ...auth, [field]: value });
 
     const handleServiceCategoryChange = (newCategory) => {
@@ -176,7 +178,7 @@ function AuthCard({ index, auth, onChange, onRemove }) {
                 </div>
                 <div className="form-group">
                     <label>Service Code <span style={{ color: '#dc2626' }}>*</span></label>
-                    <ServiceCodeSelect value={auth.serviceCode} onChange={(e) => handleServiceCodeChange(e.target.value)} />
+                    <ServiceCodeSelect value={auth.serviceCode} onChange={(e) => handleServiceCodeChange(e.target.value)} options={serviceOptions()} />
                 </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
