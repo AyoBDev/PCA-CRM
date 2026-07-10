@@ -61,4 +61,14 @@ describe('resolveAgency', () => {
     const { res } = await run('a.b.nvbestpca.com');
     expect(res.status).toHaveBeenCalledWith(404);
   });
+
+  test('loopback hosts are treated as apex (supertest default)', async () => {
+    const a = await run('127.0.0.1');
+    expect(a.req.agency).toBeNull();
+    expect(a.next).toHaveBeenCalled();
+    const b = await run('::1', '/api/clients');
+    expect(b.req.agency).toBeNull();
+    expect(b.next).toHaveBeenCalled();
+    expect(prisma.agency.findUnique).not.toHaveBeenCalled();
+  });
 });

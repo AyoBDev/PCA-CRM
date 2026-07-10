@@ -2,6 +2,7 @@ const prisma = require('../lib/prisma');
 
 const CACHE_TTL_MS = 60_000;
 const cache = new Map(); // slug -> { agency, expires }
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', '[::1]']);
 
 function baseDomain() {
   return (process.env.BASE_DOMAIN || 'localhost').toLowerCase();
@@ -23,7 +24,7 @@ async function resolveAgency(req, res, next) {
   try {
     const domain = baseDomain();
     const host = (req.hostname || '').toLowerCase();
-    if (host === domain || host === `www.${domain}`) {
+    if (host === domain || host === `www.${domain}` || LOOPBACK_HOSTS.has(host)) {
       req.agency = null;
       return next();
     }
