@@ -1,4 +1,5 @@
 const express = require('express');
+const { tenantMiddleware } = require('../middleware/tenantMiddleware');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 const {
@@ -235,6 +236,7 @@ router.get('/backup/export', backupAuth, exportBackup);
 
 // ── All routes below require authentication ──
 router.use(authenticate);
+router.use(tenantMiddleware);
 
 // Auth (authenticated)
 router.get('/auth/me', getMe);

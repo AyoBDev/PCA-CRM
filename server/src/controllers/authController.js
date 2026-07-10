@@ -17,6 +17,8 @@ function signToken(user, permissions) {
             permissionGroupId: user.permissionGroupId ?? null,
             permissions: Array.isArray(permissions) ? permissions : [],
             permissionsVersion: user.permissionsVersion ?? 1,
+            agencyId: user.agencyId ?? null,
+            agencySlug: user._agencySlug ?? null,
         },
         JWT_SECRET,
         { expiresIn: TOKEN_EXPIRY }
@@ -30,8 +32,14 @@ async function login(req, res, next) {
         if (!email || !password) {
             return res.status(400).json({ error: 'Email and password are required' });
         }
-        const user = await prisma.user.findFirst({ where: { email: email.toLowerCase().trim() } });
+        const agencyId = req.agency ? req.agency.id : null;
+        const user = await prisma.user.findFirst({
+            where: { email: email.toLowerCase().trim(), agencyId },
+        });
         if (!user) {
+            return res.status(401).json({ error: 'Invalid email or password' });
+        }
+        if (!req.agency && user.role !== 'superadmin') {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
         if (user.archivedAt) {
@@ -57,6 +65,7 @@ async function login(req, res, next) {
             ? await prisma.permissionGroup.findUnique({ where: { id: user.permissionGroupId } })
             : null;
         const permissions = group && Array.isArray(group.permissions) ? group.permissions : [];
+        user._agencySlug = req.agency ? req.agency.slug : null;
         const token = signToken(user, permissions);
         audit.logAction({ userId: user.id, userName: user.name, userRole: user.role, action: 'LOGIN', entityType: 'User', entityId: user.id, entityName: user.name });
         res.json({
@@ -99,7 +108,9 @@ async function register(req, res, next) {
             return res.status(400).json({ error: 'Email, password, and name are required' });
         }
         const validRole = ['admin', 'user', 'pca'].includes(role) ? role : 'pca';
-        const existing = await prisma.user.findFirst({ where: { email: email.toLowerCase().trim() } });
+        const existing = await prisma.user.findFirst({
+            where: { email: email.toLowerCase().trim(), agencyId: req.user.agencyId ?? null },
+        });
         if (existing) {
             return res.status(409).json({ error: 'A user with this email already exists' });
         }
@@ -118,6 +129,7 @@ async function register(req, res, next) {
                 role: validRole,
                 phone: (phone || '').trim(),
                 permissionGroupId: (validRole === 'user' && Number.isInteger(permissionGroupId)) ? permissionGroupId : null,
+                agencyId: req.user.agencyId,
             },
         });
         res.status(201).json({ id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone });
@@ -282,7 +294,9 @@ async function forgotPassword(req, res, next) {
         const { email } = req.body;
         if (!email) return res.status(400).json({ error: 'Email is required' });
 
-        const user = await prisma.user.findFirst({ where: { email: email.toLowerCase().trim() } });
+        const user = await prisma.user.findFirst({
+            where: { email: email.toLowerCase().trim(), agencyId: req.agency?.id ?? null },
+        });
         // Always return success to avoid revealing whether email exists
         if (!user || user.archivedAt) {
             return res.json({ success: true });
@@ -364,7 +378,9 @@ async function employeeLogin(req, res, next) {
         if (!email || !password) {
             return res.status(400).json({ error: 'Email and password are required' });
         }
-        const user = await prisma.user.findFirst({ where: { email: email.toLowerCase().trim() } });
+        const user = await prisma.user.findFirst({
+            where: { email: email.toLowerCase().trim(), agencyId: req.agency?.id ?? null },
+        });
         if (!user) {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
@@ -389,6 +405,7 @@ async function employeeLogin(req, res, next) {
             ? await prisma.permissionGroup.findUnique({ where: { id: user.permissionGroupId } })
             : null;
         const permissions = group && Array.isArray(group.permissions) ? group.permissions : [];
+        user._agencySlug = req.agency ? req.agency.slug : null;
         const token = signToken(user, permissions);
         audit.logAction({ userId: user.id, userName: user.name, userRole: user.role, action: 'LOGIN', entityType: 'User', entityId: user.id, entityName: user.name, metadata: { portal: 'employee' } });
         res.json({

@@ -6,8 +6,9 @@ const audit = require('../services/auditService');
 // GET /api/clients
 async function listClients(req, res, next) {
     try {
+        const db = req.db || prisma;
         const where = req.query.archived === 'true' ? { archivedAt: { not: null } } : { archivedAt: null };
-        const clients = await prisma.client.findMany({
+        const clients = await db.client.findMany({
             where,
             include: {
                 authorizations: {
