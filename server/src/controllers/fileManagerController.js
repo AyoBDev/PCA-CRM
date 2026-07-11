@@ -1,4 +1,5 @@
 const storage = require('../services/storageService');
+const { tenantKey } = require('../services/storageService');
 const audit = require('../services/auditService');
 
 // GET /api/files/folders?parentId=X (null for root)
@@ -218,7 +219,7 @@ async function uploadFile(req, res, next) {
 
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-        const storageKey = `admin-files${folder.path}/${Date.now()}-${req.file.originalname}`;
+        const storageKey = tenantKey(`admin-files${folder.path}/${Date.now()}-${req.file.originalname}`);
 
         await storage.upload(storageKey, req.file.buffer, req.file.mimetype || 'application/octet-stream');
 
@@ -383,7 +384,7 @@ async function copyFile(req, res, next) {
             }
             const buffer = Buffer.concat(chunks);
 
-            const newKey = `admin-files${target.path}/${Date.now()}-${original.name}`;
+            const newKey = tenantKey(`admin-files${target.path}/${Date.now()}-${original.name}`);
             await storage.upload(newKey, buffer, original.mimeType || 'application/octet-stream');
 
             const copy = await req.db.adminFile.create({
