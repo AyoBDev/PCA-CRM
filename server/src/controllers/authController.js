@@ -317,6 +317,7 @@ async function forgotPassword(req, res, next) {
         const resetToken = await prisma.passwordResetToken.create({
             data: {
                 userId: user.id,
+                agencyId: user.agencyId ?? null,
                 expiresAt: new Date(Date.now() + 60 * 60 * 1000),
             },
         });

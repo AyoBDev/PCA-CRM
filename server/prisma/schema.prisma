@@ -121,8 +121,8 @@ model PasswordResetToken {
   expiresAt DateTime  @map("expires_at")
   usedAt    DateTime? @map("used_at")
   createdAt DateTime  @default(now()) @map("created_at")
-  agencyId  Int       @map("agency_id")
-  agency    Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId  Int?      @map("agency_id")
+  agency    Agency?   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([agencyId])
