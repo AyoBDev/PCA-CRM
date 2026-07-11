@@ -16,12 +16,12 @@ const STARTER_GROUPS = [
   },
 ];
 
-async function seedPermissionGroups(prisma) {
+async function seedPermissionGroups(prisma, agencyId) {
   for (const g of STARTER_GROUPS) {
-    const existing = await prisma.permissionGroup.findUnique({ where: { name: g.name } });
+    const existing = await prisma.permissionGroup.findUnique({ where: { agencyId_name: { agencyId, name: g.name } } });
     if (existing) continue;
     await prisma.permissionGroup.create({
-      data: { name: g.name, description: g.description, permissions: g.permissions },
+      data: { name: g.name, description: g.description, permissions: g.permissions, agencyId },
     });
     console.log(`[seed] Created permission group: ${g.name}`);
   }

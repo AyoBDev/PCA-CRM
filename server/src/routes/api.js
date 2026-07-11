@@ -236,6 +236,11 @@ router.get('/backup/export', backupAuth, exportBackup);
 
 // ── All routes below require authentication ──
 router.use(authenticate);
+
+// Platform console (superadmin only) — runs after authenticate but before
+// tenantMiddleware since superadmin accounts have no agencyId.
+router.use('/platform', require('./platform'));
+
 router.use(tenantMiddleware);
 
 // Auth (authenticated)
