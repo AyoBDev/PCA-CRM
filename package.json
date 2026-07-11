@@ -8,7 +8,7 @@
     "build:employee": "cd employee-app && npm run build",
     "build:server": "cd server && npx prisma generate",
     "build": "npm run build:client && npm run build:employee && npm run build:server",
-    "start": "cd server && npx prisma migrate deploy && node prisma/seed.js && node src/index.js",
+    "start": "cd server && npx prisma migrate deploy && node prisma/setup-app-role.js && node prisma/seed.js && node src/index.js",
     "dev": "cd server && npm run dev"
   }
 }

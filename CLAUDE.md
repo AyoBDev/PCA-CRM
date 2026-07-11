@@ -450,7 +450,7 @@ Full-featured file management system for administrative documents (insurance, el
 
 ## Deployment (Railway)
 - Single service: Express serves the React build from `client/dist`
-- Start command: `prisma migrate deploy` → `seed.js` → `node src/index.js`
+- Start command: `prisma migrate deploy` → `setup-app-role.js` → `seed.js` → `node src/index.js`
 - **Storage Bucket**: Create bucket on Railway canvas → Connect to service → env vars auto-injected
 - Environment variables: `DATABASE_URL` (PostgreSQL), `JWT_SECRET`, `PORT`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `BREVO_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`
 

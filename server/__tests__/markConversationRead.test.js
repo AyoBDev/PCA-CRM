@@ -69,6 +69,6 @@ describe('markConversationRead', () => {
 
   test('emits chat:conversation-read to office', async () => {
     const { emitToOffice } = require('../src/socket');
-    expect(emitToOffice).toHaveBeenCalledWith('chat:conversation-read', { conversationId: conversation.id });
+    expect(emitToOffice).toHaveBeenCalledWith(adminUser.agencyId, 'chat:conversation-read', { conversationId: conversation.id });
   });
 });

@@ -91,10 +91,10 @@ async function adminSendMessage(req, res) {
     employeeUserId: convo.employee.userId,
   };
 
-  emitToEmployee(convo.employeeId, 'chat:message', payload);
-  emitToOffice('chat:message', payload);
+  emitToEmployee(req.user.agencyId, convo.employeeId, 'chat:message', payload);
+  emitToOffice(req.user.agencyId, 'chat:message', payload);
 
-  emitToOffice('chat:conversation-updated', {
+  emitToOffice(req.user.agencyId, 'chat:conversation-updated', {
     conversationId,
     employeeId: convo.employee.id,
     employeeName: convo.employee.name,
@@ -130,7 +130,7 @@ async function markConversationRead(req, res) {
     });
   }
 
-  emitToOffice('chat:conversation-read', { conversationId });
+  emitToOffice(req.user.agencyId, 'chat:conversation-read', { conversationId });
 
   res.json({ conversationId, unreadCount: 0 });
 }

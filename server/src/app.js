@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const compression = require('compression');
 const apiRoutes = require('./routes/api');
 const { resolveAgency } = require('./middleware/resolveAgency');
+const { corsOrigin } = require('./lib/corsOrigin');
 
 const app = express();
 
@@ -19,15 +20,7 @@ app.set('trust proxy', 1);
 // can be added later once tested against the built client.
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
-app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    process.env.EMPLOYEE_APP_ORIGIN,
-    process.env.ADMIN_APP_ORIGIN,
-  ].filter(Boolean),
-  credentials: true,
-}));
+app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(express.json());
 app.use(resolveAgency);
 
@@ -77,3 +70,4 @@ app.use((err, _req, res, _next) => {
 });
 
 module.exports = app;
+module.exports.corsOrigin = corsOrigin;

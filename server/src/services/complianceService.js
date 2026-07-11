@@ -1,4 +1,4 @@
-const { getTenantDb } = require('../lib/tenantContext');
+const { getTenantDb, getAgencyId } = require('../lib/tenantContext');
 const { emitToEmployee } = require('../socket');
 
 const RENEWAL_YEARS = {
@@ -48,7 +48,7 @@ async function createNotification(employeeId, type, title, body) {
   const notif = await db.notification.create({
     data: { employeeId, type, title, body },
   });
-  emitToEmployee(employeeId, 'notification:new', notif);
+  emitToEmployee(getAgencyId(), employeeId, 'notification:new', notif);
   return notif;
 }
 

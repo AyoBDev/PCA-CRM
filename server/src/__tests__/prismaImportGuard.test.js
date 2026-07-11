@@ -13,7 +13,6 @@ const ALLOWLIST = new Set([
   'src/controllers/platformController.js',  // superadmin console (Task 11)
   'src/controllers/backupController.js',    // platform backup path (Task 11)
   'src/services/auditService.js',           // fire-and-forget writes w/ explicit agencyId
-  'src/socket.js',                          // handshake auth (pre-context)
   // Public-token resolvers: token lookup crosses tenants by design. Their
   // authenticated handlers (if any) use req.db — see git blame for the split.
   'src/controllers/pcaFormController.js',

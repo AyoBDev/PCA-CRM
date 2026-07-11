@@ -48,7 +48,7 @@ async function sendMessage(req, res) {
     data: { lastMessageAt: new Date() },
   });
 
-  emitToOffice('chat:message', {
+  emitToOffice(req.user.agencyId, 'chat:message', {
     id: msg.id,
     content: msg.content,
     senderId: msg.senderId,
@@ -60,7 +60,7 @@ async function sendMessage(req, res) {
     employeeUserId: req.user.id,
   });
 
-  emitToOffice('chat:conversation-updated', {
+  emitToOffice(req.user.agencyId, 'chat:conversation-updated', {
     conversationId: convo.id,
     employeeId: req.employee.id,
     employeeName: req.employee.name,
