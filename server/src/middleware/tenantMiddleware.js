@@ -14,6 +14,16 @@ async function tenantMiddleware(req, res, next) {
     if (req.agency && req.agency.id !== agencyId) {
       return res.status(401).json({ error: 'Invalid session for this agency' });
     }
+    // Outside production (dev/test), requests without a resolved subdomain
+    // (apex domain, loopback supertest requests) fall back to trusting the
+    // JWT's agencyId directly. In production this fallback is a tenant-
+    // binding bypass — a token minted for one agency could be replayed on
+    // the apex/loopback host and still resolve to that agency's data, since
+    // resolveAgency only 404s truly unknown subdomains, not the apex. Require
+    // a subdomain-resolved req.agency in production.
+    if (!req.agency && process.env.NODE_ENV === 'production') {
+      return res.status(401).json({ error: 'Agency could not be resolved for this request' });
+    }
     const agency = req.agency || (await prisma.agency.findUnique({ where: { id: agencyId } }));
     if (!agency) {
       return res.status(401).json({ error: 'Agency not found' });

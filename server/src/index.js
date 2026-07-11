@@ -8,6 +8,10 @@ const { runTaskTriggers } = require('./jobs/taskTriggers');
 const { sendTaskReminders } = require('./jobs/taskReminders');
 const { runComplianceCheck } = require('./jobs/complianceCron');
 
+if (process.env.NODE_ENV === 'production' && !process.env.APP_DATABASE_URL) {
+    throw new Error('APP_DATABASE_URL must be set in production — tenant isolation depends on the RLS-constrained app_user connection');
+}
+
 const PORT = process.env.PORT || 4000;
 const server = http.createServer(app);
 

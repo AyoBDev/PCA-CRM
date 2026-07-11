@@ -1,6 +1,8 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../lib/prisma');
 const { isEmailConfigured, sendEmail } = require('./notificationService');
+const { tenantTransaction } = require('../lib/tenantPrisma');
+const { getAgencyId } = require('../lib/tenantContext');
 
 const ONBOARDING_EXPIRY_DAYS = 7;
 const EMPLOYEE_APP_URL = process.env.EMPLOYEE_APP_URL || 'http://localhost:4000/employee';
@@ -123,16 +125,23 @@ async function approveOnboarding(db, employeeId) {
     if (!employee) throw new Error('Employee not found');
     if (employee.onboardingStatus !== 'submitted') throw new Error('Employee is not pending approval');
 
-    await db.$transaction([
-        db.employee.update({
+    // Batch $transaction([...]) on the tenant-extended client is NOT atomic —
+    // each array item runs through its own nested scoped() transaction, so a
+    // failure partway through the array does not roll back earlier writes.
+    // tenantTransaction runs everything on one real DB transaction/connection
+    // instead. Note: the raw `tx` client does not auto-stamp agencyId like
+    // the extended tenantClient does — these are updates only, so there's no
+    // create `data` to stamp, but keep that in mind if this function grows one.
+    await tenantTransaction(getAgencyId(), async (tx) => {
+        await tx.employee.update({
             where: { id: employeeId },
             data: { onboardingStatus: 'active' },
-        }),
-        db.user.update({
+        });
+        await tx.user.update({
             where: { id: employee.userId },
             data: { status: 'active' },
-        }),
-    ]);
+        });
+    });
 
     sendWelcomeEmail(employee).catch(err => console.error('Welcome email failed:', err.message));
     return employee;
