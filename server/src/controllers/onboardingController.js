@@ -1,4 +1,3 @@
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 const onboarding = require('../services/onboardingService');
 
@@ -58,7 +57,7 @@ async function completeOnboarding(req, res, next) {
 async function resendInvite(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const employee = await prisma.employee.findUnique({ where: { id } });
+        const employee = await req.db.employee.findUnique({ where: { id } });
         if (!employee) return res.status(404).json({ error: 'Employee not found' });
         if (employee.onboardingStatus !== 'invited') {
             return res.status(400).json({ error: 'Can only resend invite for employees with status "invited"' });
@@ -67,7 +66,7 @@ async function resendInvite(req, res, next) {
             return res.status(400).json({ error: 'Employee has no email address' });
         }
 
-        const token = await onboarding.createOnboardingToken(employee.id);
+        const token = await onboarding.createOnboardingToken(req.db, employee.id);
         onboarding.sendOnboardingEmail(employee, token).catch(err => console.error('Resend invite email failed:', err.message));
 
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'resend_onboarding_invite' } });
@@ -78,7 +77,7 @@ async function resendInvite(req, res, next) {
 async function approveOnboarding(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const employee = await onboarding.approveOnboarding(id);
+        const employee = await onboarding.approveOnboarding(req.db, id);
 
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'approve_onboarding' } });
         res.json({ success: true });
@@ -92,7 +91,7 @@ async function approveOnboarding(req, res, next) {
 async function getOnboardingLink(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const token = await prisma.onboardingToken.findUnique({ where: { employeeId: id } });
+        const token = await req.db.onboardingToken.findUnique({ where: { employeeId: id } });
         if (!token || token.status !== 'pending') {
             return res.status(404).json({ error: 'No active onboarding link for this employee' });
         }

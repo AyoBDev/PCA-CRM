@@ -14,12 +14,11 @@ const ALLOWLIST = new Set([
   'src/controllers/backupController.js',    // platform backup path (Task 11)
   'src/services/auditService.js',           // fire-and-forget writes w/ explicit agencyId
   'src/socket.js',                          // handshake auth (pre-context)
-  // Public-token resolvers: token lookup crosses tenants by design.
+  // Public-token resolvers: token lookup crosses tenants by design. Their
+  // authenticated handlers (if any) use req.db — see git blame for the split.
   'src/controllers/pcaFormController.js',
   'src/controllers/signingController.js',
-  'src/controllers/permanentLinkController.js',
   'src/controllers/scheduleNotificationController.js',
-  'src/controllers/onboardingController.js',
   'src/controllers/employeeScheduleLinkController.js',
   // Called from onboardingController's public-token endpoints (no tenant
   // context yet — Task 10 wires that). Queries are explicitly scoped by the

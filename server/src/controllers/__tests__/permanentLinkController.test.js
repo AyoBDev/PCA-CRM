@@ -15,7 +15,9 @@ const {
 } = require('../permanentLinkController');
 
 function mockReqRes(overrides = {}) {
-  const req = { params: {}, body: {}, query: {}, ...overrides };
+  // Authenticated handlers read req.db directly (tenantMiddleware sets this
+  // in production); tests hand back the mocked prisma module as req.db.
+  const req = { params: {}, body: {}, query: {}, db: prisma, ...overrides };
   const res = {
     status: jest.fn().mockReturnThis(),
     json: jest.fn().mockReturnThis(),

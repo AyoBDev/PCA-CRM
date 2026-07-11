@@ -9,16 +9,16 @@ async function createLink(req, res, next) {
         if (!employeeId) return res.status(400).json({ error: 'employeeId is required' });
 
         // Upsert: reactivate if exists but inactive, or create new
-        const existing = await prisma.employeeScheduleLink.findUnique({ where: { employeeId: Number(employeeId) } });
+        const existing = await req.db.employeeScheduleLink.findUnique({ where: { employeeId: Number(employeeId) } });
         let link;
         if (existing) {
-            link = await prisma.employeeScheduleLink.update({
+            link = await req.db.employeeScheduleLink.update({
                 where: { id: existing.id },
                 data: { active: true },
                 include: { employee: true },
             });
         } else {
-            link = await prisma.employeeScheduleLink.create({
+            link = await req.db.employeeScheduleLink.create({
                 data: { employeeId: Number(employeeId) },
                 include: { employee: true },
             });
@@ -34,7 +34,7 @@ async function createLink(req, res, next) {
 // GET /api/employee-schedule-links
 async function listLinks(req, res, next) {
     try {
-        const links = await prisma.employeeScheduleLink.findMany({
+        const links = await req.db.employeeScheduleLink.findMany({
             include: { employee: true },
             orderBy: { createdAt: 'desc' },
         });
@@ -48,7 +48,7 @@ async function listLinks(req, res, next) {
 // DELETE /api/employee-schedule-links/:id
 async function deleteLink(req, res, next) {
     try {
-        await prisma.employeeScheduleLink.update({
+        await req.db.employeeScheduleLink.update({
             where: { id: Number(req.params.id) },
             data: { active: false },
         });

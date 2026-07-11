@@ -30,7 +30,10 @@ const { recordOpen, getNotificationForView, sendSchedules, getNotificationStatus
 const notifService = require('../../services/notificationService');
 
 function mockReqRes(overrides = {}) {
-    const req = { params: {}, query: {}, body: {}, ...overrides };
+    // Authenticated handlers (sendSchedules, getNotificationStatus, etc.) read
+    // req.db directly (tenantMiddleware sets this in production); public-token
+    // handlers get req.db from the mocked enterTokenTenant above instead.
+    const req = { params: {}, query: {}, body: {}, db: prisma, ...overrides };
     const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
     return { req, res };
 }

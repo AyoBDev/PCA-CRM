@@ -25,7 +25,7 @@ async function sendSchedules(req, res) {
     };
     if (employeeIds?.length) where.employeeId = { in: employeeIds };
 
-    const shifts = await prisma.shift.findMany({
+    const shifts = await req.db.shift.findMany({
         where,
         include: {
             client: { select: { clientName: true, address: true, phone: true, gateCode: true, notes: true } },
@@ -56,17 +56,17 @@ async function sendSchedules(req, res) {
         }
 
         // Auto-generate permanent schedule link if one doesn't exist
-        let scheduleLink = await prisma.employeeScheduleLink.findUnique({ where: { employeeId: empId } });
+        let scheduleLink = await req.db.employeeScheduleLink.findUnique({ where: { employeeId: empId } });
         if (!scheduleLink) {
-            scheduleLink = await prisma.employeeScheduleLink.create({ data: { employeeId: empId } });
+            scheduleLink = await req.db.employeeScheduleLink.create({ data: { employeeId: empId } });
         } else if (!scheduleLink.active) {
-            scheduleLink = await prisma.employeeScheduleLink.update({ where: { id: scheduleLink.id }, data: { active: true } });
+            scheduleLink = await req.db.employeeScheduleLink.update({ where: { id: scheduleLink.id }, data: { active: true } });
         }
         const scheduleUrl = `${baseUrl}/schedule/view/${scheduleLink.token}`;
 
         // Create notification record and send
         if (hasEmail) {
-            const notification = await prisma.scheduleNotification.create({
+            const notification = await req.db.scheduleNotification.create({
                 data: {
                     employeeId: empId,
                     weekStart: new Date(ws),
@@ -80,13 +80,13 @@ async function sendSchedules(req, res) {
                 const html = formatScheduleEmailHtml(employee.name, empShifts, weekLabel, scheduleUrl, message);
                 const text = `Schedule for ${weekLabel}. View: ${scheduleUrl}`;
                 await sendEmail(employee.email, `Your Schedule - ${weekLabel}`, html, text);
-                await prisma.scheduleNotification.update({
+                await req.db.scheduleNotification.update({
                     where: { id: notification.id },
                     data: { status: 'sent', sentAt: new Date() },
                 });
                 results.push({ employeeId: empId, name: employee.name, method: 'email', status: 'sent' });
             } catch (err) {
-                await prisma.scheduleNotification.update({
+                await req.db.scheduleNotification.update({
                     where: { id: notification.id },
                     data: { status: 'failed', failureReason: err.message },
                 });
@@ -104,7 +104,7 @@ async function getNotificationStatus(req, res) {
 
     const { weekStart: ws } = getWeekRange(weekStart);
 
-    const notifications = await prisma.scheduleNotification.findMany({
+    const notifications = await req.db.scheduleNotification.findMany({
         where: { weekStart: new Date(ws) },
         include: {
             employee: { select: { id: true, name: true } },
@@ -221,7 +221,7 @@ async function getScheduleResponses(req, res) {
 
     const { weekStart: ws } = getWeekRange(weekStart);
 
-    const notifications = await prisma.scheduleNotification.findMany({
+    const notifications = await req.db.scheduleNotification.findMany({
         where: {
             weekStart: new Date(ws),
             response: { not: '' },
@@ -301,7 +301,7 @@ async function getNotificationForView(req, res) {
 async function getEmployeeNotificationHistory(req, res) {
     const { employeeId } = req.params;
 
-    const notifications = await prisma.scheduleNotification.findMany({
+    const notifications = await req.db.scheduleNotification.findMany({
         where: { employeeId: Number(employeeId) },
         include: {
             sentByUser: { select: { name: true } },

@@ -6,20 +6,20 @@ const { enterTokenTenant } = require('../lib/tokenTenant');
 async function generateSigningLinks(req, res, next) {
     try {
         const timesheetId = Number(req.params.id);
-        const ts = await prisma.timesheet.findUnique({ where: { id: timesheetId } });
+        const ts = await req.db.timesheet.findUnique({ where: { id: timesheetId } });
         if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
 
         const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72 hours
 
         // Invalidate any existing unused tokens for this timesheet
-        await prisma.signingToken.updateMany({
+        await req.db.signingToken.updateMany({
             where: { timesheetId, usedAt: null },
             data: { usedAt: new Date() },
         });
 
         const token = crypto.randomUUID();
 
-        await prisma.signingToken.create({
+        await req.db.signingToken.create({
             data: { token, timesheetId, role: 'combined', expiresAt },
         });
 

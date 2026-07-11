@@ -47,7 +47,7 @@ async function createEmployee(req, res, next) {
         if (employee.email && !userId) {
             await req.db.employee.update({ where: { id: employee.id }, data: { onboardingStatus: 'invited' } });
             employee.onboardingStatus = 'invited';
-            const token = await onboarding.createOnboardingToken(employee.id);
+            const token = await onboarding.createOnboardingToken(req.db, employee.id);
             onboarding.sendOnboardingEmail(employee, token).catch(err => console.error('Onboarding email failed:', err.message));
             audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'onboarding_invite_sent' } });
         }
