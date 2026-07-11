@@ -360,6 +360,9 @@ async function resetPasswordWithToken(req, res, next) {
         if (!resetToken) {
             return res.status(400).json({ error: 'Invalid or expired reset link' });
         }
+        if (req.agency && resetToken.agencyId !== req.agency.id) {
+            return res.status(400).json({ error: 'Invalid or expired reset link' });
+        }
         if (resetToken.usedAt) {
             return res.status(400).json({ error: 'This reset link has already been used' });
         }

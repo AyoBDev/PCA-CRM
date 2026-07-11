@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const prisma = require('../lib/prisma');
+const { enterTokenTenant } = require('../lib/tokenTenant');
 
 // ── Generate signing links ──
 async function generateSigningLinks(req, res, next) {
@@ -45,29 +46,32 @@ async function getSigningForm(req, res, next) {
 
         if (!record) return res.status(404).json({ error: 'Invalid link' });
 
-        // Find or auto-create the permanent link for this client+PCA pair
-        let permanentLink = await prisma.permanentLink.findFirst({
-            where: {
-                clientId: record.timesheet.clientId,
-                pcaName: record.timesheet.pcaName,
-            },
-        });
-
-        if (!permanentLink) {
-            permanentLink = await prisma.permanentLink.create({
-                data: {
+        await enterTokenTenant(req, res, record.agencyId, async () => {
+            const db = req.db;
+            // Find or auto-create the permanent link for this client+PCA pair
+            let permanentLink = await db.permanentLink.findFirst({
+                where: {
                     clientId: record.timesheet.clientId,
                     pcaName: record.timesheet.pcaName,
                 },
             });
-        } else if (!permanentLink.active) {
-            permanentLink = await prisma.permanentLink.update({
-                where: { id: permanentLink.id },
-                data: { active: true },
-            });
-        }
 
-        res.json({ redirect: permanentLink.token });
+            if (!permanentLink) {
+                permanentLink = await db.permanentLink.create({
+                    data: {
+                        clientId: record.timesheet.clientId,
+                        pcaName: record.timesheet.pcaName,
+                    },
+                });
+            } else if (!permanentLink.active) {
+                permanentLink = await db.permanentLink.update({
+                    where: { id: permanentLink.id },
+                    data: { active: true },
+                });
+            }
+
+            res.json({ redirect: permanentLink.token });
+        });
     } catch (err) { next(err); }
 }
 

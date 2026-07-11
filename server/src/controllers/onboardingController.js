@@ -13,6 +13,9 @@ async function getOnboardingInfo(req, res, next) {
             };
             return res.status(400).json({ error: messages[reason] || 'Invalid link' });
         }
+        if (req.agency && employee.agencyId !== req.agency.id) {
+            return res.status(404).json({ error: 'Invalid onboarding link.' });
+        }
         res.json({ employeeName: employee.name, employeeEmail: employee.email });
     } catch (err) { next(err); }
 }
@@ -34,6 +37,11 @@ async function completeOnboarding(req, res, next) {
         }
         if ((!availability.maxTravelTime && !availability.maxTravelDistance) || !availability.transportation) {
             return res.status(400).json({ error: 'Travel information is required' });
+        }
+
+        const { valid, employee: tokenEmployee } = await onboarding.validateToken(req.params.token);
+        if (valid && req.agency && tokenEmployee.agencyId !== req.agency.id) {
+            return res.status(400).json({ error: 'This onboarding link is no longer valid.' });
         }
 
         const { employee, skipApproval } = await onboarding.completeOnboarding(req.params.token, { password, availability });

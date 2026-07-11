@@ -16,6 +16,17 @@ jest.mock('../../lib/prisma', () => ({
   },
 }));
 
+// Public-token handlers wrap post-lookup data access in enterTokenTenant.
+// Unit tests here exercise the pre-tenant token-resolution + business logic,
+// so bypass the real tenant machinery and just hand back the mocked prisma
+// module as req.db (mirrors what tenantClient(agencyId) would produce).
+jest.mock('../../lib/tokenTenant', () => ({
+  enterTokenTenant: jest.fn((req, res, agencyId, fn) => {
+    req.db = require('../../lib/prisma');
+    return fn();
+  }),
+}));
+
 const prisma = require('../../lib/prisma');
 const { getPcaForm, updatePcaForm } = require('../pcaFormController');
 
@@ -35,6 +46,7 @@ const activeLink = {
   clientId: 10,
   pcaName: 'Jane Doe',
   active: true,
+  agencyId: 1,
   client: {
     id: 10,
     clientName: 'John Client',
@@ -414,7 +426,7 @@ describe('updatePcaForm submit', () => {
     expect(errorMsg).toContain('Homemaker and Respite times overlap');
   });
 
-  test('accepts valid submit with no activities and saves with submitted status', async () => {
+  test('rejects submit when no service tasks are selected', async () => {
     const { req, res, next } = mockReqRes({
       params: { token: 'test-token' },
       body: {
@@ -428,6 +440,43 @@ describe('updatePcaForm submit', () => {
             adlTimeOut: null,
             adlPcaInitials: '',
             adlClientInitials: '',
+            iadlActivities: '{}',
+            iadlTimeIn: null,
+            iadlTimeOut: null,
+            iadlPcaInitials: '',
+            iadlClientInitials: '',
+            respiteActivities: '{}',
+            respiteTimeIn: null,
+            respiteTimeOut: null,
+            respitePcaInitials: '',
+            respiteClientInitials: '',
+          },
+        ],
+        ...validSignatures,
+      },
+    });
+
+    await updatePcaForm(req, res, next);
+
+    // The hasAnyTask guard blocks a submit with no activities selected.
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(prisma.timesheet.update).not.toHaveBeenCalled();
+  });
+
+  test('accepts a valid submit with at least one task and saves with submitted status', async () => {
+    const { req, res, next } = mockReqRes({
+      params: { token: 'test-token' },
+      body: {
+        action: 'submit',
+        entries: [
+          {
+            id: 1,
+            dayOfWeek: 0,
+            adlActivities: '{"bathing":true}',
+            adlTimeIn: '09:00',
+            adlTimeOut: '10:00',
+            adlPcaInitials: 'JD',
+            adlClientInitials: 'JC',
             iadlActivities: '{}',
             iadlTimeIn: null,
             iadlTimeOut: null,
@@ -482,17 +531,19 @@ describe('updatePcaForm submit', () => {
           {
             id: 1,
             dayOfWeek: 0,
-            adlActivities: '{}',
-            adlTimeIn: null,
-            adlTimeOut: null,
-            adlPcaInitials: '',
-            adlClientInitials: '',
+            // An enabled (PAS/ADL) task satisfies the hasAnyTask guard.
+            adlActivities: '{"bathing":true}',
+            adlTimeIn: '09:00',
+            adlTimeOut: '10:00',
+            adlPcaInitials: 'JD',
+            adlClientInitials: 'JC',
             iadlActivities: '{}',
             iadlTimeIn: null,
             iadlTimeOut: null,
             iadlPcaInitials: '',
             iadlClientInitials: '',
             // Even though respite data is present it should be stripped
+            // (Respite is not in enabledServices), so it must not cause a 400.
             respiteActivities: '{"companionship":true}',
             respiteTimeIn: '10:00',
             respiteTimeOut: '12:00',

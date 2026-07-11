@@ -14,6 +14,17 @@ jest.mock('../../services/schedulingService', () => ({
     getWeekRange: jest.fn(() => ({ weekStart: '2026-06-01', weekEnd: '2026-06-07' })),
 }));
 
+// Public-token handlers wrap post-lookup data access in enterTokenTenant.
+// Unit tests here exercise the pre-tenant token-resolution + business logic,
+// so bypass the real tenant machinery and just hand back the mocked prisma
+// module as req.db (mirrors what tenantClient(agencyId) would produce).
+jest.mock('../../lib/tokenTenant', () => ({
+    enterTokenTenant: jest.fn((req, res, agencyId, fn) => {
+        req.db = require('../../lib/prisma');
+        return fn();
+    }),
+}));
+
 const prisma = require('../../lib/prisma');
 const { recordOpen, getNotificationForView, sendSchedules, getNotificationStatus, respondToSchedule } = require('../scheduleNotificationController');
 const notifService = require('../../services/notificationService');
@@ -28,7 +39,7 @@ describe('recordOpen', () => {
     beforeEach(() => jest.clearAllMocks());
 
     test('marks openedAt on most recent notification for employee+week', async () => {
-        prisma.employeeScheduleLink.findUnique.mockResolvedValue({ id: 1, employeeId: 5, active: true });
+        prisma.employeeScheduleLink.findUnique.mockResolvedValue({ id: 1, employeeId: 5, active: true, agencyId: 1 });
         prisma.scheduleNotification.findFirst.mockResolvedValue({ id: 10, openedAt: null });
         prisma.scheduleNotification.update.mockResolvedValue({ id: 10, openedAt: new Date() });
 
@@ -48,7 +59,7 @@ describe('recordOpen', () => {
     });
 
     test('returns success even if no notification exists (no-op)', async () => {
-        prisma.employeeScheduleLink.findUnique.mockResolvedValue({ id: 1, employeeId: 5, active: true });
+        prisma.employeeScheduleLink.findUnique.mockResolvedValue({ id: 1, employeeId: 5, active: true, agencyId: 1 });
         prisma.scheduleNotification.findFirst.mockResolvedValue(null);
 
         const { req, res } = mockReqRes({ params: { token: 'abc-123' }, query: { weekStart: '2026-06-01' } });
@@ -72,7 +83,7 @@ describe('getNotificationForView', () => {
     beforeEach(() => jest.clearAllMocks());
 
     test('returns most recent notification with confirmationToken', async () => {
-        prisma.employeeScheduleLink.findUnique.mockResolvedValue({ id: 1, employeeId: 5, active: true });
+        prisma.employeeScheduleLink.findUnique.mockResolvedValue({ id: 1, employeeId: 5, active: true, agencyId: 1 });
         prisma.scheduleNotification.findFirst.mockResolvedValue({
             confirmationToken: 'conf-abc',
             message: 'Check weekend shifts',
@@ -94,7 +105,7 @@ describe('getNotificationForView', () => {
     });
 
     test('returns null when no notification exists', async () => {
-        prisma.employeeScheduleLink.findUnique.mockResolvedValue({ id: 1, employeeId: 5, active: true });
+        prisma.employeeScheduleLink.findUnique.mockResolvedValue({ id: 1, employeeId: 5, active: true, agencyId: 1 });
         prisma.scheduleNotification.findFirst.mockResolvedValue(null);
 
         const { req, res } = mockReqRes({ params: { token: 'link-token' }, query: { weekStart: '2026-06-01' } });
@@ -162,7 +173,7 @@ describe('respondToSchedule', () => {
     beforeEach(() => jest.clearAllMocks());
 
     test('rejects empty note when response is "rejected"', async () => {
-        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok' });
+        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok', agencyId: 1 });
         const { req, res } = mockReqRes({
             params: { token: 'tok' },
             body: { response: 'rejected', notes: '' },
@@ -176,7 +187,7 @@ describe('respondToSchedule', () => {
     });
 
     test('rejects 4-character note when response is "changes_requested"', async () => {
-        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok' });
+        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok', agencyId: 1 });
         const { req, res } = mockReqRes({
             params: { token: 'tok' },
             body: { response: 'changes_requested', notes: 'four' },
@@ -187,7 +198,7 @@ describe('respondToSchedule', () => {
     });
 
     test('rejects whitespace-only note when response is "rejected"', async () => {
-        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok' });
+        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok', agencyId: 1 });
         const { req, res } = mockReqRes({
             params: { token: 'tok' },
             body: { response: 'rejected', notes: '       ' },
@@ -198,7 +209,7 @@ describe('respondToSchedule', () => {
     });
 
     test('accepts 5-character note when response is "rejected"', async () => {
-        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok' });
+        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok', agencyId: 1 });
         prisma.scheduleNotification.update.mockResolvedValue({ id: 1 });
         const { req, res } = mockReqRes({
             params: { token: 'tok' },
@@ -217,7 +228,7 @@ describe('respondToSchedule', () => {
     });
 
     test('accepts empty note when response is "accepted"', async () => {
-        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok' });
+        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok', agencyId: 1 });
         prisma.scheduleNotification.update.mockResolvedValue({ id: 1 });
         const { req, res } = mockReqRes({
             params: { token: 'tok' },
@@ -244,7 +255,7 @@ describe('respondToSchedule', () => {
     });
 
     test('coerces non-string notes to string before validating (number)', async () => {
-        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok' });
+        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok', agencyId: 1 });
         const { req, res } = mockReqRes({
             params: { token: 'tok' },
             body: { response: 'rejected', notes: 12345 },
@@ -256,7 +267,7 @@ describe('respondToSchedule', () => {
     });
 
     test('coerces non-string notes to string before validating (array)', async () => {
-        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok' });
+        prisma.scheduleNotification.findUnique = jest.fn().mockResolvedValue({ id: 1, confirmationToken: 'tok', agencyId: 1 });
         const { req, res } = mockReqRes({
             params: { token: 'tok' },
             body: { response: 'rejected', notes: [] },

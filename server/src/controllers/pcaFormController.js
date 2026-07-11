@@ -1,5 +1,6 @@
 const prisma = require('../lib/prisma');
 const { roundTo15, computeHours, computeTotalHoursWithBlocks, deriveTimesheetService } = require('../lib/timesheetUtils');
+const { enterTokenTenant } = require('../lib/tokenTenant');
 
 function getCurrentWeekStart() {
   const now = new Date();
@@ -75,104 +76,134 @@ async function getPcaForm(req, res, next) {
     });
 
     if (!link) return res.status(404).json({ error: 'Invalid link' });
-    if (!link.active) return res.status(403).json({ error: 'This link has been deactivated' });
-    if (link.client.archivedAt) return res.status(403).json({ error: 'This client is no longer active. The timesheet link has been disabled.' });
 
-    let weekStart;
-    if (req.query.weekStart) {
-      weekStart = normalizeWeekStart(req.query.weekStart);
-    } else {
-      weekStart = getCurrentWeekStart();
-    }
-    const timesheet = await prisma.timesheet.findFirst({
-      where: { clientId: link.clientId, pcaName: link.pcaName, weekStart, archivedAt: null },
-      include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
-    });
+    await enterTokenTenant(req, res, link.agencyId, async () => {
+      const db = req.db;
+      if (!link.active) return res.status(403).json({ error: 'This link has been deactivated' });
+      if (link.client.archivedAt) return res.status(403).json({ error: 'This client is no longer active. The timesheet link has been disabled.' });
 
-    let enabledServices = JSON.parse(link.client.enabledServices || '["PAS","Homemaker"]');
-
-    // Fetch authorizations for this client, filtered to the viewed week
-    const weekEnd = new Date(weekStart);
-    weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
-
-    const allAuthorizations = await prisma.authorization.findMany({
-      where: {
-        clientId: link.clientId,
-      },
-      select: {
-        serviceCode: true,
-        serviceName: true,
-        serviceCategory: true,
-        authorizedUnits: true,
-        authorizationStartDate: true,
-        authorizationEndDate: true,
-        manualStatus: true,
-        archivedAt: true,
-      },
-    });
-
-    // Filter to active authorizations overlapping this week (no dedup — accumulate all per derived service)
-    const wsMs = Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate());
-    const weMs = Date.UTC(weekEnd.getUTCFullYear(), weekEnd.getUTCMonth(), weekEnd.getUTCDate());
-    const authorizations = allAuthorizations.filter(auth => {
-      if ((auth.manualStatus || 'active') !== 'active') return false;
-      if (auth.archivedAt) return false;
-      if (auth.authorizationStartDate) {
-        const sd = new Date(auth.authorizationStartDate);
-        if (Date.UTC(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate()) > weMs) return false;
+      let weekStart;
+      if (req.query.weekStart) {
+        weekStart = normalizeWeekStart(req.query.weekStart);
+      } else {
+        weekStart = getCurrentWeekStart();
       }
-      if (auth.authorizationEndDate) {
-        const ed = new Date(auth.authorizationEndDate);
-        if (Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate()) < wsMs) return false;
-      }
-      return true;
-    });
+      const timesheet = await db.timesheet.findFirst({
+        where: { clientId: link.clientId, pcaName: link.pcaName, weekStart, archivedAt: null },
+        include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
+      });
 
-    // Build a map of service → authorized weekly units
-    const authLimits = {};
-    for (const auth of authorizations) {
-      const service = deriveTimesheetService(auth);
-      if (service) {
-        if (!authLimits[service]) {
-          authLimits[service] = {
-            units: 0,
-            hours: 0,
-            serviceCode: auth.serviceCode,
-            serviceName: auth.serviceName || service,
-            startDate: auth.authorizationStartDate,
-            endDate: auth.authorizationEndDate,
-          };
+      let enabledServices = JSON.parse(link.client.enabledServices || '["PAS","Homemaker"]');
+
+      // Fetch authorizations for this client, filtered to the viewed week
+      const weekEnd = new Date(weekStart);
+      weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
+
+      const allAuthorizations = await db.authorization.findMany({
+        where: {
+          clientId: link.clientId,
+        },
+        select: {
+          serviceCode: true,
+          serviceName: true,
+          serviceCategory: true,
+          authorizedUnits: true,
+          authorizationStartDate: true,
+          authorizationEndDate: true,
+          manualStatus: true,
+          archivedAt: true,
+        },
+      });
+
+      // Filter to active authorizations overlapping this week (no dedup — accumulate all per derived service)
+      const wsMs = Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate());
+      const weMs = Date.UTC(weekEnd.getUTCFullYear(), weekEnd.getUTCMonth(), weekEnd.getUTCDate());
+      const authorizations = allAuthorizations.filter(auth => {
+        if ((auth.manualStatus || 'active') !== 'active') return false;
+        if (auth.archivedAt) return false;
+        if (auth.authorizationStartDate) {
+          const sd = new Date(auth.authorizationStartDate);
+          if (Date.UTC(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate()) > weMs) return false;
         }
-        authLimits[service].units += auth.authorizedUnits || 0;
-        authLimits[service].hours = Math.round((authLimits[service].units / 4) * 100) / 100;
-      }
-    }
+        if (auth.authorizationEndDate) {
+          const ed = new Date(auth.authorizationEndDate);
+          if (Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate()) < wsMs) return false;
+        }
+        return true;
+      });
 
-    // Auto-enable services that have active authorizations for this week
-    for (const svc of Object.keys(authLimits)) {
-      if (!enabledServices.includes(svc)) {
-        enabledServices.push(svc);
+      // Build a map of service → authorized weekly units
+      const authLimits = {};
+      for (const auth of authorizations) {
+        const service = deriveTimesheetService(auth);
+        if (service) {
+          if (!authLimits[service]) {
+            authLimits[service] = {
+              units: 0,
+              hours: 0,
+              serviceCode: auth.serviceCode,
+              serviceName: auth.serviceName || service,
+              startDate: auth.authorizationStartDate,
+              endDate: auth.authorizationEndDate,
+            };
+          }
+          authLimits[service].units += auth.authorizedUnits || 0;
+          authLimits[service].hours = Math.round((authLimits[service].units / 4) * 100) / 100;
+        }
       }
-    }
 
-    // If no timesheet exists yet, return placeholder data without persisting.
-    // A real timesheet will only be created when the user saves (PUT).
-    if (!timesheet) {
-      const placeholderEntries = [];
-      for (let d = 0; d < 7; d++) {
-        const date = new Date(weekStart);
-        date.setUTCDate(date.getUTCDate() + d);
-        placeholderEntries.push({
-          id: null,
-          dayOfWeek: d,
-          dateOfService: date.toISOString().slice(0, 10),
-          adlActivities: '{}', adlTimeIn: null, adlTimeOut: null, adlHours: 0, adlPcaInitials: '', adlClientInitials: '', adlTimeBlocks: '[]',
-          iadlActivities: '{}', iadlTimeIn: null, iadlTimeOut: null, iadlHours: 0, iadlPcaInitials: '', iadlClientInitials: '', iadlTimeBlocks: '[]',
-          respiteActivities: '{}', respiteTimeIn: null, respiteTimeOut: null, respiteHours: 0, respitePcaInitials: '', respiteClientInitials: '', respiteTimeBlocks: '[]',
+      // Auto-enable services that have active authorizations for this week
+      for (const svc of Object.keys(authLimits)) {
+        if (!enabledServices.includes(svc)) {
+          enabledServices.push(svc);
+        }
+      }
+
+      // If no timesheet exists yet, return placeholder data without persisting.
+      // A real timesheet will only be created when the user saves (PUT).
+      if (!timesheet) {
+        const placeholderEntries = [];
+        for (let d = 0; d < 7; d++) {
+          const date = new Date(weekStart);
+          date.setUTCDate(date.getUTCDate() + d);
+          placeholderEntries.push({
+            id: null,
+            dayOfWeek: d,
+            dateOfService: date.toISOString().slice(0, 10),
+            adlActivities: '{}', adlTimeIn: null, adlTimeOut: null, adlHours: 0, adlPcaInitials: '', adlClientInitials: '', adlTimeBlocks: '[]',
+            iadlActivities: '{}', iadlTimeIn: null, iadlTimeOut: null, iadlHours: 0, iadlPcaInitials: '', iadlClientInitials: '', iadlTimeBlocks: '[]',
+            respiteActivities: '{}', respiteTimeIn: null, respiteTimeOut: null, respiteHours: 0, respitePcaInitials: '', respiteClientInitials: '', respiteTimeBlocks: '[]',
+          });
+        }
+
+        return res.json({
+          client: {
+            id: link.client.id,
+            clientName: link.client.clientName,
+            enabledServices,
+          },
+          pcaName: link.pcaName,
+          authLimits,
+          timesheet: {
+            id: null,
+            clientId: link.clientId,
+            pcaName: link.pcaName,
+            weekStart: weekStart.toISOString(),
+            status: 'draft',
+            totalPasHours: 0,
+            totalHmHours: 0,
+            totalRespiteHours: 0,
+            totalHours: 0,
+            pcaFullName: '',
+            pcaSignature: '',
+            recipientName: '',
+            recipientSignature: '',
+            entries: placeholderEntries,
+          },
         });
       }
 
-      return res.json({
+      res.json({
         client: {
           id: link.client.id,
           clientName: link.client.clientName,
@@ -180,34 +211,8 @@ async function getPcaForm(req, res, next) {
         },
         pcaName: link.pcaName,
         authLimits,
-        timesheet: {
-          id: null,
-          clientId: link.clientId,
-          pcaName: link.pcaName,
-          weekStart: weekStart.toISOString(),
-          status: 'draft',
-          totalPasHours: 0,
-          totalHmHours: 0,
-          totalRespiteHours: 0,
-          totalHours: 0,
-          pcaFullName: '',
-          pcaSignature: '',
-          recipientName: '',
-          recipientSignature: '',
-          entries: placeholderEntries,
-        },
+        timesheet,
       });
-    }
-
-    res.json({
-      client: {
-        id: link.client.id,
-        clientName: link.client.clientName,
-        enabledServices,
-      },
-      pcaName: link.pcaName,
-      authLimits,
-      timesheet,
     });
   } catch (err) {
     next(err);
@@ -224,315 +229,319 @@ async function updatePcaForm(req, res, next) {
     });
 
     if (!link) return res.status(404).json({ error: 'Invalid link' });
-    if (!link.active) return res.status(403).json({ error: 'This link has been deactivated' });
-    if (link.client.archivedAt) return res.status(403).json({ error: 'This client is no longer active. The timesheet link has been disabled.' });
 
-    let weekStart;
-    if (req.body.weekStart) {
-      weekStart = normalizeWeekStart(req.body.weekStart);
-    } else {
-      weekStart = getCurrentWeekStart();
-    }
-    let timesheet = await prisma.timesheet.findFirst({
-      where: { clientId: link.clientId, pcaName: link.pcaName, weekStart, archivedAt: null },
-      include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
-    });
+    await enterTokenTenant(req, res, link.agencyId, async () => {
+      const db = req.db;
+      if (!link.active) return res.status(403).json({ error: 'This link has been deactivated' });
+      if (link.client.archivedAt) return res.status(403).json({ error: 'This client is no longer active. The timesheet link has been disabled.' });
 
-    // Auto-create timesheet if it doesn't exist yet (same as GET handler)
-    if (!timesheet) {
-      // Remove any archived timesheet occupying this unique slot
-      const archivedTs = await prisma.timesheet.findFirst({
-        where: { clientId: link.clientId, pcaName: link.pcaName, weekStart, archivedAt: { not: null } },
-      });
-      if (archivedTs) {
-        await prisma.timesheetEntry.deleteMany({ where: { timesheetId: archivedTs.id } });
-        await prisma.timesheet.delete({ where: { id: archivedTs.id } });
+      let weekStart;
+      if (req.body.weekStart) {
+        weekStart = normalizeWeekStart(req.body.weekStart);
+      } else {
+        weekStart = getCurrentWeekStart();
       }
-
-      const entryData = [];
-      for (let d = 0; d < 7; d++) {
-        const date = new Date(weekStart);
-        date.setUTCDate(date.getUTCDate() + d);
-        entryData.push({
-          dayOfWeek: d,
-          dateOfService: date.toISOString().slice(0, 10),
-        });
-      }
-      timesheet = await prisma.timesheet.create({
-        data: {
-          clientId: link.clientId,
-          pcaName: link.pcaName,
-          weekStart,
-          entries: { create: entryData },
-        },
+      let timesheet = await db.timesheet.findFirst({
+        where: { clientId: link.clientId, pcaName: link.pcaName, weekStart, archivedAt: null },
         include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
       });
-    }
-    if (timesheet.status === 'submitted') return res.status(400).json({ error: 'Timesheet already submitted' });
 
-    const { action, entries, pcaFullName, pcaSignature, recipientName, recipientSignature } = req.body;
-    let enabledServices = JSON.parse(link.client.enabledServices || '["PAS","Homemaker"]');
-
-    // Auto-expand enabledServices from active authorizations (same as GET handler)
-    const weekEnd = new Date(weekStart);
-    weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
-    const wsMs = Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate());
-    const weMs = Date.UTC(weekEnd.getUTCFullYear(), weekEnd.getUTCMonth(), weekEnd.getUTCDate());
-    const allAuths = await prisma.authorization.findMany({
-      where: { clientId: link.clientId },
-      select: { serviceCode: true, serviceName: true, serviceCategory: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true, manualStatus: true, archivedAt: true },
-    });
-    for (const auth of allAuths) {
-      if ((auth.manualStatus || 'active') !== 'active') continue;
-      if (auth.archivedAt) continue;
-      if (auth.authorizationStartDate) {
-        const sd = new Date(auth.authorizationStartDate);
-        if (Date.UTC(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate()) > weMs) continue;
-      }
-      if (auth.authorizationEndDate) {
-        const ed = new Date(auth.authorizationEndDate);
-        if (Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate()) < wsMs) continue;
-      }
-      const service = deriveTimesheetService(auth);
-      if (service && !enabledServices.includes(service)) {
-        enabledServices.push(service);
-      }
-    }
-
-    // Validate on submit
-    if (action === 'submit') {
-      if (!pcaFullName || !pcaSignature || !recipientName || !recipientSignature) {
-        return res.status(400).json({ error: 'All signatures and names are required' });
-      }
-
-      const hasAnyTask = (entries || []).some(entry => {
-        const f = filterByEnabledServices(entry, enabledServices);
-        return hasActivity(f.adlActivities) || hasActivity(f.iadlActivities) || hasActivity(f.respiteActivities);
-      });
-      if (!hasAnyTask) {
-        return res.status(400).json({ error: 'Please select at least one service task before submitting your timesheet.' });
-      }
-
-      const errors = [];
-      for (const entry of (entries || [])) {
-        const filtered = filterByEnabledServices(entry, enabledServices);
-        const dayLabel = `Day ${entry.dayOfWeek !== undefined ? entry.dayOfWeek : '?'}`;
-
-        if (hasActivity(filtered.adlActivities)) {
-          if (!filtered.adlTimeIn || !filtered.adlTimeOut) {
-            errors.push(`${dayLabel}: ADL has activities but missing time in/out`);
-          }
-          if (!filtered.adlPcaInitials || !filtered.adlClientInitials) {
-            errors.push(`${dayLabel}: ADL missing initials`);
-          }
-        }
-        if (hasActivity(filtered.iadlActivities)) {
-          if (!filtered.iadlTimeIn || !filtered.iadlTimeOut) {
-            errors.push(`${dayLabel}: IADL (Homemaker) has activities but missing time in/out`);
-          }
-          if (!filtered.iadlPcaInitials || !filtered.iadlClientInitials) {
-            errors.push(`${dayLabel}: IADL (Homemaker) missing initials`);
-          }
-        }
-        if (hasActivity(filtered.respiteActivities)) {
-          if (!filtered.respiteTimeIn || !filtered.respiteTimeOut) {
-            errors.push(`${dayLabel}: Respite has activities but missing time in/out`);
-          }
-          if (!filtered.respitePcaInitials || !filtered.respiteClientInitials) {
-            errors.push(`${dayLabel}: Respite missing initials`);
-          }
+      // Auto-create timesheet if it doesn't exist yet (same as GET handler)
+      if (!timesheet) {
+        // Remove any archived timesheet occupying this unique slot
+        const archivedTs = await db.timesheet.findFirst({
+          where: { clientId: link.clientId, pcaName: link.pcaName, weekStart, archivedAt: { not: null } },
+        });
+        if (archivedTs) {
+          await db.timesheetEntry.deleteMany({ where: { timesheetId: archivedTs.id } });
+          await db.timesheet.delete({ where: { id: archivedTs.id } });
         }
 
-        if (filtered.iadlTimeIn && filtered.iadlTimeOut && filtered.respiteTimeIn && filtered.respiteTimeOut) {
-          if (timesOverlap(filtered.iadlTimeIn, filtered.iadlTimeOut, filtered.respiteTimeIn, filtered.respiteTimeOut)) {
-            errors.push(`${dayLabel}: Homemaker and Respite times overlap`);
-          }
+        const entryData = [];
+        for (let d = 0; d < 7; d++) {
+          const date = new Date(weekStart);
+          date.setUTCDate(date.getUTCDate() + d);
+          entryData.push({
+            dayOfWeek: d,
+            dateOfService: date.toISOString().slice(0, 10),
+          });
         }
+        timesheet = await db.timesheet.create({
+          data: {
+            clientId: link.clientId,
+            pcaName: link.pcaName,
+            weekStart,
+            entries: { create: entryData },
+          },
+          include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
+        });
       }
+      if (timesheet.status === 'submitted') return res.status(400).json({ error: 'Timesheet already submitted' });
 
-      // Check authorization limits — filter by timesheet week (no dedup)
-      const submitWeekEnd = new Date(weekStart);
-      submitWeekEnd.setUTCDate(submitWeekEnd.getUTCDate() + 6);
-      const allAuthz = await prisma.authorization.findMany({
+      const { action, entries, pcaFullName, pcaSignature, recipientName, recipientSignature } = req.body;
+      let enabledServices = JSON.parse(link.client.enabledServices || '["PAS","Homemaker"]');
+
+      // Auto-expand enabledServices from active authorizations (same as GET handler)
+      const weekEnd = new Date(weekStart);
+      weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
+      const wsMs = Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate());
+      const weMs = Date.UTC(weekEnd.getUTCFullYear(), weekEnd.getUTCMonth(), weekEnd.getUTCDate());
+      const allAuths = await db.authorization.findMany({
         where: { clientId: link.clientId },
         select: { serviceCode: true, serviceName: true, serviceCategory: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true, manualStatus: true, archivedAt: true },
       });
-      const swsMs = Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate());
-      const sweMs = Date.UTC(submitWeekEnd.getUTCFullYear(), submitWeekEnd.getUTCMonth(), submitWeekEnd.getUTCDate());
-      const authz = allAuthz.filter(auth => {
+      for (const auth of allAuths) {
+        if ((auth.manualStatus || 'active') !== 'active') continue;
+        if (auth.archivedAt) continue;
+        if (auth.authorizationStartDate) {
+          const sd = new Date(auth.authorizationStartDate);
+          if (Date.UTC(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate()) > weMs) continue;
+        }
+        if (auth.authorizationEndDate) {
+          const ed = new Date(auth.authorizationEndDate);
+          if (Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate()) < wsMs) continue;
+        }
+        const service = deriveTimesheetService(auth);
+        if (service && !enabledServices.includes(service)) {
+          enabledServices.push(service);
+        }
+      }
+
+      // Validate on submit
+      if (action === 'submit') {
+        if (!pcaFullName || !pcaSignature || !recipientName || !recipientSignature) {
+          return res.status(400).json({ error: 'All signatures and names are required' });
+        }
+
+        const hasAnyTask = (entries || []).some(entry => {
+          const f = filterByEnabledServices(entry, enabledServices);
+          return hasActivity(f.adlActivities) || hasActivity(f.iadlActivities) || hasActivity(f.respiteActivities);
+        });
+        if (!hasAnyTask) {
+          return res.status(400).json({ error: 'Please select at least one service task before submitting your timesheet.' });
+        }
+
+        const errors = [];
+        for (const entry of (entries || [])) {
+          const filtered = filterByEnabledServices(entry, enabledServices);
+          const dayLabel = `Day ${entry.dayOfWeek !== undefined ? entry.dayOfWeek : '?'}`;
+
+          if (hasActivity(filtered.adlActivities)) {
+            if (!filtered.adlTimeIn || !filtered.adlTimeOut) {
+              errors.push(`${dayLabel}: ADL has activities but missing time in/out`);
+            }
+            if (!filtered.adlPcaInitials || !filtered.adlClientInitials) {
+              errors.push(`${dayLabel}: ADL missing initials`);
+            }
+          }
+          if (hasActivity(filtered.iadlActivities)) {
+            if (!filtered.iadlTimeIn || !filtered.iadlTimeOut) {
+              errors.push(`${dayLabel}: IADL (Homemaker) has activities but missing time in/out`);
+            }
+            if (!filtered.iadlPcaInitials || !filtered.iadlClientInitials) {
+              errors.push(`${dayLabel}: IADL (Homemaker) missing initials`);
+            }
+          }
+          if (hasActivity(filtered.respiteActivities)) {
+            if (!filtered.respiteTimeIn || !filtered.respiteTimeOut) {
+              errors.push(`${dayLabel}: Respite has activities but missing time in/out`);
+            }
+            if (!filtered.respitePcaInitials || !filtered.respiteClientInitials) {
+              errors.push(`${dayLabel}: Respite missing initials`);
+            }
+          }
+
+          if (filtered.iadlTimeIn && filtered.iadlTimeOut && filtered.respiteTimeIn && filtered.respiteTimeOut) {
+            if (timesOverlap(filtered.iadlTimeIn, filtered.iadlTimeOut, filtered.respiteTimeIn, filtered.respiteTimeOut)) {
+              errors.push(`${dayLabel}: Homemaker and Respite times overlap`);
+            }
+          }
+        }
+
+        // Check authorization limits — filter by timesheet week (no dedup)
+        const submitWeekEnd = new Date(weekStart);
+        submitWeekEnd.setUTCDate(submitWeekEnd.getUTCDate() + 6);
+        const allAuthz = await db.authorization.findMany({
+          where: { clientId: link.clientId },
+          select: { serviceCode: true, serviceName: true, serviceCategory: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true, manualStatus: true, archivedAt: true },
+        });
+        const swsMs = Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate());
+        const sweMs = Date.UTC(submitWeekEnd.getUTCFullYear(), submitWeekEnd.getUTCMonth(), submitWeekEnd.getUTCDate());
+        const authz = allAuthz.filter(auth => {
+          if ((auth.manualStatus || 'active') !== 'active') return false;
+          if (auth.archivedAt) return false;
+          if (auth.authorizationStartDate) {
+            const sd = new Date(auth.authorizationStartDate);
+            if (Date.UTC(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate()) > sweMs) return false;
+          }
+          if (auth.authorizationEndDate) {
+            const ed = new Date(auth.authorizationEndDate);
+            if (Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate()) < swsMs) return false;
+          }
+          return true;
+        });
+        const authMap = {};
+        for (const a of authz) {
+          const svc = deriveTimesheetService(a);
+          if (svc) {
+            authMap[svc] = (authMap[svc] || 0) + (a.authorizedUnits || 0);
+          }
+        }
+
+        // Compute total hours per service from submitted entries
+        let checkPas = 0, checkHm = 0, checkRespite = 0;
+        for (const entry of (entries || [])) {
+          const f = filterByEnabledServices(entry, enabledServices);
+          checkPas += computeTotalHoursWithBlocks(f.adlTimeIn, f.adlTimeOut, f.adlTimeBlocks);
+          checkHm += computeTotalHoursWithBlocks(f.iadlTimeIn, f.iadlTimeOut, f.iadlTimeBlocks);
+          checkRespite += computeTotalHoursWithBlocks(f.respiteTimeIn, f.respiteTimeOut, f.respiteTimeBlocks);
+        }
+
+        if (authMap.PAS && Math.round(checkPas * 4) > authMap.PAS) {
+          errors.push(`PAS hours (${checkPas.toFixed(2)} hrs / ${Math.round(checkPas * 4)} units) exceed authorized limit of ${(authMap.PAS / 4).toFixed(2)} hrs / ${authMap.PAS} units`);
+        }
+        if (authMap.Homemaker && Math.round(checkHm * 4) > authMap.Homemaker) {
+          errors.push(`Homemaker hours (${checkHm.toFixed(2)} hrs / ${Math.round(checkHm * 4)} units) exceed authorized limit of ${(authMap.Homemaker / 4).toFixed(2)} hrs / ${authMap.Homemaker} units`);
+        }
+        if (authMap.Respite && Math.round(checkRespite * 4) > authMap.Respite) {
+          errors.push(`Respite hours (${checkRespite.toFixed(2)} hrs / ${Math.round(checkRespite * 4)} units) exceed authorized limit of ${(authMap.Respite / 4).toFixed(2)} hrs / ${authMap.Respite} units`);
+        }
+
+        if (errors.length > 0) {
+          return res.status(400).json({ error: errors.join('; ') });
+        }
+      }
+
+      // Save entries — map by dayOfWeek to handle newly-created timesheets
+      // where the client sends entries with id: null (placeholder from GET)
+      const dbEntryByDay = {};
+      for (const e of timesheet.entries) {
+        dbEntryByDay[e.dayOfWeek] = e;
+      }
+
+      let totalPasHours = 0, totalHmHours = 0, totalRespiteHours = 0;
+
+      for (const entry of (entries || [])) {
+        const dbEntry = entry.id ? { id: entry.id } : dbEntryByDay[entry.dayOfWeek];
+        if (!dbEntry) continue;
+        const filtered = filterByEnabledServices(entry, enabledServices);
+
+        const adlHours = computeTotalHoursWithBlocks(filtered.adlTimeIn, filtered.adlTimeOut, filtered.adlTimeBlocks);
+        const iadlHours = computeTotalHoursWithBlocks(filtered.iadlTimeIn, filtered.iadlTimeOut, filtered.iadlTimeBlocks);
+        const respiteHours = computeTotalHoursWithBlocks(filtered.respiteTimeIn, filtered.respiteTimeOut, filtered.respiteTimeBlocks);
+
+        totalPasHours += adlHours;
+        totalHmHours += iadlHours;
+        totalRespiteHours += respiteHours;
+
+        await db.timesheetEntry.update({
+          where: { id: dbEntry.id },
+          data: {
+            adlActivities: filtered.adlActivities || '{}',
+            adlTimeIn: filtered.adlTimeIn || null,
+            adlTimeOut: filtered.adlTimeOut || null,
+            adlHours,
+            adlPcaInitials: filtered.adlPcaInitials || '',
+            adlClientInitials: filtered.adlClientInitials || '',
+            adlTimeBlocks: filtered.adlTimeBlocks || '[]',
+            iadlActivities: filtered.iadlActivities || '{}',
+            iadlTimeIn: filtered.iadlTimeIn || null,
+            iadlTimeOut: filtered.iadlTimeOut || null,
+            iadlHours,
+            iadlPcaInitials: filtered.iadlPcaInitials || '',
+            iadlClientInitials: filtered.iadlClientInitials || '',
+            iadlTimeBlocks: filtered.iadlTimeBlocks || '[]',
+            respiteActivities: filtered.respiteActivities || '{}',
+            respiteTimeIn: filtered.respiteTimeIn || null,
+            respiteTimeOut: filtered.respiteTimeOut || null,
+            respiteHours,
+            respitePcaInitials: filtered.respitePcaInitials || '',
+            respiteClientInitials: filtered.respiteClientInitials || '',
+            respiteTimeBlocks: filtered.respiteTimeBlocks || '[]',
+          },
+        });
+      }
+
+      const totalHours = totalPasHours + totalHmHours + totalRespiteHours;
+
+      const updateData = {
+        totalPasHours,
+        totalHmHours,
+        totalRespiteHours,
+        totalHours,
+      };
+
+      if (action === 'submit') {
+        updateData.status = 'submitted';
+        updateData.submittedAt = new Date();
+        updateData.pcaFullName = pcaFullName;
+        updateData.pcaSignature = pcaSignature;
+        updateData.recipientName = recipientName;
+        updateData.recipientSignature = recipientSignature;
+        updateData.completionDate = new Date().toISOString().slice(0, 10);
+      }
+
+      await db.timesheet.update({
+        where: { id: timesheet.id },
+        data: updateData,
+      });
+
+      const updated = await db.timesheet.findUnique({
+        where: { id: timesheet.id },
+        include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
+      });
+
+      // Fetch auth limits for response — filtered by timesheet week (no dedup)
+      const respWeekEnd = new Date(weekStart);
+      respWeekEnd.setUTCDate(respWeekEnd.getUTCDate() + 6);
+      const allAuthzForResp = await db.authorization.findMany({
+        where: { clientId: link.clientId },
+        select: { serviceCode: true, serviceName: true, serviceCategory: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true, manualStatus: true, archivedAt: true },
+      });
+      const rwsMs = Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate());
+      const rweMs = Date.UTC(respWeekEnd.getUTCFullYear(), respWeekEnd.getUTCMonth(), respWeekEnd.getUTCDate());
+      const authzForResp = allAuthzForResp.filter(auth => {
         if ((auth.manualStatus || 'active') !== 'active') return false;
         if (auth.archivedAt) return false;
         if (auth.authorizationStartDate) {
           const sd = new Date(auth.authorizationStartDate);
-          if (Date.UTC(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate()) > sweMs) return false;
+          if (Date.UTC(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate()) > rweMs) return false;
         }
         if (auth.authorizationEndDate) {
           const ed = new Date(auth.authorizationEndDate);
-          if (Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate()) < swsMs) return false;
+          if (Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate()) < rwsMs) return false;
         }
         return true;
       });
-      const authMap = {};
-      for (const a of authz) {
-        const svc = deriveTimesheetService(a);
-        if (svc) {
-          authMap[svc] = (authMap[svc] || 0) + (a.authorizedUnits || 0);
+      const respAuthLimits = {};
+      for (const auth of authzForResp) {
+        const service = deriveTimesheetService(auth);
+        if (service) {
+          if (!respAuthLimits[service]) {
+            respAuthLimits[service] = {
+              units: 0,
+              hours: 0,
+              serviceCode: auth.serviceCode,
+              serviceName: auth.serviceName || service,
+              startDate: auth.authorizationStartDate,
+              endDate: auth.authorizationEndDate,
+            };
+          }
+          respAuthLimits[service].units += auth.authorizedUnits || 0;
+          respAuthLimits[service].hours = Math.round((respAuthLimits[service].units / 4) * 100) / 100;
         }
       }
 
-      // Compute total hours per service from submitted entries
-      let checkPas = 0, checkHm = 0, checkRespite = 0;
-      for (const entry of (entries || [])) {
-        const f = filterByEnabledServices(entry, enabledServices);
-        checkPas += computeTotalHoursWithBlocks(f.adlTimeIn, f.adlTimeOut, f.adlTimeBlocks);
-        checkHm += computeTotalHoursWithBlocks(f.iadlTimeIn, f.iadlTimeOut, f.iadlTimeBlocks);
-        checkRespite += computeTotalHoursWithBlocks(f.respiteTimeIn, f.respiteTimeOut, f.respiteTimeBlocks);
-      }
-
-      if (authMap.PAS && Math.round(checkPas * 4) > authMap.PAS) {
-        errors.push(`PAS hours (${checkPas.toFixed(2)} hrs / ${Math.round(checkPas * 4)} units) exceed authorized limit of ${(authMap.PAS / 4).toFixed(2)} hrs / ${authMap.PAS} units`);
-      }
-      if (authMap.Homemaker && Math.round(checkHm * 4) > authMap.Homemaker) {
-        errors.push(`Homemaker hours (${checkHm.toFixed(2)} hrs / ${Math.round(checkHm * 4)} units) exceed authorized limit of ${(authMap.Homemaker / 4).toFixed(2)} hrs / ${authMap.Homemaker} units`);
-      }
-      if (authMap.Respite && Math.round(checkRespite * 4) > authMap.Respite) {
-        errors.push(`Respite hours (${checkRespite.toFixed(2)} hrs / ${Math.round(checkRespite * 4)} units) exceed authorized limit of ${(authMap.Respite / 4).toFixed(2)} hrs / ${authMap.Respite} units`);
-      }
-
-      if (errors.length > 0) {
-        return res.status(400).json({ error: errors.join('; ') });
-      }
-    }
-
-    // Save entries — map by dayOfWeek to handle newly-created timesheets
-    // where the client sends entries with id: null (placeholder from GET)
-    const dbEntryByDay = {};
-    for (const e of timesheet.entries) {
-      dbEntryByDay[e.dayOfWeek] = e;
-    }
-
-    let totalPasHours = 0, totalHmHours = 0, totalRespiteHours = 0;
-
-    for (const entry of (entries || [])) {
-      const dbEntry = entry.id ? { id: entry.id } : dbEntryByDay[entry.dayOfWeek];
-      if (!dbEntry) continue;
-      const filtered = filterByEnabledServices(entry, enabledServices);
-
-      const adlHours = computeTotalHoursWithBlocks(filtered.adlTimeIn, filtered.adlTimeOut, filtered.adlTimeBlocks);
-      const iadlHours = computeTotalHoursWithBlocks(filtered.iadlTimeIn, filtered.iadlTimeOut, filtered.iadlTimeBlocks);
-      const respiteHours = computeTotalHoursWithBlocks(filtered.respiteTimeIn, filtered.respiteTimeOut, filtered.respiteTimeBlocks);
-
-      totalPasHours += adlHours;
-      totalHmHours += iadlHours;
-      totalRespiteHours += respiteHours;
-
-      await prisma.timesheetEntry.update({
-        where: { id: dbEntry.id },
-        data: {
-          adlActivities: filtered.adlActivities || '{}',
-          adlTimeIn: filtered.adlTimeIn || null,
-          adlTimeOut: filtered.adlTimeOut || null,
-          adlHours,
-          adlPcaInitials: filtered.adlPcaInitials || '',
-          adlClientInitials: filtered.adlClientInitials || '',
-          adlTimeBlocks: filtered.adlTimeBlocks || '[]',
-          iadlActivities: filtered.iadlActivities || '{}',
-          iadlTimeIn: filtered.iadlTimeIn || null,
-          iadlTimeOut: filtered.iadlTimeOut || null,
-          iadlHours,
-          iadlPcaInitials: filtered.iadlPcaInitials || '',
-          iadlClientInitials: filtered.iadlClientInitials || '',
-          iadlTimeBlocks: filtered.iadlTimeBlocks || '[]',
-          respiteActivities: filtered.respiteActivities || '{}',
-          respiteTimeIn: filtered.respiteTimeIn || null,
-          respiteTimeOut: filtered.respiteTimeOut || null,
-          respiteHours,
-          respitePcaInitials: filtered.respitePcaInitials || '',
-          respiteClientInitials: filtered.respiteClientInitials || '',
-          respiteTimeBlocks: filtered.respiteTimeBlocks || '[]',
+      res.json({
+        client: {
+          id: link.client.id,
+          clientName: link.client.clientName,
+          enabledServices,
         },
+        pcaName: link.pcaName,
+        authLimits: respAuthLimits,
+        timesheet: updated,
       });
-    }
-
-    const totalHours = totalPasHours + totalHmHours + totalRespiteHours;
-
-    const updateData = {
-      totalPasHours,
-      totalHmHours,
-      totalRespiteHours,
-      totalHours,
-    };
-
-    if (action === 'submit') {
-      updateData.status = 'submitted';
-      updateData.submittedAt = new Date();
-      updateData.pcaFullName = pcaFullName;
-      updateData.pcaSignature = pcaSignature;
-      updateData.recipientName = recipientName;
-      updateData.recipientSignature = recipientSignature;
-      updateData.completionDate = new Date().toISOString().slice(0, 10);
-    }
-
-    await prisma.timesheet.update({
-      where: { id: timesheet.id },
-      data: updateData,
-    });
-
-    const updated = await prisma.timesheet.findUnique({
-      where: { id: timesheet.id },
-      include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
-    });
-
-    // Fetch auth limits for response — filtered by timesheet week (no dedup)
-    const respWeekEnd = new Date(weekStart);
-    respWeekEnd.setUTCDate(respWeekEnd.getUTCDate() + 6);
-    const allAuthzForResp = await prisma.authorization.findMany({
-      where: { clientId: link.clientId },
-      select: { serviceCode: true, serviceName: true, serviceCategory: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true, manualStatus: true, archivedAt: true },
-    });
-    const rwsMs = Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate());
-    const rweMs = Date.UTC(respWeekEnd.getUTCFullYear(), respWeekEnd.getUTCMonth(), respWeekEnd.getUTCDate());
-    const authzForResp = allAuthzForResp.filter(auth => {
-      if ((auth.manualStatus || 'active') !== 'active') return false;
-      if (auth.archivedAt) return false;
-      if (auth.authorizationStartDate) {
-        const sd = new Date(auth.authorizationStartDate);
-        if (Date.UTC(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate()) > rweMs) return false;
-      }
-      if (auth.authorizationEndDate) {
-        const ed = new Date(auth.authorizationEndDate);
-        if (Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate()) < rwsMs) return false;
-      }
-      return true;
-    });
-    const respAuthLimits = {};
-    for (const auth of authzForResp) {
-      const service = deriveTimesheetService(auth);
-      if (service) {
-        if (!respAuthLimits[service]) {
-          respAuthLimits[service] = {
-            units: 0,
-            hours: 0,
-            serviceCode: auth.serviceCode,
-            serviceName: auth.serviceName || service,
-            startDate: auth.authorizationStartDate,
-            endDate: auth.authorizationEndDate,
-          };
-        }
-        respAuthLimits[service].units += auth.authorizedUnits || 0;
-        respAuthLimits[service].hours = Math.round((respAuthLimits[service].units / 4) * 100) / 100;
-      }
-    }
-
-    res.json({
-      client: {
-        id: link.client.id,
-        clientName: link.client.clientName,
-        enabledServices,
-      },
-      pcaName: link.pcaName,
-      authLimits: respAuthLimits,
-      timesheet: updated,
     });
   } catch (err) {
     next(err);

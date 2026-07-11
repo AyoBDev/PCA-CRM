@@ -1,5 +1,6 @@
 const prisma = require('../lib/prisma');
 const { getWeekRange, SERVICE_COLOR_MAP } = require('../services/schedulingService');
+const { enterTokenTenant } = require('../lib/tokenTenant');
 
 // POST /api/employee-schedule-links
 async function createLink(req, res, next) {
@@ -65,77 +66,81 @@ async function getScheduleView(req, res) {
         include: { employee: true },
     });
     if (!link) return res.status(404).json({ error: 'Invalid link' });
-    if (!link.active) return res.status(403).json({ error: 'This schedule link has been deactivated' });
 
-    // Determine which week to show — default to current week
-    const dateParam = req.query.weekStart || new Date().toISOString().split('T')[0];
-    const { weekStart, weekEnd } = getWeekRange(dateParam);
+    await enterTokenTenant(req, res, link.agencyId, async () => {
+        const db = req.db;
+        if (!link.active) return res.status(403).json({ error: 'This schedule link has been deactivated' });
 
-    const shifts = await prisma.shift.findMany({
-        where: {
-            employeeId: link.employeeId,
-            shiftDate: { gte: new Date(weekStart + 'T00:00:00.000Z'), lte: new Date(weekEnd + 'T23:59:59.999Z') },
-            status: { not: 'cancelled' },
-            archivedAt: null,
-        },
-        include: {
-            client: {
-                select: {
-                    clientName: true, address: true,
-                    phone: true, gateCode: true, notes: true,
+        // Determine which week to show — default to current week
+        const dateParam = req.query.weekStart || new Date().toISOString().split('T')[0];
+        const { weekStart, weekEnd } = getWeekRange(dateParam);
+
+        const shifts = await db.shift.findMany({
+            where: {
+                employeeId: link.employeeId,
+                shiftDate: { gte: new Date(weekStart + 'T00:00:00.000Z'), lte: new Date(weekEnd + 'T23:59:59.999Z') },
+                status: { not: 'cancelled' },
+                archivedAt: null,
+            },
+            include: {
+                client: {
+                    select: {
+                        clientName: true, address: true,
+                        phone: true, gateCode: true, notes: true,
+                    },
                 },
             },
-        },
-        orderBy: [{ shiftDate: 'asc' }, { startTime: 'asc' }],
-    });
+            orderBy: [{ shiftDate: 'asc' }, { startTime: 'asc' }],
+        });
 
-    const enrichedShifts = shifts.map(s => ({
-        ...s,
-        serviceLabel: (SERVICE_COLOR_MAP[s.serviceCode] || {}).label || s.serviceCode,
-    }));
+        const enrichedShifts = shifts.map(s => ({
+            ...s,
+            serviceLabel: (SERVICE_COLOR_MAP[s.serviceCode] || {}).label || s.serviceCode,
+        }));
 
-    // Fetch submitted timesheet hours for this PCA + week
-    const wsDate = new Date(weekStart + 'T00:00:00.000Z');
-    const timesheets = await prisma.timesheet.findMany({
-        where: {
-            pcaName: link.employee.name,
-            weekStart: wsDate,
-            archivedAt: null,
-        },
-        select: {
-            clientId: true,
-            status: true,
-            totalPasHours: true,
-            totalHmHours: true,
-            totalRespiteHours: true,
-            totalHours: true,
-            client: { select: { clientName: true } },
-            entries: {
-                select: { dayOfWeek: true, adlHours: true, iadlHours: true, respiteHours: true },
-                orderBy: { dayOfWeek: 'asc' },
+        // Fetch submitted timesheet hours for this PCA + week
+        const wsDate = new Date(weekStart + 'T00:00:00.000Z');
+        const timesheets = await db.timesheet.findMany({
+            where: {
+                pcaName: link.employee.name,
+                weekStart: wsDate,
+                archivedAt: null,
             },
-        },
-    });
+            select: {
+                clientId: true,
+                status: true,
+                totalPasHours: true,
+                totalHmHours: true,
+                totalRespiteHours: true,
+                totalHours: true,
+                client: { select: { clientName: true } },
+                entries: {
+                    select: { dayOfWeek: true, adlHours: true, iadlHours: true, respiteHours: true },
+                    orderBy: { dayOfWeek: 'asc' },
+                },
+            },
+        });
 
-    const timesheetSummary = timesheets.map(ts => ({
-        clientName: ts.client?.clientName || '',
-        status: ts.status,
-        totalHours: ts.totalHours,
-        totalPasHours: ts.totalPasHours,
-        totalHmHours: ts.totalHmHours,
-        totalRespiteHours: ts.totalRespiteHours,
-        dailyHours: ts.entries.map(e => ({
-            dayOfWeek: e.dayOfWeek,
-            hours: Math.round(((e.adlHours || 0) + (e.iadlHours || 0) + (e.respiteHours || 0)) * 100) / 100,
-        })),
-    }));
+        const timesheetSummary = timesheets.map(ts => ({
+            clientName: ts.client?.clientName || '',
+            status: ts.status,
+            totalHours: ts.totalHours,
+            totalPasHours: ts.totalPasHours,
+            totalHmHours: ts.totalHmHours,
+            totalRespiteHours: ts.totalRespiteHours,
+            dailyHours: ts.entries.map(e => ({
+                dayOfWeek: e.dayOfWeek,
+                hours: Math.round(((e.adlHours || 0) + (e.iadlHours || 0) + (e.respiteHours || 0)) * 100) / 100,
+            })),
+        }));
 
-    res.json({
-        employee: { id: link.employee.id, name: link.employee.name },
-        weekStart,
-        weekEnd,
-        shifts: enrichedShifts,
-        timesheets: timesheetSummary,
+        res.json({
+            employee: { id: link.employee.id, name: link.employee.name },
+            weekStart,
+            weekEnd,
+            shifts: enrichedShifts,
+            timesheets: timesheetSummary,
+        });
     });
 }
 
