@@ -302,6 +302,7 @@ async function renewAuthorization(req, res, next) {
                     accountNumber: (req.body.accountNumber || '').trim(),
                     sandataClientId: (req.body.sandataClientId || '').trim(),
                     manualStatus: 'active',
+                    agencyId: req.user.agencyId,
                 },
             });
             await tx.authorization.update({
