@@ -35,11 +35,26 @@ test('only allowlisted files import lib/prisma', () => {
   const serverRoot = path.join(__dirname, '../..');
   let out = '';
   try {
-    out = execSync(`grep -rl "lib/prisma'" src --include='*.js'`, { cwd: serverRoot }).toString();
+    // Match any reference to the lib/prisma module regardless of quote style
+    // ("lib/prisma", 'lib/prisma') or an explicit .js suffix
+    // ("lib/prisma.js"). -n gives file:line:content so we can keep only
+    // require()/import lines below.
+    out = execSync(`grep -rn "lib/prisma" src --include='*.js'`, { cwd: serverRoot }).toString();
   } catch (e) {
     out = e.stdout ? e.stdout.toString() : '';
   }
-  const offenders = out.split('\n').filter(Boolean)
+  const IMPORT_RE = /\b(?:require\s*\(|import\b|from\b)/;
+  const offenders = [...new Set(
+    out.split('\n').filter(Boolean)
+      // grep -n output is "path:line:content" — split off the path
+      .map((line) => {
+        const [file, , ...rest] = line.split(':');
+        return { file, content: rest.join(':') };
+      })
+      // Only count actual import/require statements, not comments/strings
+      .filter(({ content }) => IMPORT_RE.test(content))
+      .map(({ file }) => file)
+  )]
     .filter((f) => !f.includes('__tests__') && !f.includes('__integration__'))
     .filter((f) => !ALLOWLIST.has(f));
   expect(offenders).toEqual([]);
