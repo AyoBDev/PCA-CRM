@@ -837,3 +837,22 @@ export const markAttentionSeen = (keys) => {
     const body = Array.isArray(keys) ? { eventKeys: keys } : { eventKey: keys };
     return request('/admin/employee-attention/mark-seen', { method: 'POST', body: JSON.stringify(body) });
 };
+
+// ── Platform Console (superadmin only) ──
+export const listPlatformAgencies = () => request('/platform/agencies');
+export const createPlatformAgency = (payload) => request('/platform/agencies', { method: 'POST', body: JSON.stringify(payload) });
+export const suspendAgency = (id) => request(`/platform/agencies/${id}/suspend`, { method: 'PUT' });
+export const reactivateAgency = (id) => request(`/platform/agencies/${id}/reactivate`, { method: 'PUT' });
+export const impersonateAgency = (id) => request(`/platform/agencies/${id}/impersonate`, { method: 'POST', body: JSON.stringify({}) });
+
+// ── Agency Info (public — resolves current subdomain, no auth token) ──
+export const getAgencyInfo = () =>
+    fetch(`${BASE}/agency-info`).then(async (res) => {
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            const err = new Error(body.error || `HTTP ${res.status}`);
+            err.status = res.status;
+            throw err;
+        }
+        return res.json();
+    });

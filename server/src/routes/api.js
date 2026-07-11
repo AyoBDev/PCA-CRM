@@ -166,6 +166,7 @@ const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalize
 const { previewSandata, applySandata, undoSandata } = require('../controllers/sandataController');
 const { listConversations, getConversationMessages, adminSendMessage, markConversationRead, getUnreadSummary } = require('../controllers/employeePortal/adminChatController');
 const { getOnboardingInfo, completeOnboarding, resendInvite, approveOnboarding, getOnboardingLink } = require('../controllers/onboardingController');
+const { agencyInfo } = require('../controllers/platformController');
 const { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, getLeadStats } = require('../controllers/leadController');
 const {
     listPermissionGroups,
@@ -215,6 +216,7 @@ router.get('/pca-form/:token', getPcaForm);
 router.put('/pca-form/:token', updatePcaForm);
 router.get('/onboarding/:token', getOnboardingInfo);
 router.post('/onboarding/:token/complete', completeOnboarding);
+router.get('/agency-info', agencyInfo);
 
 // Backup (admin JWT or dedicated API key — must be above authenticate middleware)
 function backupAuth(req, res, next) {

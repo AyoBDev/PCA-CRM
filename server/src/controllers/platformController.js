@@ -109,4 +109,11 @@ async function impersonate(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listAgencies, createAgency, suspendAgency: setAgencyStatus('suspended'), reactivateAgency: setAgencyStatus('active'), impersonate };
+// GET /api/agency-info — public, resolves the agency for the current subdomain
+// (set by resolveAgency middleware). 404 on apex domain / unknown subdomain.
+async function agencyInfo(req, res) {
+  if (!req.agency) return res.status(404).json({ error: 'Agency not found' });
+  res.json({ name: req.agency.name, slug: req.agency.slug });
+}
+
+module.exports = { listAgencies, createAgency, suspendAgency: setAgencyStatus('suspended'), reactivateAgency: setAgencyStatus('active'), impersonate, agencyInfo };
