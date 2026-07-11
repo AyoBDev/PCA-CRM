@@ -22,7 +22,7 @@ export const SERVICE_CODE_OPTIONS = [
     ]},
 ];
 
-export const SERVICE_CATEGORIES = ['PCS', 'SDPC', 'Waiver 58', 'Waiver 48', 'Timesheets', 'COPE', 'PAS'];
+export const SERVICE_CATEGORIES = ['PCS', 'SDPC', 'Waiver 58', 'Waiver 48', 'Timesheets', 'GUIDE', 'COPE', 'PAS'];
 
 export const SERVICE_NAME_SUGGESTIONS = [
     'Personal Care Services',
