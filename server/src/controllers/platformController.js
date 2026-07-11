@@ -47,20 +47,24 @@ async function createAgency(req, res, next) {
     const existing = await prisma.agency.findUnique({ where: { slug: cleanSlug } });
     if (existing) return res.status(409).json({ error: 'An agency with this slug already exists' });
 
-    const agency = await prisma.agency.create({ data: { name: name.trim(), slug: cleanSlug } });
-    await seedAgencyDefaults(prisma, agency.id);
     const tempPassword = crypto.randomBytes(16).toString('hex');
-    const admin = await prisma.user.create({
-      data: {
-        email: adminEmail.toLowerCase().trim(),
-        passwordHash: await bcrypt.hash(tempPassword, 10),
-        name: adminName.trim(),
-        role: 'admin',
-        agencyId: agency.id,
-      },
-    });
-    auditForAgency(agency.id, { userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Agency', entityId: agency.id, entityName: agency.name, metadata: { slug: cleanSlug, adminEmail: admin.email } });
-    res.status(201).json({ agency, admin: { id: admin.id, email: admin.email } });
+    const result = await prisma.$transaction(async (tx) => {
+      const agency = await tx.agency.create({ data: { name: name.trim(), slug: cleanSlug } });
+      await seedAgencyDefaults(tx, agency.id);
+      const admin = await tx.user.create({
+        data: {
+          email: adminEmail.toLowerCase().trim(),
+          passwordHash: await bcrypt.hash(tempPassword, 10),
+          name: adminName.trim(),
+          role: 'admin',
+          agencyId: agency.id,
+        },
+      });
+      return { agency, admin };
+    }, { timeout: 30000 });
+
+    auditForAgency(result.agency.id, { userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Agency', entityId: result.agency.id, entityName: result.agency.name, metadata: { slug: cleanSlug, adminEmail: result.admin.email } });
+    res.status(201).json({ agency: result.agency, admin: { id: result.admin.id, email: result.admin.email } });
   } catch (err) { next(err); }
 }
 
@@ -85,7 +89,7 @@ async function impersonate(req, res, next) {
     const agency = await prisma.agency.findUnique({ where: { id: agencyId } });
     if (!agency) return res.status(404).json({ error: 'Agency not found' });
     const target = req.body.userId
-      ? await prisma.user.findFirst({ where: { id: Number(req.body.userId), agencyId } })
+      ? await prisma.user.findFirst({ where: { id: Number(req.body.userId), agencyId, role: 'admin', archivedAt: null, active: true } })
       : await prisma.user.findFirst({ where: { agencyId, role: 'admin', archivedAt: null, active: true }, orderBy: { id: 'asc' } });
     if (!target) return res.status(404).json({ error: 'No active admin found for this agency' });
     const token = jwt.sign(

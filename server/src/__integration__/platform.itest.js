@@ -69,6 +69,15 @@ test('impersonation returns a scoped 30-min token and audits it', async () => {
   expect(list.status).toBe(200);
 });
 
+test('impersonation via explicit userId rejects archived/inactive/non-admin targets', async () => {
+  const agency = await systemPrisma.agency.findUnique({ where: { slug: 'plat-a' } });
+  const archived = await systemPrisma.user.create({
+    data: { email: 'archived-admin@platform.test', passwordHash: 'x', name: 'Archived', role: 'admin', agencyId: agency.id, archivedAt: new Date() },
+  });
+  const res = await platformReq('post', `/api/platform/agencies/${agency.id}/impersonate`).send({ userId: archived.id });
+  expect(res.status).toBe(404);
+});
+
 test('tenant backup is scoped; platform backup is full', async () => {
   const agency = await systemPrisma.agency.findUnique({ where: { slug: 'plat-a' } });
   const admin = await systemPrisma.user.findFirst({ where: { agencyId: agency.id, role: 'admin' } });
