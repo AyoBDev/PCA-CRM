@@ -14,6 +14,9 @@ jest.mock('../../lib/prisma', () => ({
   authorization: {
     findMany: jest.fn().mockResolvedValue([]),
   },
+  service: {
+    findMany: jest.fn().mockResolvedValue([]),
+  },
 }));
 
 const prisma = require('../../lib/prisma');

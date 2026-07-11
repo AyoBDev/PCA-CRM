@@ -473,13 +473,19 @@ model InsuranceType {
 }
 
 model Service {
-  id         Int       @id @default(autoincrement())
-  category   String
-  code       String    @unique
-  name       String    @default("")
-  archivedAt DateTime? @map("archived_at")
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
+  id               Int       @id @default(autoincrement())
+  category         String
+  code             String    @unique
+  name             String    @default("")
+  label            String    @default("")
+  accountNumber    String    @default("") @map("account_number")
+  color            String    @default("")
+  timesheetSection String    @default("") @map("timesheet_section")
+  sortOrder        Int       @default(50) @map("sort_order")
+  enforceAuthLimit Boolean   @default(true) @map("enforce_auth_limit")
+  archivedAt       DateTime? @map("archived_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
   @@map("services")
 }

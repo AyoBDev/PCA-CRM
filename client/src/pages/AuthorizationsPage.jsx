@@ -19,6 +19,7 @@ import { EntityActivityButton } from '../components/common/ActivityDrawer';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import { getInitials, getAvatarColor } from '../utils/ui';
+import { useServices } from '../hooks/useServices';
 
 
 // ── Client Row 3-dot Menu (status + actions) ──
@@ -220,6 +221,7 @@ function sortAuthorizations(auths) {
 }
 
 function AuthFormModal({ auth, clientId, onSave, onClose, onRenewal, isRenewal }) {
+    const { serviceOptions } = useServices();
     const [serviceCategory, setServiceCategory] = useState(auth?.serviceCategory || '');
     const [serviceCode, setServiceCode] = useState(auth?.serviceCode || 'PCS');
     const [serviceName, setServiceName] = useState(auth?.serviceName || '');
@@ -324,7 +326,7 @@ function AuthFormModal({ auth, clientId, onSave, onClose, onRenewal, isRenewal }
                     </div>
                     <div className="form-group">
                         <label>Service Code</label>
-                        <ServiceCodeSelect value={serviceCode} onChange={(e) => handleServiceCodeChange(e.target.value)} />
+                        <ServiceCodeSelect value={serviceCode} onChange={(e) => handleServiceCodeChange(e.target.value)} options={serviceOptions()} />
                     </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>

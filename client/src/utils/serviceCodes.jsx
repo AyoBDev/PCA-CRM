@@ -22,7 +22,7 @@ export const SERVICE_CODE_OPTIONS = [
     ]},
 ];
 
-export const SERVICE_CATEGORIES = ['PCS', 'SDPC', 'Waiver 58', 'Waiver 48', 'Timesheets', 'COPE', 'PAS'];
+export const SERVICE_CATEGORIES = ['PCS', 'SDPC', 'Waiver 58', 'Waiver 48', 'Timesheets', 'GUIDE', 'COPE', 'PAS'];
 
 export const SERVICE_NAME_SUGGESTIONS = [
     'Personal Care Services',
@@ -36,10 +36,10 @@ export const SERVICE_NAME_SUGGESTIONS = [
     'Community Opportunities for Personal Empowerment',
 ];
 
-export function ServiceCodeSelect({ value, onChange, ...props }) {
+export function ServiceCodeSelect({ value, onChange, options = SERVICE_CODE_OPTIONS, ...props }) {
     return (
         <select value={value} onChange={onChange} {...props}>
-            {SERVICE_CODE_OPTIONS.map(group => (
+            {options.map(group => (
                 <optgroup key={group.group} label={group.group}>
                     {group.codes.map(code => (
                         <option key={code.value} value={code.value}>{code.label}</option>

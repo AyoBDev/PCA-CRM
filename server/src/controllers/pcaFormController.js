@@ -1,5 +1,6 @@
 const prisma = require('../lib/prisma');
 const { roundTo15, computeHours, computeTotalHoursWithBlocks, deriveTimesheetService } = require('../lib/timesheetUtils');
+const serviceRegistry = require('../services/serviceRegistry');
 
 function getCurrentWeekStart() {
   const now = new Date();
@@ -77,6 +78,9 @@ async function getPcaForm(req, res, next) {
     if (!link) return res.status(404).json({ error: 'Invalid link' });
     if (!link.active) return res.status(403).json({ error: 'This link has been deactivated' });
     if (link.client.archivedAt) return res.status(403).json({ error: 'This client is no longer active. The timesheet link has been disabled.' });
+
+    // Warm the service registry cache so deriveTimesheetService (sync) reflects DB values
+    await serviceRegistry.getServiceMap();
 
     let weekStart;
     if (req.query.weekStart) {
@@ -226,6 +230,9 @@ async function updatePcaForm(req, res, next) {
     if (!link) return res.status(404).json({ error: 'Invalid link' });
     if (!link.active) return res.status(403).json({ error: 'This link has been deactivated' });
     if (link.client.archivedAt) return res.status(403).json({ error: 'This client is no longer active. The timesheet link has been disabled.' });
+
+    // Warm the service registry cache so deriveTimesheetService (sync) reflects DB values
+    await serviceRegistry.getServiceMap();
 
     let weekStart;
     if (req.body.weekStart) {
@@ -389,13 +396,18 @@ async function updatePcaForm(req, res, next) {
         checkRespite += computeTotalHoursWithBlocks(f.respiteTimeIn, f.respiteTimeOut, f.respiteTimeBlocks);
       }
 
-      if (authMap.PAS && Math.round(checkPas * 4) > authMap.PAS) {
+      const [enforcePas, enforceHm, enforceRespite] = await Promise.all([
+        serviceRegistry.sectionEnforcesLimit('PAS'),
+        serviceRegistry.sectionEnforcesLimit('Homemaker'),
+        serviceRegistry.sectionEnforcesLimit('Respite'),
+      ]);
+      if (enforcePas && authMap.PAS && Math.round(checkPas * 4) > authMap.PAS) {
         errors.push(`PAS hours (${checkPas.toFixed(2)} hrs / ${Math.round(checkPas * 4)} units) exceed authorized limit of ${(authMap.PAS / 4).toFixed(2)} hrs / ${authMap.PAS} units`);
       }
-      if (authMap.Homemaker && Math.round(checkHm * 4) > authMap.Homemaker) {
+      if (enforceHm && authMap.Homemaker && Math.round(checkHm * 4) > authMap.Homemaker) {
         errors.push(`Homemaker hours (${checkHm.toFixed(2)} hrs / ${Math.round(checkHm * 4)} units) exceed authorized limit of ${(authMap.Homemaker / 4).toFixed(2)} hrs / ${authMap.Homemaker} units`);
       }
-      if (authMap.Respite && Math.round(checkRespite * 4) > authMap.Respite) {
+      if (enforceRespite && authMap.Respite && Math.round(checkRespite * 4) > authMap.Respite) {
         errors.push(`Respite hours (${checkRespite.toFixed(2)} hrs / ${Math.round(checkRespite * 4)} units) exceed authorized limit of ${(authMap.Respite / 4).toFixed(2)} hrs / ${authMap.Respite} units`);
       }
 
