@@ -229,7 +229,14 @@ function backupAuth(req, res, next) {
         const jwt = require('jsonwebtoken');
         try {
             const payload = jwt.verify(header.slice(7), require('../config/secrets').JWT_SECRET);
-            if (payload.role === 'admin') return next();
+            if (
+                payload.role === 'admin' &&
+                Number.isInteger(payload.agencyId) &&
+                req.agency &&
+                payload.agencyId === req.agency.id
+            ) {
+                return next();
+            }
         } catch {}
     }
     return res.status(401).json({ error: 'Invalid backup credentials' });

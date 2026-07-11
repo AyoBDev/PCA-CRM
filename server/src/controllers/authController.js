@@ -88,7 +88,7 @@ async function login(req, res, next) {
 // GET /api/auth/me
 async function getMe(req, res, next) {
     try {
-        const user = await prisma.user.findUnique({
+        const user = await req.db.user.findUnique({
             where: { id: req.user.id },
             include: { permissionGroup: true },
         });
@@ -113,20 +113,20 @@ async function register(req, res, next) {
             return res.status(400).json({ error: 'Email, password, and name are required' });
         }
         const validRole = ['admin', 'user', 'pca'].includes(role) ? role : 'pca';
-        const existing = await prisma.user.findFirst({
+        const existing = await req.db.user.findFirst({
             where: { email: email.toLowerCase().trim(), agencyId: req.user.agencyId ?? null },
         });
         if (existing) {
             return res.status(409).json({ error: 'A user with this email already exists' });
         }
         if (validRole === 'user' && Number.isInteger(permissionGroupId)) {
-            const group = await prisma.permissionGroup.findUnique({ where: { id: permissionGroupId } });
+            const group = await req.db.permissionGroup.findUnique({ where: { id: permissionGroupId } });
             if (!group || group.archivedAt) {
                 return res.status(400).json({ error: 'Invalid permission group' });
             }
         }
         const passwordHash = await bcrypt.hash(password, 10);
-        const user = await prisma.user.create({
+        const user = await req.db.user.create({
             data: {
                 email: email.toLowerCase().trim(),
                 passwordHash,
@@ -169,7 +169,7 @@ async function register(req, res, next) {
 async function listUsers(req, res, next) {
     try {
         const where = req.query.archived === 'true' ? { archivedAt: { not: null } } : { archivedAt: null };
-        const users = await prisma.user.findMany({
+        const users = await req.db.user.findMany({
             where,
             select: {
                 id: true, email: true, name: true, role: true, phone: true, active: true,
@@ -194,9 +194,9 @@ async function deleteUser(req, res, next) {
         if (id === req.user.id) {
             return res.status(400).json({ error: 'Cannot delete your own account' });
         }
-        const user = await prisma.user.findUnique({ where: { id } });
+        const user = await req.db.user.findUnique({ where: { id } });
         if (!user) return res.status(404).json({ error: 'User not found' });
-        const archived = await prisma.user.update({ where: { id }, data: { archivedAt: new Date() } });
+        const archived = await req.db.user.update({ where: { id }, data: { archivedAt: new Date() } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'ARCHIVE', entityType: 'User', entityId: id, entityName: user.name });
         res.json({ id: archived.id, email: archived.email, name: archived.name, role: archived.role });
     } catch (err) { next(err); }
@@ -206,9 +206,9 @@ async function deleteUser(req, res, next) {
 async function restoreUser(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const user = await prisma.user.findUnique({ where: { id } });
+        const user = await req.db.user.findUnique({ where: { id } });
         if (!user) return res.status(404).json({ error: 'User not found' });
-        const restored = await prisma.user.update({ where: { id }, data: { archivedAt: null } });
+        const restored = await req.db.user.update({ where: { id }, data: { archivedAt: null } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'RESTORE', entityType: 'User', entityId: id, entityName: restored.name });
         res.json({ id: restored.id, email: restored.email, name: restored.name, role: restored.role, phone: restored.phone });
     } catch (err) { next(err); }
@@ -222,10 +222,10 @@ async function resetPassword(req, res, next) {
         if (!password || password.length < 4) {
             return res.status(400).json({ error: 'Password must be at least 4 characters' });
         }
-        const user = await prisma.user.findUnique({ where: { id } });
+        const user = await req.db.user.findUnique({ where: { id } });
         if (!user) return res.status(404).json({ error: 'User not found' });
         const passwordHash = await bcrypt.hash(password, 10);
-        await prisma.user.update({ where: { id }, data: { passwordHash } });
+        await req.db.user.update({ where: { id }, data: { passwordHash } });
 
         // Send password reset email (fire-and-forget)
         if (isEmailConfigured()) {
@@ -258,10 +258,10 @@ async function permanentlyDeleteUser(req, res, next) {
     try {
         const id = Number(req.params.id);
         if (id === req.user.id) return res.status(400).json({ error: 'Cannot delete your own account' });
-        const user = await prisma.user.findUnique({ where: { id } });
+        const user = await req.db.user.findUnique({ where: { id } });
         if (!user) return res.status(404).json({ error: 'User not found' });
         if (!user.archivedAt) return res.status(400).json({ error: 'Only archived users can be permanently deleted' });
-        await prisma.user.delete({ where: { id } });
+        await req.db.user.delete({ where: { id } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'PERMANENT_DELETE', entityType: 'User', entityId: id, entityName: user.name });
         res.json({ success: true });
     } catch (err) { next(err); }
@@ -269,7 +269,7 @@ async function permanentlyDeleteUser(req, res, next) {
 
 async function bulkPermanentlyDeleteUsers(req, res, next) {
     try {
-        const result = await prisma.user.deleteMany({ where: { archivedAt: { not: null } } });
+        const result = await req.db.user.deleteMany({ where: { archivedAt: { not: null } } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'BULK_DELETE', entityType: 'User', entityId: 0, entityName: '', metadata: { count: result.count } });
         res.json({ success: true, count: result.count });
     } catch (err) { next(err); }
@@ -282,9 +282,9 @@ async function toggleUserActive(req, res, next) {
         if (id === req.user.id) {
             return res.status(400).json({ error: 'Cannot deactivate your own account' });
         }
-        const user = await prisma.user.findUnique({ where: { id } });
+        const user = await req.db.user.findUnique({ where: { id } });
         if (!user) return res.status(404).json({ error: 'User not found' });
-        const updated = await prisma.user.update({
+        const updated = await req.db.user.update({
             where: { id },
             data: { active: !user.active },
         });

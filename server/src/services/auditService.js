@@ -52,9 +52,13 @@ function diffFields(oldObj, newObj, fields) {
 
 /**
  * Get audit logs for a specific entity.
+ * Only reachable via authenticated tenant routes — requires ambient tenant
+ * context (getAgencyId()) so results never cross agency boundaries.
  */
 async function getEntityLogs(entityType, entityId, { page = 1, limit = 25 } = {}) {
-    const where = { entityType, entityId };
+    const agencyId = getAgencyId();
+    if (agencyId == null) throw new Error('getEntityLogs requires tenant context (agencyId)');
+    const where = { entityType, entityId, agencyId };
     const [logs, total] = await Promise.all([
         prisma.auditLog.findMany({
             where,
@@ -69,9 +73,13 @@ async function getEntityLogs(entityType, entityId, { page = 1, limit = 25 } = {}
 
 /**
  * Get audit logs for an entity type (page-level view).
+ * Only reachable via authenticated tenant routes — requires ambient tenant
+ * context (getAgencyId()) so results never cross agency boundaries.
  */
 async function getPageLogs(entityType, { page = 1, limit = 25, action, dateFrom, dateTo } = {}) {
-    const where = {};
+    const agencyId = getAgencyId();
+    if (agencyId == null) throw new Error('getPageLogs requires tenant context (agencyId)');
+    const where = { agencyId };
     if (entityType) where.entityType = entityType;
     if (action) where.action = action;
     if (dateFrom || dateTo) {
