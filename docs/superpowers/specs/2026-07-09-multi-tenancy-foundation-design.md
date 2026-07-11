@@ -205,3 +205,8 @@ New `tenancy` Jest group; the isolation tests are the core deliverable:
 4. Subdomain resolution + JWT binding + public-token checks + CORS/socket scoping.
 5. Platform console (agency CRUD, seeding defaults, impersonation) + platform backup.
 6. Storage prefixes, import-script flags, docs (CLAUDE.md update).
+
+## Accepted Deviations From This Spec
+
+1. **Agency #1 is created inside migration 1 with static values** (`'NV Best PCA'` / `'nvbest'`) rather than reading `NVBEST_AGENCY_NAME`/`NVBEST_AGENCY_SLUG` at migration time — migrations can't read env vars at the point they run in `prisma migrate deploy`. Those two env vars apply only on a fresh database via `seed.js`, and the agency's name is editable afterward from the platform console.
+2. **The lint guard is a Jest test, not an ESLint rule.** `server/src/__tests__/prismaImportGuard.test.js` greps for direct `lib/prisma` imports outside an explicit allowlist and fails the test if it finds one — the server has no ESLint config, and a failing test blocks CI the same way a lint rule would.

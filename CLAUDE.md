@@ -8,7 +8,8 @@ Full-stack web app for a PCA (Personal Care Attendant) agency to manage client a
 ## Tech Stack
 - **Frontend**: React 19 + Vite, page-per-file under `client/src/pages/`
 - **Backend**: Express.js + Prisma ORM + PostgreSQL
-- **Auth**: JWT with role-based access (`admin` / `user` / `pca`)
+- **Auth**: JWT with role-based access (`superadmin` / `admin` / `user` / `pca`). JWTs carry `agencyId` + `agencySlug` and only work on that agency's subdomain — a token minted on `nvbest.<BASE_DOMAIN>` is rejected on any other agency's subdomain.
+- **Multi-tenancy**: every agency's data lives in the same database, isolated by Postgres Row-Level Security keyed on `agency_id`. See the Backend Structure section below for `tenantPrisma.js` / `tenantContext.js` / `resolveAgency.js` / `tenantMiddleware.js`.
 - **Styling**: Custom CSS (`client/src/index.css`) using shadcn/ui zinc design tokens
 
 ## Key Commands
@@ -19,16 +20,18 @@ cd client && npm run dev          # Start Vite dev server (port 5173, proxies /a
 
 # Database
 cd server && npx prisma migrate dev --name <name>   # Create + apply migration
-cd server && npm run db:seed                         # Seed admin user (uses ADMIN_EMAIL/ADMIN_PASSWORD env vars)
-cd server && node prisma/import-xlsx.js             # Import clients from data/all-data.xlsx
+cd server && node prisma/setup-app-role.js          # Provision/refresh the RLS-constrained app_user DB role (needs APP_DB_PASSWORD)
+cd server && npm run db:seed                         # Seed default agency + superadmin + admin (uses ADMIN_EMAIL/ADMIN_PASSWORD, SUPERADMIN_EMAIL/SUPERADMIN_PASSWORD, NVBEST_AGENCY_NAME/NVBEST_AGENCY_SLUG env vars)
+cd server && node prisma/import-xlsx.js --agency <slug>   # Import clients from data/all-data.xlsx into one agency (flag required)
 cd server && npm run db:migrate-data                # One-time SQLite → PostgreSQL data migration
 
 # Build & Production
 cd client && npm run build        # Build to client/dist (served by Express at port 4000)
-npm start                         # Run migrations → seed → start server
+npm start                         # prisma migrate deploy → setup-app-role.js → seed → start server
 
 # Tests
-cd server && npm test             # Run Jest tests (--verbose)
+cd server && npm test             # Run Jest unit tests (--verbose)
+cd server && npm run test:integration   # Run Postgres-backed integration tests (RLS, tenant isolation, cross-agency guards) — spins up/migrates a nvbestpca_test DB automatically
 cd server && npx jest --testPathPattern=authorizationService  # Run a single test file
 
 # Backup
@@ -48,15 +51,22 @@ server/src/
   routes/api.js     # All route definitions
   controllers/      # Route handlers (thin layer, delegate to services)
   services/         # Business logic
-  middleware/authMiddleware.js  # authenticate() + requireRole(...roles)
-  lib/prisma.js     # Singleton Prisma client instance
+  middleware/authMiddleware.js     # authenticate() + requireRole(...roles)
+  middleware/resolveAgency.js      # Parses Host header → subdomain slug → req.agency (cached 60s); 404s unknown subdomains on /api, sets req.agencyNotFound otherwise
+  middleware/tenantMiddleware.js   # Requires req.user.agencyId, rejects superadmin tokens, checks agency status, sets req.db = tenantClient(agencyId), runs the rest of the request inside runWithTenant()
+  lib/prisma.js       # Owner-connection Prisma client — ALLOWLIST-ONLY, see rule below
+  lib/tenantPrisma.js # tenantClient(agencyId) / tenantTransaction(agencyId, fn) — Prisma client extension that auto-stamps agencyId on creates and scopes every query via `SET LOCAL app.agency_id` so RLS applies
+  lib/tenantContext.js # AsyncLocalStorage-backed getTenantDb()/getAgencyId() — lets services read the current request's tenant client without req being threaded through
   lib/timesheetUtils.js  # Shared: roundTo15, computeHours, computeTotalHoursWithBlocks, deriveTimesheetService, activity lists
 prisma/
-  schema.prisma     # PostgreSQL schema with @@map snake_case names
-  seed.js           # Creates admin user (skips if already exists, uses ADMIN_EMAIL/ADMIN_PASSWORD env vars)
+  schema.prisma     # PostgreSQL schema with @@map snake_case names; Agency model + agency_id on every tenant table
+  seed.js           # Creates default agency + superadmin (skips if already exist), uses ADMIN_EMAIL/ADMIN_PASSWORD, SUPERADMIN_EMAIL/SUPERADMIN_PASSWORD, NVBEST_AGENCY_NAME/NVBEST_AGENCY_SLUG env vars
+  setup-app-role.js # Idempotently provisions the `app_user` Postgres role (NOBYPASSRLS) that tenantClient connects as via APP_DATABASE_URL
   migrate-data.js   # One-time SQLite → PostgreSQL data migration script
-  migrations/       # Timestamped SQL migrations
+  migrations/       # Timestamped SQL migrations (includes the RLS-enabling migration: ENABLE ROW LEVEL SECURITY + tenant_isolation policy per tenant table, keyed on current_setting('app.agency_id'))
 ```
+
+**Tenant data-access rule (enforced by test):** controllers read/write the database via `req.db` (set by `tenantMiddleware`); services that don't have `req` in scope call `getTenantDb()` from `lib/tenantContext.js` instead. `lib/prisma.js` (the owner connection, bypasses RLS) is allowlist-only — see `server/src/__tests__/prismaImportGuard.test.js`, which greps the codebase for `lib/prisma'` imports and fails if any file outside its allowlist (auth/tenant middleware, platform + backup controllers, auditService, public-token controllers, cron jobs) imports it directly.
 
 ### Frontend Structure
 Pages are split into individual files under `client/src/pages/`:
@@ -286,7 +296,8 @@ Program codes (`COPE`, `PAS`) allow **multiple active authorizations** with diff
 - **Client detail badges** use composite keys to show distinct badges (e.g., "COPE - Homemaker", "COPE - Personal Care Services")
 
 ## Data Model
-- **Users** — staff accounts (admin/user/pca roles), `active` boolean, `archivedAt` soft delete
+- **Agency** — one row per tenant (`name`, `slug` unique, `status` active/suspended, `settings` JSON). Every tenant table carries a required `agency_id` FK (cascade delete) enforced by Postgres RLS `tenant_isolation` policies; `User.agencyId` is the exception (nullable, since `superadmin` accounts are platform-level and belong to no agency). Managed via the `/platform` console (superadmin-only).
+- **Users** — staff accounts (superadmin/admin/user/pca roles), `active` boolean, `archivedAt` soft delete
 - **Employees** — caregivers with optional `userId` link, schedule links
 - **Clients** — care recipients with Medicaid ID, insurance type, `enabledServices` JSON
 - **Authorizations** — per client (PCS, SDPC, S5130, S5150, etc.) with start/end dates and `authorizedUnits` (15-min units, not hours)
@@ -452,7 +463,14 @@ Full-featured file management system for administrative documents (insurance, el
 - Single service: Express serves the React build from `client/dist`
 - Start command: `prisma migrate deploy` → `setup-app-role.js` → `seed.js` → `node src/index.js`
 - **Storage Bucket**: Create bucket on Railway canvas → Connect to service → env vars auto-injected
-- Environment variables: `DATABASE_URL` (PostgreSQL), `JWT_SECRET`, `PORT`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `BREVO_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`
+- Environment variables: `DATABASE_URL` (PostgreSQL, owner connection used by `lib/prisma.js`), `JWT_SECRET`, `PORT`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `BREVO_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`
+- **Multi-tenancy env vars**:
+  - `BASE_DOMAIN` — the root domain agencies are subdomained under (e.g. `pcalink.com`); drives `resolveAgency.js` subdomain parsing, CORS origin matching (`lib/corsOrigin.js`), and socket auth. Defaults to `localhost` for local dev.
+  - `APP_DATABASE_URL` — connection string for the RLS-constrained `app_user` role that `tenantClient()` uses for all tenant-scoped queries; falls back to `DATABASE_URL` if unset (fine locally before `setup-app-role.js` has run, unsafe in production — always set it on Railway).
+  - `APP_DB_PASSWORD` — password `setup-app-role.js` assigns to the `app_user` Postgres role (`NOBYPASSRLS`); must match the credential embedded in `APP_DATABASE_URL`.
+  - `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` — platform-console login seeded by `seed.js`. Production refuses to create a default-credential superadmin if `SUPERADMIN_PASSWORD` is unset — set both before first deploy.
+  - `NVBEST_AGENCY_NAME` / `NVBEST_AGENCY_SLUG` — only apply on a fresh DB via `seed.js` (agency #1 is otherwise created with static values inside migration 1, since migrations can't read env vars). The agency's name is editable afterward from the platform console.
+- **Railway wildcard-domain requirement**: subdomain routing (`acme.<BASE_DOMAIN>`) needs a wildcard custom domain (`*.<BASE_DOMAIN>`) added on the Railway service plus a wildcard CNAME at the DNS provider pointing to Railway. Until that's provisioned, agencies without a working wildcard entry fall back to being reached via their exact per-agency custom domain (added individually on the Railway service) — `resolveAgency.js` matches on whatever `Host` header actually arrives, so either path works as long as the agency's slug/domain resolves to this service.
 
 ## Service Code System — Cross-Entity Trace
 
