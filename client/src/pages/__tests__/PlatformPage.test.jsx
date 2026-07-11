@@ -2,6 +2,10 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { vi } from 'vitest';
 
+vi.mock('../../hooks/useToast', () => ({
+  useToast: () => ({ showToast: vi.fn(), showUndoToast: vi.fn(), clearToast: vi.fn() }),
+}));
+
 vi.mock('../../api', () => ({
   listPlatformAgencies: vi.fn().mockResolvedValue([
     { id: 1, name: 'NV Best PCA', slug: 'nvbest', status: 'active', userCount: 4, clientCount: 12, createdAt: '2026-01-01T00:00:00Z' },

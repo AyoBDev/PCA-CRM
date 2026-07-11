@@ -22,17 +22,8 @@ export function ToastProvider({ children }) {
     );
 }
 
-const NOOP_TOAST_CTX = {
-    toast: null,
-    showToast: () => {},
-    showUndoToast: () => {},
-    clearToast: () => {},
-};
-
 export function useToast() {
     const ctx = useContext(ToastContext);
-    // Falls back to a no-op implementation outside <ToastProvider> (e.g. unit
-    // tests that render a page in isolation without the app's provider tree).
-    // The real app always wraps in ToastProvider via main.jsx.
-    return ctx || NOOP_TOAST_CTX;
+    if (!ctx) throw new Error('useToast must be used within ToastProvider');
+    return ctx;
 }
