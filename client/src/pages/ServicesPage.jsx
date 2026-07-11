@@ -103,15 +103,19 @@ function ServiceFormModal({ service, onSave, onClose }) {
                 <div className="form-group">
                     <label htmlFor="svcSortOrder">Sort Order</label>
                     <input id="svcSortOrder" type="number" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} placeholder="50" />
+                    <p className="text-muted" style={{ fontSize: 12, marginTop: 4 }}>
+                        Controls display order in service dropdowns and lists (lower shows first). Default 50.
+                    </p>
                 </div>
                 <div className="form-group">
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <label className="checkbox-field" htmlFor="svcEnforceAuthLimit">
                         <input
+                            id="svcEnforceAuthLimit"
                             type="checkbox"
                             checked={enforceAuthLimit}
                             onChange={(e) => setEnforceAuthLimit(e.target.checked)}
                         />
-                        Enforce auth limit
+                        <span>Enforce auth limit</span>
                     </label>
                     <p className="text-muted" style={{ fontSize: 12, marginTop: 4 }}>
                         When off, this service's timesheet section has no authorized-units ceiling (e.g. private-pay).
@@ -230,11 +234,13 @@ export default function ServicesPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
-    // Group by category
-    const grouped = services.reduce((acc, s) => {
-        (acc[s.category] = acc[s.category] || []).push(s);
-        return acc;
-    }, {});
+    // Flat list, sorted by category → sortOrder → code (mirrors the clean
+    // single-grid layout of the Insurance Types page).
+    const sortedServices = [...services].sort((a, b) =>
+        (a.category || '').localeCompare(b.category || '')
+        || (a.sortOrder ?? 50) - (b.sortOrder ?? 50)
+        || (a.code || '').localeCompare(b.code || '')
+    );
 
     return (
         <>
@@ -273,58 +279,55 @@ export default function ServicesPage() {
                         </button>
                     </div>
                 )}
-                {services.length === 0 ? (
-                    <div className="empty-state">
-                        <div className="empty-state__icon">{Icons.fileText}</div>
-                        <div className="empty-state__title">No services yet</div>
-                        <div className="empty-state__desc">Click "Add Service" to create one.</div>
-                    </div>
-                ) : (
-                    Object.entries(grouped).map(([cat, items]) => (
-                        <div key={cat} className="svc-group">
-                            <div className="svc-group__label">{cat}</div>
-                            <div className="it-grid">
-                                {items.map((s) => (
-                                    <div key={s.id} className="it-card">
-                                        <span className="it-card__color" style={{ background: s.color || 'hsl(var(--muted))', width: 14, height: 14, flexShrink: 0 }} title={s.color || ''} />
-                                        <div className="svc-code-badge">{s.code}</div>
-                                        <div className="it-card__info">
-                                            <div className="it-card__name">{s.name || s.code}</div>
-                                            <div className="it-card__hex">
-                                                {s.category} · {s.code}
-                                                {s.timesheetSection && (
-                                                    <span className="badge badge--outline" style={{ marginLeft: 8 }}>{s.timesheetSection}</span>
-                                                )}
-                                                {s.enforceAuthLimit === false && (
-                                                    <span className="badge badge--outline text-muted" style={{ marginLeft: 8 }}>no limit</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="it-card__actions">
-                                            {showArchived ? (
-                                                <div style={{ display: 'flex', gap: 6 }}>
-                                                    <button className="btn btn--restore" onClick={() => handleRestore(s)} title="Restore">
-                                                        {Icons.rotateCcw} Restore
-                                                    </button>
-                                                    <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmPermanentDelete(s)} title="Delete permanently">{Icons.trash}</button>
-                                                </div>
-                                            ) : (
-                                                <>
-                                                    <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'form', service: s })} title="Edit">
-                                                        {Icons.edit}
-                                                    </button>
-                                                    <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDelete', service: s })} title="Delete">
-                                                        {Icons.trash}
-                                                    </button>
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                <div className="it-grid">
+                    {services.length === 0 ? (
+                        <div className="empty-state">
+                            <div className="empty-state__icon">{Icons.fileText}</div>
+                            <div className="empty-state__title">No services yet</div>
+                            <div className="empty-state__desc">Click "Add Service" to create one.</div>
                         </div>
-                    ))
-                )}
+                    ) : (
+                        sortedServices.map((s) => (
+                            <div key={s.id} className="it-card svc-card">
+                                <div className="it-card__info svc-card__info">
+                                    <div className="it-card__name">{s.name || s.code}</div>
+                                    <div className="svc-card__meta">
+                                        <span className="svc-card__code">{s.code}</span>
+                                        <span className="svc-card__cat">{s.category}</span>
+                                    </div>
+                                    <div className="svc-card__chips">
+                                        {s.timesheetSection && (
+                                            <span className="badge badge--outline">{s.timesheetSection}</span>
+                                        )}
+                                        {s.enforceAuthLimit === false && (
+                                            <span className="badge badge--outline text-muted">no limit</span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="it-card__actions">
+                                    {showArchived ? (
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                            <button className="btn btn--restore" onClick={() => handleRestore(s)} title="Restore">
+                                                {Icons.rotateCcw} Restore
+                                            </button>
+                                            <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmPermanentDelete(s)} title="Delete permanently">{Icons.trash}</button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'form', service: s })} title="Edit">
+                                                {Icons.edit}
+                                            </button>
+                                            <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDelete', service: s })} title="Delete">
+                                                {Icons.trash}
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                                <div className="svc-card__strip" style={{ background: s.color || 'hsl(var(--muted))' }} title={s.color || ''} />
+                            </div>
+                        ))
+                    )}
+                </div>
             </div>
 
             {modal?.type === 'form' && (
