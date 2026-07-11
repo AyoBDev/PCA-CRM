@@ -41,6 +41,18 @@ function parseUnits(val) {
 }
 
 async function main() {
+    const slugIdx = process.argv.indexOf('--agency');
+    const slug = slugIdx > -1 ? process.argv[slugIdx + 1] : null;
+    if (!slug) {
+        console.error('Usage: node prisma/import-xlsx.js --agency <slug>');
+        process.exit(1);
+    }
+    const agency = await prisma.agency.findUnique({ where: { slug } });
+    if (!agency) {
+        console.error(`Agency not found: ${slug}`);
+        process.exit(1);
+    }
+
     const wb = XLSX.readFile(FILE);
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true });
@@ -130,8 +142,9 @@ async function main() {
                 clientName: c.clientName,
                 medicaidId: c.medicaidId,
                 insuranceType: c.insuranceType,
+                agencyId: agency.id,
                 authorizations: {
-                    create: auths,
+                    create: auths.map(a => ({ ...a, agencyId: agency.id })),
                 },
             },
         });
