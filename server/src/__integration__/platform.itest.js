@@ -95,3 +95,39 @@ test('tenant backup is scoped; platform backup is full', async () => {
   const full = await platformReq('get', '/api/platform/backup');
   expect(full.status).toBe(200);
 });
+
+test('superadmin renames an agency via PATCH /api/platform/agencies/:id', async () => {
+  const agency = await systemPrisma.agency.findUnique({ where: { slug: 'plat-a' } });
+  const res = await platformReq('patch', `/api/platform/agencies/${agency.id}`)
+    .send({ name: 'Platform A Renamed' });
+  expect(res.status).toBe(200);
+  expect(res.body.name).toBe('Platform A Renamed');
+
+  const updated = await systemPrisma.agency.findUnique({ where: { id: agency.id } });
+  expect(updated.name).toBe('Platform A Renamed');
+
+  const log = await systemPrisma.auditLog.findFirst({
+    where: { entityType: 'Agency', entityId: agency.id, action: 'UPDATE' },
+    orderBy: { createdAt: 'desc' },
+  });
+  expect(log).not.toBeNull();
+  const changes = JSON.parse(log.changes);
+  expect(changes.some((c) => c.field === 'name')).toBe(true);
+});
+
+test('PATCH /api/platform/agencies/:id rejects an empty name', async () => {
+  const agency = await systemPrisma.agency.findUnique({ where: { slug: 'plat-a' } });
+  const res = await platformReq('patch', `/api/platform/agencies/${agency.id}`)
+    .send({ name: '   ' });
+  expect(res.status).toBe(400);
+});
+
+test('non-superadmin cannot rename an agency', async () => {
+  const { createAgencyWithAdmin } = require('./helpers');
+  const t = await createAgencyWithAdmin('plat-tmp2');
+  const res = await request(app).patch(`/api/platform/agencies/${t.agency.id}`)
+    .set('Host', 'localhost').set('Authorization', `Bearer ${t.token}`)
+    .send({ name: 'Hijacked Name' });
+  expect(res.status).toBe(403);
+  await cleanupAgencies(['plat-tmp2']);
+});

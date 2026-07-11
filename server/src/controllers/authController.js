@@ -363,6 +363,12 @@ async function resetPasswordWithToken(req, res, next) {
         if (req.agency && resetToken.agencyId !== req.agency.id) {
             return res.status(400).json({ error: 'Invalid or expired reset link' });
         }
+        // Apex/loopback requests have no resolved agency. An agency user's
+        // token (agencyId set) must not be usable there — only a
+        // superadmin's token (agencyId null) is allowed to redeem on the apex.
+        if (!req.agency && resetToken.agencyId !== null) {
+            return res.status(400).json({ error: 'Invalid or expired reset link' });
+        }
         if (resetToken.usedAt) {
             return res.status(400).json({ error: 'This reset link has already been used' });
         }

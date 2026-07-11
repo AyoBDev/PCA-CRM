@@ -63,8 +63,32 @@ async function createAgency(req, res, next) {
       return { agency, admin };
     }, { timeout: 30000 });
 
+    const { clearAgencyCache } = require('../middleware/resolveAgency');
+    clearAgencyCache();
     auditForAgency(result.agency.id, { userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Agency', entityId: result.agency.id, entityName: result.agency.name, metadata: { slug: cleanSlug, adminEmail: result.admin.email } });
     res.status(201).json({ agency: result.agency, admin: { id: result.admin.id, email: result.admin.email } });
+  } catch (err) { next(err); }
+}
+
+// PATCH /api/platform/agencies/:id — superadmin renames an agency.
+async function updateAgency(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    const { name } = req.body;
+    if (typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'name is required' });
+    }
+    const agency = await prisma.agency.findUnique({ where: { id } });
+    if (!agency) return res.status(404).json({ error: 'Agency not found' });
+    const updated = await prisma.agency.update({ where: { id }, data: { name: name.trim() } });
+    const { clearAgencyCache } = require('../middleware/resolveAgency');
+    clearAgencyCache();
+    auditForAgency(id, {
+      userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+      action: 'UPDATE', entityType: 'Agency', entityId: id, entityName: updated.name,
+      changes: audit.diffFields(agency, updated, ['name']),
+    });
+    res.json(updated);
   } catch (err) { next(err); }
 }
 
@@ -116,4 +140,4 @@ async function agencyInfo(req, res) {
   res.json({ name: req.agency.name, slug: req.agency.slug });
 }
 
-module.exports = { listAgencies, createAgency, suspendAgency: setAgencyStatus('suspended'), reactivateAgency: setAgencyStatus('active'), impersonate, agencyInfo };
+module.exports = { listAgencies, createAgency, updateAgency, suspendAgency: setAgencyStatus('suspended'), reactivateAgency: setAgencyStatus('active'), impersonate, agencyInfo };
