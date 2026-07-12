@@ -211,3 +211,12 @@ New `tenancy` Jest group; the isolation tests are the core deliverable:
 1. **Agency #1 is created inside migration 1 with static values** (`'NV Best PCA'` / `'nvbest'`) rather than reading `NVBEST_AGENCY_NAME`/`NVBEST_AGENCY_SLUG` at migration time — migrations can't read env vars at the point they run in `prisma migrate deploy`. Those two env vars apply only on a fresh database via `seed.js`, and the agency's name is editable afterward from the platform console.
 2. **The lint guard is a Jest test, not an ESLint rule.** `server/src/__tests__/prismaImportGuard.test.js` greps for direct `lib/prisma` imports outside an explicit allowlist and fails the test if it finds one — the server has no ESLint config, and a failing test blocks CI the same way a lint rule would.
 3. **Socket handshake does not re-validate the Origin header against the token's agency** — rooms are agency-scoped and the JWT is required; Origin validation is deferred (CORS layer covers browser origins).
+
+## Addendum (2026-07-12): Platform Host Split — approved during local testing
+
+- **`admin.<BASE_DOMAIN>` hosts the platform console** (reserved slug; no agency can claim it). `resolveAgency` sets `req.isPlatformHost`. Superadmin login and `/api/platform` require it — in production strictly; in dev/test, loopback/apex also count so local flows and suites keep working.
+- **Apex serves a minimal static landing page** (`LandingPage.jsx`: product name, one-liner, contact mailto). No login form on apex.
+- **New public `GET /api/host-info`** → `{ type: 'platform'|'agency'|'landing', agency?: {name, slug} }`; the client renders by host type instead of hostname heuristics (replaces `isApexHost`).
+- **Superadmin credential syncs from env on every boot**: seed updates the single superadmin row's email + password hash from `SUPERADMIN_EMAIL`/`SUPERADMIN_PASSWORD` each run. Rotation = edit env + restart. Production still refuses default credentials.
+- **No forgot-password link on the platform login form** (agency hosts unchanged).
+- **JWT host binding tightened**: superadmin JWTs accepted only on the platform host (production); agency JWTs already rejected there.
