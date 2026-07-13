@@ -57,3 +57,21 @@ describe('rankFiles', () => {
     expect(r.history).toEqual([]);
   });
 });
+
+describe('parseExcelDate', () => {
+  test('decodes Excel serial number to correct date', () => {
+    const d = m.parseExcelDate(46555); // 2027-06-17 per export decode
+    expect(d.getFullYear()).toBe(2027);
+    expect(d.getMonth()).toBe(5);  // June (0-indexed)
+    expect(d.getDate()).toBe(17);
+  });
+  test('parses ISO date string', () => {
+    const d = m.parseExcelDate('2027-06-17');
+    expect(d.getFullYear()).toBe(2027);
+  });
+  test('returns null for blank or invalid', () => {
+    expect(m.parseExcelDate('')).toBeNull();
+    expect(m.parseExcelDate(null)).toBeNull();
+    expect(m.parseExcelDate('not-a-date')).toBeNull();
+  });
+});

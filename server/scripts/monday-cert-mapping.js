@@ -1,5 +1,7 @@
 // server/scripts/monday-cert-mapping.js
 
+const XLSX = require('xlsx');
+
 // Note: the CPR expiration column title in the export has TWO spaces
 // ("Act  Due Date CPR") — copied verbatim from the board.
 const FILE_COLUMN_MAP = [
@@ -30,4 +32,16 @@ function rankFiles(files) {
   return { active: list[0], history: list.slice(1) };
 }
 
-module.exports = { FILE_COLUMN_MAP, MIXED_COLUMN, OTHER_COLUMNS, classifyTrainingFile, rankFiles };
+function parseExcelDate(val) {
+  if (val === undefined || val === null || val === '') return null;
+  if (typeof val === 'number') {
+    const d = XLSX.SSF.parse_date_code(val);
+    return d ? new Date(d.y, d.m - 1, d.d) : null;
+  }
+  const str = String(val).trim();
+  if (!str) return null;
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+module.exports = { FILE_COLUMN_MAP, MIXED_COLUMN, OTHER_COLUMNS, classifyTrainingFile, rankFiles, parseExcelDate };
