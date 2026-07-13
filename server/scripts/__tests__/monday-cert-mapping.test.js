@@ -18,3 +18,18 @@ describe('column maps', () => {
     expect(m.OTHER_COLUMNS).toEqual(['NPPES COPIES', 'NPI']);
   });
 });
+
+describe('classifyTrainingFile', () => {
+  test('routes culture files to cultural_competency', () => {
+    expect(m.classifyTrainingFile('Cult_Connie Harris_2025.pdf')).toBe('cultural_competency');
+    expect(m.classifyTrainingFile('Eloisa Culture.pdf')).toBe('cultural_competency');
+  });
+  test('routes infection files to infection_control', () => {
+    expect(m.classifyTrainingFile('Eloisa Martinez_Infection.pdf')).toBe('infection_control');
+    expect(m.classifyTrainingFile('Tiffany Davenport_Infection.pdf')).toBe('infection_control');
+  });
+  test('routes unmatched files to other', () => {
+    expect(m.classifyTrainingFile('random-cert.pdf')).toBe('other');
+    expect(m.classifyTrainingFile('')).toBe('other');
+  });
+});

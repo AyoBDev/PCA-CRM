@@ -13,4 +13,11 @@ const FILE_COLUMN_MAP = [
 const MIXED_COLUMN = 'TRAINING/CERTIFICATES';
 const OTHER_COLUMNS = ['NPPES COPIES', 'NPI'];
 
-module.exports = { FILE_COLUMN_MAP, MIXED_COLUMN, OTHER_COLUMNS };
+function classifyTrainingFile(fileName) {
+  const n = String(fileName || '').toLowerCase();
+  if (n.includes('cult')) return 'cultural_competency';       // "cult", "culture"
+  if (n.includes('infect')) return 'infection_control';       // "infect", "infection"
+  return 'other';
+}
+
+module.exports = { FILE_COLUMN_MAP, MIXED_COLUMN, OTHER_COLUMNS, classifyTrainingFile };
