@@ -44,4 +44,18 @@ function parseExcelDate(val) {
   return isNaN(d.getTime()) ? null : d;
 }
 
-module.exports = { FILE_COLUMN_MAP, MIXED_COLUMN, OTHER_COLUMNS, classifyTrainingFile, rankFiles, parseExcelDate };
+function matchEmployee(mondayItem, employees) {
+  const name = String(mondayItem.name || '').trim().toLowerCase();
+  const email = String(mondayItem.email || '').trim().toLowerCase();
+  if (name) {
+    const byName = employees.find(e => String(e.name || '').trim().toLowerCase() === name);
+    if (byName) return byName;
+  }
+  if (email) {
+    const byEmail = employees.find(e => String(e.email || '').trim().toLowerCase() === email);
+    if (byEmail) return byEmail;
+  }
+  return null;
+}
+
+module.exports = { FILE_COLUMN_MAP, MIXED_COLUMN, OTHER_COLUMNS, classifyTrainingFile, rankFiles, parseExcelDate, matchEmployee };

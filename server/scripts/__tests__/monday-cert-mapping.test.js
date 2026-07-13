@@ -75,3 +75,19 @@ describe('parseExcelDate', () => {
     expect(m.parseExcelDate('not-a-date')).toBeNull();
   });
 });
+
+describe('matchEmployee', () => {
+  const employees = [
+    { id: 1, name: 'Angela Carpenter', email: 'angelacarpenter906@gmail.com' },
+    { id: 2, name: 'Eloisa Martinez', email: 'eloisa.lol@live.com' },
+  ];
+  test('matches by name case-insensitively', () => {
+    expect(m.matchEmployee({ name: 'angela carpenter', email: '' }, employees).id).toBe(1);
+  });
+  test('falls back to email when name does not match', () => {
+    expect(m.matchEmployee({ name: 'Different Name', email: 'ELOISA.LOL@live.com' }, employees).id).toBe(2);
+  });
+  test('returns null when neither matches', () => {
+    expect(m.matchEmployee({ name: 'Nobody', email: 'nobody@x.com' }, employees)).toBeNull();
+  });
+});
