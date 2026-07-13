@@ -18,6 +18,7 @@ const LANGUAGE_OPTIONS = ['English', 'Spanish', 'French', 'Creole', 'Other'];
 const STEP_LABELS = ['Basic Info', 'Service Needs', 'Case Type', 'Preferences', 'Status'];
 
 const EMPTY = {
+    createdBy: '',
     firstName: '', lastName: '', phone: '', alternatePhone: '', address: '', dob: '', gender: '',
     medicaidId: '', insuranceNumber: '', insuranceType: '',
     referralSource: '', doctorName: '', doctorPhone: '', caseworkerName: '', caseworkerPhone: '',
@@ -36,12 +37,10 @@ function safeArr(v) {
 
 function hydrate(lead) {
     if (!lead) return EMPTY;
-    // Split any "Other: <text>" service entry back into the "Other" checkbox + free text.
     const rawServices = safeArr(lead.servicesRequested);
     const otherEntry = rawServices.find((s) => typeof s === 'string' && s.startsWith('Other:'));
     const services = rawServices.map((s) => (s === otherEntry ? 'Other' : s));
     const otherService = otherEntry ? otherEntry.slice('Other:'.length).trim() : '';
-    // A stored language not in the preset list is treated as a custom "Other" value.
     const storedLang = lead.languagePreference || 'English';
     const isCustomLang = storedLang && !LANGUAGE_OPTIONS.includes(storedLang);
     return {
@@ -79,123 +78,165 @@ function StepBar({ step }) {
     );
 }
 
-function Step1Basic({ form, set, insuranceOptions }) {
+/* ── Colored card block that wraps a group of fields ── */
+function FormCard({ title, children }) {
+    return (
+        <div className="lead-form-card">
+            <div className="lead-form-card__header">{title}</div>
+            <div className="lead-form-card__body">{children}</div>
+        </div>
+    );
+}
+
+function Step1Basic({ form, set, insuranceOptions, users }) {
+    const isEdit = !!form.id;
     return (
         <>
-            <h3 className="lead-step-title">Basic Information</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div className="fld">
-                    <label>First Name <span style={{ color: '#dc2626' }}>*</span></label>
-                    <input className="finput" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} autoFocus />
-                </div>
-                <div className="fld">
-                    <label>Last Name <span style={{ color: '#dc2626' }}>*</span></label>
-                    <input className="finput" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} />
-                </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div className="fld">
-                    <label>Phone</label>
-                    <input className="finput" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
-                </div>
-                <div className="fld">
-                    <label>Alternate Phone</label>
-                    <input className="finput" value={form.alternatePhone} onChange={(e) => set('alternatePhone', e.target.value)} />
-                </div>
-            </div>
-            <div className="fld">
-                <label>Address</label>
-                <input className="finput" value={form.address} onChange={(e) => set('address', e.target.value)} />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div className="fld">
-                    <label>Date of Birth</label>
-                    <input className="finput" type="date" value={form.dob} onChange={(e) => set('dob', e.target.value)} />
-                </div>
-                <div className="fld">
-                    <label>Gender</label>
-                    <select className="finput" value={form.gender} onChange={(e) => set('gender', e.target.value)}>
-                        <option value="">— Select —</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
-                    </select>
-                </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div className="fld">
-                    <label>Medicaid ID</label>
-                    <input className="finput" value={form.medicaidId} onChange={(e) => set('medicaidId', e.target.value)} />
-                </div>
-                <div className="fld">
-                    <label>Insurance Number</label>
-                    <input className="finput" value={form.insuranceNumber} onChange={(e) => set('insuranceNumber', e.target.value)} />
-                </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div className="fld">
-                    <label>Insurance Type</label>
-                    <select className="finput" value={form.insuranceType} onChange={(e) => set('insuranceType', e.target.value)}>
-                        <option value="">— Select —</option>
-                        {insuranceOptions.map((opt) => (
-                            <option key={opt} value={opt}>{opt}</option>
+            {/* Staff attribution — required, shown only on new referrals (edit keeps existing value) */}
+            <FormCard title="Staff Member Entering Lead">
+                <div className="fld" style={{ marginBottom: 0 }}>
+                    <label>
+                        Staff Member / Created By <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    <select
+                        className="finput"
+                        value={form.createdBy}
+                        onChange={(e) => set('createdBy', e.target.value)}
+                        disabled={isEdit}
+                        autoFocus
+                    >
+                        <option value="">— Select staff member —</option>
+                        {users.map((u) => (
+                            <option key={u.id} value={u.name}>{u.name}</option>
                         ))}
                     </select>
+                    {isEdit && (
+                        <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 2 }}>
+                            Recorded at intake — cannot be changed
+                        </span>
+                    )}
                 </div>
-                <div className="fld">
-                    <label>Referral Source</label>
-                    <input className="finput" value={form.referralSource} onChange={(e) => set('referralSource', e.target.value)} placeholder="e.g. Hospital discharge planner" />
-                </div>
-            </div>
+            </FormCard>
 
-            <h3 className="lead-step-title">Doctor / Caseworker</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div className="fld">
-                    <label>Doctor Name</label>
-                    <input className="finput" value={form.doctorName} onChange={(e) => set('doctorName', e.target.value)} />
+            <FormCard title="Basic Information">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="fld">
+                        <label>First Name <span style={{ color: '#dc2626' }}>*</span></label>
+                        <input className="finput" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} />
+                    </div>
+                    <div className="fld">
+                        <label>Last Name <span style={{ color: '#dc2626' }}>*</span></label>
+                        <input className="finput" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} />
+                    </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="fld">
+                        <label>Phone</label>
+                        <input className="finput" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
+                    </div>
+                    <div className="fld">
+                        <label>Alternate Phone</label>
+                        <input className="finput" value={form.alternatePhone} onChange={(e) => set('alternatePhone', e.target.value)} />
+                    </div>
                 </div>
                 <div className="fld">
-                    <label>Doctor Phone</label>
-                    <input className="finput" value={form.doctorPhone} onChange={(e) => set('doctorPhone', e.target.value)} />
+                    <label>Address</label>
+                    <input className="finput" value={form.address} onChange={(e) => set('address', e.target.value)} />
                 </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div className="fld">
-                    <label>Caseworker Name</label>
-                    <input className="finput" value={form.caseworkerName} onChange={(e) => set('caseworkerName', e.target.value)} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="fld">
+                        <label>Date of Birth</label>
+                        <input className="finput" type="date" value={form.dob} onChange={(e) => set('dob', e.target.value)} />
+                    </div>
+                    <div className="fld">
+                        <label>Gender</label>
+                        <select className="finput" value={form.gender} onChange={(e) => set('gender', e.target.value)}>
+                            <option value="">— Select —</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
                 </div>
-                <div className="fld">
-                    <label>Caseworker Phone</label>
-                    <input className="finput" value={form.caseworkerPhone} onChange={(e) => set('caseworkerPhone', e.target.value)} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="fld">
+                        <label>Medicaid ID</label>
+                        <input className="finput" value={form.medicaidId} onChange={(e) => set('medicaidId', e.target.value)} />
+                    </div>
+                    <div className="fld">
+                        <label>Insurance Number</label>
+                        <input className="finput" value={form.insuranceNumber} onChange={(e) => set('insuranceNumber', e.target.value)} />
+                    </div>
                 </div>
-            </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="fld">
+                        <label>Insurance Type</label>
+                        <select className="finput" value={form.insuranceType} onChange={(e) => set('insuranceType', e.target.value)}>
+                            <option value="">— Select —</option>
+                            {insuranceOptions.map((opt) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="fld">
+                        <label>Referral Source</label>
+                        <input className="finput" value={form.referralSource} onChange={(e) => set('referralSource', e.target.value)} placeholder="e.g. Hospital discharge planner" />
+                    </div>
+                </div>
+            </FormCard>
 
-            <h3 className="lead-step-title">Emergency Contact</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div className="fld">
-                    <label>Name</label>
-                    <input className="finput" value={form.emergencyContactName} onChange={(e) => set('emergencyContactName', e.target.value)} />
+            <FormCard title="Doctor / Caseworker">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="fld">
+                        <label>Doctor Name</label>
+                        <input className="finput" value={form.doctorName} onChange={(e) => set('doctorName', e.target.value)} />
+                    </div>
+                    <div className="fld">
+                        <label>Doctor Phone</label>
+                        <input className="finput" value={form.doctorPhone} onChange={(e) => set('doctorPhone', e.target.value)} />
+                    </div>
                 </div>
-                <div className="fld">
-                    <label>Relation</label>
-                    <input className="finput" value={form.emergencyContactRelation} onChange={(e) => set('emergencyContactRelation', e.target.value)} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="fld">
+                        <label>Caseworker Name</label>
+                        <input className="finput" value={form.caseworkerName} onChange={(e) => set('caseworkerName', e.target.value)} />
+                    </div>
+                    <div className="fld">
+                        <label>Caseworker Phone</label>
+                        <input className="finput" value={form.caseworkerPhone} onChange={(e) => set('caseworkerPhone', e.target.value)} />
+                    </div>
                 </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div className="fld">
-                    <label>Phone</label>
-                    <input className="finput" value={form.emergencyContactPhone} onChange={(e) => set('emergencyContactPhone', e.target.value)} />
-                </div>
-                <div className="fld">
-                    <label>Email</label>
-                    <input className="finput" type="email" value={form.emergencyContactEmail} onChange={(e) => set('emergencyContactEmail', e.target.value)} />
-                </div>
-            </div>
+            </FormCard>
 
-            <div className="fld">
-                <label>Call Notes</label>
-                <textarea className="finput" rows={4} value={form.callNotes} onChange={(e) => set('callNotes', e.target.value)} placeholder="Notes from the intake call…" />
-            </div>
+            <FormCard title="Emergency Contact">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="fld">
+                        <label>Name</label>
+                        <input className="finput" value={form.emergencyContactName} onChange={(e) => set('emergencyContactName', e.target.value)} />
+                    </div>
+                    <div className="fld">
+                        <label>Relation</label>
+                        <input className="finput" value={form.emergencyContactRelation} onChange={(e) => set('emergencyContactRelation', e.target.value)} />
+                    </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="fld">
+                        <label>Phone</label>
+                        <input className="finput" value={form.emergencyContactPhone} onChange={(e) => set('emergencyContactPhone', e.target.value)} />
+                    </div>
+                    <div className="fld">
+                        <label>Email</label>
+                        <input className="finput" type="email" value={form.emergencyContactEmail} onChange={(e) => set('emergencyContactEmail', e.target.value)} />
+                    </div>
+                </div>
+            </FormCard>
+
+            <FormCard title="Call Notes">
+                <div className="fld" style={{ marginBottom: 0 }}>
+                    <label>Notes from the intake call</label>
+                    <textarea className="finput" rows={4} value={form.callNotes} onChange={(e) => set('callNotes', e.target.value)} placeholder="Notes from the intake call…" />
+                </div>
+            </FormCard>
         </>
     );
 }
@@ -203,45 +244,49 @@ function Step1Basic({ form, set, insuranceOptions }) {
 function Step2Services({ form, set, toggleArr }) {
     return (
         <>
-            <h3 className="lead-step-title">Service Needs</h3>
-            <div className="fld">
-                <label>Services Requested</label>
-                <div className="chk-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    {SERVICE_OPTIONS.map((opt) => (
-                        <label key={opt} className="chk-item" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <input
-                                type="checkbox"
-                                checked={form.servicesRequested.includes(opt)}
-                                onChange={() => toggleArr('servicesRequested', opt)}
-                            />
-                            <span>{opt}</span>
-                        </label>
-                    ))}
-                </div>
-                {form.servicesRequested.includes('Other') && (
-                    <input
-                        className="finput"
-                        style={{ marginTop: 8 }}
-                        value={form.otherService}
-                        onChange={(e) => set('otherService', e.target.value)}
-                        placeholder="Please specify other service"
-                    />
-                )}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <FormCard title="Services Requested">
                 <div className="fld">
-                    <label>Days per Week</label>
-                    <input className="finput" value={form.daysPerWeek} onChange={(e) => set('daysPerWeek', e.target.value)} placeholder="e.g. 5" />
+                    <label>Select all that apply</label>
+                    <div className="chk-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        {SERVICE_OPTIONS.map((opt) => (
+                            <label key={opt} className="chk-item" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <input
+                                    type="checkbox"
+                                    checked={form.servicesRequested.includes(opt)}
+                                    onChange={() => toggleArr('servicesRequested', opt)}
+                                />
+                                <span>{opt}</span>
+                            </label>
+                        ))}
+                    </div>
+                    {form.servicesRequested.includes('Other') && (
+                        <input
+                            className="finput"
+                            style={{ marginTop: 8 }}
+                            value={form.otherService}
+                            onChange={(e) => set('otherService', e.target.value)}
+                            placeholder="Please specify other service"
+                        />
+                    )}
                 </div>
-                <div className="fld">
-                    <label>Hours per Day</label>
-                    <input className="finput" value={form.hoursPerDay} onChange={(e) => set('hoursPerDay', e.target.value)} placeholder="e.g. 8" />
+            </FormCard>
+
+            <FormCard title="Schedule Details">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="fld">
+                        <label>Days per Week</label>
+                        <input className="finput" value={form.daysPerWeek} onChange={(e) => set('daysPerWeek', e.target.value)} placeholder="e.g. 5" />
+                    </div>
+                    <div className="fld">
+                        <label>Hours per Day</label>
+                        <input className="finput" value={form.hoursPerDay} onChange={(e) => set('hoursPerDay', e.target.value)} placeholder="e.g. 8" />
+                    </div>
                 </div>
-            </div>
-            <div className="fld">
-                <label>Start Date Needed</label>
-                <input className="finput" type="date" value={form.startDateNeeded} onChange={(e) => set('startDateNeeded', e.target.value)} />
-            </div>
+                <div className="fld" style={{ marginBottom: 0 }}>
+                    <label>Start Date Needed</label>
+                    <input className="finput" type="date" value={form.startDateNeeded} onChange={(e) => set('startDateNeeded', e.target.value)} />
+                </div>
+            </FormCard>
         </>
     );
 }
@@ -252,29 +297,30 @@ function Step3CaseType({ form, set }) {
 
     return (
         <>
-            <h3 className="lead-step-title">Case Type</h3>
-            <div className="ctype-cards" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
-                {Object.entries(LEAD_CASE_TYPES).map(([key, meta]) => (
-                    <div
-                        key={key}
-                        className={`ctype-card${form.caseType === key ? ' ctype-card--selected' : ''}`}
-                        onClick={() => set('caseType', key)}
-                        style={{ cursor: 'pointer', border: '1px solid hsl(var(--border))', borderRadius: 8, padding: 12, textAlign: 'center' }}
-                    >
-                        <input
-                            type="radio"
-                            name="caseType"
-                            value={key}
-                            checked={form.caseType === key}
-                            onChange={() => set('caseType', key)}
-                        />
-                        <div className="ctype-card__label">{meta.label}</div>
-                    </div>
-                ))}
-            </div>
+            <FormCard title="Case Type">
+                <div className="ctype-cards" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 0 }}>
+                    {Object.entries(LEAD_CASE_TYPES).map(([key, meta]) => (
+                        <div
+                            key={key}
+                            className={`ctype-card${form.caseType === key ? ' ctype-card--selected' : ''}`}
+                            onClick={() => set('caseType', key)}
+                            style={{ cursor: 'pointer', border: '1px solid hsl(var(--border))', borderRadius: 8, padding: 12, textAlign: 'center' }}
+                        >
+                            <input
+                                type="radio"
+                                name="caseType"
+                                value={key}
+                                checked={form.caseType === key}
+                                onChange={() => set('caseType', key)}
+                            />
+                            <div className="ctype-card__label">{meta.label}</div>
+                        </div>
+                    ))}
+                </div>
+            </FormCard>
 
             {form.caseType === 'initial' && (
-                <div className="ctype-panel ctype-panel--initial">
+                <FormCard title="Initial Case Details">
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                         <div className="fld">
                             <label>Auth Status</label>
@@ -283,16 +329,16 @@ function Step3CaseType({ form, set }) {
                                 {AUTH_STATUS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                             </select>
                         </div>
-                        <div className="fld">
+                        <div className="fld" style={{ marginBottom: 0 }}>
                             <label>Expected Start Date</label>
                             <input className="finput" type="date" value={form.expectedStartDate} onChange={(e) => set('expectedStartDate', e.target.value)} />
                         </div>
                     </div>
-                </div>
+                </FormCard>
             )}
 
             {form.caseType === 'transfer' && (
-                <div className="ctype-panel ctype-panel--transfer">
+                <FormCard title="Transfer Details">
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                         <div className="fld">
                             <label>Current Agency Name</label>
@@ -313,15 +359,15 @@ function Step3CaseType({ form, set }) {
                             <input className="finput" value={form.transferReason} onChange={(e) => set('transferReason', e.target.value)} />
                         </div>
                     </div>
-                    <div className="fld">
+                    <div className="fld" style={{ marginBottom: 0 }}>
                         <label>Transfer Notes</label>
                         <textarea className="finput" rows={3} value={form.transferNotes} onChange={(e) => set('transferNotes', e.target.value)} />
                     </div>
-                </div>
+                </FormCard>
             )}
 
             {form.caseType === 'private' && (
-                <div className="ctype-panel ctype-panel--private">
+                <FormCard title="Private Pay Details">
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                         <div className="fld">
                             <label>Rate ($/hr)</label>
@@ -331,7 +377,7 @@ function Step3CaseType({ form, set }) {
                             <label>Hours per Week</label>
                             <input className="finput" type="number" value={form.ppHoursPerWeek} onChange={(e) => set('ppHoursPerWeek', e.target.value)} />
                         </div>
-                        <div className="fld">
+                        <div className="fld" style={{ marginBottom: 0 }}>
                             <label>Deposit Hours</label>
                             <input className="finput" type="number" value={form.ppDepositHours} onChange={(e) => set('ppDepositHours', e.target.value)} />
                         </div>
@@ -346,7 +392,7 @@ function Step3CaseType({ form, set }) {
                             <strong>${weekly.toFixed(2)}</strong>
                         </div>
                     </div>
-                </div>
+                </FormCard>
             )}
         </>
     );
@@ -355,102 +401,106 @@ function Step3CaseType({ form, set }) {
 function Step4Preferences({ form, set, toggleArr }) {
     return (
         <>
-            <h3 className="lead-step-title">Preferences</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <FormCard title="Caregiver Preferences">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="fld">
+                        <label>Gender Preference</label>
+                        <select className="finput" value={form.genderPreference} onChange={(e) => set('genderPreference', e.target.value)}>
+                            {GENDER_PREF_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                    </div>
+                    <div className="fld" style={{ marginBottom: 0 }}>
+                        <label>Age Preference</label>
+                        <select className="finput" value={form.agePreference} onChange={(e) => set('agePreference', e.target.value)}>
+                            {AGE_PREF_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                    </div>
+                </div>
+
                 <div className="fld">
-                    <label>Gender Preference</label>
-                    <select className="finput" value={form.genderPreference} onChange={(e) => set('genderPreference', e.target.value)}>
-                        {GENDER_PREF_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                    <label>Shift Preferences</label>
+                    <div className="pref-chips" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {SHIFT_OPTIONS.map((opt) => (
+                            <button
+                                type="button"
+                                key={opt}
+                                className={`pref-chip${form.shiftPreferences.includes(opt) ? ' pref-chip--selected' : ''}`}
+                                onClick={() => toggleArr('shiftPreferences', opt)}
+                            >
+                                {opt}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="fld" style={{ marginBottom: 0 }}>
+                    <label>Language Preference</label>
+                    <select className="finput" value={form.languagePreference} onChange={(e) => set('languagePreference', e.target.value)}>
+                        {LANGUAGE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                     </select>
+                    {form.languagePreference === 'Other' && (
+                        <input
+                            className="finput"
+                            style={{ marginTop: 8 }}
+                            value={form.otherLanguage}
+                            onChange={(e) => set('otherLanguage', e.target.value)}
+                            placeholder="Please specify other language"
+                        />
+                    )}
                 </div>
-                <div className="fld">
-                    <label>Age Preference</label>
-                    <select className="finput" value={form.agePreference} onChange={(e) => set('agePreference', e.target.value)}>
-                        {AGE_PREF_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                    </select>
+            </FormCard>
+
+            <FormCard title="Schedule Notes">
+                <div className="fld" style={{ marginBottom: 0 }}>
+                    <label>Additional scheduling notes</label>
+                    <textarea className="finput" rows={4} value={form.scheduleNotes} onChange={(e) => set('scheduleNotes', e.target.value)} />
                 </div>
-            </div>
-
-            <div className="fld">
-                <label>Shift Preferences</label>
-                <div className="pref-chips" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {SHIFT_OPTIONS.map((opt) => (
-                        <button
-                            type="button"
-                            key={opt}
-                            className={`pref-chip${form.shiftPreferences.includes(opt) ? ' pref-chip--selected' : ''}`}
-                            onClick={() => toggleArr('shiftPreferences', opt)}
-                        >
-                            {opt}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            <div className="fld">
-                <label>Language Preference</label>
-                <select className="finput" value={form.languagePreference} onChange={(e) => set('languagePreference', e.target.value)}>
-                    {LANGUAGE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-                {form.languagePreference === 'Other' && (
-                    <input
-                        className="finput"
-                        style={{ marginTop: 8 }}
-                        value={form.otherLanguage}
-                        onChange={(e) => set('otherLanguage', e.target.value)}
-                        placeholder="Please specify other language"
-                    />
-                )}
-            </div>
-
-            <div className="fld">
-                <label>Schedule Notes</label>
-                <textarea className="finput" rows={4} value={form.scheduleNotes} onChange={(e) => set('scheduleNotes', e.target.value)} />
-            </div>
+            </FormCard>
         </>
     );
 }
 
 function Step5Status({ form, set, users }) {
-    // Preserve a legacy free-text value that isn't a current user name.
     const knownName = users.some((u) => u.name === form.assignedTo);
     return (
         <>
-            <h3 className="lead-step-title">Status Routing</h3>
-            <div className="fld">
-                <label>Status</label>
-                <div className="status-list" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {LEAD_STATUSES.map((s) => (
-                        <label
-                            key={s.id}
-                            className={`status-item${form.status === s.id ? ' status-item--selected' : ''}`}
-                            style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1px solid hsl(var(--border))', borderRadius: 8, padding: 10, cursor: 'pointer' }}
-                        >
-                            <input type="radio" name="status" value={s.id} checked={form.status === s.id} onChange={() => set('status', s.id)} />
-                            <span className="status-dot" style={{ width: 10, height: 10, borderRadius: '50%', background: s.dot, display: 'inline-block' }} />
-                            <span style={{ display: 'flex', flexDirection: 'column' }}>
-                                <strong>{s.label}</strong>
-                                <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>{s.hint}</span>
-                            </span>
-                        </label>
-                    ))}
+            <FormCard title="Lead Status">
+                <div className="fld" style={{ marginBottom: 0 }}>
+                    <div className="status-list" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {LEAD_STATUSES.map((s) => (
+                            <label
+                                key={s.id}
+                                className={`status-item${form.status === s.id ? ' status-item--selected' : ''}`}
+                                style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1px solid hsl(var(--border))', borderRadius: 8, padding: 10, cursor: 'pointer' }}
+                            >
+                                <input type="radio" name="status" value={s.id} checked={form.status === s.id} onChange={() => set('status', s.id)} />
+                                <span className="status-dot" style={{ width: 10, height: 10, borderRadius: '50%', background: s.dot, display: 'inline-block' }} />
+                                <span style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <strong>{s.label}</strong>
+                                    <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>{s.hint}</span>
+                                </span>
+                            </label>
+                        ))}
+                    </div>
                 </div>
-            </div>
+            </FormCard>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div className="fld">
-                    <label>Assigned To</label>
-                    <select className="finput" value={form.assignedTo} onChange={(e) => set('assignedTo', e.target.value)}>
-                        <option value="">Unassigned</option>
-                        {form.assignedTo && !knownName && <option value={form.assignedTo}>{form.assignedTo}</option>}
-                        {users.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
-                    </select>
+            <FormCard title="Routing">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="fld">
+                        <label>Assigned To</label>
+                        <select className="finput" value={form.assignedTo} onChange={(e) => set('assignedTo', e.target.value)}>
+                            <option value="">Unassigned</option>
+                            {form.assignedTo && !knownName && <option value={form.assignedTo}>{form.assignedTo}</option>}
+                            {users.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
+                        </select>
+                    </div>
+                    <div className="fld" style={{ marginBottom: 0 }}>
+                        <label>Follow-up Date</label>
+                        <input className="finput" type="date" value={form.followUpDate} onChange={(e) => set('followUpDate', e.target.value)} />
+                    </div>
                 </div>
-                <div className="fld">
-                    <label>Follow-up Date</label>
-                    <input className="finput" type="date" value={form.followUpDate} onChange={(e) => set('followUpDate', e.target.value)} />
-                </div>
-            </div>
+            </FormCard>
         </>
     );
 }
@@ -461,11 +511,13 @@ export default function LeadIntakeWizard({ open = true, initialLead, onClose, on
     const [insuranceTypes, setInsuranceTypes] = useState([]);
     const [users, setUsers] = useState([]);
     const [submitting, setSubmitting] = useState(false);
+    const [step1Error, setStep1Error] = useState('');
 
     useEffect(() => {
         if (open) {
             setStep(1);
             setForm(hydrate(initialLead));
+            setStep1Error('');
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, initialLead]);
@@ -491,8 +543,6 @@ export default function LeadIntakeWizard({ open = true, initialLead, onClose, on
     async function submit() {
         setSubmitting(true);
         try {
-            // Fold the free-text "Other" values into the persisted fields, then drop the
-            // transient helper keys so they aren't sent as unknown Prisma columns.
             const { otherService, otherLanguage, ...rest } = form;
             const services = form.servicesRequested.map((s) =>
                 s === 'Other' && otherService.trim() ? `Other: ${otherService.trim()}` : s
@@ -516,7 +566,14 @@ export default function LeadIntakeWizard({ open = true, initialLead, onClose, on
         }
     }
 
-    const handleNext = () => setStep((s) => Math.min(5, s + 1));
+    function handleNext() {
+        if (step === 1 && !form.id && !form.createdBy) {
+            setStep1Error('Please select the staff member entering this lead.');
+            return;
+        }
+        setStep1Error('');
+        setStep((s) => Math.min(5, s + 1));
+    }
     const handleBack = () => setStep((s) => Math.max(1, s - 1));
 
     return (
@@ -525,12 +582,18 @@ export default function LeadIntakeWizard({ open = true, initialLead, onClose, on
             <StepBar step={step} />
 
             <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: 4 }}>
-                {step === 1 && <Step1Basic form={form} set={set} insuranceOptions={insuranceOptions} />}
+                {step === 1 && <Step1Basic form={form} set={set} insuranceOptions={insuranceOptions} users={users} />}
                 {step === 2 && <Step2Services form={form} set={set} toggleArr={toggleArr} />}
                 {step === 3 && <Step3CaseType form={form} set={set} />}
                 {step === 4 && <Step4Preferences form={form} set={set} toggleArr={toggleArr} />}
                 {step === 5 && <Step5Status form={form} set={set} users={users} />}
             </div>
+
+            {step1Error && (
+                <div style={{ color: '#dc2626', fontSize: 13, marginTop: 8, padding: '6px 10px', background: '#fef2f2', borderRadius: 6, border: '1px solid #fecaca' }}>
+                    {step1Error}
+                </div>
+            )}
 
             <div className="wizard-nav" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
                 <div>

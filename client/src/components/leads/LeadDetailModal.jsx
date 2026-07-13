@@ -20,6 +20,7 @@ function DetRow({ label, value }) {
     );
 }
 
+/* Card-style section with bold dark-blue header banner */
 function DetSection({ title, children }) {
     return (
         <div className="det-section">
@@ -50,6 +51,12 @@ export default function LeadDetailModal({ lead, onClose, onEdit, onArchive, onCo
             </div>
 
             <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: 4 }}>
+                {lead.createdBy && (
+                    <DetSection title="Staff Attribution">
+                        <DetRow label="Entered By" value={lead.createdBy} />
+                    </DetSection>
+                )}
+
                 <DetSection title="Basic Information">
                     <DetRow label="Phone" value={lead.phone} />
                     <DetRow label="Alternate Phone" value={lead.alternatePhone} />
@@ -60,14 +67,20 @@ export default function LeadDetailModal({ lead, onClose, onEdit, onArchive, onCo
                     <DetRow label="Insurance Number" value={lead.insuranceNumber} />
                     <DetRow label="Insurance Type" value={lead.insuranceType} />
                     <DetRow label="Referral Source" value={lead.referralSource} />
+                </DetSection>
+
+                <DetSection title="Doctor / Caseworker">
                     <DetRow label="Doctor" value={lead.doctorName} />
                     <DetRow label="Doctor Phone" value={lead.doctorPhone} />
                     <DetRow label="Caseworker" value={lead.caseworkerName} />
                     <DetRow label="Caseworker Phone" value={lead.caseworkerPhone} />
-                    <DetRow label="Emergency Contact" value={lead.emergencyContactName} />
-                    <DetRow label="Emergency Contact Relation" value={lead.emergencyContactRelation} />
-                    <DetRow label="Emergency Contact Phone" value={lead.emergencyContactPhone} />
-                    <DetRow label="Emergency Contact Email" value={lead.emergencyContactEmail} />
+                </DetSection>
+
+                <DetSection title="Emergency Contact">
+                    <DetRow label="Name" value={lead.emergencyContactName} />
+                    <DetRow label="Relation" value={lead.emergencyContactRelation} />
+                    <DetRow label="Phone" value={lead.emergencyContactPhone} />
+                    <DetRow label="Email" value={lead.emergencyContactEmail} />
                 </DetSection>
 
                 <DetSection title="Services Requested">
