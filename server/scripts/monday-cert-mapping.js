@@ -20,4 +20,14 @@ function classifyTrainingFile(fileName) {
   return 'other';
 }
 
-module.exports = { FILE_COLUMN_MAP, MIXED_COLUMN, OTHER_COLUMNS, classifyTrainingFile };
+function rankFiles(files) {
+  const list = (files || []).slice().sort((a, b) => {
+    const ta = new Date(a.created_at || 0).getTime();
+    const tb = new Date(b.created_at || 0).getTime();
+    return tb - ta; // descending: newest first
+  });
+  if (list.length === 0) return { active: null, history: [] };
+  return { active: list[0], history: list.slice(1) };
+}
+
+module.exports = { FILE_COLUMN_MAP, MIXED_COLUMN, OTHER_COLUMNS, classifyTrainingFile, rankFiles };

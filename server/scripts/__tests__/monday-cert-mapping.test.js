@@ -33,3 +33,27 @@ describe('classifyTrainingFile', () => {
     expect(m.classifyTrainingFile('')).toBe('other');
   });
 });
+
+describe('rankFiles', () => {
+  const files = [
+    { name: 'old.pdf', url: 'u1', created_at: '2023-01-01T00:00:00Z' },
+    { name: 'newest.pdf', url: 'u2', created_at: '2025-06-01T00:00:00Z' },
+    { name: 'mid.pdf', url: 'u3', created_at: '2024-03-01T00:00:00Z' },
+  ];
+  test('newest created_at becomes active', () => {
+    const { active } = m.rankFiles(files);
+    expect(active.name).toBe('newest.pdf');
+  });
+  test('remaining files are history, newest-first', () => {
+    const { history } = m.rankFiles(files);
+    expect(history.map(f => f.name)).toEqual(['mid.pdf', 'old.pdf']);
+  });
+  test('empty list yields null active and empty history', () => {
+    expect(m.rankFiles([])).toEqual({ active: null, history: [] });
+  });
+  test('single file is active with no history', () => {
+    const r = m.rankFiles([files[0]]);
+    expect(r.active.name).toBe('old.pdf');
+    expect(r.history).toEqual([]);
+  });
+});
