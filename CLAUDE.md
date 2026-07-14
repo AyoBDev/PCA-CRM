@@ -170,6 +170,33 @@ undoState.pushAction('Description of action',
 - For bulk operations with batchId: undo = `api.bulkUndo*(batchId)`
 - Skip permanent deletes (irreversible)
 
+### MANDATORY: Undo / Redo / History / Activity on EVERY New Page
+
+**Every new page added to the app MUST wire up all four command-bar features — Undo, Redo, History, and Activity — and they MUST actually work end-to-end.** This is not optional and is not "wire it and move on": before considering a page done, verify each one behaves correctly in the running app, not just that the code compiles.
+
+The four features and how they are satisfied:
+
+| Feature | How it's wired | How to verify it works |
+|---------|----------------|------------------------|
+| **Undo** | `useUndoStack()` + `undoState.pushAction(...)` after every mutation; pass `undoState` to `<GlobalToolbar>` | After a mutation the Undo button ENABLES; clicking it reverses the change in the UI **and** persists the reversal to the DB (call the reverse API inside the undo fn, then update local state) |
+| **Redo** | Provide the third arg to `pushAction` (the redo fn); handled automatically by `useUndoStack` | After an Undo the Redo button ENABLES; clicking it re-applies the change in the UI and DB |
+| **History** | Automatic — the History button links to `/history`; no per-page wiring beyond passing `undoState` | The connected button group renders the History link; the session's undo stack is visible in `HistoryPanel` |
+| **Activity** | Pass `activityEntity="<EntityType>"` to `<GlobalToolbar>`; log audits server-side (see Audit Logging section) | The Activity button opens the drawer and shows this page's audit log entries; new mutations appear there |
+
+**Per-page checklist (all must be true before the page is complete):**
+1. `const undoState = useUndoStack();` declared BEFORE any early returns (React Hook Rule).
+2. **Every** create / update / delete / archive / restore / bulk mutation calls `undoState.pushAction(description, undoFn, redoFn)` on success — no mutation left unwired.
+3. Each `undoFn`/`redoFn` calls the real API to reverse/re-apply the change AND updates local component state, so the UI and DB stay in sync (see `LeadsPage.jsx` `handleMove` / `handleArchive` / `handleSave` for the canonical example).
+4. `<GlobalToolbar ... undoState={undoState} activityEntity="EntityType" />` — both props passed. Only Dashboard may use `hideUndo`.
+5. The controller logs `audit.logAction()` for every mutation, and the new `entityType` is added to `ENTITY_TYPES` in `client/src/pages/HistoryPage.jsx` (so History filters and the Activity drawer resolve it).
+6. **Manually verified in the running app**: perform a mutation → Undo enables → Undo reverses it (UI + DB) → Redo enables → Redo re-applies it. Confirm the Activity drawer shows the entries. A page whose Undo button never enables, or enables but doesn't reverse the change, is NOT done.
+
+Common failure modes to check for:
+- Undo button never enables → `pushAction` not being called (or called before the mutation succeeds).
+- Undo enables but nothing happens on click → the `undoFn` updates local state but skips the reverse API call (or vice-versa), so the change doesn't actually revert.
+- Activity drawer empty → controller isn't calling `audit.logAction()`, or `activityEntity` prop/`entityType` string mismatch.
+- Testing on an empty list/board can make working buttons *look* broken (nothing to act on) — seed a record first before concluding it's broken.
+
 ### Data Flow
 1. Frontend calls `api.js` helper → Express route → controller
 2. Controller calls service layer for business logic
