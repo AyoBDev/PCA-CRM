@@ -449,6 +449,9 @@ model Lead {
   assignedTo               String    @default("") @map("assigned_to")
   followUpDate             DateTime? @map("follow_up_date")
 
+  // Staff attribution
+  createdBy                String    @default("") @map("created_by")
+
   // Conversion linkage
   convertedClientId        Int?      @map("converted_client_id")
   convertedAt              DateTime? @map("converted_at")

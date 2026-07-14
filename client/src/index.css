@@ -14342,6 +14342,12 @@ tr:hover .auth-note-icon--empty {
     margin-bottom: 16px;
 }
 
+/* Fix B — KPI card colour-coded left borders */
+.leads-stats .stats-grid .card:nth-child(1) { border-left: 4px solid hsl(var(--primary)); }
+.leads-stats .stats-grid .card:nth-child(2) { border-left: 4px solid #f97316; }
+.leads-stats .stats-grid .card:nth-child(3) { border-left: 4px solid #eab308; }
+.leads-stats .stats-grid .card:nth-child(4) { border-left: 4px solid #22c55e; }
+
 /* ── Kanban board ── */
 .kanban-wrap {
     padding: 0 24px 24px;
@@ -14364,27 +14370,30 @@ tr:hover .auth-note-icon--empty {
     min-height: 200px;
 }
 
+/* Fix B — solid dark slate-blue kanban column headers */
 .k-col__head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 14px;
-    background: hsl(var(--card));
-    border-bottom: 1px solid hsl(var(--border));
-    border-top: 3px solid hsl(var(--border));
+    padding: 11px 14px;
+    background: hsl(222 47% 22%);
+    border-bottom: none;
+    border-top: 3px solid var(--block-color, hsl(222 47% 28%));
 }
 
 .k-col__title {
-    font-size: 13px;
-    font-weight: 600;
-    color: hsl(var(--foreground));
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .k-col__count {
     font-size: 12px;
-    font-weight: 600;
-    color: hsl(var(--muted-foreground));
-    background: hsl(var(--muted));
+    font-weight: 700;
+    color: hsl(222 47% 22%);
+    background: #fff;
     border-radius: 999px;
     padding: 1px 8px;
     min-width: 20px;
@@ -14690,23 +14699,53 @@ tr:hover .auth-note-icon--empty {
     margin: 4px 0 12px;
 }
 
+/* Fix A — card-style sections with bold dark-blue header banner */
 .det-section {
-    margin-bottom: 16px;
+    margin-bottom: 12px;
+    border: 1px solid hsl(222 30% 78%);
+    border-radius: 8px;
+    overflow: hidden;
 }
 
 .det-section__title {
-    font-size: 13px;
-    font-weight: 600;
-    color: hsl(var(--foreground));
-    padding-bottom: 6px;
-    margin-bottom: 8px;
-    border-bottom: 1px solid hsl(var(--border));
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    background: hsl(222 47% 22%);
+    padding: 8px 14px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
 }
 
 .det-section__body {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 0;
+    background: hsl(var(--card));
+    padding: 4px 14px 4px;
+}
+
+/* ── Intake wizard form card (mirrors det-section style) ── */
+.lead-form-card {
+    margin-bottom: 12px;
+    border: 1px solid hsl(222 30% 78%);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.lead-form-card__header {
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    background: hsl(222 47% 22%);
+    padding: 8px 14px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.lead-form-card__body {
+    background: hsl(var(--card));
+    padding: 14px 14px 14px;
 }
 
 .det-row {
