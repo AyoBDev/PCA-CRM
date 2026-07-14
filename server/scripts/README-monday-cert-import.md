@@ -5,7 +5,7 @@ One-time script to import employee certifications from the Monday board into the
 ## Setup
 1. Generate a read-only Monday API token: Monday → Admin → Developers → My Access Tokens.
 2. Export it: `export MONDAY_API_TOKEN=<token>`
-3. (Optional) `export MONDAY_BOARD_ID=13357748` (default already set).
+3. (Optional) `export MONDAY_BOARD_ID=3544216266` — the "PCA's Employees Certification Updates NEW" board (default already set).
 4. Ensure DB + storage env vars are set exactly as the server uses them
    (`DATABASE_URL`, and `RAILWAY_OBJECT_STORAGE_*` / `RAILWAY_BUCKET_NAME`).
    **There is no local filesystem fallback** — `storage.js` always uploads to S3.

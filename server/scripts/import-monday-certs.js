@@ -6,7 +6,7 @@ const prisma = require('../src/lib/prisma');
 const audit = require('../src/services/auditService');
 const { buildCertPlan, matchEmployee } = require('./monday-cert-mapping');
 
-const BOARD_ID = process.env.MONDAY_BOARD_ID || '13357748';
+const BOARD_ID = process.env.MONDAY_BOARD_ID || '3544216266'; // "PCA's Employees Certification Updates NEW"
 const TOKEN = process.env.MONDAY_API_TOKEN || '';
 const API_URL = 'https://api.monday.com/v2';
 
