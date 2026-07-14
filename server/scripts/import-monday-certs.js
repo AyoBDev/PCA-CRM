@@ -1,6 +1,8 @@
 // server/scripts/import-monday-certs.js
 'use strict';
 
+const { uploadFile } = require('../src/lib/storage');
+
 const BOARD_ID = process.env.MONDAY_BOARD_ID || '13357748';
 const TOKEN = process.env.MONDAY_API_TOKEN || '';
 const API_URL = 'https://api.monday.com/v2';
@@ -92,7 +94,23 @@ async function probe(limit = 3) {
   }
 }
 
-module.exports = { mondayQuery, fetchBoardItems, normalizeItem, filesFromColumnValue, probe };
+// Fetch a Monday public_url and return { buffer, contentType }.
+async function downloadAsset(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Download failed (${res.status}) for ${url}`);
+  const contentType = res.headers.get('content-type') || 'application/octet-stream';
+  const buffer = Buffer.from(await res.arrayBuffer());
+  return { buffer, contentType };
+}
+
+// Upload to bucket key certs/${employeeId}/${certType}/${Date.now()}-${fileName} and return the key.
+async function storeFile(employeeId, certType, fileName, buffer, contentType) {
+  const key = `certs/${employeeId}/${certType}/${Date.now()}-${fileName}`;
+  await uploadFile(key, buffer, contentType);
+  return key;
+}
+
+module.exports = { mondayQuery, fetchBoardItems, normalizeItem, filesFromColumnValue, probe, downloadAsset, storeFile };
 
 if (require.main === module) {
   const args = process.argv.slice(2);
