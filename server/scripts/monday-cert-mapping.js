@@ -32,20 +32,25 @@ function rankFiles(files) {
   return { active: list[0], history: list.slice(1) };
 }
 
+// Parses a Monday/Excel expiration value into a Date at UTC midnight.
+// These are date-ONLY values (a calendar due date, no time-of-day). Anchoring
+// to UTC midnight (Date.UTC) makes the stored DateTime round-trip to the SAME
+// calendar day regardless of the server's timezone — using local midnight would
+// shift the stored day by ±1 in any non-UTC zone (e.g. Africa/Lagos, US/Pacific).
 function parseExcelDate(val) {
   if (val === undefined || val === null || val === '') return null;
   if (typeof val === 'number') {
     const d = XLSX.SSF.parse_date_code(val);
-    return d ? new Date(d.y, d.m - 1, d.d) : null;
+    return d ? new Date(Date.UTC(d.y, d.m - 1, d.d)) : null;
   }
   const str = String(val).trim();
   if (!str) return null;
-  // ISO YYYY-MM-DD → local date (avoids UTC-midnight off-by-one in western timezones)
+  // ISO YYYY-MM-DD → UTC midnight
   const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
-  // M/D/YYYY or M-D-YYYY → local date
+  if (iso) return new Date(Date.UTC(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])));
+  // M/D/YYYY or M-D-YYYY → UTC midnight
   const mdy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-  if (mdy) return new Date(Number(mdy[3]), Number(mdy[1]) - 1, Number(mdy[2]));
+  if (mdy) return new Date(Date.UTC(Number(mdy[3]), Number(mdy[1]) - 1, Number(mdy[2])));
   const d = new Date(str);
   return isNaN(d.getTime()) ? null : d;
 }

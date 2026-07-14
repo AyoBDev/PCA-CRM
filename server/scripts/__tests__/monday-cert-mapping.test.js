@@ -59,27 +59,28 @@ describe('rankFiles', () => {
 });
 
 describe('parseExcelDate', () => {
-  test('decodes Excel serial number to correct date', () => {
+  // Expiration values are date-only and stored as DateTime (UTC) by Prisma.
+  // Assert on UTC components so the stored calendar day is timezone-independent:
+  // 2027-06-17 must persist and read back as 2027-06-17 in ANY server TZ
+  // (Africa/Lagos UTC+1, US/Pacific UTC-7, etc.), not shift to the 16th/18th.
+  test('decodes Excel serial number to correct UTC date', () => {
     const d = m.parseExcelDate(46555); // 2027-06-17 per export decode
-    expect(d.getFullYear()).toBe(2027);
-    expect(d.getMonth()).toBe(5);  // June (0-indexed)
-    expect(d.getDate()).toBe(17);
+    expect(d.getUTCFullYear()).toBe(2027);
+    expect(d.getUTCMonth()).toBe(5);  // June (0-indexed)
+    expect(d.getUTCDate()).toBe(17);
+    expect(d.toISOString().slice(0, 10)).toBe('2027-06-17');
   });
   test('parses ISO date string', () => {
     const d = m.parseExcelDate('2027-06-17');
-    expect(d.getFullYear()).toBe(2027);
+    expect(d.getUTCFullYear()).toBe(2027);
   });
-  test('parses ISO date string to correct LOCAL calendar day (TZ-safe)', () => {
+  test('parses ISO date string to the same UTC calendar day (TZ-safe)', () => {
     const d = m.parseExcelDate('2027-06-17');
-    expect(d.getFullYear()).toBe(2027);
-    expect(d.getMonth()).toBe(5);  // June (0-indexed)
-    expect(d.getDate()).toBe(17);  // must be 17, not 16
+    expect(d.toISOString().slice(0, 10)).toBe('2027-06-17'); // not 06-16 or 06-18
   });
-  test('parses M/D/YYYY date string to correct LOCAL calendar day', () => {
+  test('parses M/D/YYYY date string to the same UTC calendar day', () => {
     const d = m.parseExcelDate('6/17/2027');
-    expect(d.getFullYear()).toBe(2027);
-    expect(d.getMonth()).toBe(5);
-    expect(d.getDate()).toBe(17);
+    expect(d.toISOString().slice(0, 10)).toBe('2027-06-17');
   });
   test('returns null for blank or invalid', () => {
     expect(m.parseExcelDate('')).toBeNull();
