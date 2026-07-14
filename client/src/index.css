@@ -14745,7 +14745,7 @@ tr:hover .auth-note-icon--empty {
 
 .lead-form-card__body {
     background: hsl(var(--card));
-    padding: 14px 14px 2px;
+    padding: 14px 14px 14px;
 }
 
 .det-row {

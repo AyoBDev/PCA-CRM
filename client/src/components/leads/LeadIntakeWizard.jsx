@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Modal from '../common/Modal';
 import * as api from '../../api';
 import * as Icons from '../common/Icons';
+import { useAuth } from '../../hooks/useAuth';
 import { LEAD_STATUSES, LEAD_CASE_TYPES, computeDeposit, computeWeekly } from '../../utils/leadConstants';
 
 const SERVICE_OPTIONS = [
@@ -90,9 +91,11 @@ function FormCard({ title, children }) {
 
 function Step1Basic({ form, set, insuranceOptions, users }) {
     const isEdit = !!form.id;
+    // Preserve a current/legacy value (e.g. logged-in user) that isn't in the users list.
+    const knownStaff = users.some((u) => u.name === form.createdBy);
     return (
         <>
-            {/* Staff attribution — required, shown only on new referrals (edit keeps existing value) */}
+            {/* Staff attribution — auto-filled with the current user; still editable on new referrals. */}
             <FormCard title="Staff Member Entering Lead">
                 <div className="fld" style={{ marginBottom: 0 }}>
                     <label>
@@ -103,16 +106,22 @@ function Step1Basic({ form, set, insuranceOptions, users }) {
                         value={form.createdBy}
                         onChange={(e) => set('createdBy', e.target.value)}
                         disabled={isEdit}
-                        autoFocus
                     >
                         <option value="">— Select staff member —</option>
+                        {form.createdBy && !knownStaff && (
+                            <option value={form.createdBy}>{form.createdBy}</option>
+                        )}
                         {users.map((u) => (
                             <option key={u.id} value={u.name}>{u.name}</option>
                         ))}
                     </select>
-                    {isEdit && (
+                    {isEdit ? (
                         <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 2 }}>
                             Recorded at intake — cannot be changed
+                        </span>
+                    ) : (
+                        <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 2 }}>
+                            Defaults to you — change it if someone else is entering this lead.
                         </span>
                     )}
                 </div>
@@ -122,7 +131,7 @@ function Step1Basic({ form, set, insuranceOptions, users }) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="fld">
                         <label>First Name <span style={{ color: '#dc2626' }}>*</span></label>
-                        <input className="finput" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} />
+                        <input className="finput" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} autoFocus />
                     </div>
                     <div className="fld">
                         <label>Last Name <span style={{ color: '#dc2626' }}>*</span></label>
@@ -506,6 +515,7 @@ function Step5Status({ form, set, users }) {
 }
 
 export default function LeadIntakeWizard({ open = true, initialLead, onClose, onSave }) {
+    const { user } = useAuth();
     const [step, setStep] = useState(1);
     const [form, setForm] = useState(() => hydrate(initialLead));
     const [insuranceTypes, setInsuranceTypes] = useState([]);
@@ -516,11 +526,16 @@ export default function LeadIntakeWizard({ open = true, initialLead, onClose, on
     useEffect(() => {
         if (open) {
             setStep(1);
-            setForm(hydrate(initialLead));
+            const hydrated = hydrate(initialLead);
+            // New referral: default the "entered by" staff name to the logged-in user.
+            if (!initialLead && !hydrated.createdBy && user?.name) {
+                hydrated.createdBy = user.name;
+            }
+            setForm(hydrated);
             setStep1Error('');
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, initialLead]);
+    }, [open, initialLead, user]);
 
     useEffect(() => {
         if (!open) return;
@@ -581,7 +596,7 @@ export default function LeadIntakeWizard({ open = true, initialLead, onClose, on
             <h2 className="modal__title">{initialLead ? 'Edit Referral' : 'New Referral'}</h2>
             <StepBar step={step} />
 
-            <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: 4 }}>
+            <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: 4, paddingBottom: 4 }}>
                 {step === 1 && <Step1Basic form={form} set={set} insuranceOptions={insuranceOptions} users={users} />}
                 {step === 2 && <Step2Services form={form} set={set} toggleArr={toggleArr} />}
                 {step === 3 && <Step3CaseType form={form} set={set} />}
