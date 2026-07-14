@@ -79,9 +79,27 @@ function filesFromColumnValue(rawValue, assets) {
   }).filter(f => f.url);
 }
 
-module.exports = { mondayQuery, fetchBoardItems, normalizeItem, filesFromColumnValue };
+// Fetch board items and print per-column file lists WITHOUT writing anything.
+async function probe(limit = 3) {
+  const items = await fetchBoardItems(BOARD_ID);
+  console.log(`Fetched ${items.length} items. Showing first ${limit}:\n`);
+  for (const it of items.slice(0, limit)) {
+    console.log(`— ${it.name} <${it.email || 'no email'}>`);
+    for (const [title, col] of Object.entries(it.columns)) {
+      const n = col.files.length;
+      if (n) console.log(`    [${title}] ${n} file(s): ${col.files.map(f => `${f.name}@${f.created_at}`).join(', ')}`);
+    }
+  }
+}
+
+module.exports = { mondayQuery, fetchBoardItems, normalizeItem, filesFromColumnValue, probe };
 
 if (require.main === module) {
-  // main() defined in Task 10
-  require('./import-monday-certs').main?.().catch(err => { console.error(err); process.exit(1); });
+  const args = process.argv.slice(2);
+  if (args.includes('--probe')) {
+    probe().catch(err => { console.error(err); process.exit(1); });
+  } else {
+    (require.main && typeof main === 'function' ? main() : Promise.resolve(console.log('Use --probe or --execute')))
+      .catch?.(err => { console.error(err); process.exit(1); });
+  }
 }
