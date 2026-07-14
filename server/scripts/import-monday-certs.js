@@ -2,6 +2,9 @@
 'use strict';
 
 const { uploadFile } = require('../src/lib/storage');
+const prisma = require('../src/lib/prisma');
+const audit = require('../src/services/auditService');
+const { buildCertPlan, matchEmployee } = require('./monday-cert-mapping');
 
 const BOARD_ID = process.env.MONDAY_BOARD_ID || '13357748';
 const TOKEN = process.env.MONDAY_API_TOKEN || '';
@@ -110,14 +113,119 @@ async function storeFile(employeeId, certType, fileName, buffer, contentType) {
   return key;
 }
 
-module.exports = { mondayQuery, fetchBoardItems, normalizeItem, filesFromColumnValue, probe, downloadAsset, storeFile };
+async function processEmployee(item, employees, existingByEmp, execute, report) {
+  const emp = matchEmployee(item, employees);
+  if (!emp) { report.unmatched.push(item.name); return; }
+
+  const plan = buildCertPlan(item.columns);
+  const existingTypes = existingByEmp.get(emp.id) || new Set();
+
+  for (const cert of plan) {
+    if (existingTypes.has(cert.certType)) { report.skipped.push(`${emp.name}/${cert.certType}`); continue; }
+    if (!cert.active) continue;
+
+    report.willCreate.push(`${emp.name}/${cert.certType} (active: ${cert.active.name}, history: ${cert.history.length})`);
+    for (const f of [cert.active, ...cert.history]) {
+      const ext = (f.name.split('.').pop() || '').toLowerCase();
+      if (!['pdf', 'jpg', 'jpeg', 'png', 'heic', 'webp'].includes(ext)) report.nonStandard.push(`${emp.name}/${cert.certType}: ${f.name}`);
+    }
+    if (cert.certType === 'other') report.otherRouted.push(`${emp.name}: ${cert.active.name}`);
+
+    if (!execute) continue;
+
+    // Active file: download, store in bucket AND keep inline bytes for admin download route.
+    const activeDl = await downloadAsset(cert.active.url);
+    const activeKey = await storeFile(emp.id, cert.certType, cert.active.name, activeDl.buffer, activeDl.contentType);
+
+    const created = await prisma.employeeCertification.create({
+      data: {
+        employeeId: emp.id,
+        certType: cert.certType,
+        status: 'active',
+        expirationDate: cert.expirationDate,
+        fileName: cert.active.name,
+        fileSize: activeDl.buffer.length,
+        fileType: activeDl.contentType,
+        fileData: activeDl.buffer,
+        notes: 'Imported from Monday.com',
+        uploads: {
+          create: [{
+            bucketKey: activeKey,
+            fileName: cert.active.name,
+            fileSize: activeDl.buffer.length,
+            fileType: activeDl.contentType,
+            note: 'Active (imported)',
+          }],
+        },
+      },
+    });
+
+    // History files: bucket-only CertificationUpload rows.
+    for (const f of cert.history) {
+      const dl = await downloadAsset(f.url);
+      const key = await storeFile(emp.id, cert.certType, f.name, dl.buffer, dl.contentType);
+      await prisma.certificationUpload.create({
+        data: {
+          certificationId: created.id,
+          bucketKey: key,
+          fileName: f.name,
+          fileSize: dl.buffer.length,
+          fileType: dl.contentType,
+          note: 'History (imported)',
+        },
+      });
+    }
+
+    audit.logAction({
+      userId: 0, userName: 'Monday Import', userRole: 'system',
+      action: 'CREATE', entityType: 'EmployeeCertification', entityId: created.id,
+      entityName: `${cert.certType} - ${emp.name}`, changes: [], metadata: { source: 'monday_import', historyCount: cert.history.length },
+    });
+    report.created++;
+  }
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  const execute = args.includes('--execute');
+  const limitArg = args.indexOf('--limit');
+  const limit = limitArg >= 0 ? Number(args[limitArg + 1]) : Infinity;
+
+  console.log(execute ? '=== EXECUTE MODE (writing) ===' : '=== DRY RUN (no writes; pass --execute to write) ===');
+
+  const employees = await prisma.employee.findMany({ select: { id: true, name: true, email: true } });
+  const existing = await prisma.employeeCertification.findMany({ select: { employeeId: true, certType: true } });
+  const existingByEmp = new Map();
+  for (const c of existing) {
+    if (!existingByEmp.has(c.employeeId)) existingByEmp.set(c.employeeId, new Set());
+    existingByEmp.get(c.employeeId).add(c.certType);
+  }
+
+  let items = await fetchBoardItems(BOARD_ID);
+  if (Number.isFinite(limit)) items = items.slice(0, limit);
+
+  const report = { created: 0, willCreate: [], skipped: [], unmatched: [], otherRouted: [], nonStandard: [] };
+  for (const item of items) {
+    try { await processEmployee(item, employees, existingByEmp, execute, report); }
+    catch (err) { report.unmatched.push(`${item.name} (ERROR: ${err.message})`); }
+  }
+
+  console.log(`\n--- Report ---`);
+  console.log(`Employees processed: ${items.length}`);
+  console.log(`Certs ${execute ? 'created' : 'to create'}: ${execute ? report.created : report.willCreate.length}`);
+  if (report.willCreate.length) console.log(`Planned:\n  ${report.willCreate.join('\n  ')}`);
+  if (report.skipped.length) console.log(`Skipped (already present):\n  ${report.skipped.join('\n  ')}`);
+  if (report.unmatched.length) console.log(`UNMATCHED employees:\n  ${report.unmatched.join('\n  ')}`);
+  if (report.otherRouted.length) console.log(`Routed to 'other':\n  ${report.otherRouted.join('\n  ')}`);
+  if (report.nonStandard.length) console.log(`Non-PDF/image files (stored as-is):\n  ${report.nonStandard.join('\n  ')}`);
+
+  await prisma.$disconnect();
+}
+
+module.exports = { mondayQuery, fetchBoardItems, normalizeItem, filesFromColumnValue, probe, downloadAsset, storeFile, main, processEmployee };
 
 if (require.main === module) {
   const args = process.argv.slice(2);
-  if (args.includes('--probe')) {
-    probe().catch(err => { console.error(err); process.exit(1); });
-  } else {
-    (require.main && typeof main === 'function' ? main() : Promise.resolve(console.log('Use --probe or --execute')))
-      .catch?.(err => { console.error(err); process.exit(1); });
-  }
+  const run = args.includes('--probe') ? probe() : main();
+  run.catch(err => { console.error(err); process.exit(1); });
 }
