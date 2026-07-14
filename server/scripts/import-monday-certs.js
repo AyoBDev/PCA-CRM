@@ -161,19 +161,26 @@ async function processEmployee(item, employees, existingByEmp, execute, report) 
     });
 
     // History files: bucket-only CertificationUpload rows.
-    for (const f of cert.history) {
-      const dl = await downloadAsset(f.url);
-      const key = await storeFile(emp.id, cert.certType, f.name, dl.buffer, dl.contentType);
-      await prisma.certificationUpload.create({
-        data: {
-          certificationId: created.id,
-          bucketKey: key,
-          fileName: f.name,
-          fileSize: dl.buffer.length,
-          fileType: dl.contentType,
-          note: 'History (imported)',
-        },
-      });
+    // Wrapped in its own try/catch — a history download failure must NOT void the
+    // already-committed active cert; surface it as a partial-cert warning instead.
+    try {
+      for (const f of cert.history) {
+        const dl = await downloadAsset(f.url);
+        const key = await storeFile(emp.id, cert.certType, f.name, dl.buffer, dl.contentType);
+        await prisma.certificationUpload.create({
+          data: {
+            certificationId: created.id,
+            bucketKey: key,
+            fileName: f.name,
+            fileSize: dl.buffer.length,
+            fileType: dl.contentType,
+            note: 'History (imported)',
+          },
+        });
+      }
+    } catch (err) {
+      report.partialCerts.push(`${emp.name}/${cert.certType}: active saved but history incomplete (${err.message})`);
+      // continue to next cert — active cert is validly saved and accessible via fileData
     }
 
     audit.logAction({
@@ -204,10 +211,10 @@ async function main() {
   let items = await fetchBoardItems(BOARD_ID);
   if (Number.isFinite(limit)) items = items.slice(0, limit);
 
-  const report = { created: 0, willCreate: [], skipped: [], unmatched: [], otherRouted: [], nonStandard: [] };
+  const report = { created: 0, willCreate: [], skipped: [], unmatched: [], otherRouted: [], nonStandard: [], errors: [], partialCerts: [] };
   for (const item of items) {
     try { await processEmployee(item, employees, existingByEmp, execute, report); }
-    catch (err) { report.unmatched.push(`${item.name} (ERROR: ${err.message})`); }
+    catch (err) { report.errors.push(`${item.name}: ${err.message}`); }
   }
 
   console.log(`\n--- Report ---`);
@@ -218,6 +225,8 @@ async function main() {
   if (report.unmatched.length) console.log(`UNMATCHED employees:\n  ${report.unmatched.join('\n  ')}`);
   if (report.otherRouted.length) console.log(`Routed to 'other':\n  ${report.otherRouted.join('\n  ')}`);
   if (report.nonStandard.length) console.log(`Non-PDF/image files (stored as-is):\n  ${report.nonStandard.join('\n  ')}`);
+  if (report.partialCerts.length) console.log(`PARTIAL CERTS (active saved, history incomplete):\n  ${report.partialCerts.join('\n  ')}`);
+  if (report.errors.length) console.log(`ERRORS (write/download failures — may have left partial data):\n  ${report.errors.join('\n  ')}`);
 
   await prisma.$disconnect();
 }
