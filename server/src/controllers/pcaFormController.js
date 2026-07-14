@@ -63,6 +63,13 @@ function filterByEnabledServices(entry, enabledServices) {
     filtered.respitePcaInitials = '';
     filtered.respiteClientInitials = '';
   }
+  if (!enabledServices.includes('Companion')) {
+    filtered.companionActivities = '{}';
+    filtered.companionTimeIn = null;
+    filtered.companionTimeOut = null;
+    filtered.companionPcaInitials = '';
+    filtered.companionClientInitials = '';
+  }
   return filtered;
 }
 
@@ -152,12 +159,13 @@ async function getPcaForm(req, res, next) {
       }
     }
 
-    // Auto-enable services that have active authorizations for this week
-    for (const svc of Object.keys(authLimits)) {
-      if (!enabledServices.includes(svc)) {
-        enabledServices.push(svc);
-      }
-    }
+    // Restrict enabled services to those the client is actually authorized for
+    // this week. The stored enabledServices field is the admin's on/off toggle,
+    // but a section must NEVER be exposed to the caregiver without a matching
+    // active authorization — otherwise unauthorized hours get entered, leading
+    // to denied claims. Effective = (admin-enabled) ∩ (authorized).
+    const authorizedServices = new Set(Object.keys(authLimits));
+    enabledServices = enabledServices.filter(svc => authorizedServices.has(svc));
 
     // If no timesheet exists yet, return placeholder data without persisting.
     // A real timesheet will only be created when the user saves (PUT).
@@ -280,7 +288,10 @@ async function updatePcaForm(req, res, next) {
     const { action, entries, pcaFullName, pcaSignature, recipientName, recipientSignature } = req.body;
     let enabledServices = JSON.parse(link.client.enabledServices || '["PAS","Homemaker"]');
 
-    // Auto-expand enabledServices from active authorizations (same as GET handler)
+    // Restrict enabledServices to services with an active authorization for this
+    // week (same rule as GET). This is what makes filterByEnabledServices strip
+    // hours entered under a service the client isn't authorized for — preventing
+    // unauthorized (e.g. Homemaker) hours from ever being persisted.
     const weekEnd = new Date(weekStart);
     weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
     const wsMs = Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate());
@@ -289,6 +300,7 @@ async function updatePcaForm(req, res, next) {
       where: { clientId: link.clientId },
       select: { serviceCode: true, serviceName: true, serviceCategory: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true, manualStatus: true, archivedAt: true },
     });
+    const authorizedServices = new Set();
     for (const auth of allAuths) {
       if ((auth.manualStatus || 'active') !== 'active') continue;
       if (auth.archivedAt) continue;
@@ -301,10 +313,9 @@ async function updatePcaForm(req, res, next) {
         if (Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate()) < wsMs) continue;
       }
       const service = deriveTimesheetService(auth);
-      if (service && !enabledServices.includes(service)) {
-        enabledServices.push(service);
-      }
+      if (service) authorizedServices.add(service);
     }
+    enabledServices = enabledServices.filter(svc => authorizedServices.has(svc));
 
     // Validate on submit
     if (action === 'submit') {
