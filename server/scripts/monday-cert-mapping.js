@@ -40,6 +40,12 @@ function parseExcelDate(val) {
   }
   const str = String(val).trim();
   if (!str) return null;
+  // ISO YYYY-MM-DD → local date (avoids UTC-midnight off-by-one in western timezones)
+  const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  // M/D/YYYY or M-D-YYYY → local date
+  const mdy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (mdy) return new Date(Number(mdy[3]), Number(mdy[1]) - 1, Number(mdy[2]));
   const d = new Date(str);
   return isNaN(d.getTime()) ? null : d;
 }

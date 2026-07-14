@@ -69,9 +69,22 @@ describe('parseExcelDate', () => {
     const d = m.parseExcelDate('2027-06-17');
     expect(d.getFullYear()).toBe(2027);
   });
+  test('parses ISO date string to correct LOCAL calendar day (TZ-safe)', () => {
+    const d = m.parseExcelDate('2027-06-17');
+    expect(d.getFullYear()).toBe(2027);
+    expect(d.getMonth()).toBe(5);  // June (0-indexed)
+    expect(d.getDate()).toBe(17);  // must be 17, not 16
+  });
+  test('parses M/D/YYYY date string to correct LOCAL calendar day', () => {
+    const d = m.parseExcelDate('6/17/2027');
+    expect(d.getFullYear()).toBe(2027);
+    expect(d.getMonth()).toBe(5);
+    expect(d.getDate()).toBe(17);
+  });
   test('returns null for blank or invalid', () => {
     expect(m.parseExcelDate('')).toBeNull();
     expect(m.parseExcelDate(null)).toBeNull();
+    expect(m.parseExcelDate(undefined)).toBeNull();
     expect(m.parseExcelDate('not-a-date')).toBeNull();
   });
 });

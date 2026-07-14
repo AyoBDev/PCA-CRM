@@ -17,6 +17,7 @@ async function mondayQuery(query, variables = {}) {
     headers: { 'Content-Type': 'application/json', Authorization: TOKEN, 'API-Version': '2024-01' },
     body: JSON.stringify({ query, variables }),
   });
+  if (!res.ok) throw new Error('Monday API HTTP ' + res.status + ' ' + res.statusText);
   const json = await res.json();
   if (json.errors) throw new Error('Monday API error: ' + JSON.stringify(json.errors));
   return json.data;
@@ -93,6 +94,12 @@ async function probe(limit = 3) {
     for (const [title, col] of Object.entries(it.columns)) {
       const n = col.files.length;
       if (n) console.log(`    [${title}] ${n} file(s): ${col.files.map(f => `${f.name}@${f.created_at}`).join(', ')}`);
+    }
+  }
+  if (items.length > 0) {
+    const totalFiles = items.reduce((sum, it) => sum + Object.values(it.columns).reduce((s, col) => s + col.files.length, 0), 0);
+    if (totalFiles === 0) {
+      console.log(`\n⚠️  WARNING: Fetched ${items.length} items but resolved 0 files. filesFromColumnValue is likely parsing the Monday file-column shape incorrectly. DO NOT run --execute until this is fixed.\n`);
     }
   }
 }
@@ -196,7 +203,12 @@ async function main() {
   const args = process.argv.slice(2);
   const execute = args.includes('--execute');
   const limitArg = args.indexOf('--limit');
-  const limit = limitArg >= 0 ? Number(args[limitArg + 1]) : Infinity;
+  let limit = Infinity;
+  if (limitArg >= 0) {
+    const parsed = Number(args[limitArg + 1]);
+    if (isNaN(parsed) || parsed < 1) throw new Error('--limit requires a positive integer, got: ' + args[limitArg + 1]);
+    limit = parsed;
+  }
 
   console.log(execute ? '=== EXECUTE MODE (writing) ===' : '=== DRY RUN (no writes; pass --execute to write) ===');
 
