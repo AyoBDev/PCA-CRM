@@ -56,8 +56,19 @@ const sampleTimesheet = {
   ],
 };
 
+// Default authorization set matching activeLink.client.enabledServices
+// (PAS + Homemaker + Respite). Sections are only exposed to the caregiver when
+// backed by an active authorization, so tests that exercise those sections need
+// the matching auths present. Individual tests override this as needed.
+const defaultAuths = [
+  { serviceCode: 'PCS', serviceName: 'Personal Care Services', serviceCategory: 'PAS', authorizedUnits: 400, authorizationStartDate: null, authorizationEndDate: null, manualStatus: 'active', archivedAt: null },
+  { serviceCode: 'S5130', serviceName: 'Homemaker', serviceCategory: 'Homemaker', authorizedUnits: 400, authorizationStartDate: null, authorizationEndDate: null, manualStatus: 'active', archivedAt: null },
+  { serviceCode: 'S5150', serviceName: 'Respite', serviceCategory: 'Respite', authorizedUnits: 400, authorizationStartDate: null, authorizationEndDate: null, manualStatus: 'active', archivedAt: null },
+];
+
 beforeEach(() => {
   jest.clearAllMocks();
+  prisma.authorization.findMany.mockResolvedValue(defaultAuths);
 });
 
 // ────────────────────────────────────────────────────────────────────────────────
@@ -501,6 +512,96 @@ describe('updatePcaForm submit', () => {
     expect(call.timesheet).toEqual(updatedTimesheet);
     expect(call.client).toBeDefined();
     expect(call.authLimits).toBeDefined();
+  });
+
+  test('strips hours for a section the client is NOT authorized for, even if enabledServices includes it', async () => {
+    // Client's stored enabledServices still lists Homemaker (stale default),
+    // but the client has ONLY a PAS authorization for this week.
+    prisma.permanentLink.findUnique.mockResolvedValue({
+      ...activeLink,
+      client: { ...activeLink.client, enabledServices: '["PAS","Homemaker"]' },
+    });
+    prisma.authorization.findMany.mockResolvedValue([
+      {
+        serviceCode: 'PCS',
+        serviceName: 'Personal Care Services',
+        serviceCategory: 'PAS',
+        authorizedUnits: 400,
+        authorizationStartDate: null,
+        authorizationEndDate: null,
+        manualStatus: 'active',
+        archivedAt: null,
+      },
+    ]);
+
+    const { req, res, next } = mockReqRes({
+      params: { token: 'test-token' },
+      body: {
+        action: 'save',
+        entries: [
+          {
+            id: 1,
+            dayOfWeek: 0,
+            adlActivities: '{"Bathing":true}',
+            adlTimeIn: '08:00',
+            adlTimeOut: '10:00',
+            adlPcaInitials: 'JD',
+            adlClientInitials: 'JC',
+            // Homemaker hours entered even though there is no HM authorization
+            iadlActivities: '{"Laundry":true}',
+            iadlTimeIn: '10:00',
+            iadlTimeOut: '12:00',
+            iadlPcaInitials: 'JD',
+            iadlClientInitials: 'JC',
+            respiteActivities: '{}',
+            respiteTimeIn: null,
+            respiteTimeOut: null,
+            respitePcaInitials: '',
+            respiteClientInitials: '',
+          },
+        ],
+      },
+    });
+
+    await updatePcaForm(req, res, next);
+
+    // The Homemaker (iadl) section must be zeroed out because there is no HM auth.
+    expect(prisma.timesheetEntry.update).toHaveBeenCalledTimes(1);
+    const saved = prisma.timesheetEntry.update.mock.calls[0][0].data;
+    expect(saved.iadlActivities).toBe('{}');
+    expect(saved.iadlTimeIn).toBeNull();
+    expect(saved.iadlTimeOut).toBeNull();
+    expect(saved.iadlHours).toBe(0);
+    // PAS (adl) is authorized — must be preserved.
+    expect(saved.adlActivities).toBe('{"Bathing":true}');
+    expect(saved.adlTimeIn).toBe('08:00');
+  });
+
+  test('GET restricts enabledServices to authorized sections (PAS-only client does not expose Homemaker)', async () => {
+    prisma.permanentLink.findUnique.mockResolvedValue({
+      ...activeLink,
+      client: { ...activeLink.client, enabledServices: '["PAS","Homemaker"]' },
+    });
+    prisma.authorization.findMany.mockResolvedValue([
+      {
+        serviceCode: 'PCS',
+        serviceName: 'Personal Care Services',
+        serviceCategory: 'PAS',
+        authorizedUnits: 400,
+        authorizationStartDate: null,
+        authorizationEndDate: null,
+        manualStatus: 'active',
+        archivedAt: null,
+      },
+    ]);
+    prisma.timesheet.findFirst.mockResolvedValue(sampleTimesheet);
+
+    const { req, res, next } = mockReqRes({ params: { token: 'test-token' } });
+    await getPcaForm(req, res, next);
+
+    const call = res.json.mock.calls[0][0];
+    expect(call.client.enabledServices).toContain('PAS');
+    expect(call.client.enabledServices).not.toContain('Homemaker');
   });
 
   test('filters out disabled services before validation — Homemaker/Respite overlap ignored when Respite not enabled', async () => {

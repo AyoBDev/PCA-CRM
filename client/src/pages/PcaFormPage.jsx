@@ -333,10 +333,14 @@ export default function PcaFormPage() {
     const iadlHrs = (e) => totalHoursWithBlocks(e, 'iadl');
     const respiteHrs = (e) => totalHoursWithBlocks(e, 'respite');
     const companionHrs = (e) => totalHoursWithBlocks(e, 'companion');
-    const totalPas = entries.reduce((s, e) => s + adlHrs(e), 0);
-    const totalHm = entries.reduce((s, e) => s + iadlHrs(e), 0);
-    const totalRespite = entries.reduce((s, e) => s + respiteHrs(e), 0);
-    const totalCompanion = entries.reduce((s, e) => s + companionHrs(e), 0);
+    // Only count a section toward the totals when it is enabled (i.e. the client
+    // is authorized for it). Otherwise stale hours stored under a now-disabled
+    // section (e.g. Homemaker hours entered before the service was removed) would
+    // silently inflate the weekly total while their column is hidden.
+    const totalPas = pasEnabled ? entries.reduce((s, e) => s + adlHrs(e), 0) : 0;
+    const totalHm = hmEnabled ? entries.reduce((s, e) => s + iadlHrs(e), 0) : 0;
+    const totalRespite = respiteEnabled ? entries.reduce((s, e) => s + respiteHrs(e), 0) : 0;
+    const totalCompanion = companionEnabled ? entries.reduce((s, e) => s + companionHrs(e), 0) : 0;
     const totalAll = totalPas + totalHm + totalRespite + totalCompanion;
 
     const dailyHoursFns = useMemo(() => ({
