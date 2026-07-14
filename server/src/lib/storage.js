@@ -1,7 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const LOCAL_DIR = path.join(__dirname, '..', '..', 'uploads', 'certs');
+// Keys already carry their own prefix (e.g. "certs/<id>/..."), so LOCAL_DIR is
+// the uploads root — joining with the key yields server/uploads/certs/... (no doubling).
+const LOCAL_DIR = path.join(__dirname, '..', '..', 'uploads');
 
 const isS3 = Boolean(process.env.RAILWAY_OBJECT_STORAGE_ENDPOINT);
 

@@ -3,22 +3,21 @@
 const fs = require('fs');
 const path = require('path');
 
-// LOCAL_DIR as defined in storage.js: path.join(__dirname, '..', '..', 'uploads', 'certs')
-// storage.js __dirname = server/src/lib
-// LOCAL_DIR = server/src/lib/../../uploads/certs = server/uploads/certs
-// From this test file: server/src/lib/__tests__ → go up 3 to reach server/ → uploads/certs
+// LOCAL_DIR as defined in storage.js: path.join(__dirname, '..', '..', 'uploads')
+// storage.js __dirname = server/src/lib → LOCAL_DIR = server/uploads
+// The key carries its own 'certs/' prefix, so a write lands at server/uploads/certs/...
+// From this test file: server/src/lib/__tests__ → go up 3 to reach server/ → uploads
 const LOCAL_DIR = path.join(
   __dirname,            // server/src/lib/__tests__
   '..', '..', '..', // up to server/
-  'uploads', 'certs'
+  'uploads'
 );
 
 const TEST_KEY = 'certs/1/tb_test/123-a.pdf';
-const TEST_KEY_PATH = path.join(LOCAL_DIR, TEST_KEY);
+const TEST_KEY_PATH = path.join(LOCAL_DIR, TEST_KEY); // server/uploads/certs/1/tb_test/123-a.pdf
 
 afterEach(() => {
-  // Clean up any files written during local-mode tests
-  // Remove the created subtree: certs/1/
+  // Clean up any files written during local-mode tests — remove the created certs/ subtree
   const subtree = path.join(LOCAL_DIR, 'certs');
   if (fs.existsSync(subtree)) {
     fs.rmSync(subtree, { recursive: true, force: true });
