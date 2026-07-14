@@ -91,3 +91,45 @@ describe('matchEmployee', () => {
     expect(m.matchEmployee({ name: 'Nobody', email: 'nobody@x.com' }, employees)).toBeNull();
   });
 });
+
+describe('buildCertPlan', () => {
+  const columns = {
+    'TB/FILES': { files: [
+      { name: 'tb-old.pdf', url: 'a', created_at: '2023-01-01T00:00:00Z' },
+      { name: 'tb-new.pdf', url: 'b', created_at: '2025-01-01T00:00:00Z' },
+    ], value: 46555 },
+    'Act Due TB/TB screening': { files: [], value: 46555 },
+    'TRAINING/CERTIFICATES': { files: [
+      { name: 'Cult_2025.pdf', url: 'c', created_at: '2025-02-01T00:00:00Z' },
+      { name: 'Infection.pdf', url: 'd', created_at: '2024-02-01T00:00:00Z' },
+    ], value: null },
+    'NPI': { files: [{ name: 'npi.pdf', url: 'e', created_at: '2022-01-01T00:00:00Z' }], value: null },
+  };
+
+  test('produces tb_test with newest active and older history', () => {
+    const plan = m.buildCertPlan(columns);
+    const tb = plan.find(p => p.certType === 'tb_test');
+    expect(tb.active.name).toBe('tb-new.pdf');
+    expect(tb.history.map(f => f.name)).toEqual(['tb-old.pdf']);
+    expect(tb.expirationDate.getFullYear()).toBe(2027); // 46555
+  });
+
+  test('splits mixed training column into cultural and infection', () => {
+    const plan = m.buildCertPlan(columns);
+    expect(plan.find(p => p.certType === 'cultural_competency').active.name).toBe('Cult_2025.pdf');
+    expect(plan.find(p => p.certType === 'infection_control').active.name).toBe('Infection.pdf');
+    expect(plan.find(p => p.certType === 'cultural_competency').expirationDate).toBeNull();
+  });
+
+  test('folds NPI into other with null expiration', () => {
+    const plan = m.buildCertPlan(columns);
+    const other = plan.find(p => p.certType === 'other');
+    expect(other.active.name).toBe('npi.pdf');
+    expect(other.expirationDate).toBeNull();
+  });
+
+  test('omits cert types with no files', () => {
+    const plan = m.buildCertPlan({ 'CPR/FILES': { files: [], value: 46929 } });
+    expect(plan.find(p => p.certType === 'cpr')).toBeUndefined();
+  });
+});

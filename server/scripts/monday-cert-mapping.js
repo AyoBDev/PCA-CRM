@@ -58,4 +58,45 @@ function matchEmployee(mondayItem, employees) {
   return null;
 }
 
-module.exports = { FILE_COLUMN_MAP, MIXED_COLUMN, OTHER_COLUMNS, classifyTrainingFile, rankFiles, parseExcelDate, matchEmployee };
+function buildCertPlan(columns) {
+  const cols = columns || {};
+  const getFiles = (title) => (cols[title] && cols[title].files) || [];
+  const getValue = (title) => (cols[title] ? cols[title].value : null);
+
+  // certType -> { files: [], expirationDate }
+  const buckets = {};
+  const ensure = (certType, expirationDate) => {
+    if (!buckets[certType]) buckets[certType] = { files: [], expirationDate: expirationDate ?? null };
+    return buckets[certType];
+  };
+
+  // Fixed columns
+  for (const entry of FILE_COLUMN_MAP) {
+    const files = getFiles(entry.column);
+    if (!files.length) continue;
+    const exp = entry.expirationColumn ? parseExcelDate(getValue(entry.expirationColumn)) : null;
+    const b = ensure(entry.certType, exp);
+    b.files.push(...files);
+  }
+
+  // Mixed training column -> split by filename
+  for (const f of getFiles(MIXED_COLUMN)) {
+    const certType = classifyTrainingFile(f.name);
+    ensure(certType, null).files.push(f);
+  }
+
+  // NPPES / NPI -> other
+  for (const col of OTHER_COLUMNS) {
+    for (const f of getFiles(col)) ensure('other', null).files.push(f);
+  }
+
+  // Rank each bucket
+  return Object.entries(buckets)
+    .map(([certType, b]) => {
+      const { active, history } = rankFiles(b.files);
+      return { certType, expirationDate: b.expirationDate, active, history };
+    })
+    .filter(p => p.active); // omit empty cert types
+}
+
+module.exports = { FILE_COLUMN_MAP, MIXED_COLUMN, OTHER_COLUMNS, classifyTrainingFile, rankFiles, parseExcelDate, matchEmployee, buildCertPlan };
