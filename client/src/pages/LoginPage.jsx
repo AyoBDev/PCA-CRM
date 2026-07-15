@@ -2,33 +2,19 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icons from '../components/common/Icons';
 import { useAuth } from '../hooks/useAuth';
-import { getAgencyInfo } from '../api';
-
-// Apex/platform domain heuristic: localhost, IPs, and bare two-label domains
-// (e.g. "pcalink.com") are the apex; anything with an extra subdomain label
-// (e.g. "acme.pcalink.com", "acme.localhost") is agency-scoped. This mirrors
-// resolveAgency's server-side loopback/apex handling without needing a
-// client-side BASE_DOMAIN env var.
-function isApexHost(hostname) {
-    if (!hostname) return true;
-    const host = hostname.toLowerCase();
-    if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]') return true;
-    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return true;
-    const labels = host.split('.');
-    return labels.length <= 2;
-}
+import { getHostInfo } from '../api';
+import LandingPage from './LandingPage';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [agencyChecking, setAgencyChecking] = useState(true);
+    const [hostChecking, setHostChecking] = useState(true);
+    const [hostType, setHostType] = useState('agency'); // 'platform' | 'agency' | 'landing'
     const [agencyName, setAgencyName] = useState('');
-    const [agencyNotFound, setAgencyNotFound] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
-    const onApex = isApexHost(typeof window !== 'undefined' ? window.location.hostname : '');
 
     useEffect(() => {
         const notice = sessionStorage.getItem('login_notice');
@@ -40,22 +26,24 @@ export default function LoginPage() {
 
     useEffect(() => {
         let cancelled = false;
-        getAgencyInfo()
+        getHostInfo()
             .then((info) => {
                 if (cancelled) return;
-                setAgencyName(info.name);
-            })
-            .catch((err) => {
-                if (cancelled) return;
-                if (err.status === 404 && !onApex) {
-                    setAgencyNotFound(true);
+                setHostType(info.type);
+                if (info.type === 'agency' && info.agency) {
+                    setAgencyName(info.agency.name);
                 }
-                // 404 on the apex domain is expected (no agency there) —
-                // the platform login form renders in that case.
             })
-            .finally(() => { if (!cancelled) setAgencyChecking(false); });
+            .catch(() => {
+                // Fetch failure (network error, etc.) falls back to the
+                // agency-style login form so the page still renders something
+                // usable rather than getting stuck or blank.
+                if (cancelled) return;
+                setHostType('agency');
+            })
+            .finally(() => { if (!cancelled) setHostChecking(false); });
         return () => { cancelled = true; };
-    }, [onApex]);
+    }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -73,21 +61,8 @@ export default function LoginPage() {
         }
     };
 
-    if (!agencyChecking && agencyNotFound) {
-        return (
-            <div className="login-page">
-                <div className="login-card">
-                    <div className="login-card__header">
-                        <div className="login-card__logo">{Icons.alertCircle}</div>
-                        <h1 className="login-card__title">Agency Not Found</h1>
-                    </div>
-                    <div className="login-error">
-                        {Icons.alertCircle}
-                        <span>No agency exists at this address. Check the web address or contact support.</span>
-                    </div>
-                </div>
-            </div>
-        );
+    if (!hostChecking && hostType === 'landing') {
+        return <LandingPage />;
     }
 
     return (
@@ -96,7 +71,9 @@ export default function LoginPage() {
                 <div className="login-card__header">
                     <div className="login-card__logo">{Icons.shieldCheck}</div>
                     <h1 className="login-card__title">PCAlink</h1>
-                    <p className="login-card__subtitle">{agencyName || 'Service Delivery Platform'}</p>
+                    <p className="login-card__subtitle">
+                        {hostType === 'platform' ? 'Platform Console' : (agencyName || 'Service Delivery Platform')}
+                    </p>
                 </div>
                 <form onSubmit={handleSubmit} className="login-card__form">
                     {error && (
@@ -106,21 +83,23 @@ export default function LoginPage() {
                         </div>
                     )}
                     <div className="form-group">
-                        <label>Email</label>
-                        <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setError(''); }} placeholder="Enter your email" autoFocus required />
+                        <label htmlFor="login-email">Email</label>
+                        <input id="login-email" type="email" value={email} onChange={(e) => { setEmail(e.target.value); setError(''); }} placeholder="Enter your email" autoFocus required />
                     </div>
                     <div className="form-group">
-                        <label>Password</label>
-                        <input type="password" value={password} onChange={(e) => { setPassword(e.target.value); setError(''); }} placeholder="Enter your password" required />
+                        <label htmlFor="login-password">Password</label>
+                        <input id="login-password" type="password" value={password} onChange={(e) => { setPassword(e.target.value); setError(''); }} placeholder="Enter your password" required />
                     </div>
                     <button type="submit" className="btn btn--primary" style={{ width: '100%', marginTop: 8 }} disabled={loading}>
                         {loading ? 'Signing in...' : 'Sign In'}
                     </button>
-                    <div style={{ textAlign: 'center', marginTop: 16 }}>
-                        <a href="/forgot-password" className="login-forgot-link" onClick={(e) => { e.preventDefault(); navigate('/forgot-password'); }}>
-                            Forgot your password?
-                        </a>
-                    </div>
+                    {hostType !== 'platform' && (
+                        <div style={{ textAlign: 'center', marginTop: 16 }}>
+                            <a href="/forgot-password" className="login-forgot-link" onClick={(e) => { e.preventDefault(); navigate('/forgot-password'); }}>
+                                Forgot your password?
+                            </a>
+                        </div>
+                    )}
                 </form>
             </div>
         </div>

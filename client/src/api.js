@@ -856,3 +856,16 @@ export const getAgencyInfo = () =>
         }
         return res.json();
     });
+
+// ── Host Info (public — tells the client what kind of host it's on:
+// platform console, agency login, or the public landing page) ──
+export const getHostInfo = () =>
+    fetch(`${BASE}/host-info`).then(async (res) => {
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            const err = new Error(body.error || `HTTP ${res.status}`);
+            err.status = res.status;
+            throw err;
+        }
+        return res.json();
+    });

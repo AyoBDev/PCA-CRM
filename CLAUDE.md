@@ -8,7 +8,7 @@ Full-stack web app for a PCA (Personal Care Attendant) agency to manage client a
 ## Tech Stack
 - **Frontend**: React 19 + Vite, page-per-file under `client/src/pages/`
 - **Backend**: Express.js + Prisma ORM + PostgreSQL
-- **Auth**: JWT with role-based access (`superadmin` / `admin` / `user` / `pca`). JWTs carry `agencyId` + `agencySlug` and only work on that agency's subdomain — a token minted on `nvbest.<BASE_DOMAIN>` is rejected on any other agency's subdomain.
+- **Auth**: JWT with role-based access (`superadmin` / `admin` / `user` / `pca`). JWTs carry `agencyId` + `agencySlug` and only work on that agency's subdomain — a token minted on `nvbest.<BASE_DOMAIN>` is rejected on any other agency's subdomain. The platform console lives at `admin.<BASE_DOMAIN>` (reserved slug — no agency can claim it); superadmin login and all `/api/platform` routes require that host in production. The apex domain (`<BASE_DOMAIN>`) serves a public landing page, not a login form — `LoginPage.jsx` calls `GET /api/host-info` on mount and renders the platform login, the agency login, or `LandingPage.jsx` accordingly.
 - **Multi-tenancy**: every agency's data lives in the same database, isolated by Postgres Row-Level Security keyed on `agency_id`. See the Backend Structure section below for `tenantPrisma.js` / `tenantContext.js` / `resolveAgency.js` / `tenantMiddleware.js`.
 - **Styling**: Custom CSS (`client/src/index.css`) using shadcn/ui zinc design tokens
 
@@ -21,7 +21,7 @@ cd client && npm run dev          # Start Vite dev server (port 5173, proxies /a
 # Database
 cd server && npx prisma migrate dev --name <name>   # Create + apply migration
 cd server && node prisma/setup-app-role.js          # Provision/refresh the RLS-constrained app_user DB role (needs APP_DB_PASSWORD)
-cd server && npm run db:seed                         # Seed default agency + superadmin + admin (uses ADMIN_EMAIL/ADMIN_PASSWORD, SUPERADMIN_EMAIL/SUPERADMIN_PASSWORD, NVBEST_AGENCY_NAME/NVBEST_AGENCY_SLUG env vars)
+cd server && npm run db:seed                         # Seed default agency + admin; superadmin credentials synced from env every run (ADMIN_EMAIL/ADMIN_PASSWORD, SUPERADMIN_EMAIL/SUPERADMIN_PASSWORD, NVBEST_AGENCY_NAME/NVBEST_AGENCY_SLUG env vars)
 cd server && node prisma/import-xlsx.js --agency <slug>   # Import clients from data/all-data.xlsx into one agency (flag required)
 cd server && npm run db:migrate-data                # One-time SQLite → PostgreSQL data migration
 
@@ -60,7 +60,7 @@ server/src/
   lib/timesheetUtils.js  # Shared: roundTo15, computeHours, computeTotalHoursWithBlocks, deriveTimesheetService, activity lists
 prisma/
   schema.prisma     # PostgreSQL schema with @@map snake_case names; Agency model + agency_id on every tenant table
-  seed.js           # Creates default agency + superadmin (skips if already exist), uses ADMIN_EMAIL/ADMIN_PASSWORD, SUPERADMIN_EMAIL/SUPERADMIN_PASSWORD, NVBEST_AGENCY_NAME/NVBEST_AGENCY_SLUG env vars
+  seed.js           # Creates default agency + admin once (skips if exists); syncSuperadmin() creates-or-updates the superadmin from SUPERADMIN_EMAIL/SUPERADMIN_PASSWORD on every run. Uses ADMIN_EMAIL/ADMIN_PASSWORD, NVBEST_AGENCY_NAME/NVBEST_AGENCY_SLUG env vars
   setup-app-role.js # Idempotently provisions the `app_user` Postgres role (NOBYPASSRLS) that tenantClient connects as via APP_DATABASE_URL
   migrate-data.js   # One-time SQLite → PostgreSQL data migration script
   migrations/       # Timestamped SQL migrations (includes the RLS-enabling migration: ENABLE ROW LEVEL SECURITY + tenant_isolation policy per tenant table, keyed on current_setting('app.agency_id'))
@@ -468,9 +468,9 @@ Full-featured file management system for administrative documents (insurance, el
   - `BASE_DOMAIN` — the root domain agencies are subdomained under (e.g. `pcalink.com`); drives `resolveAgency.js` subdomain parsing, CORS origin matching (`lib/corsOrigin.js`), and socket auth. Defaults to `localhost` for local dev.
   - `APP_DATABASE_URL` — connection string for the RLS-constrained `app_user` role that `tenantClient()` uses for all tenant-scoped queries; falls back to `DATABASE_URL` if unset (fine locally before `setup-app-role.js` has run, unsafe in production — always set it on Railway).
   - `APP_DB_PASSWORD` — password `setup-app-role.js` assigns to the `app_user` Postgres role (`NOBYPASSRLS`); must match the credential embedded in `APP_DATABASE_URL`.
-  - `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` — platform-console login seeded by `seed.js`. Production refuses to create a default-credential superadmin if `SUPERADMIN_PASSWORD` is unset — set both before first deploy.
+  - `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` — platform-console login, synced by `seed.js` on **every** boot (not just first-create): if a superadmin row exists, its email + password hash are overwritten to match whatever these env vars currently hold (only the vars that are set — an unset var leaves that field untouched). Rotation = edit the env var + restart, no manual DB work. Production refuses to create a default-credential superadmin if `SUPERADMIN_PASSWORD` is unset on first boot — set both before first deploy.
   - `NVBEST_AGENCY_NAME` / `NVBEST_AGENCY_SLUG` — only apply on a fresh DB via `seed.js` (agency #1 is otherwise created with static values inside migration 1, since migrations can't read env vars). The agency's name is editable afterward from the platform console via `PATCH /api/platform/agencies/:id` (superadmin-only; the slug is immutable).
-- **Railway wildcard-domain requirement**: subdomain routing (`acme.<BASE_DOMAIN>`) needs a wildcard custom domain (`*.<BASE_DOMAIN>`) added on the Railway service plus a wildcard CNAME at the DNS provider pointing to Railway. Until that's provisioned, agencies without a working wildcard entry fall back to being reached via their exact per-agency custom domain (added individually on the Railway service) — `resolveAgency.js` matches on whatever `Host` header actually arrives, so either path works as long as the agency's slug/domain resolves to this service.
+- **Railway wildcard-domain requirement**: subdomain routing (`acme.<BASE_DOMAIN>`) needs a wildcard custom domain (`*.<BASE_DOMAIN>`) added on the Railway service plus a wildcard CNAME at the DNS provider pointing to Railway. This wildcard also covers the reserved `admin.<BASE_DOMAIN>` platform-console host — no separate DNS entry needed. Until the wildcard is provisioned, agencies without a working wildcard entry fall back to being reached via their exact per-agency custom domain (added individually on the Railway service) — `resolveAgency.js` matches on whatever `Host` header actually arrives, so either path works as long as the agency's slug/domain resolves to this service.
 
 ## Service Code System — Cross-Entity Trace
 
