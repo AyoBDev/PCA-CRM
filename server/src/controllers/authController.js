@@ -40,8 +40,15 @@ async function login(req, res, next) {
         if (!user) {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
-        if (!req.agency && user.role !== 'superadmin') {
-            return res.status(401).json({ error: 'Invalid email or password' });
+        if (!req.agency) {
+            // Superadmin accounts only authenticate on the platform host
+            // (admin.<BASE_DOMAIN> in production; loopback/apex also count
+            // in dev/test — see resolveAgency). Any other non-agency host
+            // (e.g. production apex) rejects even valid superadmin creds —
+            // same "invalid email or password" response, no oracle.
+            if (user.role !== 'superadmin' || !req.isPlatformHost) {
+                return res.status(401).json({ error: 'Invalid email or password' });
+            }
         }
         if (user.archivedAt) {
             return res.status(403).json({ error: 'This account has been archived. Please contact your administrator.' });

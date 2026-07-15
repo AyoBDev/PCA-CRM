@@ -131,3 +131,9 @@ test('non-superadmin cannot rename an agency', async () => {
   expect(res.status).toBe(403);
   await cleanupAgencies(['plat-tmp2']);
 });
+
+test('platform routes 404 off the platform host even with a valid superadmin token', async () => {
+  const res = await request(app).get('/api/platform/agencies')
+    .set('Host', 'plat-a.localhost').set('Authorization', `Bearer ${superToken}`);
+  expect(res.status).toBe(404);
+});

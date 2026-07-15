@@ -71,4 +71,47 @@ describe('resolveAgency', () => {
     expect(b.next).toHaveBeenCalled();
     expect(prisma.agency.findUnique).not.toHaveBeenCalled();
   });
+
+  test('admin subdomain sets isPlatformHost without a DB lookup', async () => {
+    const { req, next } = await run('admin.nvbestpca.com');
+    expect(req.agency).toBeNull();
+    expect(req.isPlatformHost).toBe(true);
+    expect(next).toHaveBeenCalled();
+    expect(prisma.agency.findUnique).not.toHaveBeenCalled();
+  });
+
+  test('apex sets isPlatformHost = true outside production (dev/test convenience)', async () => {
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'test';
+    try {
+      const { req } = await run('nvbestpca.com');
+      expect(req.agency).toBeNull();
+      expect(req.isPlatformHost).toBe(true);
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+    }
+  });
+
+  test('apex sets isPlatformHost = false in production', async () => {
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      const { req } = await run('nvbestpca.com');
+      expect(req.agency).toBeNull();
+      expect(req.isPlatformHost).toBe(false);
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+    }
+  });
+
+  test('loopback sets isPlatformHost = true outside production', async () => {
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'test';
+    try {
+      const { req } = await run('127.0.0.1');
+      expect(req.isPlatformHost).toBe(true);
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+    }
+  });
 });

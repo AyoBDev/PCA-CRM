@@ -140,4 +140,14 @@ async function agencyInfo(req, res) {
   res.json({ name: req.agency.name, slug: req.agency.slug });
 }
 
-module.exports = { listAgencies, createAgency, updateAgency, suspendAgency: setAgencyStatus('suspended'), reactivateAgency: setAgencyStatus('active'), impersonate, agencyInfo };
+// GET /api/host-info — public, tells the client what kind of host it's on
+// (set by resolveAgency middleware) so LoginPage can render the right variant
+// without hostname heuristics: the platform console, an agency's login form,
+// or the public landing page (production apex — neither flag is set there).
+function hostInfo(req, res) {
+  if (req.isPlatformHost) return res.json({ type: 'platform' });
+  if (req.agency) return res.json({ type: 'agency', agency: { name: req.agency.name, slug: req.agency.slug } });
+  res.json({ type: 'landing' });
+}
+
+module.exports = { listAgencies, createAgency, updateAgency, suspendAgency: setAgencyStatus('suspended'), reactivateAgency: setAgencyStatus('active'), impersonate, agencyInfo, hostInfo };

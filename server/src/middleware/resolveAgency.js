@@ -24,8 +24,18 @@ async function resolveAgency(req, res, next) {
   try {
     const domain = baseDomain();
     const host = (req.hostname || '').toLowerCase();
+    if (host === `admin.${domain}`) {
+      req.agency = null;
+      req.isPlatformHost = true;
+      return next();
+    }
     if (host === domain || host === `www.${domain}` || LOOPBACK_HOSTS.has(host)) {
       req.agency = null;
+      // Apex/loopback are the platform host only outside production (dev/test
+      // convenience so local flows and integration suites keep working
+      // without a real admin.<BASE_DOMAIN> host). In production the apex is
+      // the public landing page, not a platform host.
+      req.isPlatformHost = process.env.NODE_ENV !== 'production';
       return next();
     }
     if (host.endsWith(`.${domain}`)) {
