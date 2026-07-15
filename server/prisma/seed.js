@@ -5,6 +5,49 @@ const { seedAgencyDefaults } = require('./seedAgencyDefaults');
 
 const prisma = new PrismaClient();
 
+// Finds the single platform superadmin row (oldest by id if more than one
+// somehow exists) and syncs its email + password hash from
+// SUPERADMIN_EMAIL/SUPERADMIN_PASSWORD on every run. Rotation is then just
+// "edit env, restart" — no manual DB surgery. When neither env var is set
+// (local dev without them configured), an existing row is left untouched;
+// only a brand-new row falls back to the default dev credentials.
+async function syncSuperadmin(db) {
+    const isProd = process.env.NODE_ENV === 'production';
+    const existing = await db.user.findFirst({
+        where: { role: 'superadmin', agencyId: null },
+        orderBy: { id: 'asc' },
+    });
+
+    if (!existing) {
+        if (isProd && !process.env.SUPERADMIN_PASSWORD) {
+            throw new Error('SUPERADMIN_PASSWORD is not set. Refusing to create a default-credential superadmin in production.');
+        }
+        const email = process.env.SUPERADMIN_EMAIL || 'superadmin@nvbestpca.com';
+        const password = process.env.SUPERADMIN_PASSWORD || 'superadmin123';
+        const passwordHash = await bcrypt.hash(password, 10);
+        await db.user.create({
+            data: { email, passwordHash, name: 'Super Admin', role: 'superadmin', agencyId: null },
+        });
+        console.log(`✅ Superadmin created: ${email}`);
+        if (!process.env.SUPERADMIN_EMAIL || !process.env.SUPERADMIN_PASSWORD) {
+            console.warn('⚠️  Set SUPERADMIN_EMAIL and SUPERADMIN_PASSWORD env vars for production');
+        }
+        return;
+    }
+
+    const data = {};
+    if (process.env.SUPERADMIN_EMAIL) data.email = process.env.SUPERADMIN_EMAIL;
+    if (process.env.SUPERADMIN_PASSWORD) data.passwordHash = await bcrypt.hash(process.env.SUPERADMIN_PASSWORD, 10);
+
+    if (Object.keys(data).length === 0) {
+        console.log(`✅ Superadmin already exists — no SUPERADMIN_EMAIL/SUPERADMIN_PASSWORD set, leaving as-is (${existing.email})`);
+        return;
+    }
+
+    await db.user.update({ where: { id: existing.id }, data });
+    console.log(`✅ Superadmin synced from env: ${data.email || existing.email}`);
+}
+
 async function main() {
     // 1. Ensure agency #1 exists (single-agency dev/legacy deployments get one
     // automatically; the platform console creates additional agencies).
@@ -21,34 +64,10 @@ async function main() {
         console.log(`✅ Agency already exists — skipping agency creation (${agency.slug})`);
     }
 
-    // 2. Superadmin bootstrap — platform-level account, no agencyId.
-    const superadminEmail = process.env.SUPERADMIN_EMAIL || 'superadmin@nvbestpca.com';
-    const existingSuperadmin = await prisma.user.findFirst({ where: { email: superadminEmail, agencyId: null } });
-    if (existingSuperadmin) {
-        console.log('✅ Superadmin already exists — skipping superadmin creation');
-    } else {
-        const isProd = process.env.NODE_ENV === 'production';
-        if (isProd && !process.env.SUPERADMIN_PASSWORD) {
-            throw new Error('SUPERADMIN_PASSWORD is not set. Refusing to create a default-credential superadmin in production.');
-        }
-        const superadminPassword = process.env.SUPERADMIN_PASSWORD || 'superadmin123';
-        const superadminPasswordHash = await bcrypt.hash(superadminPassword, 10);
-
-        await prisma.user.create({
-            data: {
-                email: superadminEmail,
-                passwordHash: superadminPasswordHash,
-                name: 'Super Admin',
-                role: 'superadmin',
-                agencyId: null,
-            },
-        });
-
-        console.log(`✅ Superadmin created: ${superadminEmail}`);
-        if (!process.env.SUPERADMIN_EMAIL || !process.env.SUPERADMIN_PASSWORD) {
-            console.warn('⚠️  Set SUPERADMIN_EMAIL and SUPERADMIN_PASSWORD env vars for production');
-        }
-    }
+    // 2. Superadmin bootstrap — platform-level account, no agencyId. Synced
+    // from env on every boot (see syncSuperadmin below): rotation = edit env
+    // + restart, no manual DB surgery.
+    await syncSuperadmin(prisma);
 
     // 3. Agency-scoped admin bootstrap (legacy ADMIN_EMAIL/ADMIN_PASSWORD flow).
     const email = process.env.ADMIN_EMAIL || 'admin@nvbestpca.com';
@@ -93,6 +112,10 @@ async function main() {
     await seedPermissionGroups(prisma, agency.id);
 }
 
-main()
-    .catch((e) => { console.error(e); process.exit(1); })
-    .finally(() => prisma.$disconnect());
+if (require.main === module) {
+    main()
+        .catch((e) => { console.error(e); process.exit(1); })
+        .finally(() => prisma.$disconnect());
+}
+
+module.exports = { syncSuperadmin };

@@ -18,6 +18,12 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Login fires before tenant context exists for superadmins (no agencyId),
+  // so it writes agency_id = NULL audit rows — clean those up so
+  // agencySchema.itest.js's backfill-NULL check stays deterministic
+  // regardless of file execution order (see tenantAuth.itest.js for the
+  // same pattern).
+  await systemPrisma.auditLog.deleteMany({ where: { userId: superadmin.id, agencyId: null } });
   await systemPrisma.user.delete({ where: { id: superadmin.id } });
   await systemPrisma.$disconnect();
 });
