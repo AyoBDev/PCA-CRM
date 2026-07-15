@@ -50,3 +50,12 @@ test('fetch failure falls back gracefully to the agency-style login form', async
   await waitFor(() => expect(screen.getByLabelText(/email/i)).toBeInTheDocument());
   expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
 });
+
+test('unknown agency subdomain (404) renders the agency-not-found screen', async () => {
+  const err = new Error('Not found');
+  err.status = 404;
+  getHostInfo.mockRejectedValue(err);
+  renderPage();
+  await waitFor(() => expect(screen.getByText(/no agency exists/i)).toBeInTheDocument());
+  expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument();
+});

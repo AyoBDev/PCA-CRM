@@ -11,7 +11,7 @@ export default function LoginPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [hostChecking, setHostChecking] = useState(true);
-    const [hostType, setHostType] = useState('agency'); // 'platform' | 'agency' | 'landing'
+    const [hostType, setHostType] = useState('agency'); // 'platform' | 'agency' | 'notfound' | 'landing'
     const [agencyName, setAgencyName] = useState('');
     const { login } = useAuth();
     const navigate = useNavigate();
@@ -34,12 +34,18 @@ export default function LoginPage() {
                     setAgencyName(info.agency.name);
                 }
             })
-            .catch(() => {
-                // Fetch failure (network error, etc.) falls back to the
-                // agency-style login form so the page still renders something
-                // usable rather than getting stuck or blank.
-                if (cancelled) return;
-                setHostType('agency');
+            .catch((err) => {
+                // 404 from unknown subdomain: show agency-not-found screen
+                if (err.status === 404) {
+                    if (cancelled) return;
+                    setHostType('notfound');
+                } else {
+                    // Other fetch failures (network error, etc.) fall back to the
+                    // agency-style login form so the page still renders something
+                    // usable rather than getting stuck or blank.
+                    if (cancelled) return;
+                    setHostType('agency');
+                }
             })
             .finally(() => { if (!cancelled) setHostChecking(false); });
         return () => { cancelled = true; };
@@ -63,6 +69,23 @@ export default function LoginPage() {
 
     if (!hostChecking && hostType === 'landing') {
         return <LandingPage />;
+    }
+
+    if (!hostChecking && hostType === 'notfound') {
+        return (
+            <div className="login-page">
+                <div className="login-card">
+                    <div className="login-card__header">
+                        <div className="login-card__logo">{Icons.alertCircle}</div>
+                        <h1 className="login-card__title">Agency Not Found</h1>
+                    </div>
+                    <div className="login-error">
+                        {Icons.alertCircle}
+                        <span>No agency exists at this address. Check the web address or contact support.</span>
+                    </div>
+                </div>
+            </div>
+        );
     }
 
     return (

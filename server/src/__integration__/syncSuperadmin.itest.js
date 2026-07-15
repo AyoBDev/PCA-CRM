@@ -94,3 +94,24 @@ test('picks the oldest superadmin row by id when syncing', async () => {
   expect(updatedFirst.email).toBe('sync-superadmin-test-synced@platform.test');
   expect(untouchedSecond.email).toBe('sync-superadmin-test-second@platform.test');
 });
+
+test('updates email only when SUPERADMIN_EMAIL is set (password env unset)', async () => {
+  const original = await systemPrisma.user.create({
+    data: {
+      email: 'sync-superadmin-test-partial-old@platform.test',
+      passwordHash: await bcrypt.hash('original-password', 4),
+      name: 'Super Admin',
+      role: 'superadmin',
+      agencyId: null,
+    },
+  });
+
+  delete process.env.SUPERADMIN_PASSWORD;
+  process.env.SUPERADMIN_EMAIL = 'sync-superadmin-test-partial-new@platform.test';
+
+  await syncSuperadmin(systemPrisma);
+
+  const updated = await systemPrisma.user.findUnique({ where: { id: original.id } });
+  expect(updated.email).toBe('sync-superadmin-test-partial-new@platform.test');
+  expect(await bcrypt.compare('original-password', updated.passwordHash)).toBe(true);
+});
