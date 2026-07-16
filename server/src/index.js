@@ -7,6 +7,7 @@ const { sendOverdueReminders } = require('./jobs/timesheetReminders');
 const { runTaskTriggers } = require('./jobs/taskTriggers');
 const { sendTaskReminders } = require('./jobs/taskReminders');
 const { runComplianceCheck } = require('./jobs/complianceCron');
+const { runLeadDormancySweep } = require('./jobs/leadDormancySweep');
 
 const PORT = process.env.PORT || 4000;
 const server = http.createServer(app);
@@ -58,4 +59,15 @@ server.listen(PORT, () => {
     }, { timezone: 'America/Los_Angeles' });
 
     console.log('[Cron] Scheduled: compliance check (daily 6:00 AM PT)');
+
+    cron.schedule('0 3 * * *', async () => {
+        console.log('[Cron] Running lead dormancy sweep...');
+        try {
+            await runLeadDormancySweep();
+        } catch (err) {
+            console.error('[Cron] Lead dormancy sweep failed:', err);
+        }
+    }, { timezone: 'UTC' });
+
+    console.log('[Cron] Scheduled: lead dormancy sweep (daily 3:00 AM UTC)');
 });
