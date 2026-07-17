@@ -1,9 +1,8 @@
 #!/usr/bin/env node
-const { PrismaClient } = require('@prisma/client');
 const XLSX = require('xlsx');
 const path = require('path');
 
-const prisma = new PrismaClient();
+const prisma = require('../src/lib/prisma');
 
 const FILE = process.argv[2] || path.join(__dirname, '..', 'data', 'employees.xlsx');
 
@@ -51,7 +50,8 @@ async function main() {
             if (!row || !row[0] || typeof row[0] !== 'string' || row[0].trim().length === 0) continue;
 
             const name = row[0].trim();
-            const dob = excelDateToISO(row[1]);
+            const dobDate = excelDateToISO(row[1]);
+            const dob = dobDate ? dobDate.toISOString().slice(0, 10) : '';
             const phone = parsePhone(row[3]);
             const address = (row[4] || '').toString().trim();
             const clientAssignment = (row[5] || '').toString().trim();

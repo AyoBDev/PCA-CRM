@@ -84,7 +84,8 @@ describe('mapLeadToClientData', () => {
     expect(d.phone).toBe('7025550000');
     expect(d.secondaryPhone).toBe('7025550001');
     expect(d.emergencyContactName).toBe('Bob Doe');
-    expect(d.dob).toEqual(lead.dob);
+    // Client.dob is a YYYY-MM-DD string column (encrypted at rest)
+    expect(d.dob).toBe('1950-01-02');
   });
   test('derives enabledServices from servicesRequested', () => {
     expect(JSON.parse(mapLeadToClientData(lead).enabledServices)).toContain('PAS');

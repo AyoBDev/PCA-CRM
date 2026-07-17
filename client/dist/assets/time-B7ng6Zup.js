@@ -1,0 +1,1 @@
+function e(r){if(!r||r==="00:00")return r;const[n,t]=r.split(":").map(Number),u=n<12?"AM":"PM";return`${n%12||12}:${String(t).padStart(2,"0")} ${u}`}function i(r,n){if(!r||!n)return 0;const[t,u]=r.split(":").map(Number),[o,c]=n.split(":").map(Number),s=o*60+c-(t*60+u);return s>0?Math.round(s/15)*.25:0}function m(r){return r?(r/4).toFixed(2):"—"}export{i as c,e as h,m as u};
