@@ -5,24 +5,15 @@
 // Usage:
 //   cd server && node prisma/seed-leads-qa.js
 //
-// Data shape (~20 leads):
+// Data shape (~18 leads):
 //   - Multiple months across 2025-2026 (exercises Year/Month filter)
 //   - Every workflow status (new, review, waiting_insurance, waiting_docs,
-//     quoted, pending_start, archived)
-//   - 2 dormant leads (archived + dormantAt, updated_at 100+ days old)
-//   - 2 converted leads (link to real newly-created QA clients)
+//     quoted, pending_start, archived, converted)
+//   - 2 dormant leads (archived + dormantAt, updatedAt 100+ days old)
+//   - 2 converted leads (linked to real newly-created QA clients)
 //   - Mix of case types (initial, transfer, private)
-//
-// Notes on the shared local DB:
-//   - `leads.dob` and `clients.dob` are text columns despite the Prisma schema
-//     saying DateTime; we skip them here to sidestep Prisma 6's stricter parse.
-//   - `leads.agency_id` and `leads.created_by` are NOT NULL from the unmerged
-//     multi-tenancy branch — we hardcode agency_id=1 and created_by='admin'.
 
 const prisma = require('../src/lib/prisma');
-
-const AGENCY_ID = 1;
-const CREATED_BY = 'admin';
 
 // helper: build a Date N days ago
 const daysAgo = (n) => new Date(Date.now() - n * 86400000);
@@ -190,65 +181,60 @@ async function main() {
         const delClients = await prisma.client.deleteMany({ where: { id: { in: priorClientIds } } });
         console.log(`- Deleted ${delClients.count} prior [QA] converted clients`);
     }
-    // Also clean any orphan [QA] clients by name.
     const delOrphans = await prisma.client.deleteMany({ where: { clientName: { startsWith: '[QA]' } } });
     if (delOrphans.count) console.log(`- Deleted ${delOrphans.count} orphan [QA] clients`);
 
-    // 2. Insert leads. We use raw SQL so we can control agency_id, created_by,
-    //    updated_at, archived_at, dormant_at, converted_at explicitly.
     let created = 0;
     let convertedClientsCreated = 0;
+
     for (const l of LEADS) {
         const createdAt = l.createdAtOverride || (l.createdOffsetDays != null ? daysAgo(l.createdOffsetDays) : new Date());
         const updatedAt = l.updatedAtOffsetDays != null ? daysAgo(l.updatedAtOffsetDays) : createdAt;
         const archivedAt = l.archivedAtOffsetDays != null ? daysAgo(l.archivedAtOffsetDays) : null;
-        const dormantAt  = l.dormantAtOffsetDays  != null ? daysAgo(l.dormantAtOffsetDays)  : null;
+        const dormantAt = l.dormantAtOffsetDays != null ? daysAgo(l.dormantAtOffsetDays) : null;
         const convertedAt = l.convertedAtOffsetDays != null ? daysAgo(l.convertedAtOffsetDays) : null;
 
-        // For converted leads, first create the linked client (also as [QA]).
+        // For converted leads, first create the linked client.
         let convertedClientId = null;
         if (l.createClient) {
-            const c = await prisma.$queryRawUnsafe(
-                `INSERT INTO clients (client_name, medicaid_id, insurance_type, address, phone, gate_code, notes, enabled_services, created_at, updated_at, backup_doctor_name, backup_doctor_phone, critical, doctor_name, doctor_phone, pa_number, caregiver_requirements, email, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, gender, main_services, pca_notes, secondary_address, secondary_emergency_name, secondary_emergency_phone, secondary_emergency_relation, secondary_phone, client_status, agency_id) VALUES ($1, '', $2, '', $3, '', '', '["PAS","Homemaker"]', $4, $4, '', '', false, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'active', $5) RETURNING id`,
-                l.createClient.clientName,
-                l.insuranceType,
-                l.phone,
-                convertedAt || createdAt,
-                AGENCY_ID
-            );
-            convertedClientId = c[0].id;
+            const c = await prisma.client.create({
+                data: {
+                    clientName: l.createClient.clientName,
+                    insuranceType: l.insuranceType || 'MEDICAID',
+                    phone: l.phone,
+                    enabledServices: '["PAS","Homemaker"]',
+                    createdAt: convertedAt || createdAt,
+                    updatedAt: convertedAt || createdAt,
+                },
+            });
+            convertedClientId = c.id;
             convertedClientsCreated++;
         }
 
-        const row = await prisma.$queryRawUnsafe(
-            `INSERT INTO leads (
-                first_name, last_name, phone, alternate_phone, address, gender, medicaid_id, insurance_number, insurance_type, referral_source,
-                doctor_name, doctor_phone, caseworker_name, caseworker_phone, emergency_contact_name, emergency_contact_relation, emergency_contact_phone, emergency_contact_email, call_notes,
-                services_requested, days_per_week, hours_per_day, start_date_needed,
-                case_type, auth_status, current_agency_name, current_auth_hours_month, auth_number, transfer_reason, transfer_notes,
-                pp_rate, pp_hours_per_week, pp_deposit_hours,
-                gender_preference, age_preference, shift_preferences, language_preference, schedule_notes,
-                status, assigned_to, agency_id, created_by, created_at, updated_at, archived_at, dormant_at, converted_client_id, converted_at
-            ) VALUES (
-                $1, $2, $3, '', '', '', '', '', $4, $5,
-                '', '', '', '', '', '', '', '', '',
-                '[]', '', '', '',
-                $6, '', '', 0, '', '', '',
-                $7, $8, $9,
-                'No preference', 'No preference', '[]', 'English', '',
-                $10, '', $11, $12, $13, $14, $15, $16, $17, $18
-            ) RETURNING id`,
-            l.firstName, l.lastName, l.phone,
-            l.insuranceType, l.referralSource,
-            l.caseType,
-            l.ppRate || 0, l.ppHoursPerWeek || 0, l.ppDepositHours || 0,
-            l.status,
-            AGENCY_ID, CREATED_BY,
-            createdAt, updatedAt, archivedAt, dormantAt, convertedClientId, convertedAt
-        );
+        const lead = await prisma.lead.create({
+            data: {
+                firstName: l.firstName,
+                lastName: l.lastName,
+                phone: l.phone,
+                insuranceType: l.insuranceType || '',
+                referralSource: l.referralSource || '',
+                caseType: l.caseType,
+                status: l.status,
+                ppRate: l.ppRate || 0,
+                ppHoursPerWeek: l.ppHoursPerWeek || 0,
+                ppDepositHours: l.ppDepositHours || 0,
+                createdBy: 'admin',
+                createdAt,
+                updatedAt,
+                archivedAt,
+                dormantAt,
+                convertedClientId,
+                convertedAt,
+            },
+        });
         created++;
         console.log(
-            `  + ${l.firstName} ${l.lastName} (${l.status}) id=${row[0].id}` +
+            `  + ${l.firstName} ${l.lastName} (${l.status}) id=${lead.id}` +
             (convertedClientId ? ` → client ${convertedClientId}` : '') +
             (dormantAt ? ' [dormant]' : '') +
             ` created ${createdAt.toISOString().slice(0, 10)}`
