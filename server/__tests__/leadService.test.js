@@ -102,38 +102,10 @@ describe('mapLeadToClientData', () => {
 });
 
 function makeFakePrisma(lead) {
-  // The DB row a raw INSERT into `clients` would return (snake_case columns).
-  const createdRow = {
-    id: 99,
-    client_name: 'Jane Doe',
-    medicaid_id: '',
-    insurance_type: 'MEDICAID',
-    address: '',
-    phone: '',
-    secondary_phone: '',
-    email: '',
-    gender: '',
-    dob: '',
-    doctor_name: '',
-    doctor_phone: '',
-    emergency_contact_name: '',
-    emergency_contact_phone: '',
-    emergency_contact_relation: '',
-    notes: '',
-    caregiver_requirements: '',
-    enabled_services: '["PAS","Homemaker"]',
-    client_status: 'active',
-    archived_at: null,
-    created_at: new Date(),
-    updated_at: new Date(),
-  };
-  const calls = { clientInsertSql: null, clientInsertParams: null, leadUpdate: null };
+  const createdClient = { id: 99, clientName: 'Jane Doe', authorizations: [] };
+  const calls = { clientCreate: null, leadUpdate: null };
   const tx = {
-    $queryRawUnsafe: async (sql, ...params) => {
-      calls.clientInsertSql = sql;
-      calls.clientInsertParams = params;
-      return [createdRow];
-    },
+    client: { create: async ({ data }) => { calls.clientCreate = data; return createdClient; } },
     lead: { update: async ({ where, data }) => { calls.leadUpdate = { where, data }; return { ...lead, ...data }; } },
   };
   return {
@@ -146,14 +118,11 @@ function makeFakePrisma(lead) {
 describe('convertLead', () => {
   const baseLead = { id: 7, firstName: 'Jane', lastName: 'Doe', servicesRequested: '[]', status: 'quoted' };
 
-  test('creates a client from the lead via a raw INSERT', async () => {
+  test('creates a client from the lead', async () => {
     const prisma = makeFakePrisma(baseLead);
     const { client } = await convertLead(prisma, 7);
     expect(client.id).toBe(99);
-    expect(client.clientName).toBe('Jane Doe');
-    // First positional param of the raw INSERT is clientName.
-    expect(prisma.calls.clientInsertParams[0]).toBe('Jane Doe');
-    expect(prisma.calls.clientInsertSql).toMatch(/INSERT INTO clients/);
+    expect(prisma.calls.clientCreate.clientName).toBe('Jane Doe');
   });
 
   test('marks the lead converted + archived + linked', async () => {

@@ -70,79 +70,11 @@ async function convertLead(prisma, id) {
   if (!lead) throw new Error('Lead not found');
   if (lead.status === 'converted') throw new Error('Lead already converted');
 
-  const data = mapLeadToClientData(lead);
   return prisma.$transaction(async (tx) => {
-    // Use a raw INSERT for the client row. This branch of the app predates the
-    // multi-tenancy work on `main`: the live DB now has NOT NULL columns
-    // (`agency_id`, `dob` as text) and typed columns Prisma's typed .create()
-    // API in this branch's schema can't populate. A raw insert lets us hand
-    // every required column an appropriate value (and set `dob` to '' since
-    // lead intake doesn't always capture the client's birthdate).
-    const rows = await tx.$queryRawUnsafe(
-      `INSERT INTO clients (
-         client_name, medicaid_id, insurance_type, address, phone, gate_code,
-         notes, enabled_services, backup_doctor_name, backup_doctor_phone,
-         critical, dob, doctor_name, doctor_phone, pa_number,
-         caregiver_requirements, email, emergency_contact_name,
-         emergency_contact_phone, emergency_contact_relation, gender,
-         main_services, pca_notes, secondary_address, secondary_emergency_name,
-         secondary_emergency_phone, secondary_emergency_relation,
-         secondary_phone, client_status, agency_id, created_at, updated_at
-       ) VALUES (
-         $1, $2, $3, $4, $5, '',
-         $6, $7, '', '',
-         false, '', $8, $9, '',
-         $10, $11, $12,
-         $13, $14, $15,
-         '', '', '', '',
-         '', '',
-         $16, 'active', 1, NOW(), NOW()
-       )
-       RETURNING *`,
-      data.clientName || '',
-      data.medicaidId,
-      data.insuranceType,
-      data.address,
-      data.phone,
-      data.notes,
-      data.enabledServices,
-      data.doctorName,
-      data.doctorPhone,
-      data.caregiverRequirements,
-      data.email,
-      data.emergencyContactName,
-      data.emergencyContactPhone,
-      data.emergencyContactRelation,
-      data.gender,
-      data.secondaryPhone,
-    );
-    const created = rows[0];
-    // Match the shape enrichClient / callers expect (camelCase + authorizations).
-    const client = {
-      id: created.id,
-      clientName: created.client_name,
-      medicaidId: created.medicaid_id,
-      insuranceType: created.insurance_type,
-      address: created.address,
-      phone: created.phone,
-      secondaryPhone: created.secondary_phone,
-      email: created.email,
-      gender: created.gender,
-      dob: created.dob,
-      doctorName: created.doctor_name,
-      doctorPhone: created.doctor_phone,
-      emergencyContactName: created.emergency_contact_name,
-      emergencyContactPhone: created.emergency_contact_phone,
-      emergencyContactRelation: created.emergency_contact_relation,
-      notes: created.notes,
-      caregiverRequirements: created.caregiver_requirements,
-      enabledServices: created.enabled_services,
-      client_status: created.client_status,
-      archivedAt: created.archived_at,
-      createdAt: created.created_at,
-      updatedAt: created.updated_at,
-      authorizations: [],
-    };
+    const client = await tx.client.create({
+      data: mapLeadToClientData(lead),
+      include: { authorizations: true },
+    });
     const now = new Date();
     const updatedLead = await tx.lead.update({
       where: { id: lead.id },
