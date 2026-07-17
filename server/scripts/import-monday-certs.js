@@ -78,11 +78,30 @@ function filesFromColumnValue(rawValue, assets) {
   return fileRefs.map(fr => {
     const asset = byId.get(String(fr.assetId));
     return {
+      id: asset && asset.id,
       name: (asset && asset.name) || fr.name || 'file',
       url: asset && asset.public_url,
       created_at: (asset && asset.created_at) || null,
     };
   }).filter(f => f.url);
+}
+
+// Monday asset public_url values are 1-hour presigned S3 links. On a long run
+// they expire mid-import (403). Fetch a FRESH url for a given asset id right
+// before downloading it. Falls back to the provided stale url if the refresh
+// query returns nothing.
+async function freshAssetUrl(assetId, fallbackUrl) {
+  if (!assetId) return fallbackUrl;
+  try {
+    const data = await mondayQuery(
+      `query ($ids: [ID!]) { assets (ids: $ids) { id public_url } }`,
+      { ids: [String(assetId)] }
+    );
+    const a = data && data.assets && data.assets[0];
+    return (a && a.public_url) || fallbackUrl;
+  } catch {
+    return fallbackUrl;
+  }
 }
 
 // Fetch board items and print per-column file lists WITHOUT writing anything.
@@ -140,8 +159,10 @@ async function processEmployee(item, employees, existingByEmp, execute, report) 
 
     if (!execute) continue;
 
-    // Active file: download, store in bucket AND keep inline bytes for admin download route.
-    const activeDl = await downloadAsset(cert.active.url);
+    // Active file: refresh the (possibly expired) presigned url, then download,
+    // store in bucket AND keep inline bytes for admin download route.
+    const activeUrl = await freshAssetUrl(cert.active.id, cert.active.url);
+    const activeDl = await downloadAsset(activeUrl);
     const activeKey = await storeFile(emp.id, cert.certType, cert.active.name, activeDl.buffer, activeDl.contentType);
 
     const created = await prisma.employeeCertification.create({
@@ -172,7 +193,8 @@ async function processEmployee(item, employees, existingByEmp, execute, report) 
     // already-committed active cert; surface it as a partial-cert warning instead.
     try {
       for (const f of cert.history) {
-        const dl = await downloadAsset(f.url);
+        const fUrl = await freshAssetUrl(f.id, f.url);
+        const dl = await downloadAsset(fUrl);
         const key = await storeFile(emp.id, cert.certType, f.name, dl.buffer, dl.contentType);
         await prisma.certificationUpload.create({
           data: {
@@ -224,9 +246,18 @@ async function main() {
   if (Number.isFinite(limit)) items = items.slice(0, limit);
 
   const report = { created: 0, willCreate: [], skipped: [], unmatched: [], otherRouted: [], nonStandard: [], errors: [], partialCerts: [] };
-  for (const item of items) {
-    try { await processEmployee(item, employees, existingByEmp, execute, report); }
-    catch (err) { report.errors.push(`${item.name}: ${err.message}`); }
+
+  // Process employees in bounded-concurrency batches. Each employee is
+  // independent (distinct employeeId, skip-if-present precomputed), so parallel
+  // processing is safe and finishes the whole run well within Monday's 1-hour
+  // presigned-url lifetime. freshAssetUrl also re-fetches urls at download time.
+  const CONCURRENCY = Number(process.env.IMPORT_CONCURRENCY) || 6;
+  for (let i = 0; i < items.length; i += CONCURRENCY) {
+    const batch = items.slice(i, i + CONCURRENCY);
+    await Promise.all(batch.map(async (item) => {
+      try { await processEmployee(item, employees, existingByEmp, execute, report); }
+      catch (err) { report.errors.push(`${item.name}: ${err.message}`); }
+    }));
   }
 
   console.log(`\n--- Report ---`);
@@ -243,7 +274,7 @@ async function main() {
   await prisma.$disconnect();
 }
 
-module.exports = { mondayQuery, fetchBoardItems, normalizeItem, filesFromColumnValue, probe, downloadAsset, storeFile, main, processEmployee };
+module.exports = { mondayQuery, fetchBoardItems, normalizeItem, filesFromColumnValue, freshAssetUrl, probe, downloadAsset, storeFile, main, processEmployee };
 
 if (require.main === module) {
   const args = process.argv.slice(2);
