@@ -14494,6 +14494,101 @@ tr:hover .auth-note-icon--empty {
     height: 12px;
 }
 
+/* ── View switcher (Board / List / Dormant) — pill-tab group ── */
+.lead-view-switcher {
+    display: inline-flex;
+    padding: 3px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 8px;
+    background: hsl(var(--muted) / 0.3);
+    gap: 2px;
+}
+
+.lead-view-switcher__tab {
+    position: relative;
+    border: none;
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.lead-view-switcher__tab:hover {
+    background: hsl(var(--accent));
+    color: hsl(var(--accent-foreground));
+}
+
+.lead-view-switcher__tab--active {
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
+    box-shadow: 0 1px 2px hsl(0 0% 0% / 0.05);
+}
+
+.lead-view-switcher__badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: hsl(var(--warning));
+    color: hsl(var(--warning-foreground, 0 0% 100%));
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+/* ── List view — sortable data-table ── */
+.leads-list-view {
+    padding: 0 24px 24px;
+}
+
+.leads-list-view--empty {
+    padding: 40px 24px;
+}
+
+.lead-list-name {
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: hsl(var(--primary));
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+}
+
+.lead-list-name:hover {
+    text-decoration: underline;
+}
+
+.lead-list-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.lead-list-status__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.lead-list-actions {
+    display: inline-flex;
+    gap: 4px;
+    flex-wrap: nowrap;
+}
+
 /* ── Kanban board ── */
 .kanban-wrap {
     padding: 0 24px 24px;
