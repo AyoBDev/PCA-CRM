@@ -14348,6 +14348,152 @@ tr:hover .auth-note-icon--empty {
 .leads-stats .stats-grid .card:nth-child(3) { border-left: 4px solid #eab308; }
 .leads-stats .stats-grid .card:nth-child(4) { border-left: 4px solid #22c55e; }
 
+/* ── Filter bar (Board + List views) ── */
+.leads-filter-bar {
+    background: hsl(var(--muted) / 0.3);
+    border-bottom: 1px solid hsl(var(--border));
+    padding: 12px 24px;
+}
+
+.leads-filter-bar__row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.leads-filter-bar__group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.leads-filter-bar__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.leads-filter-bar__label svg {
+    width: 14px;
+    height: 14px;
+}
+
+.leads-filter-bar__select {
+    height: 30px;
+    padding: 0 8px;
+    font-size: 13px;
+    min-width: 90px;
+}
+
+.leads-filter-bar__months {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.leads-filter-bar__month {
+    position: relative;
+    min-width: 44px;
+    padding-right: 16px;
+    padding-left: 10px;
+}
+
+/* Green "has data" dot on months that contain leads */
+.leads-filter-bar__month--has-data::after {
+    content: '';
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: hsl(var(--success));
+}
+
+.leads-filter-bar__month--has-data.chip--on::after {
+    background: hsl(var(--primary-foreground));
+}
+
+.leads-filter-bar__case-types {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.leads-filter-bar__search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+}
+
+.leads-filter-bar__search-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+}
+
+.leads-filter-bar__search-icon svg {
+    width: 14px;
+    height: 14px;
+}
+
+.leads-filter-bar__search-input {
+    height: 30px;
+    padding: 0 10px 0 30px;
+    font-size: 13px;
+    min-width: 220px;
+}
+
+/* Active-filter pill strip — sits under the row when any filter is on */
+.leads-filter-bar__active {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed hsl(var(--border));
+    flex-wrap: wrap;
+}
+
+.leads-filter-bar__active-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.leads-filter-bar__active-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.leads-filter-bar__active-x {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 12px;
+    height: 12px;
+}
+
+.leads-filter-bar__active-x svg {
+    width: 12px;
+    height: 12px;
+}
+
 /* ── Kanban board ── */
 .kanban-wrap {
     padding: 0 24px 24px;
