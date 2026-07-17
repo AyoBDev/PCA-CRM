@@ -4,6 +4,7 @@ const { getWeekRange } = require('../services/schedulingService');
 const { isOverdue } = require('../lib/timesheetUtils');
 
 async function getDashboardStats(req, res) {
+  try {
     const today = new Date().toISOString().split('T')[0];
     const { weekStart, weekEnd } = getWeekRange(today);
 
@@ -109,6 +110,30 @@ async function getDashboardStats(req, res) {
         overdueTimesheets: { count: overdueTimesheets.length, items: overdueTimesheets },
         pendingOnboarding,
     });
+  } catch (err) {
+    // A data-quality bug elsewhere (e.g. a Prisma type mismatch in one row)
+    // must not take down the server. Log and degrade gracefully with zeros so
+    // the dashboard renders and other endpoints keep working.
+    console.error('[dashboard] getDashboardStats failed:', err.message);
+    res.status(200).json({
+      activeClients: 0,
+      activeEmployees: 0,
+      todayShifts: 0,
+      weekHours: 0,
+      weekUnits: 0,
+      unconfirmedCount: 0,
+      expiringAuths: [],
+      expiredClientCount: 0,
+      renewalClientCount: 0,
+      timesheetDraft: 0,
+      timesheetSubmitted: 0,
+      recentPayrollRuns: [],
+      overdueTimesheets: { count: 0, items: [] },
+      pendingOnboarding: 0,
+      _degraded: true,
+      _error: err.message,
+    });
+  }
 }
 
 module.exports = { getDashboardStats };
