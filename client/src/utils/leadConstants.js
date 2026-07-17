@@ -44,9 +44,10 @@ export function computeWeekly({ rate, hoursPerWeek }) {
 // Board = kanban (active leads). List = flat sortable table (active leads).
 // Dormant = auto-archived leads (see server: leadService.sweepDormantLeads).
 export const LEAD_VIEWS = [
-  { id: 'board',   label: 'Board' },
-  { id: 'list',    label: 'List' },
-  { id: 'dormant', label: 'Dormant Archive' },
+  { id: 'board',     label: 'Board' },
+  { id: 'list',      label: 'List' },
+  { id: 'converted', label: 'Recently Converted' },
+  { id: 'dormant',   label: 'Dormant Archive' },
 ];
 
 // UI copy only — server enforces the actual threshold in leadService.

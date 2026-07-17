@@ -13,6 +13,7 @@ import ConvertLeadOverlay from '../components/leads/ConvertLeadOverlay';
 import LeadFilterBar from '../components/leads/LeadFilterBar';
 import LeadListView from '../components/leads/LeadListView';
 import LeadDormantView from '../components/leads/LeadDormantView';
+import LeadConvertedView from '../components/leads/LeadConvertedView';
 import LeadViewSwitcher from '../components/leads/LeadViewSwitcher';
 import ReactivateLeadModal from '../components/leads/ReactivateLeadModal';
 import { statusToColumn, columnToStatus } from '../utils/leadConstants';
@@ -36,6 +37,7 @@ export default function LeadsPage() {
     const [view, setView] = useState('board');
     const [activeLeads, setActiveLeads] = useState([]);
     const [dormantLeads, setDormantLeads] = useState([]);
+    const [convertedLeads, setConvertedLeads] = useState([]);
     const [stats, setStats] = useState(null);
 
     // Filters apply uniformly to Board + List. Dormant view has its own search.
@@ -68,12 +70,22 @@ export default function LeadsPage() {
         }
     }, [showToast]);
 
+    const loadConverted = useCallback(async () => {
+        try {
+            const l = await api.getLeads({ view: 'converted' });
+            setConvertedLeads(l);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }, [showToast]);
+
     // Initial mount: fetch active leads + stats regardless of view (needed for
     // KPI cards + filter-bar month/year derivation). Dormant is fetched lazily.
     useEffect(() => { loadActive(); }, [loadActive]);
     useEffect(() => {
         if (view === 'dormant') loadDormant();
-    }, [view, loadDormant]);
+        if (view === 'converted') loadConverted();
+    }, [view, loadDormant, loadConverted]);
 
     // ── Client-side filter pipeline (Board + List share this) ────────────────
     const filteredActive = useMemo(() => {
@@ -239,7 +251,10 @@ export default function LeadsPage() {
                 <ContextBar.Left>
                     <LeadViewSwitcher
                         view={view}
-                        dormantCount={stats?.dormant}
+                        counts={{
+                            dormant: stats?.dormant,
+                            converted: stats?.convertedThisMonth,
+                        }}
                         onChange={setView}
                     />
                 </ContextBar.Left>
@@ -329,6 +344,10 @@ export default function LeadsPage() {
                     leads={dormantLeads}
                     onReactivate={setReactivateLeadObj}
                 />
+            )}
+
+            {view === 'converted' && (
+                <LeadConvertedView leads={convertedLeads} />
             )}
 
             {wizardOpen && (

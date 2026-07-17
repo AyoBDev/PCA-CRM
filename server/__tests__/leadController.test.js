@@ -92,6 +92,15 @@ describe('listLeads', () => {
     expect(call.where.status).toEqual({ not: 'converted' });
   });
 
+  test('view=converted returns converted leads ordered by convertedAt desc', async () => {
+    prisma.lead.findMany.mockResolvedValue([]);
+    const res = mockRes();
+    await controller.listLeads({ ...reqUser, query: { view: 'converted' } }, res, jest.fn());
+    const call = prisma.lead.findMany.mock.calls[0][0];
+    expect(call.where).toEqual({ status: 'converted' });
+    expect(call.orderBy).toEqual({ convertedAt: 'desc' });
+  });
+
   test('no view and no archived param defaults to active', async () => {
     prisma.lead.findMany.mockResolvedValue([]);
     const res = mockRes();

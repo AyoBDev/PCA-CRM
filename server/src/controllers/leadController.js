@@ -13,8 +13,13 @@ function leadName(lead) {
 async function listLeads(req, res, next) {
   try {
     let where;
+    let orderBy = { createdAt: 'desc' };
     // Prefer the new `?view=` param; keep legacy `?archived=true` working.
-    if (req.query.view === 'dormant' || req.query.archived === 'true') {
+    if (req.query.view === 'converted') {
+      // Recently Converted: leads that became active clients, newest first.
+      where = { status: 'converted' };
+      orderBy = { convertedAt: 'desc' };
+    } else if (req.query.view === 'dormant' || req.query.archived === 'true') {
       where = { dormantAt: { not: null }, status: { not: 'converted' } };
       // Legacy `?archived=true` also matched admin-archived leads that never went
       // dormant; keep parity by falling back to the old shape when archived=true
@@ -26,7 +31,7 @@ async function listLeads(req, res, next) {
       // Default (or view=board / view=list): active, non-archived leads.
       where = { archivedAt: null };
     }
-    const leads = await prisma.lead.findMany({ where, orderBy: { createdAt: 'desc' } });
+    const leads = await prisma.lead.findMany({ where, orderBy });
     res.json(leads);
   } catch (err) { next(err); }
 }
