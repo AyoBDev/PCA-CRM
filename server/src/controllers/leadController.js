@@ -12,8 +12,26 @@ function leadName(lead) {
 
 async function listLeads(req, res, next) {
   try {
-    const where = req.query.archived === 'true' ? { archivedAt: { not: null }, status: { not: 'converted' } } : { archivedAt: null };
-    const leads = await prisma.lead.findMany({ where, orderBy: { createdAt: 'desc' } });
+    let where;
+    let orderBy = { createdAt: 'desc' };
+    // Prefer the new `?view=` param; keep legacy `?archived=true` working.
+    if (req.query.view === 'converted') {
+      // Recently Converted: leads that became active clients, newest first.
+      where = { status: 'converted' };
+      orderBy = { convertedAt: 'desc' };
+    } else if (req.query.view === 'dormant' || req.query.archived === 'true') {
+      where = { dormantAt: { not: null }, status: { not: 'converted' } };
+      // Legacy `?archived=true` also matched admin-archived leads that never went
+      // dormant; keep parity by falling back to the old shape when archived=true
+      // is explicitly used AND view isn't set.
+      if (req.query.view !== 'dormant' && req.query.archived === 'true') {
+        where = { archivedAt: { not: null }, status: { not: 'converted' } };
+      }
+    } else {
+      // Default (or view=board / view=list): active, non-archived leads.
+      where = { archivedAt: null };
+    }
+    const leads = await prisma.lead.findMany({ where, orderBy });
     res.json(leads);
   } catch (err) { next(err); }
 }
@@ -101,11 +119,38 @@ async function convertLead(req, res, next) {
   }
 }
 
+async function reactivateLead(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    const columnId = req.body.status;
+    const lead = await leadService.reactivateLead(prisma, id, columnId);
+    audit.logAction({
+      userId: req.user.id,
+      userName: req.user.name,
+      userRole: req.user.role,
+      action: 'RESTORE',
+      entityType: 'Lead',
+      entityId: id,
+      entityName: leadName(lead),
+      metadata: { reason: 'reactivated', targetColumn: columnId },
+    });
+    res.json(lead);
+  } catch (err) {
+    if (/not found|invalid column/i.test(err.message)) return res.status(400).json({ error: err.message });
+    next(err);
+  }
+}
+
 async function getLeadStats(req, res, next) {
   try {
-    const leads = await prisma.lead.findMany();
-    res.json(leadService.computeStats(leads, new Date()));
+    const [leads, dormant] = await Promise.all([
+      prisma.lead.findMany(),
+      prisma.lead.count({ where: { dormantAt: { not: null } } }),
+    ]);
+    const stats = leadService.computeStats(leads, new Date());
+    stats.dormant = dormant;
+    res.json(stats);
   } catch (err) { next(err); }
 }
 
-module.exports = { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, getLeadStats };
+module.exports = { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, reactivateLead, getLeadStats };

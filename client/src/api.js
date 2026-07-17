@@ -148,7 +148,13 @@ export const mergeClients = (keepId, mergeId) =>
     request(`/clients/${keepId}/merge`, { method: 'POST', body: JSON.stringify({ mergeId }) });
 
 // Leads
-export const getLeads = ({ archived } = {}) => request(`/leads${archived ? '?archived=true' : ''}`);
+export const getLeads = ({ view, archived } = {}) => {
+  // Prefer the new `view` param. Keep `archived=true` for backward compat with
+  // any caller that predates the view switcher.
+  if (view) return request(`/leads?view=${encodeURIComponent(view)}`);
+  if (archived) return request('/leads?archived=true');
+  return request('/leads');
+};
 export const getLead = (id) => request(`/leads/${id}`);
 export const createLead = (data) => request('/leads', { method: 'POST', body: JSON.stringify(data) });
 export const updateLead = (id, data) => request(`/leads/${id}`, { method: 'PUT', body: JSON.stringify(data) });
@@ -156,6 +162,8 @@ export const setLeadStatus = (id, status) => request(`/leads/${id}/status`, { me
 export const archiveLead = (id) => request(`/leads/${id}/archive`, { method: 'POST' });
 export const restoreLead = (id) => request(`/leads/${id}/restore`, { method: 'POST' });
 export const convertLead = (id) => request(`/leads/${id}/convert`, { method: 'POST' });
+export const reactivateLead = (id, columnId) =>
+  request(`/leads/${id}/reactivate`, { method: 'POST', body: JSON.stringify({ status: columnId }) });
 export const getLeadStats = () => request('/leads/stats');
 
 // Bulk Import

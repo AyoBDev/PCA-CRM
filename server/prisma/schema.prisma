@@ -457,10 +457,12 @@ model Lead {
   convertedAt              DateTime? @map("converted_at")
 
   archivedAt               DateTime? @map("archived_at")
+  dormantAt                DateTime? @map("dormant_at")
   createdAt                DateTime  @default(now()) @map("created_at")
   updatedAt                DateTime  @updatedAt @map("updated_at")
 
   @@index([status])
+  @@index([dormantAt])
   @@map("leads")
 }
 

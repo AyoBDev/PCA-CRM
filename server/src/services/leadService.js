@@ -84,6 +84,37 @@ async function convertLead(prisma, id) {
   });
 }
 
+const DORMANT_DAYS = 90;
+
+async function sweepDormantLeads(prisma, now = new Date()) {
+  const cutoff = new Date(now.getTime() - DORMANT_DAYS * 86400000);
+  return prisma.lead.updateMany({
+    where: {
+      archivedAt: null,
+      status: { notIn: ['converted', 'archived'] },
+      updatedAt: { lt: cutoff },
+    },
+    data: { status: 'archived', archivedAt: now, dormantAt: now },
+  });
+}
+
+async function reactivateLead(prisma, id, columnId) {
+  if (!['new', 'review', 'waiting', 'quoted'].includes(columnId)) {
+    throw new Error('Invalid column');
+  }
+  const numericId = Number(id);
+  const lead = await prisma.lead.findUnique({ where: { id: numericId } });
+  if (!lead) throw new Error('Lead not found');
+  return prisma.lead.update({
+    where: { id: numericId },
+    data: {
+      status: columnToStatus(columnId),
+      archivedAt: null,
+      dormantAt: null,
+    },
+  });
+}
+
 function computeStats(leads, now = new Date()) {
   const active = leads.filter(l => !l.archivedAt);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -96,4 +127,4 @@ function computeStats(leads, now = new Date()) {
   };
 }
 
-module.exports = { LEAD_COLUMNS, statusToColumn, columnToStatus, mapLeadToClientData, servicesToEnabledServices, convertLead, computeStats };
+module.exports = { LEAD_COLUMNS, statusToColumn, columnToStatus, mapLeadToClientData, servicesToEnabledServices, convertLead, computeStats, DORMANT_DAYS, sweepDormantLeads, reactivateLead };
