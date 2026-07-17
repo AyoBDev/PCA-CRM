@@ -94,7 +94,7 @@ async function freshAssetUrl(assetId, fallbackUrl) {
   if (!assetId) return fallbackUrl;
   try {
     const data = await mondayQuery(
-      `query ($ids: [ID!]) { assets (ids: $ids) { id public_url } }`,
+      `query ($ids: [ID!]!) { assets (ids: $ids) { id public_url } }`,
       { ids: [String(assetId)] }
     );
     const a = data && data.assets && data.assets[0];
