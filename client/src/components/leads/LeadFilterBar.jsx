@@ -3,12 +3,13 @@ import Icons from '../common/Icons';
 import { MONTH_LABELS, deriveDateFilterOptions } from '../../utils/leadConstants';
 
 // Persistent filter row for the Board and List views.
-// Filters are applied client-side to the leads array on LeadsPage.
+// Design: reuses the app's canonical `.ts-filter-bar` pattern (see
+// TimesheetsListPage) — a card-well row with labeled form fields for consistency
+// with the rest of the app. All styling is design-system tokens (hsl(var(--…))).
 //
 // Props:
 //   leads          : array — the full active-leads set (used to derive year/month
-//                    options with "has data" indicators; not filtered by this
-//                    component itself)
+//                    options with "has data" indicators)
 //   year           : 'all' | number
 //   month          : 'all' | 0..11
 //   caseType       : 'all' | 'initial' | 'transfer' | 'private'
@@ -43,17 +44,13 @@ export default function LeadFilterBar({
         year !== 'all' || month !== 'all' || caseType !== 'all' || (search && search.trim().length > 0);
 
     return (
-        <div className="leads-filter-bar">
-            <div className="leads-filter-bar__row">
+        <div className="leads-filter-bar-wrap">
+            <div className="ts-filter-bar leads-filter-bar">
                 {/* Year */}
-                <div className="leads-filter-bar__group">
-                    <label className="leads-filter-bar__label" htmlFor="lead-filter-year">
-                        {Icons.calendar}
-                        Year
-                    </label>
+                <div className="ts-filter-bar__field">
+                    <label htmlFor="lead-filter-year">Year</label>
                     <select
                         id="lead-filter-year"
-                        className="finput leads-filter-bar__select"
                         value={year}
                         onChange={(e) => {
                             const v = e.target.value;
@@ -67,71 +64,71 @@ export default function LeadFilterBar({
                     </select>
                 </div>
 
-                {/* Month pills */}
-                <div className="leads-filter-bar__months">
-                    <button
-                        type="button"
-                        className={`chip${month === 'all' ? ' chip--on' : ''}`}
-                        onClick={() => onChange({ month: 'all' })}
+                {/* Month */}
+                <div className="ts-filter-bar__field">
+                    <label htmlFor="lead-filter-month">Month</label>
+                    <select
+                        id="lead-filter-month"
+                        value={month}
+                        onChange={(e) => {
+                            const v = e.target.value;
+                            onChange({ month: v === 'all' ? 'all' : Number(v) });
+                        }}
                     >
-                        All
-                    </button>
-                    {MONTH_LABELS.map((label, idx) => {
-                        const active = month === idx;
-                        const hasData = monthsWithData.has(idx);
-                        return (
-                            <button
-                                key={label}
-                                type="button"
-                                className={`chip leads-filter-bar__month${active ? ' chip--on' : ''}${hasData ? ' leads-filter-bar__month--has-data' : ''}`}
-                                onClick={() => onChange({ month: active ? 'all' : idx })}
-                                title={hasData ? `${label} has leads` : `${label} — no leads`}
-                            >
-                                {label}
-                            </button>
-                        );
-                    })}
+                        <option value="all">All Months</option>
+                        {MONTH_LABELS.map((label, idx) => (
+                            <option key={label} value={idx}>
+                                {label}{monthsWithData.has(idx) ? ' •' : ''}
+                            </option>
+                        ))}
+                    </select>
                 </div>
 
-                {/* Case type chips */}
-                <div className="leads-filter-bar__case-types">
-                    {caseTypeOptions.map((t) => (
-                        <button
-                            key={t.id}
-                            type="button"
-                            className={`chip${caseType === t.id ? ' chip--on' : ''}`}
-                            onClick={() => onChange({ caseType: t.id })}
-                        >
-                            {t.label}
-                        </button>
-                    ))}
+                {/* Case type */}
+                <div className="ts-filter-bar__field">
+                    <label htmlFor="lead-filter-case-type">Case Type</label>
+                    <select
+                        id="lead-filter-case-type"
+                        value={caseType}
+                        onChange={(e) => onChange({ caseType: e.target.value })}
+                    >
+                        {caseTypeOptions.map((t) => (
+                            <option key={t.id} value={t.id}>
+                                {t.id === 'all' ? 'All Case Types' : t.label}
+                            </option>
+                        ))}
+                    </select>
                 </div>
 
                 {/* Search */}
-                <div className="leads-filter-bar__search">
-                    <span className="leads-filter-bar__search-icon" aria-hidden="true">{Icons.search}</span>
-                    <input
-                        type="text"
-                        className="finput leads-filter-bar__search-input"
-                        placeholder="Search by name, phone, insurance…"
-                        value={search}
-                        onChange={(e) => onChange({ search: e.target.value })}
-                    />
+                <div className="ts-filter-bar__field leads-filter-bar__search-field">
+                    <label htmlFor="lead-filter-search">Search</label>
+                    <div className="leads-filter-bar__search-wrap">
+                        <span className="leads-filter-bar__search-icon" aria-hidden="true">{Icons.search}</span>
+                        <input
+                            id="lead-filter-search"
+                            type="text"
+                            placeholder="Name, phone, insurance…"
+                            value={search}
+                            onChange={(e) => onChange({ search: e.target.value })}
+                        />
+                    </div>
                 </div>
 
-                {/* Reset */}
-                <button
-                    type="button"
-                    className="btn btn--outline btn--xs"
-                    onClick={onReset}
-                    disabled={!hasActiveFilter}
-                    title="Clear all filters"
-                >
-                    Reset
-                </button>
+                <div className="ts-filter-bar__actions">
+                    <button
+                        type="button"
+                        className="btn btn--outline btn--sm"
+                        onClick={onReset}
+                        disabled={!hasActiveFilter}
+                        title="Clear all filters"
+                    >
+                        Reset
+                    </button>
+                </div>
             </div>
 
-            {/* Active filter pill strip — visible only when filters are active */}
+            {/* Active-filter pill strip — visible only when at least one filter is on */}
             {hasActiveFilter && (
                 <div className="leads-filter-bar__active">
                     <span className="leads-filter-bar__active-label">Active filters:</span>

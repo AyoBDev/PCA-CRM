@@ -14348,90 +14348,28 @@ tr:hover .auth-note-icon--empty {
 .leads-stats .stats-grid .card:nth-child(3) { border-left: 4px solid #eab308; }
 .leads-stats .stats-grid .card:nth-child(4) { border-left: 4px solid #22c55e; }
 
-/* ── Filter bar (Board + List views) ── */
-.leads-filter-bar {
-    background: hsl(var(--muted) / 0.3);
-    border-bottom: 1px solid hsl(var(--border));
-    padding: 12px 24px;
+/* ── Filter bar (Board + List views) ─────────────────────────────────────────
+   Reuses the app's canonical `.ts-filter-bar` pattern (see TimesheetsListPage
+   line ~303 and matching CSS around line ~3280). This block only adds the small
+   deltas Leads needs: outer page inset, search icon overlay, and the
+   active-filter pill strip that appears under the row when a filter is active.
+   ────────────────────────────────────────────────────────────────────────── */
+.leads-filter-bar-wrap {
+    padding: 12px 24px 0;
 }
 
-.leads-filter-bar__row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
+/* Slight override so the search field gets more room than the other fields. */
+.leads-filter-bar__search-field {
+    min-width: 240px;
+    flex: 1 1 240px;
 }
 
-.leads-filter-bar__group {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.leads-filter-bar__label {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 12px;
-    font-weight: 600;
-    color: hsl(var(--muted-foreground));
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-
-.leads-filter-bar__label svg {
-    width: 14px;
-    height: 14px;
-}
-
-.leads-filter-bar__select {
-    height: 30px;
-    padding: 0 8px;
-    font-size: 13px;
-    min-width: 90px;
-}
-
-.leads-filter-bar__months {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-wrap: wrap;
-}
-
-.leads-filter-bar__month {
-    position: relative;
-    min-width: 44px;
-    padding-right: 16px;
-    padding-left: 10px;
-}
-
-/* Green "has data" dot on months that contain leads */
-.leads-filter-bar__month--has-data::after {
-    content: '';
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: hsl(var(--success));
-}
-
-.leads-filter-bar__month--has-data.chip--on::after {
-    background: hsl(var(--primary-foreground));
-}
-
-.leads-filter-bar__case-types {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.leads-filter-bar__search {
+/* Search input with a leading magnifier icon inside the same 34px input the
+   .ts-filter-bar pattern uses. */
+.leads-filter-bar__search-wrap {
     position: relative;
     display: flex;
     align-items: center;
-    margin-left: auto;
 }
 
 .leads-filter-bar__search-icon {
@@ -14449,21 +14387,24 @@ tr:hover .auth-note-icon--empty {
     height: 14px;
 }
 
-.leads-filter-bar__search-input {
-    height: 30px;
-    padding: 0 10px 0 30px;
+.leads-filter-bar__search-wrap input[type="text"] {
+    padding: 6px 10px 6px 32px;
     font-size: 13px;
-    min-width: 220px;
+    height: 34px;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    width: 100%;
 }
 
-/* Active-filter pill strip — sits under the row when any filter is on */
+/* Active-filter pill strip — sits under the filter row when any filter is on */
 .leads-filter-bar__active {
     display: flex;
     align-items: center;
     gap: 6px;
     margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px dashed hsl(var(--border));
+    padding: 8px 0 4px;
     flex-wrap: wrap;
 }
 
