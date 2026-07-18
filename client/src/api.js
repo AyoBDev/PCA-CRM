@@ -520,6 +520,8 @@ export const updateEmployeeCertification = (id, formData) =>
 export const deleteEmployeeCertification = (id) => request(`/certifications/${id}`, { method: 'DELETE' });
 export const downloadEmployeeCertification = (id) =>
     fetch(`${BASE}/certifications/${id}/download`, { headers: { Authorization: `Bearer ${getToken()}` } });
+export const downloadCertificationUpload = (id) =>
+    fetch(`${BASE}/certification-uploads/${id}/download`, { headers: { Authorization: `Bearer ${getToken()}` } });
 
 // ── Employee Schedule Links ──
 export const getEmployeeScheduleLinks = () => request('/employee-schedule-links');

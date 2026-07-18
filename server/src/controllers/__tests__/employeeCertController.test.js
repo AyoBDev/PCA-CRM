@@ -1,11 +1,12 @@
 jest.mock('../../lib/prisma', () => ({
   employeeCertification: { findUnique: jest.fn() },
+  certificationUpload: { findUnique: jest.fn() },
 }));
 jest.mock('../../lib/storage', () => ({ downloadFile: jest.fn() }));
 
 const prisma = require('../../lib/prisma');
 const { downloadFile } = require('../../lib/storage');
-const { downloadCertification } = require('../employeeCertController');
+const { downloadCertification, downloadCertificationUpload } = require('../employeeCertController');
 
 function mockReqRes(id = 5) {
   const req = { params: { id: String(id) }, user: { id: 1, name: 'Admin', role: 'admin' } };
@@ -84,6 +85,56 @@ describe('downloadCertification', () => {
     const { req, res } = mockReqRes();
 
     await downloadCertification(req, res, jest.fn());
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.send).not.toHaveBeenCalled();
+  });
+});
+
+describe('downloadCertificationUpload', () => {
+  test('streams a history upload from the bucket by its id', async () => {
+    const bytes = Buffer.from('history-file-bytes');
+    prisma.certificationUpload.findUnique.mockResolvedValue({
+      id: 42, bucketKey: 'certs/9/annual_training/1-old.pdf', fileName: 'old.pdf', fileType: 'application/pdf',
+    });
+    downloadFile.mockResolvedValue(bytes);
+    const { req, res } = mockReqRes(42);
+
+    await downloadCertificationUpload(req, res, jest.fn());
+
+    expect(downloadFile).toHaveBeenCalledWith('certs/9/annual_training/1-old.pdf');
+    expect(res.send).toHaveBeenCalledWith(bytes);
+    const headers = res.set.mock.calls[0][0];
+    expect(headers['Content-Disposition']).toContain('old.pdf');
+  });
+
+  test('404 when the upload row does not exist', async () => {
+    prisma.certificationUpload.findUnique.mockResolvedValue(null);
+    const { req, res } = mockReqRes(42);
+
+    await downloadCertificationUpload(req, res, jest.fn());
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(downloadFile).not.toHaveBeenCalled();
+  });
+
+  test('404 when the upload has no bucketKey', async () => {
+    prisma.certificationUpload.findUnique.mockResolvedValue({ id: 42, bucketKey: '', fileName: 'x.pdf' });
+    const { req, res } = mockReqRes(42);
+
+    await downloadCertificationUpload(req, res, jest.fn());
+
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  test('404 when the object is missing in storage', async () => {
+    prisma.certificationUpload.findUnique.mockResolvedValue({
+      id: 42, bucketKey: 'certs/9/annual_training/gone.pdf', fileName: 'x.pdf', fileType: 'application/pdf',
+    });
+    downloadFile.mockResolvedValue(null);
+    const { req, res } = mockReqRes(42);
+
+    await downloadCertificationUpload(req, res, jest.fn());
 
     expect(res.status).toHaveBeenCalledWith(404);
     expect(res.send).not.toHaveBeenCalled();

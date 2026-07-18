@@ -156,4 +156,26 @@ async function downloadCertification(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listCertifications, createCertification, updateCertification, deleteCertification, downloadCertification };
+// Download a single CertificationUpload (e.g. an archived history attachment) by
+// its id, streaming the file from the bucket. History files are bucket-only, so
+// this is the only way to view them from the UI.
+async function downloadCertificationUpload(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const upload = await prisma.certificationUpload.findUnique({ where: { id } });
+        if (!upload || !upload.bucketKey) return res.status(404).json({ error: 'File not found' });
+
+        const buffer = await downloadFile(upload.bucketKey);
+        if (!buffer) return res.status(404).json({ error: 'File not found in storage' });
+
+        const isPdf = upload.fileType === 'application/pdf';
+        res.set({
+            'Content-Type': upload.fileType || 'application/octet-stream',
+            'Content-Disposition': `${isPdf ? 'inline' : 'attachment'}; filename="${upload.fileName}"`,
+            'Content-Length': buffer.length,
+        });
+        res.send(buffer);
+    } catch (err) { next(err); }
+}
+
+module.exports = { listCertifications, createCertification, updateCertification, deleteCertification, downloadCertification, downloadCertificationUpload };

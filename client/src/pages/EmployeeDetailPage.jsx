@@ -844,6 +844,26 @@ function CertificationsTab({ employee, onEdit }) {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    // Download an individual history/attachment file (CertificationUpload) from the bucket.
+    const handleDownloadUpload = async (upload) => {
+        try {
+            const res = await api.downloadCertificationUpload(upload.id);
+            if (!res.ok) throw new Error('Download failed');
+            const contentType = res.headers.get('Content-Type') || 'application/octet-stream';
+            const blob = await res.blob();
+            const url = URL.createObjectURL(new Blob([blob], { type: contentType }));
+            if (contentType === 'application/pdf') {
+                window.open(url, '_blank');
+            } else {
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = upload.fileName;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     const statusLabel = (s) => s === 'ok' ? 'Active' : s === 'critical' ? 'Expiring Soon' : s === 'expired' ? 'Expired' : 'Not Set';
     const statusBadgeClass = (s) => s === 'ok' ? 'submitted' : s === 'critical' ? 'draft' : s === 'expired' ? 'critical' : 'draft';
 
@@ -1050,7 +1070,16 @@ function CertificationsTab({ employee, onEdit }) {
                                                 </div>
                                                 {(rec.uploads || []).map(upload => (
                                                     <div key={upload.id} style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '4px 0 4px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        {Icons.paperclip} {upload.fileName} ({(upload.fileSize / 1024).toFixed(0)} KB)
+                                                        {Icons.paperclip}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDownloadUpload(upload)}
+                                                            title="View file"
+                                                            style={{ background: 'none', border: 'none', padding: 0, color: 'hsl(var(--primary))', cursor: 'pointer', textDecoration: 'underline', fontSize: 12 }}
+                                                        >
+                                                            {upload.fileName}
+                                                        </button>
+                                                        <span>({(upload.fileSize / 1024).toFixed(0)} KB)</span>
                                                         {upload.note && <span style={{ fontStyle: 'italic' }}>— {upload.note}</span>}
                                                     </div>
                                                 ))}
