@@ -58,6 +58,21 @@ describe('storage.js — LOCAL MODE (no RAILWAY_OBJECT_STORAGE_ENDPOINT)', () =>
     // Already required above — if it threw, beforeEach would have failed
     expect(typeof storage.uploadFile).toBe('function');
     expect(typeof storage.getPresignedUrl).toBe('function');
+    expect(typeof storage.downloadFile).toBe('function');
+  });
+
+  test('downloadFile returns the bytes that were uploaded (local roundtrip)', async () => {
+    const buf = Buffer.from('cert-file-contents');
+    await storage.uploadFile(TEST_KEY, buf, 'application/pdf');
+
+    const out = await storage.downloadFile(TEST_KEY);
+    expect(Buffer.isBuffer(out)).toBe(true);
+    expect(out).toEqual(buf);
+  });
+
+  test('downloadFile returns null for a missing key (local)', async () => {
+    const out = await storage.downloadFile('certs/does/not/exist.pdf');
+    expect(out).toBeNull();
   });
 });
 

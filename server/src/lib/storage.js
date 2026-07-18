@@ -47,4 +47,24 @@ async function getPresignedUrl(key, expiresIn = 300) {
   }
 }
 
-module.exports = { uploadFile, getPresignedUrl };
+// Fetch a stored object's bytes as a Buffer. Returns null if the key does not
+// exist. Used to stream cert files that live only in the bucket (no inline
+// fileData) back through the authenticated download route.
+async function downloadFile(key) {
+  if (isS3) {
+    const { GetObjectCommand } = require('@aws-sdk/client-s3');
+    try {
+      const res = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
+      return Buffer.from(await res.Body.transformToByteArray());
+    } catch (err) {
+      if (err && (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404)) return null;
+      throw err;
+    }
+  } else {
+    const filePath = path.join(LOCAL_DIR, key);
+    if (!fs.existsSync(filePath)) return null;
+    return fs.readFileSync(filePath);
+  }
+}
+
+module.exports = { uploadFile, getPresignedUrl, downloadFile };
