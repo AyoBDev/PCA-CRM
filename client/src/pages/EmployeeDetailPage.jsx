@@ -966,7 +966,14 @@ function CertificationsTab({ employee, onEdit }) {
         const expiredRecords = allRecords.filter(r => r.status === 'expired');
         const currentAttachment = activeRecords.find(r => r.fileName);
         const allUploads = allRecords.flatMap(r => r.uploads || []);
-        const attachCount = allRecords.filter(r => r.fileName).length + allUploads.length;
+        // Count distinct files. Each CertificationUpload row IS one stored file
+        // (the active file already has its own "Active (imported)" upload row), so
+        // when uploads exist they are the source of truth. Only fall back to
+        // counting records-with-a-file for legacy certs that have inline fileData
+        // but no upload rows.
+        const attachCount = allUploads.length > 0
+            ? allUploads.length
+            : allRecords.filter(r => r.fileName).length;
 
         return (
             <div key={ct.type} className="pa-service-card" style={{ '--card-accent': colors.accent, '--card-bg': colors.bg, '--card-border': colors.border }}>
@@ -1059,7 +1066,7 @@ function CertificationsTab({ employee, onEdit }) {
                                                     <div style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '4px 0' }}>History</div>
                                                     {history.map(upload => (
                                                         <div key={upload.id} style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '4px 0 4px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                            {Icons.paperclip}
+                                                            <span style={{ display: 'inline-flex', width: 14, height: 14, flexShrink: 0 }}>{Icons.paperclip}</span>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => handleDownloadUpload(upload)}
@@ -1097,7 +1104,7 @@ function CertificationsTab({ employee, onEdit }) {
                                                 </div>
                                                 {(rec.uploads || []).map(upload => (
                                                     <div key={upload.id} style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '4px 0 4px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        {Icons.paperclip}
+                                                        <span style={{ display: 'inline-flex', width: 14, height: 14, flexShrink: 0 }}>{Icons.paperclip}</span>
                                                         <button
                                                             type="button"
                                                             onClick={() => handleDownloadUpload(upload)}
