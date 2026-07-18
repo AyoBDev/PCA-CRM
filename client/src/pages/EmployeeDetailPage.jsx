@@ -1047,6 +1047,33 @@ function CertificationsTab({ employee, onEdit }) {
                                                 <div className="pa-auth-item__notes">{rec.notes}</div>
                                             </div>
                                         )}
+                                        {(() => {
+                                            // Show history attachments under the active cert. The active file
+                                            // itself already appears in the header with its own download button,
+                                            // so skip the upload row that matches the active fileName to avoid a
+                                            // duplicate; the rest are prior/expired history files.
+                                            const history = (rec.uploads || []).filter(u => u.fileName !== rec.fileName);
+                                            if (history.length === 0) return null;
+                                            return (
+                                                <div className="pa-auth-item__body">
+                                                    <div style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '4px 0' }}>History</div>
+                                                    {history.map(upload => (
+                                                        <div key={upload.id} style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '4px 0 4px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                            {Icons.paperclip}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDownloadUpload(upload)}
+                                                                title="View file"
+                                                                style={{ background: 'none', border: 'none', padding: 0, color: 'hsl(var(--primary))', cursor: 'pointer', textDecoration: 'underline', fontSize: 12 }}
+                                                            >
+                                                                {upload.fileName}
+                                                            </button>
+                                                            <span>({(upload.fileSize / 1024).toFixed(0)} KB)</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 ))}
                                 {pendingRecords.length > 0 && (
