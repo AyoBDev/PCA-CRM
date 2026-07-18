@@ -28,7 +28,10 @@ describe('storage.js — LOCAL MODE (no RAILWAY_OBJECT_STORAGE_ENDPOINT)', () =>
   let storage;
 
   beforeEach(() => {
-    delete process.env.RAILWAY_OBJECT_STORAGE_ENDPOINT;
+    // Clear every endpoint var the module now checks so local mode is deterministic.
+    for (const v of ['RAILWAY_OBJECT_STORAGE_ENDPOINT', 'AWS_ENDPOINT_URL', 'ENDPOINT', 'AWS_ENDPOINT_URL_S3']) {
+      delete process.env[v];
+    }
     jest.resetModules();
     // Require fresh after clearing env
     storage = require('../storage');
@@ -73,6 +76,44 @@ describe('storage.js — LOCAL MODE (no RAILWAY_OBJECT_STORAGE_ENDPOINT)', () =>
   test('downloadFile returns null for a missing key (local)', async () => {
     const out = await storage.downloadFile('certs/does/not/exist.pdf');
     expect(out).toBeNull();
+  });
+});
+
+describe('storage.js — S3 MODE via AWS_* fallback (Railway auto-injected vars)', () => {
+  let storage;
+  let mockSend;
+
+  beforeEach(() => {
+    // No RAILWAY_OBJECT_STORAGE_* vars — only the AWS_* set Railway injects.
+    delete process.env.RAILWAY_OBJECT_STORAGE_ENDPOINT;
+    process.env.AWS_ENDPOINT_URL = 'https://example-bucket.dev';
+    process.env.AWS_ACCESS_KEY_ID = 'ak';
+    process.env.AWS_SECRET_ACCESS_KEY = 'sk';
+    process.env.AWS_S3_BUCKET_NAME = 'my-bucket';
+    mockSend = jest.fn().mockResolvedValue({});
+    jest.resetModules();
+    jest.mock('@aws-sdk/client-s3', () => ({
+      S3Client: jest.fn(() => ({ send: mockSend })),
+      PutObjectCommand: jest.fn((a) => a),
+      GetObjectCommand: jest.fn((a) => a),
+    }));
+    jest.mock('@aws-sdk/s3-request-presigner', () => ({ getSignedUrl: jest.fn().mockResolvedValue('https://signed.example/file') }));
+    storage = require('../storage');
+  });
+
+  afterEach(() => {
+    for (const v of ['AWS_ENDPOINT_URL', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_S3_BUCKET_NAME']) delete process.env[v];
+    jest.unmock('@aws-sdk/client-s3');
+    jest.unmock('@aws-sdk/s3-request-presigner');
+  });
+
+  test('uses S3 (not local disk) when only AWS_* vars are set', async () => {
+    const key = await storage.uploadFile('certs/1/tb_test/x.pdf', Buffer.from('x'), 'application/pdf');
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(key).toBe('certs/1/tb_test/x.pdf');
+    // getPresignedUrl returns the signed URL, not a file:// path
+    const url = await storage.getPresignedUrl('certs/1/tb_test/x.pdf');
+    expect(url.startsWith('file://')).toBe(false);
   });
 });
 
