@@ -164,8 +164,11 @@ async function processEmployee(item, employees, existingByEmp, execute, report) 
 
     if (!execute) continue;
 
-    // Active file: refresh the (possibly expired) presigned url, then download,
-    // store in bucket AND keep inline bytes for admin download route.
+    // Active file: refresh the (possibly expired) presigned url, then download
+    // and store to the BUCKET ONLY. We deliberately do NOT write fileData inline:
+    // a 2-5MB blob per cert × thousands of certs bloats the Postgres volume (the
+    // file already lives in object storage via the CertificationUpload row). The
+    // download route serves the bucket copy.
     const activeUrl = await freshAssetUrl(cert.active.id, cert.active.url);
     const activeDl = await downloadAsset(activeUrl);
     const activeKey = await storeFile(emp.id, cert.certType, cert.active.name, activeDl.buffer, activeDl.contentType);
@@ -179,7 +182,6 @@ async function processEmployee(item, employees, existingByEmp, execute, report) 
         fileName: cert.active.name,
         fileSize: activeDl.buffer.length,
         fileType: activeDl.contentType,
-        fileData: activeDl.buffer,
         notes: 'Imported from Monday.com',
         uploads: {
           create: [{
