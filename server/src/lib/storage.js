@@ -5,7 +5,22 @@ const path = require('path');
 // the uploads root — joining with the key yields server/uploads/certs/... (no doubling).
 const LOCAL_DIR = path.join(__dirname, '..', '..', 'uploads');
 
-const isS3 = Boolean(process.env.RAILWAY_OBJECT_STORAGE_ENDPOINT);
+// Accept BOTH the RAILWAY_OBJECT_STORAGE_* vars (used by the one-off cert import)
+// AND the AWS_*/generic vars that Railway auto-injects when a bucket is connected
+// (the same set the admin file manager's storageService.js reads). Preferring the
+// explicit RAILWAY_* names but falling back to the auto-injected ones means cert
+// downloads reach the bucket on the deployed server without any extra Railway
+// config — previously this module only read RAILWAY_OBJECT_STORAGE_*, which Railway
+// does NOT auto-inject, so on prod isS3 was false and it fell back to local disk.
+const endpoint = process.env.RAILWAY_OBJECT_STORAGE_ENDPOINT
+  || process.env.AWS_ENDPOINT_URL || process.env.ENDPOINT || process.env.AWS_ENDPOINT_URL_S3 || '';
+const accessKey = process.env.RAILWAY_OBJECT_STORAGE_ACCESS_KEY
+  || process.env.AWS_ACCESS_KEY_ID || process.env.ACCESS_KEY_ID || '';
+const secretKey = process.env.RAILWAY_OBJECT_STORAGE_SECRET_KEY
+  || process.env.AWS_SECRET_ACCESS_KEY || process.env.SECRET_ACCESS_KEY || '';
+const region = process.env.AWS_DEFAULT_REGION || process.env.REGION || process.env.AWS_REGION || 'auto';
+
+const isS3 = Boolean(endpoint);
 
 let s3 = null;
 let BUCKET = null;
@@ -13,15 +28,13 @@ let BUCKET = null;
 if (isS3) {
   const { S3Client } = require('@aws-sdk/client-s3');
   s3 = new S3Client({
-    region: 'auto',
-    endpoint: process.env.RAILWAY_OBJECT_STORAGE_ENDPOINT,
-    credentials: {
-      accessKeyId: process.env.RAILWAY_OBJECT_STORAGE_ACCESS_KEY || '',
-      secretAccessKey: process.env.RAILWAY_OBJECT_STORAGE_SECRET_KEY || '',
-    },
+    region,
+    endpoint,
+    credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
     forcePathStyle: true,
   });
-  BUCKET = process.env.RAILWAY_BUCKET_NAME || 'nvbestpca-files';
+  BUCKET = process.env.RAILWAY_BUCKET_NAME || process.env.AWS_S3_BUCKET_NAME
+    || process.env.BUCKET || process.env.BUCKET_NAME || 'nvbestpca-files';
 }
 
 async function uploadFile(key, buffer, contentType) {
