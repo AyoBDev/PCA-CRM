@@ -4,14 +4,12 @@ import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import AuthorizationFormModal from '../components/common/AuthorizationFormModal';
 import DrawerPanel from '../components/common/DrawerPanel';
 import ClientCreationWizard from '../components/ClientCreationWizard';
 import { formatDate as fmtDate, daysClass } from '../utils/dates';
 import { statusLabel } from '../utils/status';
-import { getAccountForCategory, getAccountForServiceCode, ACCOUNT_NUMBER_OPTIONS } from '../utils/accountMapping';
-import { ServiceCodeSelect, SERVICE_CATEGORIES, SERVICE_NAME_SUGGESTIONS } from '../utils/serviceCodes';
 import { SERVICE_CODE_COLORS, SERVICE_CODE_NAMES, getAuthSortKey } from '../utils/constants';
-import AutocompleteInput from '../components/common/AutocompleteInput';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import { useUndoStack } from '../hooks/useUndoStack';
@@ -19,7 +17,6 @@ import { EntityActivityButton } from '../components/common/ActivityDrawer';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import { getInitials, getAvatarColor } from '../utils/ui';
-import { useServices } from '../hooks/useServices';
 
 
 // ── Client Row 3-dot Menu (status + actions) ──
@@ -220,205 +217,7 @@ function sortAuthorizations(auths) {
     return [...auths].sort((a, b) => getAuthSortKey(a.serviceCode, a.serviceName) - getAuthSortKey(b.serviceCode, b.serviceName));
 }
 
-function AuthFormModal({ auth, clientId, onSave, onClose, onRenewal, isRenewal }) {
-    const { serviceOptions } = useServices();
-    const [serviceCategory, setServiceCategory] = useState(auth?.serviceCategory || '');
-    const [serviceCode, setServiceCode] = useState(auth?.serviceCode || 'PCS');
-    const [serviceName, setServiceName] = useState(auth?.serviceName || '');
-    const [authorizedUnits, setAuthorizedUnits] = useState(isRenewal ? '' : (auth?.authorizedUnits || ''));
-    const [authorizationNumber, setAuthorizationNumber] = useState(isRenewal ? '' : (auth?.authorizationNumber || ''));
-    const [accountNumber, setAccountNumber] = useState(auth?.accountNumber || getAccountForCategory(auth?.serviceCategory) || '');
-    const [sandataClientId, setSandataClientId] = useState(auth?.sandataClientId || '');
-    const [startDate, setStartDate] = useState(
-        !isRenewal && auth?.authorizationStartDate ? new Date(auth.authorizationStartDate).toISOString().split('T')[0] : ''
-    );
-    const [endDate, setEndDate] = useState(
-        !isRenewal && auth?.authorizationEndDate ? new Date(auth.authorizationEndDate).toISOString().split('T')[0] : ''
-    );
-    const [notes, setNotes] = useState('');
-    const [manualStatus, setManualStatus] = useState(isRenewal ? 'active' : (auth?.manualStatus || 'active'));
-    const [files, setFiles] = useState([]);
-    const isEdit = !!auth?.id;
-
-    // Parse pasted date text into YYYY-MM-DD for date inputs
-    const handleDatePaste = (setter) => (e) => {
-        const text = (e.clipboardData || window.clipboardData).getData('text').trim();
-        if (!text) return;
-        let parsed = null;
-        // Try YYYY-MM-DD or YYYY/MM/DD
-        let m = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
-        if (m) parsed = `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
-        // Try MM/DD/YYYY or MM-DD-YYYY
-        if (!parsed) {
-            m = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
-            if (m) parsed = `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
-        }
-        // Try Month DD, YYYY or Mon DD, YYYY (e.g. "May 8, 2026" or "January 15, 2026")
-        if (!parsed) {
-            m = text.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
-            if (m) {
-                const d = new Date(`${m[1]} ${m[2]}, ${m[3]}`);
-                if (!isNaN(d)) parsed = d.toISOString().split('T')[0];
-            }
-        }
-        if (parsed && !isNaN(new Date(parsed + 'T00:00:00'))) {
-            e.preventDefault();
-            setter(parsed);
-        }
-    };
-
-    const handleServiceCategoryChange = (newCategory) => {
-        setServiceCategory(newCategory);
-        const defaultAcc = getAccountForCategory(newCategory);
-        if (defaultAcc && (!accountNumber || ACCOUNT_NUMBER_OPTIONS.includes(accountNumber))) {
-            setAccountNumber(defaultAcc);
-        }
-    };
-
-    const handleServiceCodeChange = (newCode) => {
-        setServiceCode(newCode);
-        const defaultName = SERVICE_CODE_NAMES[newCode] || '';
-        if (defaultName && !serviceName) setServiceName(defaultName);
-        const defaultAcc = getAccountForServiceCode(newCode);
-        if (defaultAcc && (!accountNumber || ACCOUNT_NUMBER_OPTIONS.includes(accountNumber))) {
-            setAccountNumber(defaultAcc);
-        }
-    };
-
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        if (manualStatus === 'renewal' && isEdit && onRenewal) {
-            onRenewal({
-                oldAuthId: auth.id,
-                clientId: auth.clientId || clientId,
-                serviceCategory,
-                serviceCode,
-                serviceName,
-                accountNumber,
-            });
-            return;
-        }
-        onSave({
-            serviceCategory,
-            serviceCode,
-            serviceName,
-            authorizationNumber,
-            authorizedUnits: parseInt(authorizedUnits) || 0,
-            authorizationStartDate: startDate || null,
-            authorizationEndDate: endDate || null,
-            notes,
-            accountNumber,
-            sandataClientId,
-            manualStatus,
-            files,
-        });
-    };
-
-    return (
-        <Modal onClose={onClose} wide>
-            <h2 className="modal__title">{isRenewal ? 'Renew Authorization' : isEdit ? 'Edit Authorization' : 'Add Authorization'}</h2>
-            <p className="modal__desc">{isRenewal ? 'Create a new authorization to replace the previous one.' : isEdit ? 'Update the authorization details below.' : 'Fill in the service and date details.'}</p>
-            <form onSubmit={handleSubmit}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div className="form-group" style={{ position: 'relative' }}>
-                        <label>Service Category</label>
-                        <AutocompleteInput value={serviceCategory} onChange={handleServiceCategoryChange} options={SERVICE_CATEGORIES} placeholder="PCS, SDPC, Waiver 58…" />
-                    </div>
-                    <div className="form-group">
-                        <label>Service Code</label>
-                        <ServiceCodeSelect value={serviceCode} onChange={(e) => handleServiceCodeChange(e.target.value)} options={serviceOptions()} />
-                    </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div className="form-group">
-                        <label>Service Name</label>
-                        <AutocompleteInput value={serviceName} onChange={setServiceName} options={SERVICE_NAME_SUGGESTIONS} placeholder="Personal Care Services" filterMode="includes" />
-                    </div>
-                    <div className="form-group">
-                        <label>Account Number</label>
-                        <select value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)}>
-                            <option value="">— Select —</option>
-                            {ACCOUNT_NUMBER_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                        </select>
-                    </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div className="form-group">
-                        <label>Sandata Client ID</label>
-                        <input type="text" value={sandataClientId} onChange={(e) => setSandataClientId(e.target.value)} placeholder="e.g. 1234567" />
-                    </div>
-                    <div className="form-group">
-                        <label>Authorization Number</label>
-                        <input type="text" value={authorizationNumber} onChange={(e) => setAuthorizationNumber(e.target.value)} placeholder="e.g. 45268348457" />
-                    </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div className="form-group">
-                        <label>Auth Units</label>
-                        <input type="number" value={authorizedUnits} onChange={(e) => setAuthorizedUnits(e.target.value)} placeholder="0" />
-                    </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div className="form-group">
-                        <label>Auth Start</label>
-                        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} onPaste={handleDatePaste(setStartDate)} />
-                    </div>
-                    <div className="form-group">
-                        <label>Auth End</label>
-                        <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} onPaste={handleDatePaste(setEndDate)} required />
-                    </div>
-                </div>
-                <div className="form-group">
-                    <label>Notes</label>
-                    <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes…" />
-                </div>
-                <div className="form-group">
-                    <label>Status</label>
-                    <div className="auth-status-cards">
-                        <label className={`auth-status-card ${manualStatus === 'active' ? 'auth-status-card--active' : ''}`}>
-                            <input type="radio" name="authStatus" value="active" checked={manualStatus === 'active'} onChange={() => setManualStatus('active')} />
-                            <div className="auth-status-card__radio"><span className="auth-status-card__dot" /></div>
-                            <span className="auth-status-card__label">Active</span>
-                            <span className="auth-status-card__desc">Authorization is currently valid and in use.</span>
-                        </label>
-                        {isEdit && !isRenewal && (
-                        <label className={`auth-status-card ${manualStatus === 'renewal' ? 'auth-status-card--renewal' : ''}`}>
-                            <input type="radio" name="authStatus" value="renewal" checked={manualStatus === 'renewal'} onChange={() => setManualStatus('renewal')} />
-                            <div className="auth-status-card__radio"><span className="auth-status-card__dot" /></div>
-                            <span className="auth-status-card__label" style={{ color: '#2563eb' }}>Renewal</span>
-                            <span className="auth-status-card__desc">Move to history and create a new authorization.</span>
-                        </label>
-                        )}
-                        <label className={`auth-status-card ${manualStatus === 'inactive' ? 'auth-status-card--inactive' : ''}`}>
-                            <input type="radio" name="authStatus" value="inactive" checked={manualStatus === 'inactive'} onChange={() => setManualStatus('inactive')} />
-                            <div className="auth-status-card__radio"><span className="auth-status-card__dot" /></div>
-                            <span className="auth-status-card__label">Inactive</span>
-                            <span className="auth-status-card__desc">Authorization is no longer in use.</span>
-                        </label>
-                    </div>
-                </div>
-                <div className="form-group">
-                    <label>Upload PA / Care Plan Documents</label>
-                    <input
-                        type="file"
-                        multiple
-                        onChange={(e) => setFiles(Array.from(e.target.files))}
-                        style={{ fontSize: 13 }}
-                    />
-                    {files.length > 0 && (
-                        <div style={{ marginTop: 6, fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
-                            {files.length} file{files.length !== 1 ? 's' : ''} selected
-                        </div>
-                    )}
-                </div>
-                <div className="form-actions">
-                    <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn--primary">{isEdit ? 'Save Changes' : 'Add Authorization'}</button>
-                </div>
-            </form>
-        </Modal>
-    );
-}
+// AuthFormModal is now the shared <AuthorizationFormModal> (imported at top).
 
 // ── Bulk Import Modal ──
 function BulkImportModal({ onImport, onClose }) {
@@ -1352,7 +1151,7 @@ export default function AuthorizationsPage() {
                 <ClientFormModal client={modal.client} onSave={handleSaveClient} onClose={() => setModal(null)} insuranceTypeNames={insuranceTypeNames} />
             )}
             {modal?.type === 'auth' && (
-                <AuthFormModal
+                <AuthorizationFormModal
                     auth={modal.auth}
                     clientId={modal.clientId}
                     isRenewal={modal.isRenewal}

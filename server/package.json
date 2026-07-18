@@ -11,7 +11,8 @@
     "db:generate": "npx prisma generate",
     "db:seed": "node prisma/seed.js",
     "db:migrate-employees": "node prisma/migrate-employees.js",
-    "db:migrate-data": "node prisma/migrate-data.js"
+    "db:migrate-data": "node prisma/migrate-data.js",
+    "db:backfill-auth-required": "node prisma/backfill-authorization-required.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1068.0",

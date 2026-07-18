@@ -287,6 +287,18 @@ export default function PcaFormPage() {
     const companionEnabled = enabledServices.includes('Companion');
     const submitted = data?.timesheet?.status === 'submitted';
     const authLimits = data?.authLimits || {};
+    const authStatus = data?.client?.authStatus || null;
+    // Banner shown when the client requires authorization but the viewed week has
+    // no active (or an expired) authorization — the caregiver can still enter hours,
+    // but submission will be blocked until the office updates the authorization.
+    const authBanner = (() => {
+        if (!authStatus || !authStatus.requiresAuth || authStatus.state === 'ok') return null;
+        if (authStatus.state === 'expired') {
+            const d = authStatus.expiredOn ? new Date(authStatus.expiredOn).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : null;
+            return `This client's authorization expired${d ? ` on ${d}` : ''}. You can enter hours, but submission is blocked until the office updates the authorization.`;
+        }
+        return 'No active authorization for this week. You can enter hours, but submission is blocked until the office updates the authorization.';
+    })();
 
     const enabledSectionKeys = useMemo(() => {
         const keys = [];
@@ -536,6 +548,24 @@ export default function PcaFormPage() {
         <div className={`pcaf-page ${isMobile ? 'pcaf-page--mobile' : ''}`}>
             {/* Title — desktop only */}
             {!isMobile && <h1 className="pcaf-title">PCA SERVICE DELIVERY RECORD</h1>}
+
+            {/* Authorization warning banner — non-blocking; explains why submit may fail */}
+            {authBanner && !submitted && (
+                <div
+                    role="status"
+                    style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                        width: '100%', boxSizing: 'border-box',
+                        background: 'hsl(var(--warning-bg))', color: 'hsl(38 92% 30%)',
+                        border: '1px solid hsl(var(--warning) / 0.4)', borderRadius: 'var(--radius)',
+                        padding: '10px 14px', margin: '0 0 12px', fontSize: 13, lineHeight: 1.4,
+                        textAlign: 'center',
+                    }}
+                >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18" style={{ flexShrink: 0 }}><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span>{authBanner}</span>
+                </div>
+            )}
 
             {/* Top bar */}
             <div className={`pcaf-topbar ${isMobile ? 'pcaf-topbar--mobile' : ''}`}>

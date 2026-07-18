@@ -236,6 +236,58 @@ function filterAuthsByWeek(auths, weekStart, weekEnd) {
   return result;
 }
 
+/**
+ * Classify, per timesheet section, the authorization status for a given week.
+ *
+ * Uses the SSOT `filterAuthsByWeek` to determine active auths, and additionally
+ * inspects non-active auths so callers can distinguish "no authorization ever"
+ * from "authorization expired". Weekly authorized units per section come from
+ * the active auths only.
+ *
+ * @param {Array} allAuths - all authorizations for the client (any status/date)
+ * @param {Date|string} weekStart
+ * @param {Date|string} weekEnd
+ * @param {(auth:object)=>string|null} deriveSection - maps an auth to a section
+ *        (PAS/Homemaker/Respite/Companion). Passed in to avoid a circular
+ *        dependency on the service registry from this pure module.
+ * @returns {{ activeUnits: Object, expiredOn: Object, hadAny: Object }}
+ *   - activeUnits[section]  = summed authorizedUnits from active-for-week auths
+ *   - expiredOn[section]    = latest end date (Date) of an auth that expired before the week
+ *   - hadAny[section]       = true if ANY auth (any status/date) maps to the section
+ */
+function classifyWeekAuthBySection(allAuths, weekStart, weekEnd, deriveSection) {
+  const ws = weekStart instanceof Date ? weekStart : new Date(weekStart);
+  const wsMs = Date.UTC(ws.getUTCFullYear(), ws.getUTCMonth(), ws.getUTCDate());
+
+  const active = filterAuthsByWeek(allAuths, weekStart, weekEnd);
+  const activeUnits = {};
+  for (const a of active) {
+    const section = deriveSection(a);
+    if (section) activeUnits[section] = (activeUnits[section] || 0) + (a.authorizedUnits || 0);
+  }
+
+  const expiredOn = {};
+  const hadAny = {};
+  for (const a of allAuths) {
+    const section = deriveSection(a);
+    if (!section) continue;
+    hadAny[section] = true;
+    // Track the most recent end date among auths that ended before this week
+    // (and are not archived) — surfaces the "expired on <date>" message.
+    if (a.archivedAt) continue;
+    if ((a.manualStatus || 'active') !== 'active') continue;
+    if (a.authorizationEndDate) {
+      const ed = new Date(a.authorizationEndDate);
+      const edMs = Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate());
+      if (edMs < wsMs) {
+        if (!expiredOn[section] || ed > expiredOn[section]) expiredOn[section] = ed;
+      }
+    }
+  }
+
+  return { activeUnits, expiredOn, hadAny };
+}
+
 module.exports = {
   REMINDER_WINDOWS,
   STATUS_RANK,
@@ -246,4 +298,5 @@ module.exports = {
   enrichAuthorization,
   enrichClient,
   filterAuthsByWeek,
+  classifyWeekAuthBySection,
 };

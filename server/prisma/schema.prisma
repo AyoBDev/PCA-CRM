@@ -250,6 +250,11 @@ model Client {
   secondaryEmergencyRelation String           @default("") @map("secondary_emergency_relation")
   secondaryPhone             String           @default("") @map("secondary_phone")
   client_status              String           @default("active")
+  authorizationRequired      Boolean          @default(true) @map("authorization_required")
+  overrideActive             Boolean          @default(false) @map("override_active")
+  overrideExpiresOn          DateTime?        @map("override_expires_on")
+  overrideReason             String           @default("") @map("override_reason")
+  overrideBy                 String           @default("") @map("override_by")
   authorizations             Authorization[]
   careTeam                   ClientCareTeam[]
   documents                  ClientDocument[]
@@ -386,6 +391,11 @@ model Authorization {
   accountNumber           String                    @default("") @map("account_number")
   sandataClientId         String                    @default("") @map("sandata_client_id")
   manualStatus            String                    @default("active") @map("manual_status")
+  authorizationType       String                    @default("Weekly Units") @map("authorization_type")
+  authorizedVisitsPerYear Int?                      @map("authorized_visits_per_year")
+  hoursPerVisit           Float?                    @map("hours_per_visit")
+  authorizedHoursPerYear  Float?                    @map("authorized_hours_per_year")
+  usedHoursYtd            Float                     @default(0) @map("used_hours_ytd")
   authorization_documents authorization_documents[]
   client                  Client                    @relation(fields: [clientId], references: [id], onDelete: Cascade)
 

@@ -1293,6 +1293,14 @@ body {
   margin-bottom: 20px;
 }
 
+/* Sub-section heading inside a modal/form */
+.modal__section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  margin: 0 0 4px;
+}
+
 /* ── Wizard Step Indicator ── */
 .wizard-steps {
   display: flex;
@@ -3086,20 +3094,46 @@ body {
 }
 
 /* ─── Checkbox Field (left-aligned checkbox + label inside a .form-group) ─── */
-.checkbox-field {
+/* Scoped to beat `.form-group label { display: block }` which would otherwise
+   collapse the flex gap between the checkbox and its text. */
+.checkbox-field,
+.form-group label.checkbox-field,
+label.checkbox-field {
   display: flex;
   align-items: center;
   justify-content: flex-start;
   gap: 8px;
   cursor: pointer;
+  margin-bottom: 0;
 }
 
+.form-group .checkbox-field input[type="checkbox"],
 .checkbox-field input[type="checkbox"] {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
   margin: 0;
+  padding: 0;
   cursor: pointer;
+}
+
+/* Helper text shown under a field or checkbox in forms/modals */
+.form-hint {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  line-height: 1.4;
+  margin: 6px 0 0;
+}
+
+.checkbox-field + .form-hint {
+  margin-left: 24px;
+}
+
+/* Subtle divider between sections inside a modal/form */
+.form-divider {
+  border: none;
+  border-top: 1px solid hsl(var(--border));
+  margin: 16px 0;
 }
 
 /* ─── Color Picker ─── */

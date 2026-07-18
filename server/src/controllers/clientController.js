@@ -169,7 +169,8 @@ async function updateClient(req, res, next) {
 async function patchClient(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const { address, secondaryAddress, phone, secondaryPhone, email, gender, gateCode, notes, pcaNotes, caregiverRequirements, mainServices, enabledServices, dob, paNumber, doctorName, doctorPhone, backupDoctorName, backupDoctorPhone, emergencyContactName, emergencyContactPhone, emergencyContactRelation, secondaryEmergencyName, secondaryEmergencyPhone, secondaryEmergencyRelation, critical, clientStatus } = req.body;
+        const { address, secondaryAddress, phone, secondaryPhone, email, gender, gateCode, notes, pcaNotes, caregiverRequirements, mainServices, enabledServices, dob, paNumber, doctorName, doctorPhone, backupDoctorName, backupDoctorPhone, emergencyContactName, emergencyContactPhone, emergencyContactRelation, secondaryEmergencyName, secondaryEmergencyPhone, secondaryEmergencyRelation, critical, clientStatus,
+            authorizationRequired, overrideActive, overrideExpiresOn, overrideReason, reasonNote } = req.body;
         const data = {};
         if (address !== undefined) data.address = address;
         if (secondaryAddress !== undefined) data.secondaryAddress = secondaryAddress;
@@ -197,6 +198,25 @@ async function patchClient(req, res, next) {
         if (secondaryEmergencyRelation !== undefined) data.secondaryEmergencyRelation = secondaryEmergencyRelation;
         if (critical !== undefined) data.critical = critical;
         if (clientStatus !== undefined) data.client_status = clientStatus;
+
+        // Authorization compliance fields — admin/HR only, with an audit trail.
+        const touchesCompliance = authorizationRequired !== undefined || overrideActive !== undefined
+            || overrideExpiresOn !== undefined || overrideReason !== undefined;
+        if (touchesCompliance && req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Only an administrator can change authorization settings.' });
+        }
+        const oldClientForCompliance = touchesCompliance ? await prisma.client.findUnique({ where: { id } }) : null;
+        if (authorizationRequired !== undefined) {
+            const changing = (oldClientForCompliance?.authorizationRequired !== false) !== (authorizationRequired !== false);
+            if (changing && !(reasonNote && String(reasonNote).trim())) {
+                return res.status(400).json({ error: 'A reason note is required to change Authorization Required.' });
+            }
+            data.authorizationRequired = authorizationRequired !== false;
+        }
+        if (overrideActive !== undefined) data.overrideActive = !!overrideActive;
+        if (overrideExpiresOn !== undefined) data.overrideExpiresOn = overrideExpiresOn ? new Date(overrideExpiresOn) : null;
+        if (overrideReason !== undefined) data.overrideReason = overrideReason || '';
+        if (overrideActive) data.overrideBy = req.user.name || String(req.user.id);
 
         if (Object.keys(data).length === 0) {
             return res.status(400).json({ error: 'No valid fields provided' });
@@ -229,7 +249,8 @@ async function patchClient(req, res, next) {
         }
 
         const changes = audit.diffFields(oldClient, updated, Object.keys(data));
-        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Client', entityId: id, entityName: updated.clientName, changes });
+        const auditMeta = touchesCompliance && reasonNote ? { reasonNote: String(reasonNote).trim() } : undefined;
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Client', entityId: id, entityName: updated.clientName, changes, metadata: auditMeta });
 
         const final = await prisma.client.findUnique({
             where: { id },

@@ -4,6 +4,7 @@ import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import AuthorizationFormModal from '../components/common/AuthorizationFormModal';
 import Breadcrumbs from '../components/common/Breadcrumbs';
 import { EntityActivityButton } from '../components/common/ActivityDrawer';
 import { useToast } from '../hooks/useToast';
@@ -19,7 +20,6 @@ import ScheduleTab from './client-tabs/ScheduleTab';
 import ActivityLogTab from './client-tabs/ActivityLogTab';
 import IncidentReportsTab from './client-tabs/IncidentReportsTab';
 import TimesheetsTab from './client-tabs/TimesheetsTab';
-import { ServiceCodeSelect } from '../utils/serviceCodes';
 import { AUTH_COLORS, DEFAULT_AUTH_COLOR } from '../utils/constants';
 import { formatDate, formatDateTime } from '../utils/dates';
 import { unitsToHours } from '../utils/time';
@@ -58,6 +58,13 @@ function formatFileSize(bytes) {
 
 function computeAge(dob) {
     return Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+}
+
+// A client's one-time authorization override is in effect only while active and unexpired.
+function isOverrideActive(client) {
+    if (!client || !client.overrideActive) return false;
+    if (!client.overrideExpiresOn) return true;
+    return new Date(client.overrideExpiresOn) >= new Date();
 }
 
 export default function ClientDetailPage() {
@@ -106,9 +113,11 @@ export default function ClientDetailPage() {
 
     // Insurance tab - authorization modals
     const [showAuthModal, setShowAuthModal] = useState(false);
+    const [showAuthSettingsModal, setShowAuthSettingsModal] = useState(false);
+    const [authSettingsForm, setAuthSettingsForm] = useState({ authorizationRequired: true, reasonNote: '', overrideActive: false, overrideExpiresOn: '', overrideReason: '' });
+    const [savingAuthSettings, setSavingAuthSettings] = useState(false);
     const [editingAuth, setEditingAuth] = useState(null);
-    const [authForm, setAuthForm] = useState({ serviceCode: '', authorizationNumber: '', authorizedUnits: '', authorizedHours: '', authorizationStartDate: '', authorizationEndDate: '', notes: '' });
-    const [authServiceGroup, setAuthServiceGroup] = useState('');
+    const [authPresetServiceCode, setAuthPresetServiceCode] = useState('');
     const [expandedAuthHistory, setExpandedAuthHistory] = useState({});
     const [expandedServiceCode, setExpandedServiceCode] = useState(null);
     const [summaryExpandedService, setSummaryExpandedService] = useState(null);
@@ -395,57 +404,45 @@ export default function ClientDetailPage() {
         finally { setSaving(false); }
     };
 
-    // Authorization handlers
-    const openAuthModal = (auth = null, serviceCode = '') => {
-        if (auth) {
-            setEditingAuth(auth);
-            setAuthForm({
-                serviceCode: auth.serviceCode || '',
-                authorizationNumber: auth.authorizationNumber || '',
-                authorizedUnits: auth.authorizedUnits || '',
-                authorizedHours: auth.authorizedHours || '',
-                authorizationStartDate: auth.authorizationStartDate ? new Date(auth.authorizationStartDate).toISOString().split('T')[0] : '',
-                authorizationEndDate: auth.authorizationEndDate ? new Date(auth.authorizationEndDate).toISOString().split('T')[0] : '',
-                notes: auth.notes || '',
-            });
-        } else {
-            setEditingAuth(null);
-            setAuthForm({
-                serviceCode: serviceCode,
-                authorizationNumber: '',
-                authorizedUnits: '',
-                authorizedHours: '',
-                authorizationStartDate: '',
-                authorizationEndDate: '',
-                notes: '',
-            });
+    const handleSaveAuthSettings = async (e) => {
+        e.preventDefault();
+        const requiredChanged = (client.authorizationRequired !== false) !== authSettingsForm.authorizationRequired;
+        if (requiredChanged && !authSettingsForm.reasonNote.trim()) {
+            showToast('A reason note is required to change Authorization Required.', 'error');
+            return;
         }
-        setAuthServiceGroup(serviceCode);
-        setShowAuthModal(true);
+        setSavingAuthSettings(true);
+        try {
+            const oldSettings = {
+                authorizationRequired: client.authorizationRequired !== false,
+                overrideActive: !!client.overrideActive,
+                overrideExpiresOn: client.overrideExpiresOn ? new Date(client.overrideExpiresOn).toISOString().slice(0, 10) : null,
+                overrideReason: client.overrideReason || '',
+            };
+            const payload = {
+                authorizationRequired: authSettingsForm.authorizationRequired,
+                overrideActive: authSettingsForm.overrideActive,
+                overrideExpiresOn: authSettingsForm.overrideActive && authSettingsForm.overrideExpiresOn ? authSettingsForm.overrideExpiresOn : null,
+                overrideReason: authSettingsForm.overrideReason,
+                reasonNote: authSettingsForm.reasonNote,
+            };
+            await api.patchClient(client.id, payload);
+            showToast('Authorization settings updated');
+            setShowAuthSettingsModal(false);
+            fetchClient();
+            undoState.pushAction('Updated authorization settings',
+                async () => { await api.patchClient(client.id, { ...oldSettings, reasonNote: 'Undo authorization settings change' }); fetchClient(); },
+                async () => { await api.patchClient(client.id, payload); fetchClient(); }
+            );
+        } catch (err) { showToast(err.message, 'error'); }
+        finally { setSavingAuthSettings(false); }
     };
 
-    // Parse pasted date text into YYYY-MM-DD for date inputs
-    const handleAuthDatePaste = (field) => (e) => {
-        const text = (e.clipboardData || window.clipboardData).getData('text').trim();
-        if (!text) return;
-        let parsed = null;
-        let m = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
-        if (m) parsed = `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
-        if (!parsed) {
-            m = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
-            if (m) parsed = `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
-        }
-        if (!parsed) {
-            m = text.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
-            if (m) {
-                const d = new Date(`${m[1]} ${m[2]}, ${m[3]}`);
-                if (!isNaN(d)) parsed = d.toISOString().split('T')[0];
-            }
-        }
-        if (parsed && !isNaN(new Date(parsed + 'T00:00:00'))) {
-            e.preventDefault();
-            setAuthForm(prev => ({ ...prev, [field]: parsed }));
-        }
+    // Authorization handlers
+    const openAuthModal = (auth = null, serviceCode = '') => {
+        setEditingAuth(auth);
+        setAuthPresetServiceCode(auth ? '' : serviceCode);
+        setShowAuthModal(true);
     };
 
     const handleClientDatePaste = (field) => (e) => {
@@ -471,25 +468,19 @@ export default function ClientDetailPage() {
         }
     };
 
-    const handleSaveAuth = async (e) => {
-        e.preventDefault();
+    const handleSaveAuth = async (data) => {
         setSaving(true);
         try {
-            const { files, ...rest } = authForm;
-            const data = {
-                ...rest,
-                authorizedUnits: rest.authorizedUnits ? Number(rest.authorizedUnits) : null,
-                authorizedHours: rest.authorizedHours ? Number(rest.authorizedHours) : null,
-            };
+            const { files, ...authData } = data;
             let savedAuth;
             if (editingAuth) {
-                savedAuth = await api.updateAuthorization(editingAuth.id, data);
+                savedAuth = await api.updateAuthorization(editingAuth.id, authData);
                 showToast('Authorization updated');
             } else {
-                savedAuth = await api.createAuthorization(client.id, data);
+                savedAuth = await api.createAuthorization(client.id, authData);
                 showToast('Authorization created');
             }
-            if (files && files.length > 0) {
+            if (files && files.length > 0 && savedAuth?.id) {
                 for (const file of files) {
                     const formData = new FormData();
                     formData.append('file', file);
@@ -676,6 +667,24 @@ export default function ClientDetailPage() {
             <ContextBar>
                 <ContextBar.Right>
                     <EntityActivityButton entityType="Client" entityId={client.id} />
+                    {isAdmin && (
+                        <button
+                            className="btn btn--outline btn--sm"
+                            onClick={() => {
+                                setAuthSettingsForm({
+                                    authorizationRequired: client.authorizationRequired !== false,
+                                    reasonNote: '',
+                                    overrideActive: isOverrideActive(client),
+                                    overrideExpiresOn: client.overrideExpiresOn ? new Date(client.overrideExpiresOn).toISOString().slice(0, 10) : '',
+                                    overrideReason: client.overrideReason || '',
+                                });
+                                setShowAuthSettingsModal(true);
+                            }}
+                            title="Manage authorization requirement and one-time override"
+                        >
+                            {Icons.shieldCheck} Authorization: {client.authorizationRequired === false ? 'Not Required' : 'Required'}
+                        </button>
+                    )}
                     <button className="btn btn--outline btn--sm" onClick={openEditClientModal}>
                         {Icons.edit} Edit Client
                     </button>
@@ -716,6 +725,24 @@ export default function ClientDetailPage() {
                             <div className="cp-bio__chips">
                                 {client.insuranceType && (
                                     <span className="cp-chip cp-chip--program">{client.insuranceType}</span>
+                                )}
+                                {client.authorizationRequired === false && (
+                                    <span
+                                        className="cp-chip"
+                                        style={{ background: 'hsl(var(--warning-bg))', color: 'hsl(38 92% 32%)', borderColor: 'hsl(var(--warning) / 0.4)' }}
+                                        title="Authorization check is OFF for this client (e.g. Private Pay / GUIDE)"
+                                    >
+                                        Authorization Not Required
+                                    </span>
+                                )}
+                                {isOverrideActive(client) && (
+                                    <span
+                                        className="cp-chip"
+                                        style={{ background: 'hsl(var(--accent))', color: 'hsl(var(--accent-foreground))', borderColor: 'hsl(var(--primary) / 0.3)' }}
+                                        title={client.overrideReason || 'One-time authorization override'}
+                                    >
+                                        Override Active{client.overrideExpiresOn ? ` — expires ${new Date(client.overrideExpiresOn).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}` : ''}
+                                    </span>
                                 )}
                                 {openIncidents > 0 && (
                                     <span className="cp-chip cp-chip--complaint">
@@ -1257,73 +1284,97 @@ export default function ClientDetailPage() {
                 </Modal>
             )}
 
-            {/* Authorization Modal */}
-            {showAuthModal && (
-                <Modal onClose={() => setShowAuthModal(false)}>
-                    <h2 className="modal__title">{editingAuth ? 'Edit Authorization' : 'Add Authorization'}</h2>
-                    <form onSubmit={handleSaveAuth}>
+            {/* Authorization Settings Modal (admin only) */}
+            {showAuthSettingsModal && (
+                <Modal onClose={() => setShowAuthSettingsModal(false)}>
+                    <h2 className="modal__title">Authorization Settings</h2>
+                    <p className="modal__desc">Control whether timesheet submissions for this client are gated by an active authorization.</p>
+                    <form onSubmit={handleSaveAuthSettings}>
+                        {/* Section 1 — the compliance rule itself */}
                         <div className="form-group">
-                            <label>Service Code</label>
-                            <ServiceCodeSelect value={authForm.serviceCode} onChange={(e) => setAuthForm({ ...authForm, serviceCode: e.target.value })} disabled={!!editingAuth} required />
+                            <label className="checkbox-field">
+                                <input
+                                    type="checkbox"
+                                    checked={authSettingsForm.authorizationRequired}
+                                    onChange={(e) => setAuthSettingsForm({ ...authSettingsForm, authorizationRequired: e.target.checked })}
+                                />
+                                <span>Require an active authorization to submit timesheets</span>
+                            </label>
+                            <p className="form-hint">
+                                On for Medicaid / Waiver / PAS / Homemaker / Respite / Companion. Turn off for Private Pay or GUIDE clients, who submit without an authorization check.
+                            </p>
                         </div>
-                        <div className="form-group">
-                            <label>Authorization Number</label>
-                            <input type="text" value={authForm.authorizationNumber} onChange={(e) => setAuthForm({ ...authForm, authorizationNumber: e.target.value })} placeholder="Auth number" />
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                        {(client.authorizationRequired !== false) !== authSettingsForm.authorizationRequired && (
                             <div className="form-group">
-                                <label>Authorized Units (15-min)</label>
-                                <input type="number" value={authForm.authorizedUnits} onChange={(e) => setAuthForm({ ...authForm, authorizedUnits: e.target.value })} placeholder="e.g. 120" />
+                                <label>Reason for change <span style={{ color: 'hsl(var(--danger))' }}>*</span></label>
+                                <input
+                                    type="text"
+                                    value={authSettingsForm.reasonNote}
+                                    onChange={(e) => setAuthSettingsForm({ ...authSettingsForm, reasonNote: e.target.value })}
+                                    placeholder="e.g. Client is Private Pay — confirmed with office"
+                                    autoFocus
+                                />
                             </div>
-                            <div className="form-group">
-                                <label>Authorized Hours</label>
-                                <input type="number" step="0.5" value={authForm.authorizedHours} onChange={(e) => setAuthForm({ ...authForm, authorizedHours: e.target.value })} placeholder="e.g. 30" />
-                            </div>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                            <div className="form-group">
-                                <label>Start Date</label>
-                                <input type="date" value={authForm.authorizationStartDate} onChange={(e) => setAuthForm({ ...authForm, authorizationStartDate: e.target.value })} onPaste={handleAuthDatePaste('authorizationStartDate')} />
-                            </div>
-                            <div className="form-group">
-                                <label>End Date</label>
-                                <input type="date" value={authForm.authorizationEndDate} onChange={(e) => setAuthForm({ ...authForm, authorizationEndDate: e.target.value })} onPaste={handleAuthDatePaste('authorizationEndDate')} />
-                            </div>
-                        </div>
-                        <div className="form-group">
-                            <label>Account Number</label>
-                            <select value={authForm.accountNumber || ''} onChange={(e) => setAuthForm({ ...authForm, accountNumber: e.target.value })}>
-                                <option value="">— Select —</option>
-                                <option value="71040">71040</option>
-                                <option value="71120">71120</option>
-                                <option value="71119">71119</option>
-                                <option value="71635">71635</option>
-                            </select>
-                        </div>
-                        <div className="form-group">
-                            <label>Notes</label>
-                            <textarea value={authForm.notes} onChange={(e) => setAuthForm({ ...authForm, notes: e.target.value })} rows={2} placeholder="Optional notes" />
-                        </div>
-                        <div className="form-group">
-                            <label>Upload PA / Care Plan Documents</label>
-                            <input
-                                type="file"
-                                multiple
-                                onChange={(e) => setAuthForm({ ...authForm, files: Array.from(e.target.files) })}
-                                style={{ fontSize: 13 }}
-                            />
-                            {authForm.files && authForm.files.length > 0 && (
-                                <div style={{ marginTop: 6, fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
-                                    {authForm.files.length} file{authForm.files.length !== 1 ? 's' : ''} selected
+                        )}
+
+                        {/* Section 2 — override, only meaningful while authorization IS required */}
+                        {authSettingsForm.authorizationRequired && (
+                            <>
+                                <hr className="form-divider" />
+                                <h3 className="modal__section-title">One-time override</h3>
+                                <p className="form-hint" style={{ margin: '0 0 12px' }}>
+                                    Temporarily allow submissions without an active authorization — for edge cases like a new intake whose paperwork is still pending. Auto-expires on the date you set.
+                                </p>
+                                <div className="form-group">
+                                    <label className="checkbox-field">
+                                        <input
+                                            type="checkbox"
+                                            checked={authSettingsForm.overrideActive}
+                                            onChange={(e) => setAuthSettingsForm({ ...authSettingsForm, overrideActive: e.target.checked })}
+                                        />
+                                        <span>Enable a one-time override for this client</span>
+                                    </label>
                                 </div>
-                            )}
-                        </div>
+                                {authSettingsForm.overrideActive && (
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                        <div className="form-group">
+                                            <label>Override expires on</label>
+                                            <input
+                                                type="date"
+                                                value={authSettingsForm.overrideExpiresOn}
+                                                onChange={(e) => setAuthSettingsForm({ ...authSettingsForm, overrideExpiresOn: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Override reason</label>
+                                            <input
+                                                type="text"
+                                                value={authSettingsForm.overrideReason}
+                                                onChange={(e) => setAuthSettingsForm({ ...authSettingsForm, overrideReason: e.target.value })}
+                                                placeholder="e.g. Auth pending with the state"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
+
                         <div className="form-actions">
-                            <button type="button" className="btn btn--outline" onClick={() => setShowAuthModal(false)}>Cancel</button>
-                            <button type="submit" className="btn btn--primary" disabled={saving || !authForm.serviceCode}>{saving ? 'Saving...' : editingAuth ? 'Update' : 'Create'}</button>
+                            <button type="button" className="btn btn--outline" onClick={() => setShowAuthSettingsModal(false)}>Cancel</button>
+                            <button type="submit" className="btn btn--primary" disabled={savingAuthSettings}>{savingAuthSettings ? 'Saving...' : 'Save Settings'}</button>
                         </div>
                     </form>
                 </Modal>
+            )}
+
+            {/* Authorization Modal — shared component (Weekly Units + GUIDE Annual Visits) */}
+            {showAuthModal && (
+                <AuthorizationFormModal
+                    auth={editingAuth ? { ...editingAuth } : (authPresetServiceCode ? { serviceCode: authPresetServiceCode } : null)}
+                    clientId={client.id}
+                    onSave={handleSaveAuth}
+                    onClose={() => setShowAuthModal(false)}
+                />
             )}
 
             {confirmDelete && (

@@ -16,6 +16,23 @@ async function validateBody(body) {
 // Program codes that allow multiple active authorizations (different services under same program)
 const MULTI_AUTH_CODES = ['COPE', 'PAS'];
 
+// Build the authorizationType + GUIDE annual-visits fields.
+// The type is DERIVED from the service category / name — GUIDE is tracked as
+// Annual Visits (visits/year × hours/visit = hours/year, validated cumulatively
+// via usedHoursYtd); every other service is Weekly Units. This mirrors the
+// frontend derivation and keeps the DB consistent for API/import writes too.
+function buildAuthTypeFields(body) {
+    const isGuide = /guide/i.test(body.serviceCategory || '') || /guide/i.test(body.serviceName || '');
+    const authorizationType = isGuide ? 'Annual Visits' : 'Weekly Units';
+    if (authorizationType !== 'Annual Visits') {
+        return { authorizationType, authorizedVisitsPerYear: null, hoursPerVisit: null, authorizedHoursPerYear: null };
+    }
+    const visits = body.authorizedVisitsPerYear != null ? parseInt(body.authorizedVisitsPerYear) || 0 : null;
+    const perVisit = body.hoursPerVisit != null ? parseFloat(body.hoursPerVisit) || 0 : null;
+    const hoursPerYear = (visits != null && perVisit != null) ? Math.round(visits * perVisit * 100) / 100 : null;
+    return { authorizationType, authorizedVisitsPerYear: visits, hoursPerVisit: perVisit, authorizedHoursPerYear: hoursPerYear };
+}
+
 async function deactivatePreviousAuths(clientId, serviceCode, serviceName, excludeId, auditContext) {
     // Program codes allow multiple active auths with different service names
     const where = {
@@ -73,6 +90,7 @@ async function createAuthorization(req, res, next) {
                 notes: (req.body.notes || '').trim(),
                 accountNumber: (req.body.accountNumber || '').trim(),
                 sandataClientId: (req.body.sandataClientId || '').trim(),
+                ...buildAuthTypeFields(req.body),
             },
         });
 
@@ -111,6 +129,7 @@ async function updateAuthorization(req, res, next) {
                 accountNumber: (req.body.accountNumber || '').trim(),
                 sandataClientId: (req.body.sandataClientId || '').trim(),
                 ...(req.body.manualStatus && { manualStatus: req.body.manualStatus }),
+                ...buildAuthTypeFields(req.body),
             },
         });
 
