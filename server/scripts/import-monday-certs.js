@@ -16,6 +16,7 @@ async function mondayQuery(query, variables = {}) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: TOKEN, 'API-Version': '2024-01' },
     body: JSON.stringify({ query, variables }),
+    signal: AbortSignal.timeout(Number(process.env.MONDAY_TIMEOUT_MS) || 30000),
   });
   if (!res.ok) throw new Error('Monday API HTTP ' + res.status + ' ' + res.statusText);
   const json = await res.json();
@@ -124,8 +125,12 @@ async function probe(limit = 3) {
 }
 
 // Fetch a Monday public_url and return { buffer, contentType }.
+// A per-request timeout ensures a stuck connection fails fast (caught by the
+// per-employee handler → retried on a later run) instead of hanging the whole
+// import forever on a single dead socket.
+const DOWNLOAD_TIMEOUT_MS = Number(process.env.DOWNLOAD_TIMEOUT_MS) || 60000;
 async function downloadAsset(url) {
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`Download failed (${res.status}) for ${url}`);
   const contentType = res.headers.get('content-type') || 'application/octet-stream';
   const buffer = Buffer.from(await res.arrayBuffer());
