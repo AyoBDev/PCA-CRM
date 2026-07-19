@@ -14470,40 +14470,60 @@ tr:hover .auth-note-icon--empty {
 }
 
 /* ── View switcher (Board / List / Dormant) — pill-tab group ── */
+/* Matches the design-system tab bar used on ClientDetailPage (.cp-tabs / .cp-tab):
+   dark navy gradient bar, white active tab, vertical dividers between tabs. */
 .lead-view-switcher {
     display: inline-flex;
-    padding: 3px;
-    border: 1px solid hsl(var(--border));
-    border-radius: 8px;
-    background: hsl(var(--muted) / 0.3);
-    gap: 2px;
+    gap: 0;
+    background: linear-gradient(180deg, hsl(230 35% 22%) 0%, hsl(230 35% 16%) 100%);
+    border-radius: var(--radius);
+    padding: 4px 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.lead-view-switcher::-webkit-scrollbar {
+    display: none;
 }
 
 .lead-view-switcher__tab {
     position: relative;
-    border: none;
-    background: transparent;
-    color: hsl(var(--muted-foreground));
-    font-size: 13px;
-    font-weight: 500;
-    padding: 6px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease;
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    border: none;
+    background: transparent;
+    color: hsl(0 0% 75%);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 7px 12px;
+    border-radius: 6px;
+    margin: 2px 1px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+}
+
+.lead-view-switcher__tab:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    right: -1px;
+    top: 20%;
+    height: 60%;
+    width: 1px;
+    background: #D8DDE6;
+    opacity: 0.35;
 }
 
 .lead-view-switcher__tab:hover {
-    background: hsl(var(--accent));
-    color: hsl(var(--accent-foreground));
+    background: hsl(0 0% 100%);
+    color: hsl(0 0% 0%);
 }
 
 .lead-view-switcher__tab--active {
-    background: hsl(var(--card));
-    color: hsl(var(--foreground));
-    box-shadow: 0 1px 2px hsl(0 0% 0% / 0.05);
+    background: hsl(0 0% 100%);
+    color: hsl(0 0% 0%);
+    font-weight: 600;
 }
 
 .lead-view-switcher__badge {
@@ -14513,22 +14533,22 @@ tr:hover .auth-note-icon--empty {
     min-width: 18px;
     height: 18px;
     padding: 0 5px;
-    border-radius: 999px;
-    background: hsl(var(--muted-foreground));
-    color: hsl(var(--card));
-    font-size: 11px;
+    border-radius: 9px;
+    background: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+    font-size: 10px;
     font-weight: 700;
     line-height: 1;
 }
 
 .lead-view-switcher__badge--dormant {
-    background: hsl(var(--warning));
-    color: hsl(0 0% 100%);
+    background: hsl(38 92% 50% / 0.18);
+    color: hsl(30 90% 42%);
 }
 
 .lead-view-switcher__badge--converted {
-    background: hsl(var(--success));
-    color: hsl(0 0% 100%);
+    background: hsl(142 71% 45% / 0.18);
+    color: hsl(142 64% 32%);
 }
 
 /* ── List view — sortable data-table ── */
@@ -14540,18 +14560,22 @@ tr:hover .auth-note-icon--empty {
     padding: 40px 24px;
 }
 
+/* Design-system name cell: avatar circle + name (matches ClientsListPage). */
 .lead-list-name {
-    background: transparent;
-    border: none;
-    padding: 0;
-    color: hsl(var(--primary));
-    font-weight: 600;
-    cursor: pointer;
-    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
-.lead-list-name:hover {
-    text-decoration: underline;
+.lead-list-name__text {
+    font-weight: 500;
+    line-height: 1.3;
+    color: hsl(var(--foreground));
+}
+
+.data-table--sheet tbody tr:hover .lead-list-name__text,
+.data-table--dark-header tbody tr:hover .lead-list-name__text {
+    color: hsl(var(--primary));
 }
 
 .lead-list-status {
