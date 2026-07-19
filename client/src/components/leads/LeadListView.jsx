@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 import { formatDate } from '../../utils/dates';
+import { getInitials, getAvatarColor } from '../../utils/ui';
 import { LEAD_CASE_TYPES, LEAD_STATUSES } from '../../utils/leadConstants';
 
 // Flat sortable table for the "List" view — active leads only, dense, keyboard-scannable.
 // Uses the app's canonical .data-table--sheet + .data-table--dark-header structure
-// (per CLAUDE.md UI Design System — Tables).
+// (per CLAUDE.md UI Design System — Tables). The Name cell follows the design-system
+// name-cell pattern (avatar circle + name) used on ClientsListPage.
 //
 // Props:
 //   leads       : array (already filtered by LeadsPage)
@@ -68,10 +70,11 @@ export default function LeadListView({ leads, onView, onEdit, onArchive, onConve
                             const name = fullName(l);
                             return (
                                 <tr key={l.id}>
-                                    <td>
-                                        <button type="button" className="lead-list-name" onClick={() => onView(l)}>
-                                            {name}
-                                        </button>
+                                    <td style={{ cursor: 'pointer' }} onClick={() => onView(l)}>
+                                        <div className="lead-list-name">
+                                            <div className="client-avatar" style={{ background: getAvatarColor(name) }}>{getInitials(name)}</div>
+                                            <div className="lead-list-name__text">{name}</div>
+                                        </div>
                                     </td>
                                     <td><span className={`tag ${ct.tagClass}`}>{ct.label}</span></td>
                                     <td>{l.insuranceType || '—'}</td>
