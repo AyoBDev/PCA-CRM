@@ -1,5 +1,6 @@
 const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
+const { uploadFile, downloadFile } = require('../lib/storage');
 
 // POST /api/authorizations/:authId/documents (multipart — req.file from multer)
 async function uploadAuthDocument(req, res, next) {
@@ -13,14 +14,18 @@ async function uploadAuthDocument(req, res, next) {
 
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
+        // Store the file in the object bucket (not inline in the DB). The bucket
+        // key is kept in file_path; downloadAuthDocument streams it back from there.
+        const bucketKey = `auth-documents/${authId}/${Date.now()}-${req.file.originalname}`;
+        await uploadFile(bucketKey, req.file.buffer, req.file.mimetype || 'application/octet-stream');
+
         const doc = await prisma.authorization_documents.create({
             data: {
                 authorization_id: authId,
                 file_name: req.file.originalname,
-                file_path: `auth-documents/${authId}/${req.file.originalname}`,
+                file_path: bucketKey,
                 file_size: req.file.size,
                 mime_type: req.file.mimetype || '',
-                file_data: req.file.buffer,
                 uploaded_by: req.user.id,
                 notes: (req.body.notes || '').trim(),
             },
@@ -51,16 +56,29 @@ async function downloadAuthDocument(req, res, next) {
         const doc = await prisma.authorization_documents.findUnique({ where: { id } });
         if (!doc) return res.status(404).json({ error: 'Document not found' });
 
+        const mimeType = doc.mime_type || 'application/octet-stream';
+        const disposition = mimeType === 'application/pdf' ? 'inline' : 'attachment';
+
+        // Legacy records kept bytes inline; serve those directly.
         if (doc.file_data) {
-            const mimeType = doc.mime_type || 'application/octet-stream';
-            const disposition = mimeType === 'application/pdf' ? 'inline' : 'attachment';
             res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(doc.file_name)}"`);
             res.setHeader('Content-Type', mimeType);
             res.setHeader('Content-Length', doc.file_data.length);
             return res.send(Buffer.from(doc.file_data));
         }
 
-        // Fallback to filesystem for old uploads
+        // Current records store the file in the object bucket (key = file_path).
+        if (doc.file_path) {
+            const buffer = await downloadFile(doc.file_path);
+            if (buffer) {
+                res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(doc.file_name)}"`);
+                res.setHeader('Content-Type', mimeType);
+                res.setHeader('Content-Length', buffer.length);
+                return res.send(buffer);
+            }
+        }
+
+        // Last-resort fallback to the old local filesystem for very old uploads.
         const fs = require('fs');
         const path = require('path');
         const fullPath = path.join(__dirname, '..', '..', 'uploads', doc.file_path);
