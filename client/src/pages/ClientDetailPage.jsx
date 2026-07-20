@@ -20,6 +20,7 @@ import ScheduleTab from './client-tabs/ScheduleTab';
 import ActivityLogTab from './client-tabs/ActivityLogTab';
 import IncidentReportsTab from './client-tabs/IncidentReportsTab';
 import TimesheetsTab from './client-tabs/TimesheetsTab';
+import NotesTab from './client-tabs/NotesTab';
 import { AUTH_COLORS, DEFAULT_AUTH_COLOR } from '../utils/constants';
 import { formatDate, formatDateTime } from '../utils/dates';
 import { unitsToHours } from '../utils/time';
@@ -46,6 +47,7 @@ const TABS = [
     { key: 'schedule', label: 'Schedule', icon: 'calendar' },
     { key: 'supervisory-review', label: 'Review', icon: 'checkSquare' },
     { key: 'billing', label: 'Billing', icon: 'dollarSign' },
+    { key: 'notes', label: 'Notes', icon: 'fileText' },
     { key: 'activity', label: 'Activity', icon: 'clipboard' },
     { key: 'incidents', label: 'Incidents', icon: 'alertOctagon' },
 ];
@@ -997,6 +999,9 @@ export default function ClientDetailPage() {
                                 </div>
                             </div>
                         </div>
+                    )}
+                    {activeTab === 'notes' && (
+                        <NotesTab clientId={Number(clientId)} />
                     )}
                     {activeTab === 'activity' && (
                         <ActivityLogTab clientId={Number(clientId)} isAdmin={isAdmin} />
