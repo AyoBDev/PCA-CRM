@@ -85,11 +85,6 @@ export default function Sidebar({ onMobileClose }) {
                         {Icons.layoutDashboard} Dashboard
                     </button>
                 )}
-                {hasPermission('leads') && (
-                    <button className={`sidebar__nav-item ${activePage === 'leads' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/leads')} title="Leads">
-                        {Icons.users} Potential Clients
-                    </button>
-                )}
                 {hasPermission('clients') && (
                     <button className={`sidebar__nav-item ${activePage === 'clients' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/clients')} title="Clients">
                         {Icons.users} Clients
@@ -141,6 +136,11 @@ export default function Sidebar({ onMobileClose }) {
                         )}
                     </button>
                 )}
+                {hasPermission('leads') && (
+                    <button className={`sidebar__nav-item ${activePage === 'leads' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/leads')} title="Leads">
+                        {Icons.phone} Potential Clients
+                    </button>
+                )}
                 {hasPermission('payroll') && (
                     <button className={`sidebar__nav-item ${activePage === 'payroll' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/payroll')} title="Payroll">
                         {Icons.dollarSign} Payroll
@@ -148,7 +148,7 @@ export default function Sidebar({ onMobileClose }) {
                 )}
                 {hasPermission('receipts') && (
                     <button className={`sidebar__nav-item ${activePage === 'receipts' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/receipts')} title="Receipts">
-                        {Icons.fileText} Receipts
+                        {Icons.paperclip} Receipts
                     </button>
                 )}
             </nav>
@@ -159,17 +159,17 @@ export default function Sidebar({ onMobileClose }) {
                         <div className="sidebar__section-label">Settings</div>
                         {hasPermission('insurance-types') && (
                             <button className={`sidebar__nav-item ${activePage === 'insuranceTypes' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/insurance-types')} title="Insurance Types">
-                                {Icons.shieldCheck} Insurance Types
+                                {Icons.building} Insurance Types
                             </button>
                         )}
                         {hasPermission('services') && (
                             <button className={`sidebar__nav-item ${activePage === 'services' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/services')} title="Services">
-                                {Icons.fileText} Services
+                                {Icons.settings} Services
                             </button>
                         )}
                         {hasPermission('users') && (
                             <button className={`sidebar__nav-item ${activePage === 'users' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/users')} title="Users">
-                                {Icons.user} Users
+                                {Icons.key} Users
                             </button>
                         )}
                         {hasPermission('history') && (
