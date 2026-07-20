@@ -642,6 +642,9 @@ export const uploadPayrollRun = (formData) =>
 export const getClientActivities = (clientId, page = 1) =>
     request(`/clients/${clientId}/activities?page=${page}`);
 
+export const getClientNotesTimeline = (clientId, page = 1) =>
+    request(`/clients/${clientId}/notes-timeline?page=${page}`);
+
 export const createClientActivity = (clientId, data) =>
     request(`/clients/${clientId}/activities`, { method: 'POST', body: JSON.stringify(data) });
 
