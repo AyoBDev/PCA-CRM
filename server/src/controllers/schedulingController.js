@@ -744,20 +744,32 @@ async function repeatShift(req, res, next) {
 async function deleteShift(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const deleteGroup = req.query.group === 'true';
+        // Scope of the delete for recurring shifts:
+        //   'this'   — only this one occurrence (default)
+        //   'future' — this occurrence and every later one in the series (never past)
+        //   'all'    — the entire series, past occurrences included (explicit choice)
+        // Legacy `?group=true` maps to 'all' for back-compat.
+        let scope = req.query.scope;
+        if (!scope) scope = req.query.group === 'true' ? 'all' : 'this';
         const now = new Date();
 
         const shiftToDelete = await prisma.shift.findUnique({ where: { id } });
         if (!shiftToDelete) return res.status(404).json({ error: 'Shift not found' });
 
-        if (deleteGroup && shiftToDelete.recurringGroupId) {
-            const result = await prisma.shift.updateMany({ where: { recurringGroupId: shiftToDelete.recurringGroupId }, data: { archivedAt: now } });
+        if ((scope === 'future' || scope === 'all') && shiftToDelete.recurringGroupId) {
+            const where = { recurringGroupId: shiftToDelete.recurringGroupId, archivedAt: null };
+            // 'future' is bounded from this occurrence's date forward so past shifts are never touched.
+            if (scope === 'future') where.shiftDate = { gte: shiftToDelete.shiftDate };
+            // Capture the exact ids we're about to archive so the client can restore them on undo.
+            const affected = await prisma.shift.findMany({ where, select: { id: true } });
+            const ids = affected.map(s => s.id);
+            const result = await prisma.shift.updateMany({ where, data: { archivedAt: now } });
             audit.logAction({
                 userId: req.user.id, userName: req.user.name, userRole: req.user.role,
                 action: 'ARCHIVE', entityType: 'Shift', entityId: id,
-                metadata: { group: true, recurringGroupId: shiftToDelete.recurringGroupId, count: result.count },
+                metadata: { scope, recurringGroupId: shiftToDelete.recurringGroupId, count: result.count },
             });
-            return res.json({ archived: result.count });
+            return res.json({ archived: result.count, ids });
         }
 
         await prisma.shift.update({ where: { id }, data: { archivedAt: now } });
@@ -1056,6 +1068,36 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
             return res.status(404).json({ error: 'No matching shifts found' });
         }
 
+        // Overlap pre-check (Bug 3): a bulk edit must BLOCK on overlap and never
+        // silently rewrite another shift to make room. Compute each edited shift's
+        // proposed employee/date/times and check for conflicts before any write.
+        // Sibling shifts edited in this same batch are excluded from the conflict
+        // set so co-edited shifts aren't flagged against each other's stale times.
+        const editedIdSet = new Set(shifts.map(s => s.id));
+        const overlapConflicts = [];
+        for (const existing of shifts) {
+            const u = perShiftUpdates[String(existing.id)] || {};
+            const employeeId = u.employeeId !== undefined
+                ? (u.employeeId ? Number(u.employeeId) : null)
+                : existing.employeeId;
+            if (!employeeId) continue;
+            const startTime = u.startTime !== undefined ? u.startTime : existing.startTime;
+            const endTime = u.endTime !== undefined ? u.endTime : existing.endTime;
+            const shiftDateStr = existing.shiftDate.toISOString().slice(0, 10);
+            const conflicts = await checkOverlaps({ employeeId, shiftDate: shiftDateStr, startTime, endTime, excludeId: existing.id });
+            for (const c of conflicts) {
+                if (editedIdSet.has(c.id)) continue; // co-edited sibling — its proposed times are checked on its own turn
+                overlapConflicts.push({ shiftId: existing.id, conflictWith: c.id });
+            }
+        }
+        if (overlapConflicts.length > 0) {
+            return res.status(409).json({
+                error: 'overlap',
+                message: `Change would overlap ${overlapConflicts.length} existing shift${overlapConflicts.length > 1 ? 's' : ''}. Adjust the times so they don't overlap, then save again.`,
+                conflicts: overlapConflicts,
+            });
+        }
+
         // Save pre-edit snapshot for undo
         const snapshot = shifts.map(s => ({
             shiftId: s.id,
@@ -1181,8 +1223,12 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
                 const dayRules = dowUpdates[dow];
                 if (!dayRules) continue;
 
-                // Match by day-of-week and old service code
-                const match = dayRules.find(r => r.oldServiceCode === futureShift.serviceCode) || dayRules[0];
+                // Match by day-of-week AND old service code only. No fallback to
+                // dayRules[0] — a future shift that doesn't match a specific edited
+                // shift must be left untouched (Bug 3: never silently rewrite a
+                // shift the user didn't edit, e.g. propagating a Respite time change
+                // onto a Homemaker shift).
+                const match = dayRules.find(r => r.oldServiceCode === futureShift.serviceCode);
                 if (!match) continue;
 
                 const data = {};
