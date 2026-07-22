@@ -477,8 +477,12 @@ export const listBulkEditBatches = () =>
     request('/shifts/bulk-edit-batches');
 export const repeatShift = (id, data) =>
     request(`/shifts/${id}/repeat`, { method: 'POST', body: JSON.stringify(data) });
-export const deleteShift = (id, { group } = {}) =>
-    request(`/shifts/${id}${group ? '?group=true' : ''}`, { method: 'DELETE' });
+export const deleteShift = (id, { group, scope } = {}) => {
+    // scope: 'this' | 'future' | 'all'. Legacy `group: true` maps to scope 'all'.
+    const s = scope || (group ? 'all' : undefined);
+    const qs = s ? `?scope=${s}` : '';
+    return request(`/shifts/${id}${qs}`, { method: 'DELETE' });
+};
 export const restoreShift = (id) =>
     request(`/shifts/${id}/restore`, { method: 'PUT' });
 export const restoreShifts = (shiftIds) =>
