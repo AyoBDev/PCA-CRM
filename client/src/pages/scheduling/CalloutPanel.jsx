@@ -45,6 +45,7 @@ export default function CalloutPanel({ shift, employees, onClose, onShiftChanged
             try {
                 const ranked = await api.getReplacementCandidates(shift.id);
                 setCandidates(ranked.eligible || []);
+                if (ranked.callout) setCallout(ranked.callout);
             } catch (err) {
                 showToast(err.message || 'Could not load candidates', 'error');
             }
@@ -132,6 +133,48 @@ export default function CalloutPanel({ shift, employees, onClose, onShiftChanged
         }
     };
 
+    // Records an answer the office took by phone. The caregiver never touches
+    // the app — the admin who spoke to them logs what was said, so the offer
+    // trail matches reality instead of sitting at "awaiting reply" forever.
+    const handleRecordPhoneResponse = async (offer, response) => {
+        setOfferingId(offer.employeeId);
+        try {
+            await api.recordOfferResponse(shift.id, offer.id, response, `Recorded by phone`);
+            showToast(response === 'accept' ? 'Shift covered' : 'Decline recorded', 'success');
+            await loadOffers();
+            if (response === 'accept') {
+                onShiftChanged?.();
+                onClose();
+            }
+        } catch (err) {
+            showToast(err.message || 'Could not record response', 'error');
+            await loadOffers();
+        } finally {
+            setOfferingId(null);
+        }
+    };
+
+    // Offer a shift to someone the office already phoned — logs it without
+    // sending a portal notification and email they do not need.
+    const handleLogPhoneOffer = async (candidate) => {
+        setOfferingId(candidate.employeeId);
+        try {
+            await api.createShiftOffer(shift.id, {
+                employeeId: candidate.employeeId,
+                calloutId: callout?.id ?? null,
+                rank: candidate.rank,
+                scoreBreakdown: candidate.scoreBreakdown || {},
+                channel: 'phone',
+            });
+            showToast(`Logged call to ${candidate.employeeName}`, 'success');
+            await loadOffers();
+        } catch (err) {
+            showToast(err.message || 'Could not log call', 'error');
+        } finally {
+            setOfferingId(null);
+        }
+    };
+
     const offeredIds = new Set(offers.map(o => o.employeeId));
 
     return (
@@ -167,6 +210,27 @@ export default function CalloutPanel({ shift, employees, onClose, onShiftChanged
 
             {stage === 'candidates' && (
                 <>
+                    {/* Why cover is needed. The reason used to be write-only —
+                        captured on the callout and never shown to the person
+                        acting on it. */}
+                    {callout && (callout.reason || callout.calloutEmployee) && (
+                        <div style={{
+                            padding: '10px 14px', marginBottom: 12, borderRadius: 'var(--radius)',
+                            background: 'hsl(var(--warning-bg))',
+                            borderLeft: '3px solid hsl(var(--warning))',
+                            fontSize: 13,
+                        }}>
+                            <strong>{callout.calloutEmployee?.name || employeeName}</strong>
+                            {' called out'}
+                            {callout.reason ? <> — {callout.reason}</> : null}
+                            {callout.calloutEmployee?.phone && (
+                                <a href={`tel:${callout.calloutEmployee.phone}`} style={{ marginLeft: 8, color: 'hsl(var(--primary))' }}>
+                                    {callout.calloutEmployee.phone}
+                                </a>
+                            )}
+                        </div>
+                    )}
+
                     {candidates.length === 0 ? (
                         <div style={{
                             padding: 20, textAlign: 'center', borderRadius: 'var(--radius)',
@@ -182,6 +246,7 @@ export default function CalloutPanel({ shift, employees, onClose, onShiftChanged
                                     <tr>
                                         <th scope="col">#</th>
                                         <th scope="col">Caregiver</th>
+                                        <th scope="col">Contact</th>
                                         <th scope="col">Distance</th>
                                         <th scope="col">Why this rank</th>
                                         <th scope="col" style={{ textAlign: 'right' }}>Action</th>
@@ -203,6 +268,20 @@ export default function CalloutPanel({ shift, employees, onClose, onShiftChanged
                                                         }}>Care team</span>
                                                     )}
                                                 </td>
+                                                {/* Click-to-call and click-to-email: most replacements are
+                                                    arranged by phone, and looking the number up elsewhere
+                                                    is the slow part of that. */}
+                                                <td style={{ whiteSpace: 'nowrap' }}>
+                                                    {c.phone
+                                                        ? <a href={`tel:${c.phone}`} style={{ color: 'hsl(var(--primary))', fontSize: 12 }}>{c.phone}</a>
+                                                        : <span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12 }}>no phone</span>}
+                                                    {c.email && (
+                                                        <>
+                                                            <br />
+                                                            <a href={`mailto:${c.email}`} style={{ color: 'hsl(var(--muted-foreground))', fontSize: 11 }}>{c.email}</a>
+                                                        </>
+                                                    )}
+                                                </td>
                                                 <td style={{ color: 'hsl(var(--muted-foreground))' }}>
                                                     {c.distanceMiles == null ? '—' : `${c.distanceMiles.toFixed(1)} mi`}
                                                 </td>
@@ -211,15 +290,32 @@ export default function CalloutPanel({ shift, employees, onClose, onShiftChanged
                                                 <td style={{ color: 'hsl(var(--muted-foreground))', fontSize: 11 }}>
                                                     {describeScore(c)}
                                                 </td>
-                                                <td style={{ textAlign: 'right' }}>
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn--sm btn--primary"
-                                                        onClick={() => handleOffer(c)}
-                                                        disabled={offeringId === c.employeeId || alreadyOffered}
-                                                    >
-                                                        {alreadyOffered ? 'Offered' : offeringId === c.employeeId ? 'Sending…' : 'Offer'}
-                                                    </button>
+                                                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                    {alreadyOffered ? (
+                                                        <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>Offered</span>
+                                                    ) : (
+                                                        <div style={{ display: 'inline-flex', gap: 4 }}>
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn--sm btn--primary"
+                                                                onClick={() => handleOffer(c)}
+                                                                disabled={offeringId === c.employeeId}
+                                                            >
+                                                                {offeringId === c.employeeId ? 'Sending…' : 'Offer'}
+                                                            </button>
+                                                            {/* For when the office rings round instead of
+                                                                sending: logs the offer with no notification. */}
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn--sm btn--outline"
+                                                                onClick={() => handleLogPhoneOffer(c)}
+                                                                disabled={offeringId === c.employeeId}
+                                                                title="Log that you phoned this caregiver, without sending a notification"
+                                                            >
+                                                                Log call
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </td>
                                             </tr>
                                         );
@@ -229,7 +325,14 @@ export default function CalloutPanel({ shift, employees, onClose, onShiftChanged
                         </div>
                     )}
 
-                    {offers.length > 0 && <OfferHistory offers={offers} employees={employees} />}
+                    {offers.length > 0 && (
+                        <OfferHistory
+                            offers={offers}
+                            employees={employees}
+                            respondingId={offeringId}
+                            onRecordResponse={handleRecordPhoneResponse}
+                        />
+                    )}
 
                     <div className="modal__actions">
                         <button type="button" className="btn btn--ghost" onClick={onClose}>Close</button>
@@ -259,7 +362,7 @@ const RESPONSE_STYLES = {
 };
 
 /** The compliance trail: who was offered this shift, in what order, and when. */
-function OfferHistory({ offers, employees }) {
+function OfferHistory({ offers, employees, onRecordResponse, respondingId }) {
     const nameById = new Map((employees || []).map(e => [e.id, e.name]));
 
     return (
@@ -278,6 +381,7 @@ function OfferHistory({ offers, employees }) {
                             <th scope="col">Sent</th>
                             <th scope="col">Via</th>
                             <th scope="col">Response</th>
+                            <th scope="col" style={{ textAlign: 'right' }}>Took answer by phone?</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -295,6 +399,32 @@ function OfferHistory({ offers, employees }) {
                                             padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
                                             background: style.bg, color: style.color,
                                         }}>{style.label}</span>
+                                    </td>
+                                    {/* Only an unanswered offer can be resolved by phone; once
+                                        it has an answer there is nothing left to record. */}
+                                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                        {!o.response && onRecordResponse ? (
+                                            <div style={{ display: 'inline-flex', gap: 4 }}>
+                                                <button
+                                                    type="button"
+                                                    className="btn btn--sm btn--primary"
+                                                    disabled={respondingId === o.employeeId}
+                                                    onClick={() => onRecordResponse(o, 'accept')}
+                                                >
+                                                    Accepted
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="btn btn--sm btn--outline"
+                                                    disabled={respondingId === o.employeeId}
+                                                    onClick={() => onRecordResponse(o, 'decline')}
+                                                >
+                                                    Declined
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 11 }}>—</span>
+                                        )}
                                     </td>
                                 </tr>
                             );

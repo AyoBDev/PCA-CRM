@@ -66,7 +66,16 @@ async function getReplacementCandidates(req, res, next) {
             excludeEmployeeId: shift.employeeId ?? undefined,
         }, { mode: 'strict', limit: Number(req.query.limit) || undefined });
 
-        res.json(result);
+        // The open callout travels with the candidates so the panel can show
+        // WHY cover is needed — the reason was previously write-only, stored
+        // and then never surfaced to the person acting on it.
+        const callout = await prisma.shiftCallout.findFirst({
+            where: { shiftId: shift.id, resolution: 'open' },
+            orderBy: { createdAt: 'desc' },
+            include: { calloutEmployee: { select: { id: true, name: true, phone: true } } },
+        });
+
+        res.json({ ...result, callout });
     } catch (err) {
         next(err);
     }
@@ -176,7 +185,7 @@ async function respondToOffer(req, res, next) {
 async function createOffer(req, res, next) {
     try {
         const shiftId = Number(req.params.id);
-        const { employeeId, calloutId, rank, scoreBreakdown, responseWindowMinutes } = req.body;
+        const { employeeId, calloutId, rank, scoreBreakdown, responseWindowMinutes, channel } = req.body;
         if (!employeeId) return res.status(400).json({ error: 'employeeId is required' });
 
         const result = await replacement.offerToCandidate(shiftId, Number(employeeId), {
@@ -184,6 +193,7 @@ async function createOffer(req, res, next) {
             rank: Number(rank) || 0,
             scoreBreakdown: scoreBreakdown || {},
             ...(responseWindowMinutes ? { responseWindowMinutes: Number(responseWindowMinutes) } : {}),
+            ...(channel ? { channel } : {}),
         });
 
         if (result.skipped) {
@@ -271,6 +281,57 @@ async function startAutoOffer(req, res, next) {
     }
 }
 
+// POST /api/shifts/:id/offers/:offerId/record-response
+//
+// The office took the answer by phone. Records it against the existing offer so
+// the compliance trail matches what actually happened, rather than the admin
+// reassigning the shift by hand and leaving the offer showing "awaiting reply".
+//
+// Routed through the same acceptOffer/declineOffer as every other path, so a
+// phoned-in acceptance is subject to the identical double-fill guard.
+async function recordOfferResponse(req, res, next) {
+    try {
+        const { response, note = '' } = req.body;
+        if (!['accept', 'decline'].includes(response)) {
+            return res.status(400).json({ error: "response must be 'accept' or 'decline'" });
+        }
+
+        const offer = await prisma.shiftOffer.findFirst({
+            where: { id: Number(req.params.offerId), shiftId: Number(req.params.id) },
+        });
+        if (!offer) return res.status(404).json({ error: 'Offer not found' });
+
+        const result = response === 'accept'
+            ? await replacement.acceptOffer(offer.token)
+            : await replacement.declineOffer(offer.token);
+
+        if (result.status === 'already_filled') {
+            return res.status(409).json({ status: 'already_filled', error: 'This shift has already been covered' });
+        }
+        if (['expired', 'already_answered'].includes(result.status)) {
+            return res.status(409).json({ status: result.status, error: 'This offer is no longer open' });
+        }
+
+        // Attributed to the admin who took the call — they are the one making
+        // the record, and the note is their account of what was said.
+        audit.logAction({
+            userId: req.user?.id ?? 0,
+            userName: req.user?.name ?? 'System',
+            userRole: req.user?.role ?? 'system',
+            action: 'UPDATE',
+            entityType: 'ShiftOffer',
+            entityId: offer.id,
+            entityName: `Shift ${offer.shiftId}`,
+            changes: [{ field: 'response', oldValue: '', newValue: result.status }],
+            metadata: { via: 'phone', note },
+        });
+
+        res.json(result);
+    } catch (err) {
+        next(err);
+    }
+}
+
 // GET /api/shifts/:id/offers
 async function listOffers(req, res, next) {
     try {
@@ -322,5 +383,6 @@ module.exports = {
     createOffer,
     startAutoOffer,
     listOffers,
+    recordOfferResponse,
     resolveCallout,
 };

@@ -86,6 +86,7 @@ async function offerToCandidate(shiftId, employeeId, {
     rank = 0,
     scoreBreakdown = {},
     responseWindowMinutes = DEFAULT_RESPONSE_WINDOW_MINUTES,
+    channel = null,
 } = {}) {
     // Re-check activity immediately before sending: someone can be deactivated
     // between ranking and offering, and burning a response window on them
@@ -113,6 +114,23 @@ async function offerToCandidate(shiftId, employeeId, {
             expiresAt,
         },
     });
+
+    // An offer made by phone is already delivered — the admin spoke to them.
+    // Sending a portal notification and email on top would be noise, and
+    // pretending it was undelivered would be wrong.
+    if (channel === 'phone') {
+        await prisma.shiftOffer.update({
+            where: { id: offer.id },
+            data: { channel: 'phone' },
+        });
+        await queue.schedule(
+            'offer-expiry',
+            { offerId: offer.id, shiftId: shift.id, calloutId },
+            responseWindowMinutes * 60 * 1000,
+            expiryJobId(offer.id),
+        );
+        return { offer, delivered: true, channels: ['phone'] };
+    }
 
     const delivery = await channels.sendOffer(offer, {
         employee,

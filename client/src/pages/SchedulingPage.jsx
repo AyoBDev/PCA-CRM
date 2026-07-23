@@ -450,7 +450,17 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                         )}
                     </div>
                     <div className="form-group" ref={empRef} style={{ position: 'relative' }}>
-                        <label htmlFor="shiftEmployee">Employee</label>
+                        <label htmlFor="shiftEmployee">
+                            Employee
+                            {/* Ranking needs a client, day and time window before it can say
+                                who is free. Without this hint the ordering silently never
+                                appears, because the day grid sits below this field. */}
+                            {clientId && !rankedGroups && (
+                                <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 400, color: 'hsl(var(--muted-foreground))' }}>
+                                    pick a day and time below to sort by availability &amp; distance
+                                </span>
+                            )}
+                        </label>
                         <input
                             id="shiftEmployee"
                             value={empSearch}

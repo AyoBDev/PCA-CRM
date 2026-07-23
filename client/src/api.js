@@ -502,6 +502,11 @@ export const createShiftOffer = (shiftId, body) =>
     request(`/shifts/${shiftId}/offers`, { method: 'POST', body: JSON.stringify(body) });
 export const listShiftOffers = (shiftId) =>
     request(`/shifts/${shiftId}/offers`);
+// Record an answer the office took by phone, against an existing offer.
+export const recordOfferResponse = (shiftId, offerId, response, note = '') =>
+    request(`/shifts/${shiftId}/offers/${offerId}/record-response`, {
+        method: 'POST', body: JSON.stringify({ response, note }),
+    });
 export const resolveCallout = (calloutId, resolution) =>
     request(`/callouts/${calloutId}/resolve`, { method: 'POST', body: JSON.stringify({ resolution }) });
 

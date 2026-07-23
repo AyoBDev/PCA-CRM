@@ -353,6 +353,34 @@ describe('un-geocoded candidates', () => {
     });
 });
 
+describe('contact details', () => {
+    test('returns phone and email so the office can reach a candidate directly', async () => {
+        prisma.employee.findMany.mockResolvedValue([
+            employee(1, 'Reachable', { phone: '702-555-0142', email: 'reach@example.com' }),
+        ]);
+        mockDistances({ 1: 1.0 });
+
+        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+
+        // Most callouts are handled by phone; the ranked list is useless for
+        // that if the admin has to go and look the number up elsewhere.
+        expect(result.eligible[0]).toEqual(expect.objectContaining({
+            phone: '702-555-0142',
+            email: 'reach@example.com',
+        }));
+    });
+
+    test('tolerates a candidate with no contact details on file', async () => {
+        prisma.employee.findMany.mockResolvedValue([employee(1, 'No Contact', { phone: '', email: '' })]);
+        mockDistances({ 1: 1.0 });
+
+        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+
+        expect(result.eligible[0].phone).toBe('');
+        expect(result.eligible[0].email).toBe('');
+    });
+});
+
 describe('distance query construction', () => {
     test('passes employee ids as SQL parameters, not a joined string', async () => {
         prisma.employee.findMany.mockResolvedValue([employee(1, 'A'), employee(2, 'B')]);

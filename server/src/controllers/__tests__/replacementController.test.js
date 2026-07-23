@@ -6,7 +6,7 @@
 
 jest.mock('../../lib/prisma', () => ({
     shift: { findUnique: jest.fn() },
-    shiftOffer: { findMany: jest.fn(), findUnique: jest.fn() },
+    shiftOffer: { findMany: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn() },
     shiftCallout: { findFirst: jest.fn() },
     client: { findUnique: jest.fn() },
 }));
@@ -182,6 +182,85 @@ describe('GET /shift-offers/:token (public)', () => {
         await controller.getOffer(req, res, next);
 
         expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: 'expired' }));
+    });
+});
+
+describe('POST /shifts/:id/offers/:offerId/record-response (phone callouts)', () => {
+    // Most callouts and replacements are handled by phone. The office needs to
+    // record what was said so the compliance trail matches reality, rather than
+    // reassigning the shift by hand and leaving the offer showing "awaiting".
+    beforeEach(() => {
+        prisma.shiftOffer.findFirst.mockResolvedValue({ id: 21, token: 'tok-21', shiftId: 7, employeeId: 5, response: '' });
+    });
+
+    test('records a phoned-in acceptance against the existing offer', async () => {
+        replacement.acceptOffer.mockResolvedValue({ status: 'accepted', offer: { id: 21, shiftId: 7 } });
+
+        const { req, res, next } = mockReqRes({ params: { id: '7', offerId: '21' }, body: { response: 'accept', note: 'called at 9:05, said yes' } });
+        await controller.recordOfferResponse(req, res, next);
+
+        expect(replacement.acceptOffer).toHaveBeenCalledWith('tok-21');
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: 'accepted' }));
+    });
+
+    test('records a phoned-in decline', async () => {
+        replacement.declineOffer.mockResolvedValue({ status: 'declined', offer: { id: 21, shiftId: 7 } });
+
+        const { req, res, next } = mockReqRes({ params: { id: '7', offerId: '21' }, body: { response: 'decline' } });
+        await controller.recordOfferResponse(req, res, next);
+
+        expect(replacement.declineOffer).toHaveBeenCalledWith('tok-21');
+    });
+
+    test('attributes the response to the admin who took the call, not the caregiver', async () => {
+        replacement.acceptOffer.mockResolvedValue({ status: 'accepted', offer: { id: 21, shiftId: 7 } });
+
+        const { req, res, next } = mockReqRes({ params: { id: '7', offerId: '21' }, body: { response: 'accept', note: 'phoned in' } });
+        await controller.recordOfferResponse(req, res, next);
+
+        expect(audit.logAction).toHaveBeenCalledWith(expect.objectContaining({
+            userId: 2,
+            entityType: 'ShiftOffer',
+            metadata: expect.objectContaining({ via: 'phone', note: 'phoned in' }),
+        }));
+    });
+
+    test('404s for an offer that does not belong to this shift', async () => {
+        prisma.shiftOffer.findFirst.mockResolvedValue(null);
+
+        const { req, res, next } = mockReqRes({ params: { id: '7', offerId: '99' }, body: { response: 'accept' } });
+        await controller.recordOfferResponse(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(404);
+    });
+
+    test('rejects an unrecognised response', async () => {
+        const { req, res, next } = mockReqRes({ params: { id: '7', offerId: '21' }, body: { response: 'maybe' } });
+        await controller.recordOfferResponse(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    test('returns 409 when the shift was filled while the call was happening', async () => {
+        replacement.acceptOffer.mockResolvedValue({ status: 'already_filled' });
+
+        const { req, res, next } = mockReqRes({ params: { id: '7', offerId: '21' }, body: { response: 'accept' } });
+        await controller.recordOfferResponse(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(409);
+    });
+});
+
+describe('POST /shifts/:id/offers with channel phone', () => {
+    test('logs an offer made by phone without attempting delivery', async () => {
+        replacement.offerToCandidate.mockResolvedValue({ offer: { id: 22 }, delivered: true, channels: ['phone'] });
+
+        const { req, res, next } = mockReqRes({ params: { id: '7' }, body: { employeeId: 5, channel: 'phone' } });
+        await controller.createOffer(req, res, next);
+
+        expect(replacement.offerToCandidate).toHaveBeenCalledWith(
+            7, 5, expect.objectContaining({ channel: 'phone' }),
+        );
     });
 });
 

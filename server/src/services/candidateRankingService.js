@@ -218,6 +218,11 @@ async function rankCandidates(request = {}, options = {}) {
         return {
             employeeId: emp.id,
             employeeName: emp.name,
+            // Included so the office can call or email a candidate directly.
+            // Most callouts are handled by phone, and a ranked list is not much
+            // use for that if the number has to be looked up elsewhere.
+            phone: emp.phone || '',
+            email: emp.email || '',
             distanceMiles,
             notGeocoded,
             onCareTeam: careTeamIds.has(emp.id),
