@@ -1,0 +1,206 @@
+jest.mock('../../lib/prisma', () => ({
+    shift: {
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
+        update: jest.fn(),
+        updateMany: jest.fn(),
+    },
+    employee: { findUnique: jest.fn() },
+    bulkEditBatch: { create: jest.fn() },
+}));
+
+jest.mock('../../services/auditService', () => ({
+    logAction: jest.fn(),
+    diffFields: jest.fn(() => []),
+}));
+
+jest.mock('../../services/notificationService', () => ({
+    isSmsConfigured: jest.fn(() => false),
+    isEmailConfigured: jest.fn(() => false),
+    sendSms: jest.fn(),
+    sendEmail: jest.fn(),
+}));
+
+jest.mock('../../services/authorizationService', () => ({
+    filterAuthsByWeek: jest.fn(() => []),
+}));
+
+// Keep the real schedulingService helpers (computeShiftHours, enrichShift, etc.)
+const prisma = require('../../lib/prisma');
+const { deleteShift, bulkUpdateShiftsPerShift } = require('../schedulingController');
+
+function mockReqRes(overrides = {}) {
+    const req = {
+        params: {}, query: {}, body: {},
+        user: { id: 1, name: 'Admin', role: 'admin' },
+        ...overrides,
+    };
+    const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
+    return { req, res };
+}
+
+describe('deleteShift — scope param (Bug 1)', () => {
+    beforeEach(() => jest.clearAllMocks());
+
+    test('scope=future archives only the clicked shift and later occurrences, never past ones', async () => {
+        const clicked = {
+            id: 42,
+            recurringGroupId: 'rg_abc',
+            shiftDate: new Date('2026-07-15T00:00:00.000Z'),
+        };
+        prisma.shift.findUnique.mockResolvedValue(clicked);
+        prisma.shift.findMany.mockResolvedValue([{ id: 42 }, { id: 50 }, { id: 58 }]);
+        prisma.shift.updateMany.mockResolvedValue({ count: 3 });
+
+        const { req, res } = mockReqRes({ params: { id: '42' }, query: { scope: 'future' } });
+        await deleteShift(req, res);
+
+        expect(prisma.shift.updateMany).toHaveBeenCalledTimes(1);
+        const call = prisma.shift.updateMany.mock.calls[0][0];
+        expect(call.where.recurringGroupId).toBe('rg_abc');
+        // Must be bounded from the clicked shift's date forward — past shifts excluded.
+        expect(call.where.shiftDate).toEqual({ gte: clicked.shiftDate });
+        // Returns the exact archived ids so the client can restore them on undo.
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ archived: 3, ids: [42, 50, 58] }));
+    });
+
+    test('scope=all archives the entire series (past included) — explicit choice', async () => {
+        prisma.shift.findUnique.mockResolvedValue({
+            id: 42, recurringGroupId: 'rg_abc', shiftDate: new Date('2026-07-15T00:00:00.000Z'),
+        });
+        prisma.shift.findMany.mockResolvedValue([{ id: 42 }]);
+        prisma.shift.updateMany.mockResolvedValue({ count: 8 });
+
+        const { req, res } = mockReqRes({ params: { id: '42' }, query: { scope: 'all' } });
+        await deleteShift(req, res);
+
+        const call = prisma.shift.updateMany.mock.calls[0][0];
+        expect(call.where.recurringGroupId).toBe('rg_abc');
+        expect(call.where.shiftDate).toBeUndefined(); // no date bound = whole series
+    });
+
+    test('scope=this archives only the single shift', async () => {
+        prisma.shift.findUnique.mockResolvedValue({
+            id: 42, recurringGroupId: 'rg_abc', shiftDate: new Date('2026-07-15T00:00:00.000Z'),
+        });
+        prisma.shift.update.mockResolvedValue({ id: 42 });
+
+        const { req, res } = mockReqRes({ params: { id: '42' }, query: { scope: 'this' } });
+        await deleteShift(req, res);
+
+        expect(prisma.shift.updateMany).not.toHaveBeenCalled();
+        expect(prisma.shift.update).toHaveBeenCalledWith(
+            expect.objectContaining({ where: { id: 42 } })
+        );
+    });
+
+    test('legacy group=true still behaves as scope=all (back-compat)', async () => {
+        prisma.shift.findUnique.mockResolvedValue({
+            id: 42, recurringGroupId: 'rg_abc', shiftDate: new Date('2026-07-15T00:00:00.000Z'),
+        });
+        prisma.shift.findMany.mockResolvedValue([{ id: 42 }]);
+        prisma.shift.updateMany.mockResolvedValue({ count: 8 });
+
+        const { req, res } = mockReqRes({ params: { id: '42' }, query: { group: 'true' } });
+        await deleteShift(req, res);
+
+        const call = prisma.shift.updateMany.mock.calls[0][0];
+        expect(call.where.recurringGroupId).toBe('rg_abc');
+        expect(call.where.shiftDate).toBeUndefined();
+    });
+});
+
+describe('bulkUpdateShiftsPerShift — overlap blocks, never auto-edits (Bug 3)', () => {
+    beforeEach(() => jest.clearAllMocks());
+    beforeEach(() => {
+        prisma.bulkEditBatch.create.mockResolvedValue({ id: 99 });
+        prisma.employee.findUnique.mockResolvedValue({ id: 7 });
+    });
+
+    test('blocks the save when the edited time would overlap a sibling shift; writes nothing', async () => {
+        // Two shifts same employee/date: Respite 09:00-11:00, Homemaker 11:00-13:00.
+        // User edits Respite end to 12:00 → overlaps Homemaker → must block, no update.
+        const respite = {
+            id: 1, employeeId: 7, serviceCode: 'S5150',
+            shiftDate: new Date('2026-07-20T00:00:00.000Z'),
+            startTime: '09:00', endTime: '11:00', recurringGroupId: 'rg_x',
+            employee: { id: 7, name: 'Jane' },
+        };
+        const homemaker = {
+            id: 2, employeeId: 7, serviceCode: 'S5130',
+            shiftDate: new Date('2026-07-20T00:00:00.000Z'),
+            startTime: '11:00', endTime: '13:00', recurringGroupId: 'rg_x',
+            employee: { id: 7, name: 'Jane' },
+        };
+
+        // findMany is used to load the edited shifts AND (for overlap check) sibling shifts.
+        prisma.shift.findMany.mockImplementation(({ where }) => {
+            if (where.id && where.id.in) {
+                return Promise.resolve([respite]); // the shift being edited
+            }
+            // overlap sibling lookup: same employee/date
+            return Promise.resolve([respite, homemaker]);
+        });
+
+        const { req, res } = mockReqRes({
+            body: { perShiftUpdates: { 1: { endTime: '12:00' } }, applyToFuture: false },
+        });
+        await bulkUpdateShiftsPerShift(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(409);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({ error: 'overlap' })
+        );
+        // Critically: it must NOT have rewritten the untouched homemaker shift (id 2)
+        const updatedIds = prisma.shift.update.mock.calls.map(c => c[0].where.id);
+        expect(updatedIds).not.toContain(2);
+        // And it should not have applied the edit either (blocked, atomic).
+        expect(updatedIds).not.toContain(1);
+    });
+
+    test('future propagation only touches shifts matching day-of-week AND service code (no || dayRules[0] fallback)', async () => {
+        // Selected: edit Respite (S5150) on a Monday, applyToFuture.
+        // A future Monday has both a Respite and a Homemaker shift.
+        // Only the future Respite should change; the Homemaker must be left untouched.
+        const editedRespite = {
+            id: 1, employeeId: 7, serviceCode: 'S5150',
+            shiftDate: new Date('2026-07-20T00:00:00.000Z'), // Monday
+            startTime: '09:00', endTime: '11:00', recurringGroupId: 'rg_x',
+            employee: { id: 7, name: 'Jane' },
+        };
+        const futureRespite = {
+            id: 10, employeeId: 7, serviceCode: 'S5150',
+            shiftDate: new Date('2026-07-27T00:00:00.000Z'), // next Monday
+            startTime: '09:00', endTime: '11:00', recurringGroupId: 'rg_x',
+            employee: { id: 7, name: 'Jane' },
+        };
+        const futureHomemaker = {
+            id: 11, employeeId: 7, serviceCode: 'S5130',
+            shiftDate: new Date('2026-07-27T00:00:00.000Z'), // same Monday
+            startTime: '11:00', endTime: '13:00', recurringGroupId: 'rg_x',
+            employee: { id: 7, name: 'Jane' },
+        };
+
+        prisma.shift.findMany.mockImplementation(({ where }) => {
+            if (where.id && where.id.in && !where.recurringGroupId) {
+                return Promise.resolve([editedRespite]); // edited shifts
+            }
+            if (where.recurringGroupId) {
+                return Promise.resolve([futureRespite, futureHomemaker]); // future series
+            }
+            // overlap sibling lookups return only the shift itself (no conflict)
+            if (where.employeeId) return Promise.resolve([editedRespite]);
+            return Promise.resolve([]);
+        });
+        prisma.shift.update.mockImplementation(({ where }) => Promise.resolve({ id: where.id, employee: { id: 7, name: 'Jane' } }));
+
+        const { req, res } = mockReqRes({
+            body: { perShiftUpdates: { 1: { startTime: '08:00' } }, applyToFuture: true },
+        });
+        await bulkUpdateShiftsPerShift(req, res);
+
+        const updatedIds = prisma.shift.update.mock.calls.map(c => c[0].where.id);
+        expect(updatedIds).toContain(10);  // future respite updated
+        expect(updatedIds).not.toContain(11); // future homemaker left alone
+    });
+});

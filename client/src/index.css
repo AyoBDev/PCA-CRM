@@ -1630,6 +1630,13 @@ body {
   color: hsl(var(--destructive));
 }
 
+.toast--warning {
+  border-left: 3px solid hsl(38 92% 50%);
+}
+.toast--warning svg {
+  color: hsl(38 92% 50%);
+}
+
 .toast--info {
   border-left: 3px solid hsl(var(--primary));
 }
@@ -8938,6 +8945,34 @@ button.sdr-section-tag:hover:not(:disabled) {
 .sched-day-row__apply:hover {
     background: hsl(217 91% 95%);
     border-color: hsl(217 91% 50%);
+}
+/* Bulk-edit: add a shift to a day + inline validation error */
+.sched-day-row__add {
+    margin: 4px 14px 4px 42px;
+    align-self: flex-start;
+    font-size: 12px;
+    padding: 5px 12px;
+    border: 1px dashed hsl(217 91% 70%);
+    border-radius: 6px;
+    background: hsl(var(--card));
+    color: hsl(217 91% 50%);
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.sched-day-row__add:hover {
+    background: hsl(217 91% 96%);
+    border-color: hsl(217 91% 50%);
+}
+.sched-day-row__fields--new {
+    border-left: 2px solid hsl(217 91% 70%);
+    background: hsl(217 91% 98%);
+    border-radius: 6px;
+}
+.sched-day-row__error {
+    font-size: 12px;
+    color: hsl(0 72% 45%);
+    padding-left: 42px;
 }
 
 /* Recurring Shift Toggle */
