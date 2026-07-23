@@ -170,8 +170,8 @@ const {
     uploadFile, downloadFile, replaceFile, updateFile, deleteFile, copyFile, searchFiles, exportFiles,
 } = require('../controllers/fileManagerController');
 const { listActivities, createActivity, deleteActivity } = require('../controllers/activityController');
-const { listNotesTimeline } = require('../controllers/clientNotesController');
-const { listEmployeeNotesTimeline } = require('../controllers/employeeNotesController');
+const { listNotesTimeline, exportClientNotesPdf } = require('../controllers/clientNotesController');
+const { listEmployeeNotesTimeline, exportEmployeeNotesPdf } = require('../controllers/employeeNotesController');
 const { listTasks, getTask, createTask, updateTask, deleteTask, bulkUpdateTasks, getTaskSummary } = require('../controllers/taskController');
 const { listWorkflowTriggers, updateWorkflowTrigger } = require('../controllers/workflowTriggerController');
 const { getPayrollProfile, upsertPayrollProfile, revealSensitiveField } = require('../controllers/payrollProfileController');
@@ -437,6 +437,7 @@ router.get('/employees/:id/availability', requireRole('admin', 'user'), requireP
 router.get('/employees/:employeeId/certifications', requireRole('admin', 'user'), requirePermission('employees'), listCertifications);
 // Internal record — admin/office only, never reachable from the employee portal.
 router.get('/employees/:employeeId/notes-timeline', requireRole('admin', 'user'), requirePermission('employees'), listEmployeeNotesTimeline);
+router.get('/employees/:employeeId/notes-timeline/export', requireRole('admin', 'user'), requirePermission('employees'), exportEmployeeNotesPdf);
 router.post('/employees/:employeeId/certifications', requireRole('admin', 'user'), requirePermission('employees'), upload.single('file'), createCertification);
 router.put('/certifications/:id', requireRole('admin', 'user'), requirePermission('employees'), upload.single('file'), updateCertification);
 router.delete('/certifications/:id', requireRole('admin', 'user'), requirePermission('employees'), deleteCertification);
@@ -495,6 +496,7 @@ router.delete('/activities/:id', requireRole('admin'), deleteActivity);
 
 // Client Notes Timeline (read-only aggregation of every note tied to a client)
 router.get('/clients/:clientId/notes-timeline', requirePermission('clients'), listNotesTimeline);
+router.get('/clients/:clientId/notes-timeline/export', requirePermission('clients'), exportClientNotesPdf);
 
 // Audit Logs (admin only)
 router.get('/audit-logs',                     requireRole('admin'), requirePermission('history'), getAuditLogs);

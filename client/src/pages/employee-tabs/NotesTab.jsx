@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import * as api from '../../api';
 import Icons from '../../components/common/Icons';
 import { useToast } from '../../hooks/useToast';
+import NotesExportButton from '../../components/common/NotesExportButton';
 
 // Mirrors client-tabs/NotesTab so the two read identically — same timeline
 // markup, same filter chips, same relative timestamps.
@@ -92,7 +93,13 @@ export default function EmployeeNotesTab({ employeeId }) {
             <div className="cp-card">
                 <div className="cp-card__header">
                     <h3 className="cp-card__title">Notes</h3>
-                    <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>{total} entries</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>{total} entries</span>
+                        <NotesExportButton
+                            disabled={loading}
+                            onExport={(range) => api.exportEmployeeNotesPdf(employeeId, range)}
+                        />
+                    </div>
                 </div>
                 <div className="cp-card__body">
                     <div style={{

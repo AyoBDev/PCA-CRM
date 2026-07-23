@@ -678,6 +678,39 @@ export const getClientNotesTimeline = (clientId, page = 1) =>
 export const getEmployeeNotesTimeline = (employeeId, page = 1) =>
     request(`/employees/${employeeId}/notes-timeline?page=${page}`);
 
+// Compliance PDF exports. Returned as a Blob rather than JSON so the caller can
+// trigger a download; `request` assumes JSON, hence the raw fetch.
+const downloadPdf = async (path, filename) => {
+    const res = await fetch(`/api${path}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Export failed' }));
+        throw new Error(err.error || 'Export failed');
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+};
+
+export const exportEmployeeNotesPdf = (employeeId, { from = '', to = '' } = {}) =>
+    downloadPdf(
+        `/employees/${employeeId}/notes-timeline/export?from=${from}&to=${to}`,
+        `notes-employee-${employeeId}.pdf`,
+    );
+
+export const exportClientNotesPdf = (clientId, { from = '', to = '' } = {}) =>
+    downloadPdf(
+        `/clients/${clientId}/notes-timeline/export?from=${from}&to=${to}`,
+        `notes-client-${clientId}.pdf`,
+    );
+
 export const createClientActivity = (clientId, data) =>
     request(`/clients/${clientId}/activities`, { method: 'POST', body: JSON.stringify(data) });
 

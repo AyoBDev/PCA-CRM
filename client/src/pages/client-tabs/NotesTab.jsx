@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import * as api from '../../api';
 import Icons from '../../components/common/Icons';
 import { useToast } from '../../hooks/useToast';
+import NotesExportButton from '../../components/common/NotesExportButton';
 
 const SOURCE_CONFIG = {
     authorization: { label: 'Authorization', icon: Icons.shieldCheck, color: '#2563eb' },
@@ -90,7 +91,13 @@ export default function NotesTab({ clientId }) {
             <div className="cp-card">
                 <div className="cp-card__header">
                     <h3 className="cp-card__title">Notes</h3>
-                    <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>{total} entries</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>{total} entries</span>
+                        <NotesExportButton
+                            disabled={loading}
+                            onExport={(range) => api.exportClientNotesPdf(clientId, range)}
+                        />
+                    </div>
                 </div>
                 <div className="cp-card__body">
                     {presentSources.length > 1 && (
