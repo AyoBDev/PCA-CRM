@@ -8184,6 +8184,13 @@ button.sdr-section-tag:hover:not(:disabled) {
 .sched-overview-table__row--cancelled {
     opacity: 0.5;
 }
+
+/* A shift whose caregiver called out and which still needs cover. Warning
+   rather than danger: it is actionable, not broken. */
+.sched-overview-table__row--pending-replacement {
+    background: hsl(var(--warning-bg));
+    box-shadow: inset 3px 0 0 hsl(var(--warning));
+}
 .sched-overview-table__row--selected td {
     background: hsl(217 91% 95%);
 }

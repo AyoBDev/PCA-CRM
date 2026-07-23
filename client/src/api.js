@@ -493,6 +493,18 @@ export const getClientSchedule = (clientId, weekStart) =>
     request(`/shifts/client/${clientId}${weekStart ? '?weekStart=' + weekStart : ''}`);
 export const getEmployeeSchedule = (employeeId, weekStart, { all } = {}) =>
     request(`/shifts/employee/${employeeId}${all ? '?all=true' : weekStart ? '?weekStart=' + weekStart : ''}`);
+// ── Replacement workflow ──
+export const recordCallout = (shiftId, body) =>
+    request(`/shifts/${shiftId}/callout`, { method: 'POST', body: JSON.stringify(body) });
+export const getReplacementCandidates = (shiftId) =>
+    request(`/shifts/${shiftId}/replacement-candidates`);
+export const createShiftOffer = (shiftId, body) =>
+    request(`/shifts/${shiftId}/offers`, { method: 'POST', body: JSON.stringify(body) });
+export const listShiftOffers = (shiftId) =>
+    request(`/shifts/${shiftId}/offers`);
+export const resolveCallout = (calloutId, resolution) =>
+    request(`/callouts/${calloutId}/resolve`, { method: 'POST', body: JSON.stringify({ resolution }) });
+
 // Ranked employees for a shift: { status, eligible[], ineligible[] }.
 // status 'insufficient_input' means the shift is not yet specific enough to
 // determine availability — callers fall back to their plain unranked list.

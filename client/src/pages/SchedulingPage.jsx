@@ -9,6 +9,7 @@ import { useNearbyEmployees, conflictLabel } from '../hooks/useNearbyEmployees';
 import ScheduleDelivery from './scheduling/ScheduleDelivery';
 import MonthlyCalendarView from './scheduling/MonthlyCalendarView';
 import FutureShiftsView from './scheduling/FutureShiftsView';
+import CalloutPanel from './scheduling/CalloutPanel';
 import { getAccountForCategory, ACCOUNT_NUMBER_OPTIONS } from '../utils/accountMapping';
 import UndoBanner from '../components/common/UndoBanner';
 import DeleteConfirmModal from '../components/common/DeleteConfirmModal';
@@ -36,7 +37,7 @@ import SearchableSelect from '../components/common/SearchableSelect';
 
 // Helper: get YYYY-MM-DD from a date value.
 
-function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete, onClose, defaultDate, defaultClientId, defaultEmployeeId, defaultStartTime, weekStart: propWeekStart, draft, onClearDraft }) {
+function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete, onClose, onFindCover, defaultDate, defaultClientId, defaultEmployeeId, defaultStartTime, weekStart: propWeekStart, draft, onClearDraft }) {
     const DAY_NAMES = DAY_NAMES_SHORT;
     const isEdit = !!shift;
 
@@ -679,6 +680,12 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                                 <option value="scheduled">Scheduled</option>
                                 <option value="completed">Completed</option>
                                 <option value="cancelled">Cancelled</option>
+                                {/* Set by the replacement workflow, not chosen manually — listed
+                                    only so an in-progress shift does not silently lose the status
+                                    when its form is saved. */}
+                                {status === 'pending_replacement' && (
+                                    <option value="pending_replacement">Pending replacement</option>
+                                )}
                             </select>
                         </div>
                         {/* Repeat Weekly — only show for shifts not already in a recurring group */}
@@ -882,6 +889,13 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                     {!isEdit && (clientId || employeeId || empSearch || dayEntries.some(de => de.enabled)) && (
                         <button type="button" className="btn btn--outline" style={{ marginRight: 'auto', color: 'hsl(var(--muted-foreground))', fontSize: 12 }} onClick={handleClear}>
                             Clear
+                        </button>
+                    )}
+                    {/* Only offered for an assigned shift — there is nobody to
+                        call out of an unassigned one. */}
+                    {isEdit && !confirmDelete && shift?.employeeId && onFindCover && (
+                        <button type="button" className="btn btn--outline" onClick={() => onFindCover(shift)}>
+                            {shift.status === 'pending_replacement' ? 'View replacement' : 'Find cover'}
                         </button>
                     )}
                     <button type="button" className="btn btn--outline" onClick={handleClose}>Cancel</button>
@@ -1987,7 +2001,7 @@ function ScheduleOverviewTable({ shifts, overlapIds, onEditShift, clientColorMap
                         const cc = hasMultipleClients && s.client?.clientName ? clientColorMap[s.client.clientName] : null;
                         const isSelected = selectedShiftIds && selectedShiftIds.has(s.id);
                         return (
-                            <tr key={s.id} className={`sched-overview-table__row ${isOverlap ? 'sched-overview-table__row--overlap' : ''} ${s.status === 'cancelled' ? 'sched-overview-table__row--cancelled' : ''} ${isSelected ? 'sched-overview-table__row--selected' : ''}`} onClick={() => bulkEditMode ? onToggleSelect(s.id) : onEditShift(s)} style={{ cursor: 'pointer', borderLeft: cc ? `3px solid ${cc.color}` : undefined }}>
+                            <tr key={s.id} className={`sched-overview-table__row ${isOverlap ? 'sched-overview-table__row--overlap' : ''} ${s.status === 'cancelled' ? 'sched-overview-table__row--cancelled' : ''} ${s.status === 'pending_replacement' ? 'sched-overview-table__row--pending-replacement' : ''} ${isSelected ? 'sched-overview-table__row--selected' : ''}`} onClick={() => bulkEditMode ? onToggleSelect(s.id) : onEditShift(s)} style={{ cursor: 'pointer', borderLeft: cc ? `3px solid ${cc.color}` : undefined }}>
                                 {bulkEditMode && <td onClick={e => e.stopPropagation()}><input type="checkbox" checked={isSelected} onChange={() => onToggleSelect(s.id)} /></td>}
                                 <td>{dayNames[dayIdx]}</td>
                                 <td>
@@ -3067,12 +3081,27 @@ export default function SchedulingPage() {
                     onSave={handleSaveShift}
                     onRepeat={handleRepeatShift}
                     onDelete={handleDeleteShift}
+                    onFindCover={(s) => setModal({ type: 'callout', shift: s })}
                     onClose={(draft) => {
                         if (draft && !modal.shift) createDraftRef.current = draft;
                         setModal(null);
                     }}
                     draft={!modal.shift ? createDraftRef.current : null}
                     onClearDraft={() => { createDraftRef.current = null; }}
+                />
+            )}
+
+            {/* Callout / replacement panel */}
+            {modal?.type === 'callout' && (
+                <CalloutPanel
+                    shift={modal.shift}
+                    employees={employees}
+                    undoState={undoState}
+                    // refetchAll refreshes whichever list the current view uses
+                    // (all / client / employee), so undo and redo stay in sync
+                    // with the DB regardless of how the page is filtered.
+                    onShiftChanged={() => refetchAll()}
+                    onClose={() => setModal(null)}
                 />
             )}
 
