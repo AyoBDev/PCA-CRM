@@ -128,6 +128,41 @@ describe('exportEmployeeNotesPdf', () => {
     });
 });
 
+describe('notesFilename', () => {
+    const { notesFilename } = require('../employeeNotesController');
+
+    test('uses the person\'s name, not their id', () => {
+        expect(notesFilename('Demo Ben Ortiz', '', '')).toBe('notes-demo-ben-ortiz.pdf');
+    });
+
+    test('includes the period when one is given', () => {
+        // A compliance file sitting in a folder should say what it covers.
+        expect(notesFilename('Jane Doe', '2026-07-01', '2026-07-31'))
+            .toBe('notes-jane-doe-2026-07-01-to-2026-07-31.pdf');
+    });
+
+    test('handles an open-ended range', () => {
+        expect(notesFilename('Jane Doe', '2026-07-01', '')).toBe('notes-jane-doe-from-2026-07-01.pdf');
+        expect(notesFilename('Jane Doe', '', '2026-07-31')).toBe('notes-jane-doe-to-2026-07-31.pdf');
+    });
+
+    test('strips punctuation without leaving stray separators', () => {
+        expect(notesFilename("Demo — O'Brien, Mary-Jane", '', '')).toBe('notes-demo-o-brien-mary-jane.pdf');
+    });
+
+    test('falls back when a name has no usable characters', () => {
+        // Non-Latin names would otherwise strip to an empty string, producing
+        // a file called "notes-.pdf".
+        expect(notesFilename('陳大文', '', '')).toBe('notes-record.pdf');
+        expect(notesFilename('', '', '')).toBe('notes-record.pdf');
+    });
+
+    test('does not produce an unwieldy filename for a long name', () => {
+        const long = 'Bartholomew Montgomery Fitzgerald Wellington the Third of Somewhere';
+        expect(notesFilename(long, '', '').length).toBeLessThanOrEqual(70);
+    });
+});
+
 describe('filterByRange', () => {
     const at = iso => ({ date: new Date(iso).toISOString(), content: iso });
 

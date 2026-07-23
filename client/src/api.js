@@ -678,9 +678,22 @@ export const getClientNotesTimeline = (clientId, page = 1) =>
 export const getEmployeeNotesTimeline = (employeeId, page = 1) =>
     request(`/employees/${employeeId}/notes-timeline?page=${page}`);
 
+/**
+ * Read the filename the server chose from Content-Disposition.
+ *
+ * The server builds it from the person's name (notes-jane-doe.pdf), which is
+ * what someone filing a compliance document needs to see. Falls back only if
+ * the header is missing or unparseable.
+ */
+const filenameFromResponse = (res, fallback) => {
+    const header = res.headers.get('Content-Disposition') || '';
+    const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(header);
+    return match ? decodeURIComponent(match[1]) : fallback;
+};
+
 // Compliance PDF exports. Returned as a Blob rather than JSON so the caller can
 // trigger a download; `request` assumes JSON, hence the raw fetch.
-const downloadPdf = async (path, filename) => {
+const downloadPdf = async (path, fallbackName) => {
     const res = await fetch(`/api${path}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
     });
@@ -692,7 +705,7 @@ const downloadPdf = async (path, filename) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = filename;
+    a.download = filenameFromResponse(res, fallbackName);
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -702,13 +715,13 @@ const downloadPdf = async (path, filename) => {
 export const exportEmployeeNotesPdf = (employeeId, { from = '', to = '' } = {}) =>
     downloadPdf(
         `/employees/${employeeId}/notes-timeline/export?from=${from}&to=${to}`,
-        `notes-employee-${employeeId}.pdf`,
+        'employee-notes.pdf',
     );
 
 export const exportClientNotesPdf = (clientId, { from = '', to = '' } = {}) =>
     downloadPdf(
         `/clients/${clientId}/notes-timeline/export?from=${from}&to=${to}`,
-        `notes-client-${clientId}.pdf`,
+        'client-notes.pdf',
     );
 
 export const createClientActivity = (clientId, data) =>

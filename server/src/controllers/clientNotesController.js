@@ -1,7 +1,7 @@
 const PDFDocument = require('pdfkit');
 const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
-const { filterByRange, renderNotesDocument } = require('./employeeNotesController');
+const { filterByRange, renderNotesDocument, notesFilename } = require('./employeeNotesController');
 
 // Reverse-chronological, read-only aggregation of every note tied to a client.
 // Notes live in their source records; this endpoint only reads and normalizes them.
@@ -139,9 +139,8 @@ async function exportClientNotesPdf(req, res, next) {
             metadata: { document: 'notes_timeline', from, to, entryCount: notes.length },
         });
 
-        const safeName = client.clientName.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="notes-${safeName}.pdf"`);
+        res.setHeader('Content-Disposition', `attachment; filename="${notesFilename(client.clientName, from, to)}"`);
 
         const doc = new PDFDocument({ size: 'LETTER', margins: { top: 48, bottom: 48, left: 48, right: 48 } });
         doc.pipe(res);

@@ -97,6 +97,29 @@ async function buildEmployeeTimeline(employeeId) {
     return { employee, entries };
 }
 
+/**
+ * Filename for an exported notes PDF: the person's NAME plus the period, so a
+ * file sitting in a compliance folder identifies itself without being opened.
+ * Never the database id — that means nothing to whoever receives it.
+ */
+function notesFilename(subjectName, from, to) {
+    const slug = String(subjectName || '')
+        .replace(/[^a-z0-9]+/gi, '-')   // punctuation and spaces become separators
+        .replace(/^-+|-+$/g, '')        // no leading/trailing dashes
+        .toLowerCase()
+        .slice(0, 40);                  // keep the name readable in a file listing
+
+    // A name with no Latin characters strips to empty; "notes-.pdf" helps nobody.
+    const base = slug || 'record';
+
+    let period = '';
+    if (from && to) period = `-${from}-to-${to}`;
+    else if (from) period = `-from-${from}`;
+    else if (to) period = `-to-${to}`;
+
+    return `notes-${base}${period}.pdf`;
+}
+
 /** Inclusive date filter. `to` covers the whole closing day, not midnight. */
 function filterByRange(entries, from, to) {
     if (!from && !to) return entries;
@@ -162,9 +185,8 @@ async function exportEmployeeNotesPdf(req, res, next) {
             metadata: { document: 'notes_timeline', from, to, entryCount: notes.length },
         });
 
-        const safeName = employee.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="notes-${safeName}.pdf"`);
+        res.setHeader('Content-Disposition', `attachment; filename="${notesFilename(employee.name, from, to)}"`);
 
         const doc = new PDFDocument({ size: 'LETTER', margins: { top: 48, bottom: 48, left: 48, right: 48 } });
         doc.pipe(res);
@@ -231,4 +253,5 @@ module.exports = {
     buildEmployeeTimeline,
     filterByRange,
     renderNotesDocument,
+    notesFilename,
 };
