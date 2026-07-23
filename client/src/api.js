@@ -673,6 +673,11 @@ export const getClientActivities = (clientId, page = 1) =>
 export const getClientNotesTimeline = (clientId, page = 1) =>
     request(`/clients/${clientId}/notes-timeline?page=${page}`);
 
+// Internal record, admin/office only — deliberately has no employee-portal
+// equivalent. See employeeNotesController for why.
+export const getEmployeeNotesTimeline = (employeeId, page = 1) =>
+    request(`/employees/${employeeId}/notes-timeline?page=${page}`);
+
 export const createClientActivity = (clientId, data) =>
     request(`/clients/${clientId}/activities`, { method: 'POST', body: JSON.stringify(data) });
 

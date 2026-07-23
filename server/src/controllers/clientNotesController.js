@@ -26,6 +26,7 @@ async function listNotesTimeline(req, res, next) {
             timesheets,
             shifts,
             activities,
+            callouts,
         ] = await Promise.all([
             prisma.clientNote.findMany({ where: { clientId } }),
             prisma.authorization.findMany({ where: { clientId, archivedAt: null } }),
@@ -37,6 +38,12 @@ async function listNotesTimeline(req, res, next) {
             prisma.timesheet.findMany({ where: { clientId } }),
             prisma.shift.findMany({ where: { clientId, archivedAt: null } }),
             prisma.clientActivity.findMany({ where: { clientId, type: 'note' }, include: { user: { select: { name: true } } } }),
+            // Callouts on this client's shifts: the family may ask why a
+            // different caregiver turned up, and this is the answer.
+            prisma.shiftCallout.findMany({
+                where: { shift: { clientId } },
+                include: { calloutEmployee: { select: { name: true } } },
+            }),
         ]);
 
         const entries = [];
@@ -64,6 +71,14 @@ async function listNotesTimeline(req, res, next) {
         timesheets.forEach(t => push('timesheet', 'Timesheet', t.correctionNote, t.updatedAt, t.pcaName));
         shifts.forEach(s => push('schedule', 'Scheduling', s.notes, s.updatedAt, null));
         activities.forEach(a => push('activity', 'Activity', a.description || a.subject, a.occurredAt, a.user?.name));
+        callouts.forEach(c => push(
+            'callout',
+            'Callout',
+            `${c.calloutEmployee?.name || 'Caregiver'} called out${c.reason ? ` — ${c.reason}` : ''}`
+                + (c.resolution === 'filled' ? ' (cover found)' : c.resolution === 'no_coverage' ? ' (no cover found)' : ''),
+            c.createdAt,
+            c.calloutEmployee?.name || null,
+        ));
 
         entries.sort((a, b) => new Date(b.date) - new Date(a.date));
 

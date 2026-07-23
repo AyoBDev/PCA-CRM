@@ -248,7 +248,6 @@ export default function CalloutPanel({ shift, employees, onClose, onShiftChanged
                                         <th scope="col">Caregiver</th>
                                         <th scope="col">Contact</th>
                                         <th scope="col">Distance</th>
-                                        <th scope="col">Why this rank</th>
                                         <th scope="col" style={{ textAlign: 'right' }}>Action</th>
                                     </tr>
                                 </thead>
@@ -284,11 +283,6 @@ export default function CalloutPanel({ shift, employees, onClose, onShiftChanged
                                                 </td>
                                                 <td style={{ color: 'hsl(var(--muted-foreground))' }}>
                                                     {c.distanceMiles == null ? '—' : `${c.distanceMiles.toFixed(1)} mi`}
-                                                </td>
-                                                {/* The breakdown is what lets the owner judge whether the
-                                                    ranking is trustworthy before automation is enabled. */}
-                                                <td style={{ color: 'hsl(var(--muted-foreground))', fontSize: 11 }}>
-                                                    {describeScore(c)}
                                                 </td>
                                                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                     {alreadyOffered ? (
@@ -343,17 +337,6 @@ export default function CalloutPanel({ shift, employees, onClose, onShiftChanged
     );
 }
 
-/** Plain-language explanation of a candidate's score. */
-function describeScore(c) {
-    const parts = [];
-    const b = c.scoreBreakdown || {};
-    if (b.careTeam > 0) parts.push('on care team');
-    if (b.availabilityWindow > 0) parts.push('within stated hours');
-    if (c.distanceMiles != null && b.proximity > 0) parts.push('nearby');
-    if (c.weeklyHours != null) parts.push(`${c.weeklyHours}h booked this week`);
-    return parts.length ? parts.join(' · ') : 'eligible';
-}
-
 const RESPONSE_STYLES = {
     accepted: { label: 'Accepted', color: 'hsl(var(--success))', bg: 'hsl(var(--success-bg))' },
     declined: { label: 'Declined', color: 'hsl(var(--danger))', bg: 'hsl(var(--danger-bg))' },
@@ -381,7 +364,6 @@ function OfferHistory({ offers, employees, onRecordResponse, respondingId }) {
                             <th scope="col">Sent</th>
                             <th scope="col">Via</th>
                             <th scope="col">Response</th>
-                            <th scope="col" style={{ textAlign: 'right' }}>Took answer by phone?</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -394,15 +376,10 @@ function OfferHistory({ offers, employees, onRecordResponse, respondingId }) {
                                         {o.offeredAt ? new Date(o.offeredAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'}
                                     </td>
                                     <td style={{ color: 'hsl(var(--muted-foreground))' }}>{o.channel || '—'}</td>
-                                    <td>
-                                        <span style={{
-                                            padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
-                                            background: style.bg, color: style.color,
-                                        }}>{style.label}</span>
-                                    </td>
-                                    {/* Only an unanswered offer can be resolved by phone; once
-                                        it has an answer there is nothing left to record. */}
-                                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                    {/* An unanswered offer shows the two buttons in place of a
+                                        status badge — the office can record what they were told
+                                        on the phone without a separate column for it. */}
+                                    <td style={{ whiteSpace: 'nowrap' }}>
                                         {!o.response && onRecordResponse ? (
                                             <div style={{ display: 'inline-flex', gap: 4 }}>
                                                 <button
@@ -410,6 +387,7 @@ function OfferHistory({ offers, employees, onRecordResponse, respondingId }) {
                                                     className="btn btn--sm btn--primary"
                                                     disabled={respondingId === o.employeeId}
                                                     onClick={() => onRecordResponse(o, 'accept')}
+                                                    title="Record that this caregiver accepted, e.g. by phone"
                                                 >
                                                     Accepted
                                                 </button>
@@ -418,12 +396,16 @@ function OfferHistory({ offers, employees, onRecordResponse, respondingId }) {
                                                     className="btn btn--sm btn--outline"
                                                     disabled={respondingId === o.employeeId}
                                                     onClick={() => onRecordResponse(o, 'decline')}
+                                                    title="Record that this caregiver declined, e.g. by phone"
                                                 >
                                                     Declined
                                                 </button>
                                             </div>
                                         ) : (
-                                            <span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 11 }}>—</span>
+                                            <span style={{
+                                                padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+                                                background: style.bg, color: style.color,
+                                            }}>{style.label}</span>
                                         )}
                                     </td>
                                 </tr>
