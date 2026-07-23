@@ -5,6 +5,7 @@ import Modal from '../components/common/Modal';
 import { hhmm12 } from '../utils/time';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
+import { useNearbyEmployees, conflictLabel } from '../hooks/useNearbyEmployees';
 import ScheduleDelivery from './scheduling/ScheduleDelivery';
 import MonthlyCalendarView from './scheduling/MonthlyCalendarView';
 import FutureShiftsView from './scheduling/FutureShiftsView';
@@ -229,9 +230,43 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const filteredEmployees = employees.filter(e =>
-        e.name.toLowerCase().includes(empSearch.toLowerCase())
-    );
+    // Proximity ranking needs ONE concrete date + time window. Edit mode has
+    // exactly that; create mode spreads shifts across days, so use the first
+    // enabled day as the representative window.
+    const rankingWindow = (() => {
+        if (isEdit) return { date: shiftDate, startTime, endTime };
+        const idx = dayEntries.findIndex(d => d.enabled);
+        if (idx === -1) return { date: '', startTime: '', endTime: '' };
+        const first = dayEntries[idx].shifts?.[0];
+        return { date: weekDates[idx], startTime: first?.startTime || '', endTime: first?.endTime || '' };
+    })();
+
+    const { ranked } = useNearbyEmployees({
+        clientId,
+        serviceCode,
+        date: rankingWindow.date,
+        startTime: rankingWindow.startTime,
+        endTime: rankingWindow.endTime,
+    });
+
+    const nameMatch = e => e.name.toLowerCase().includes(empSearch.toLowerCase());
+    const filteredEmployees = employees.filter(nameMatch);
+
+    // Availability outranks proximity: eligible and ineligible are kept as two
+    // separate groups so a closer-but-double-booked caregiver can never appear
+    // above one who is actually free. Ranking REORDERS the list; it never
+    // removes anyone, and free-text search still filters both groups.
+    const rankedGroups = (() => {
+        if (!ranked) return null;
+        const byId = new Map(employees.map(e => [e.id, e]));
+        const hydrate = list => (list || [])
+            .map(c => ({ ...c, employee: byId.get(c.employeeId) }))
+            .filter(c => c.employee && nameMatch(c.employee));
+        const available = hydrate(ranked.eligible);
+        const unavailable = hydrate(ranked.ineligible);
+        if (available.length === 0 && unavailable.length === 0) return null;
+        return { available, unavailable };
+    })();
 
     const computeHrs = (sT, eT) => {
         if (!sT || !eT) return { hours: 0, units: 0 };
@@ -428,8 +463,9 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                             <ul style={{
                                 position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
                                 background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))',
-                                borderRadius: 'var(--radius)', maxHeight: 180, overflowY: 'auto',
-                                margin: 0, padding: 0, listStyle: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                borderRadius: 'var(--radius)', maxHeight: 280, overflowY: 'auto',
+                                margin: 0, padding: 0, listStyle: 'none',
+                                boxShadow: '0 4px 16px hsl(var(--foreground) / 0.08), 0 1px 3px hsl(var(--foreground) / 0.04)',
                             }}>
                                 {filteredEmployees.length === 0 && empSearch.trim() && (
                                     <li onClick={() => { setEmployeeId(''); setCreatingNewEmp(true); setEmpDropdownOpen(false); }}
@@ -437,7 +473,11 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                                         + Create "{empSearch.trim()}" as new employee
                                     </li>
                                 )}
-                                {filteredEmployees.map(e => (
+                                {/* Unranked fallback: shown until the shift has a client, date and
+                                    both times — the app must not imply it has checked availability
+                                    before it knows when the shift is. Also the degraded path when
+                                    the lookup fails or no addresses are geocoded. */}
+                                {!rankedGroups && filteredEmployees.map(e => (
                                     <li key={e.id}
                                         onClick={() => { setEmployeeId(String(e.id)); setEmpSearch(e.name); setCreatingNewEmp(false); setNewEmpEmail(''); setEmpDropdownOpen(false); }}
                                         style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, background: String(e.id) === String(employeeId) ? 'hsl(var(--muted))' : undefined }}
@@ -446,6 +486,68 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                                         {e.name}
                                     </li>
                                 ))}
+
+                                {rankedGroups && ['available', 'unavailable'].map(group => {
+                                    const rows = rankedGroups[group];
+                                    if (rows.length === 0) return null;
+                                    const isAvailable = group === 'available';
+                                    return (
+                                        <React.Fragment key={group}>
+                                            <li style={{
+                                                padding: '6px 12px', fontSize: 10, fontWeight: 600,
+                                                letterSpacing: '0.06em', textTransform: 'uppercase',
+                                                color: 'hsl(var(--muted-foreground))',
+                                                background: 'hsl(var(--muted))',
+                                                borderTop: isAvailable ? 'none' : '1px solid hsl(var(--border))',
+                                                position: 'sticky', top: 0,
+                                            }}>
+                                                {isAvailable ? `Available (${rows.length})` : `Unavailable (${rows.length})`}
+                                            </li>
+                                            {rows.map(c => {
+                                                const selected = String(c.employeeId) === String(employeeId);
+                                                return (
+                                                    <li key={c.employeeId}
+                                                        onClick={() => { setEmployeeId(String(c.employeeId)); setEmpSearch(c.employee.name); setCreatingNewEmp(false); setNewEmpEmail(''); setEmpDropdownOpen(false); }}
+                                                        style={{
+                                                            display: 'flex', alignItems: 'center', gap: 8,
+                                                            padding: '8px 12px', cursor: 'pointer', fontSize: 13,
+                                                            background: selected ? 'hsl(var(--muted))' : undefined,
+                                                        }}
+                                                        onMouseEnter={ev => ev.currentTarget.style.background = 'hsl(var(--muted))'}
+                                                        onMouseLeave={ev => ev.currentTarget.style.background = selected ? 'hsl(var(--muted))' : ''}>
+                                                        <span style={{
+                                                            flex: 1, minWidth: 0, whiteSpace: 'nowrap',
+                                                            overflow: 'hidden', textOverflow: 'ellipsis',
+                                                            // Unavailable stays selectable — schedulers must always be
+                                                            // able to assign whoever they want — but reads as secondary.
+                                                            color: isAvailable ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
+                                                        }}>
+                                                            {c.employee.name}
+                                                            {c.onCareTeam && (
+                                                                <span style={{
+                                                                    marginLeft: 6, padding: '1px 6px', borderRadius: 4,
+                                                                    fontSize: 10, fontWeight: 600,
+                                                                    background: 'hsl(var(--primary) / 0.1)',
+                                                                    color: 'hsl(var(--primary))',
+                                                                }}>Care team</span>
+                                                            )}
+                                                        </span>
+                                                        <span style={{
+                                                            fontSize: 11, fontWeight: 500, whiteSpace: 'nowrap',
+                                                            color: isAvailable ? 'hsl(var(--muted-foreground))' : 'hsl(var(--danger))',
+                                                        }}>
+                                                            {isAvailable
+                                                                // Un-geocoded shows an em dash, never a conflict —
+                                                                // a missing address is a data gap, not unavailability.
+                                                                ? (c.distanceMiles == null ? '—' : `${c.distanceMiles.toFixed(1)} mi`)
+                                                                : conflictLabel(c.conflicts)}
+                                                        </span>
+                                                    </li>
+                                                );
+                                            })}
+                                        </React.Fragment>
+                                    );
+                                })}
                             </ul>
                         )}
                     </div>

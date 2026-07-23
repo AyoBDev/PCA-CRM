@@ -493,6 +493,17 @@ export const getClientSchedule = (clientId, weekStart) =>
     request(`/shifts/client/${clientId}${weekStart ? '?weekStart=' + weekStart : ''}`);
 export const getEmployeeSchedule = (employeeId, weekStart, { all } = {}) =>
     request(`/shifts/employee/${employeeId}${all ? '?all=true' : weekStart ? '?weekStart=' + weekStart : ''}`);
+// Ranked employees for a shift: { status, eligible[], ineligible[] }.
+// status 'insufficient_input' means the shift is not yet specific enough to
+// determine availability — callers fall back to their plain unranked list.
+export const getNearbyEmployees = ({ clientId, serviceCode, date, startTime, endTime }) =>
+    request(`/employees/nearby?${new URLSearchParams({
+        clientId: String(clientId ?? ''),
+        serviceCode: serviceCode ?? '',
+        date: date ?? '',
+        startTime: startTime ?? '',
+        endTime: endTime ?? '',
+    })}`);
 // ── Employees ──
 export const getEmployees = (params = {}, { archived } = {}) => {
     if (archived) params.archived = 'true';

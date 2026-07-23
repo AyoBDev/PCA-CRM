@@ -14,6 +14,7 @@
 // Calling geocodingService from here would put a metered API on the request
 // path. Un-geocoded candidates are ranked last, never geocoded on demand.
 
+const { Prisma } = require('@prisma/client');
 const prisma = require('../lib/prisma');
 
 // Compliance certifications that gate eligibility. The data model has no
@@ -79,7 +80,7 @@ async function fetchDistances(client, employeeIds) {
                    ST_SetSRID(ST_MakePoint(${client.longitude}, ${client.latitude}), 4326)::geography
                ) / 1609.344 AS "distanceMiles"
         FROM employees
-        WHERE id IN (${prisma.join ? prisma.join(employeeIds) : employeeIds.join(',')})
+        WHERE id IN (${Prisma.join(employeeIds)})
           AND location IS NOT NULL
     `;
 

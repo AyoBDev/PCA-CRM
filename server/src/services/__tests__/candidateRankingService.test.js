@@ -353,6 +353,25 @@ describe('un-geocoded candidates', () => {
     });
 });
 
+describe('distance query construction', () => {
+    test('passes employee ids as SQL parameters, not a joined string', async () => {
+        prisma.employee.findMany.mockResolvedValue([employee(1, 'A'), employee(2, 'B')]);
+        mockDistances({ 1: 1.0, 2: 2.0 });
+
+        await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+
+        // Regression guard. This previously fell back to employeeIds.join(','),
+        // which Postgres received as ONE text parameter and rejected with
+        // `operator does not exist: integer = text`. Mocking $queryRaw means the
+        // SQL is never parsed, so the whole suite passed while the endpoint 500'd
+        // against a real database — assert the parameter shape instead.
+        const [strings, ...values] = prisma.$queryRaw.mock.calls[0];
+        expect(Array.isArray(strings)).toBe(true);
+        const joinedAsString = values.some(v => typeof v === 'string' && /^\d+(,\d+)+$/.test(v));
+        expect(joinedAsString).toBe(false);
+    });
+});
+
 describe('cost invariant', () => {
     test('never geocodes on the ranking path', async () => {
         const geocodeAddress = jest.spyOn(geocodingService, 'geocodeAddress');
