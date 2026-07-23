@@ -31,7 +31,7 @@ async function getEmployee(req, res, next) {
 
 async function createEmployee(req, res, next) {
     try {
-        const { name, phone, email, userId } = req.body;
+        const { name, phone, email, userId, address } = req.body;
         if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
 
         const employee = await prisma.employee.create({
@@ -39,11 +39,14 @@ async function createEmployee(req, res, next) {
                 name: name.trim(),
                 phone: phone || '',
                 email: email || '',
+                address: (address || '').trim(),
                 userId: userId || null,
             },
             include: { user: { select: { id: true, name: true, email: true, role: true } } },
         });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name });
+        // Geocode immediately so a new employee has a distance without a later edit.
+        geocodeOnWrite('employee', employee.id, { oldAddress: '', newAddress: employee.address });
 
         // Auto-send onboarding invite if email provided and no user account linked
         if (employee.email && !userId) {
