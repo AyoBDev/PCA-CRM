@@ -7,7 +7,10 @@ const {
     enrichShift,
     getEmployeeDisplayName,
 } = require('../services/schedulingService');
-const { isSmsConfigured, isEmailConfigured, sendSms, sendEmail } = require('../services/notificationService');
+// Imported as a namespace rather than destructured: destructuring binds the
+// function references at import time, which is what let a missing `sendSms`
+// export sit here undetected until call time.
+const notifications = require('../services/notificationService');
 const audit = require('../services/auditService');
 const { filterAuthsByWeek } = require('../services/authorizationService');
 
@@ -209,24 +212,24 @@ async function autoNotify(employeeId, shiftDate, req) {
     }
     const scheduleUrl = `${baseUrl}/schedule/view/${scheduleLink.token}`;
 
-    if (isSmsConfigured() && employee.phone) {
+    if (notifications.isSmsConfigured() && employee.phone) {
         const notification = await prisma.scheduleNotification.create({
             data: { employeeId, weekStart: new Date(ws), method: 'sms', destination: employee.phone },
         });
         try {
-            await sendSms(employee.phone, `NV Best PCA - Your schedule has been updated. View: ${scheduleUrl}`);
+            await notifications.sendSms(employee.phone, `NV Best PCA - Your schedule has been updated. View: ${scheduleUrl}`);
             await prisma.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'sent', sentAt: new Date() } });
         } catch (err) {
             await prisma.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'failed', failureReason: err.message } });
         }
     }
 
-    if (isEmailConfigured() && employee.email) {
+    if (notifications.isEmailConfigured() && employee.email) {
         const notification = await prisma.scheduleNotification.create({
             data: { employeeId, weekStart: new Date(ws), method: 'email', destination: employee.email },
         });
         try {
-            await sendEmail(employee.email, 'Schedule Updated', `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:500px;margin:0 auto"><p>Hi ${employee.name},</p><p>Your schedule has been updated.</p><p style="text-align:center"><a href="${scheduleUrl}" style="display:inline-block;padding:12px 28px;background:#18181b;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:500">View Schedule</a></p></div>`, `Schedule updated. View: ${scheduleUrl}`);
+            await notifications.sendEmail(employee.email, 'Schedule Updated', `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:500px;margin:0 auto"><p>Hi ${employee.name},</p><p>Your schedule has been updated.</p><p style="text-align:center"><a href="${scheduleUrl}" style="display:inline-block;padding:12px 28px;background:#18181b;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:500">View Schedule</a></p></div>`, `Schedule updated. View: ${scheduleUrl}`);
             await prisma.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'sent', sentAt: new Date() } });
         } catch (err) {
             await prisma.scheduleNotification.update({ where: { id: notification.id }, data: { status: 'failed', failureReason: err.message } });
@@ -1374,4 +1377,4 @@ async function listArchivedShifts(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { listShifts, createShift, updateShift, bulkUpdateShifts, bulkUpdateShiftsPerShift, bulkDeleteShifts, bulkUndoBatch, listBulkEditBatches, deleteShift, deleteAllShifts, getClientSchedule, getEmployeeSchedule, authCheck, restoreShift, repeatShift, restoreShifts, permanentDeleteShifts, listArchivedShifts };
+module.exports = { autoNotify, listShifts, createShift, updateShift, bulkUpdateShifts, bulkUpdateShiftsPerShift, bulkDeleteShifts, bulkUndoBatch, listBulkEditBatches, deleteShift, deleteAllShifts, getClientSchedule, getEmployeeSchedule, authCheck, restoreShift, repeatShift, restoreShifts, permanentDeleteShifts, listArchivedShifts };
