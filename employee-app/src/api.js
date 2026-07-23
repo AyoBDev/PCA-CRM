@@ -49,6 +49,9 @@ export const api = {
   getActivity: () => request('/home/activity'),
   getWeekSchedule: (date) => request(`/schedule/week?date=${date}`),
   getScheduleHistory: () => request('/schedule/history'),
+  getMyOffers: () => request('/offers'),
+  respondToOffer: (id, response) =>
+    request(`/offers/${id}/respond`, { method: 'POST', body: JSON.stringify({ response }) }),
   getAvailability: () => request('/availability'),
   submitAvailabilityRequest: (data) => request('/availability/request', { method: 'POST', body: JSON.stringify(data) }),
   getTimeOffRequests: () => request('/time-off'),
