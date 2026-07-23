@@ -17,6 +17,31 @@ afterAll(() => {
     process.env = ORIGINAL_ENV;
 });
 
+describe('createConnection', () => {
+    test('returns null when REDIS_URL is unset', () => {
+        const queue = require('../queue');
+        expect(queue.createConnection()).toBeNull();
+    });
+
+    test('parses REDIS_URL into host/port — not passed as an ignored {url} object', () => {
+        process.env.REDIS_URL = 'redis://someuser:pw@my-redis.railway.internal:6380';
+        const queue = require('../queue');
+
+        const conn = queue.createConnection();
+        try {
+            // The bug this guards: ioredis reads a URL only as a STRING. Passing
+            // { url } connects to localhost instead, so the Railway Redis would
+            // never be reached. Assert the URL was actually parsed.
+            expect(conn.options.host).toBe('my-redis.railway.internal');
+            expect(conn.options.port).toBe(6380);
+            // Workers require this; without it BullMQ throws on connect.
+            expect(conn.options.maxRetriesPerRequest).toBeNull();
+        } finally {
+            conn.disconnect();
+        }
+    });
+});
+
 describe('without REDIS_URL', () => {
     test('reports itself disabled instead of throwing at import', () => {
         const queue = require('../queue');

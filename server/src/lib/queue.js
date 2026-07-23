@@ -15,11 +15,28 @@ const QUEUE_NAME = 'shift-replacement';
 let queue = null;
 let initialized = false;
 
+/**
+ * Build the ioredis connection BullMQ needs from REDIS_URL.
+ *
+ * ioredis takes a URL as a STRING (`new IORedis(url)`), not `{ url }` — the
+ * object form is read as options and the URL is ignored, silently connecting to
+ * localhost. That fails on Railway, where Redis is a separate service. Workers
+ * also require `maxRetriesPerRequest: null` per BullMQ.
+ *
+ * Exported so the worker shares the exact same connection config.
+ */
+function createConnection() {
+    if (!process.env.REDIS_URL) return null;
+    const IORedis = require('ioredis');
+    return new IORedis(process.env.REDIS_URL, { maxRetriesPerRequest: null });
+}
+
 function getQueue() {
     if (initialized) return queue;
     initialized = true;
 
-    if (!process.env.REDIS_URL) {
+    const connection = createConnection();
+    if (!connection) {
         queue = null;
         return queue;
     }
@@ -27,7 +44,7 @@ function getQueue() {
     try {
         const { Queue } = require('bullmq');
         queue = new Queue(QUEUE_NAME, {
-            connection: { url: process.env.REDIS_URL },
+            connection,
             defaultJobOptions: {
                 removeOnComplete: 1000,
                 removeOnFail: 5000,
@@ -99,4 +116,4 @@ function _reset() {
     initialized = false;
 }
 
-module.exports = { QUEUE_NAME, isEnabled, schedule, cancel, getQueue, _reset };
+module.exports = { QUEUE_NAME, isEnabled, schedule, cancel, getQueue, createConnection, _reset };

@@ -90,13 +90,15 @@ function startWorker() {
     }
 
     const { Worker } = require('bullmq');
+    // Same connection config as the queue — an ioredis instance from the URL
+    // string, not { url }, which ioredis would ignore.
     const worker = new Worker(
         queue.QUEUE_NAME,
         async (job) => {
             if (job.name === 'offer-expiry') return handleOfferExpiry(job.data);
             return undefined;
         },
-        { connection: { url: process.env.REDIS_URL } },
+        { connection: queue.createConnection() },
     );
 
     worker.on('failed', (job, err) => {
