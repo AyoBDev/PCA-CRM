@@ -83,7 +83,9 @@ async function listNotesTimeline(req, res, next, returnAll = false) {
             `${c.calloutEmployee?.name || 'Caregiver'} called out${c.reason ? ` — ${c.reason}` : ''}`
                 + (c.resolution === 'filled' ? ' (cover found)' : c.resolution === 'no_coverage' ? ' (no cover found)' : ''),
             c.createdAt,
-            c.calloutEmployee?.name || null,
+            // No author: the caregiver named in the content called out, they did
+            // not write the note. "Recorded by <them>" reads as authorship.
+            null,
         ));
 
         entries.sort((a, b) => new Date(b.date) - new Date(a.date));

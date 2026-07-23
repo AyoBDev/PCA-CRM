@@ -14,6 +14,8 @@ const SOURCE_CONFIG = {
     authDocument: { label: 'Auth Document', icon: Icons.folder, color: '#d97706' },
     timesheet: { label: 'Timesheet', icon: Icons.clock, color: '#8b5cf6' },
     schedule: { label: 'Scheduling', icon: Icons.calendar, color: '#06b6d4' },
+    // Matches the employee Notes tab so a callout looks the same on both sides.
+    callout: { label: 'Callout', icon: Icons.alertTriangle, color: '#f59e0b' },
     activity: { label: 'Activity', icon: Icons.clipboard, color: '#f97316' },
 };
 
