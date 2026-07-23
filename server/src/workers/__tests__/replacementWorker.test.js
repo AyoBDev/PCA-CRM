@@ -17,10 +17,12 @@ jest.mock('../../services/replacementService', () => ({
 }));
 
 jest.mock('../../services/candidateRankingService', () => ({ rankCandidates: jest.fn() }));
+jest.mock('../../services/replacementSettings', () => ({ getReplacementSettings: jest.fn() }));
 
 const prisma = require('../../lib/prisma');
 const replacement = require('../../services/replacementService');
 const ranking = require('../../services/candidateRankingService');
+const settings = require('../../services/replacementSettings');
 const { handleOfferExpiry } = require('../replacementWorker');
 
 const JOB = { offerId: 21, shiftId: 7, calloutId: 11 };
@@ -33,6 +35,10 @@ const SHIFT = {
 
 beforeEach(() => {
     jest.clearAllMocks();
+    // These cases all exercise the escalation path, which is gated on the
+    // shift_replacement flag — declare it on explicitly rather than relying on
+    // a default.
+    settings.getReplacementSettings.mockResolvedValue({ autoOfferEnabled: true, responseWindowMinutes: 10 });
     replacement.expireOffer.mockResolvedValue({ expired: true });
     replacement.offerToCandidate.mockResolvedValue({ delivered: true, offer: { id: 22 } });
     prisma.shift.findUnique.mockResolvedValue(SHIFT);

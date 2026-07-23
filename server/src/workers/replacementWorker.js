@@ -9,6 +9,7 @@ const prisma = require('../lib/prisma');
 const queue = require('../lib/queue');
 const replacement = require('../services/replacementService');
 const ranking = require('../services/candidateRankingService');
+const settings = require('../services/replacementSettings');
 
 function toDateStr(value) {
     return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
@@ -24,6 +25,12 @@ async function handleOfferExpiry({ offerId, shiftId, calloutId }) {
     // their response intact.
     const { expired } = await replacement.expireOffer(offerId);
     if (!expired) return;
+
+    // Expiring the offer above is bookkeeping and always happens. Continuing
+    // the chain is messaging, so it is gated: a flag switched off mid-chain
+    // must stop further offers going out, not just prevent new chains.
+    const { autoOfferEnabled, responseWindowMinutes } = await settings.getReplacementSettings();
+    if (!autoOfferEnabled) return;
 
     const shift = await prisma.shift.findUnique({ where: { id: Number(shiftId) } });
     if (!shift) return;
@@ -60,6 +67,7 @@ async function handleOfferExpiry({ offerId, shiftId, calloutId }) {
             calloutId,
             rank: candidate.rank,
             scoreBreakdown: candidate.scoreBreakdown || {},
+            responseWindowMinutes,
         });
         // A candidate who went inactive or could not be reached must not
         // consume the escalation — keep going until someone is actually asked.

@@ -125,6 +125,7 @@ const {
     getOffer,
     respondToOffer,
     createOffer,
+    startAutoOffer,
     listOffers,
     resolveCallout: resolveCalloutRoute,
 } = require('../controllers/replacementController');
@@ -463,6 +464,7 @@ router.get('/shifts/archived',              requireRole('admin', 'user'), requir
 router.post('/shifts/:id/callout',                  requireRole('admin', 'user'), requirePermission('scheduling'), recordCallout);
 router.get('/shifts/:id/replacement-candidates',    requireRole('admin', 'user'), requirePermission('scheduling'), getReplacementCandidates);
 router.post('/shifts/:id/offers',                   requireRole('admin', 'user'), requirePermission('scheduling'), createOffer);
+router.post('/shifts/:id/auto-offer',               requireRole('admin', 'user'), requirePermission('scheduling'), startAutoOffer);
 router.get('/shifts/:id/offers',                    requireRole('admin', 'user'), requirePermission('scheduling'), listOffers);
 router.post('/callouts/:id/resolve',                requireRole('admin', 'user'), requirePermission('scheduling'), resolveCalloutRoute);
 

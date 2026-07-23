@@ -8,6 +8,7 @@
 const prisma = require('../lib/prisma');
 const replacement = require('../services/replacementService');
 const ranking = require('../services/candidateRankingService');
+const settings = require('../services/replacementSettings');
 const audit = require('../services/auditService');
 
 function toDateStr(value) {
@@ -207,6 +208,69 @@ async function createOffer(req, res, next) {
     }
 }
 
+// POST /api/shifts/:id/auto-offer — starts the automated offer chain.
+//
+// Gated on the shift_replacement WorkflowTrigger. Offers exactly ONE candidate:
+// the rest follow only if this one's window closes unanswered, driven by the
+// expiry worker. Broadcasting to everyone at once would invite the double-fill
+// race the whole design exists to avoid.
+async function startAutoOffer(req, res, next) {
+    try {
+        const { autoOfferEnabled, responseWindowMinutes } = await settings.getReplacementSettings();
+        if (!autoOfferEnabled) {
+            return res.status(403).json({
+                error: 'Automatic offering is disabled. Enable the "Shift Replacement" workflow trigger to turn it on.',
+            });
+        }
+
+        const shift = await prisma.shift.findUnique({ where: { id: Number(req.params.id) } });
+        if (!shift) return res.status(404).json({ error: 'Shift not found' });
+
+        const ranked = await ranking.rankCandidates({
+            clientId: shift.clientId,
+            serviceCode: shift.serviceCode,
+            date: toDateStr(shift.shiftDate),
+            startTime: shift.startTime,
+            endTime: shift.endTime,
+            excludeEmployeeId: shift.employeeId ?? undefined,
+        }, { mode: 'strict' });
+
+        const candidates = ranked.eligible || [];
+        if (candidates.length === 0) {
+            return res.json({ noCoverage: true, offered: null });
+        }
+
+        const callout = await prisma.shiftCallout.findFirst({
+            where: { shiftId: shift.id, resolution: 'open' },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        const top = candidates[0];
+        const result = await replacement.offerToCandidate(shift.id, top.employeeId, {
+            calloutId: callout?.id ?? null,
+            rank: top.rank,
+            scoreBreakdown: top.scoreBreakdown || {},
+            responseWindowMinutes,
+        });
+
+        audit.logAction({
+            userId: req.user?.id ?? 0,
+            userName: req.user?.name ?? 'System',
+            userRole: req.user?.role ?? 'system',
+            action: 'CREATE',
+            entityType: 'ShiftOffer',
+            entityId: result.offer?.id ?? 0,
+            entityName: `Shift ${shift.id}`,
+            changes: [],
+            metadata: { auto: true, employeeId: top.employeeId, responseWindowMinutes },
+        });
+
+        res.json({ noCoverage: false, offered: result });
+    } catch (err) {
+        next(err);
+    }
+}
+
 // GET /api/shifts/:id/offers
 async function listOffers(req, res, next) {
     try {
@@ -256,6 +320,7 @@ module.exports = {
     getOffer,
     respondToOffer,
     createOffer,
+    startAutoOffer,
     listOffers,
     resolveCallout,
 };
