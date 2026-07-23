@@ -1,15 +1,13 @@
--- PostGIS must exist before any geography(Point, 4326) column below can be
--- created. Prisma does not emit this for Unsupported() types, so it is added
--- by hand. IF NOT EXISTS keeps the migration idempotent and safe on Railway,
--- whose Postgres image ships PostGIS available but not enabled.
-CREATE EXTENSION IF NOT EXISTS postgis;
+-- Geocoding uses plain latitude/longitude columns; distance ranking computes
+-- Haversine over them in application code. No PostGIS extension is required,
+-- so this migration runs on any stock PostgreSQL (including Railway's default
+-- image, which does not ship PostGIS).
 
 -- AlterTable
 ALTER TABLE "clients" ADD COLUMN     "geocode_address_hash" TEXT NOT NULL DEFAULT '',
 ADD COLUMN     "geocode_status" TEXT NOT NULL DEFAULT 'pending',
 ADD COLUMN     "geocoded_at" TIMESTAMP(3),
 ADD COLUMN     "latitude" DOUBLE PRECISION,
-ADD COLUMN     "location" geography(Point, 4326),
 ADD COLUMN     "longitude" DOUBLE PRECISION;
 
 -- AlterTable
@@ -17,7 +15,6 @@ ALTER TABLE "employees" ADD COLUMN     "geocode_address_hash" TEXT NOT NULL DEFA
 ADD COLUMN     "geocode_status" TEXT NOT NULL DEFAULT 'pending',
 ADD COLUMN     "geocoded_at" TIMESTAMP(3),
 ADD COLUMN     "latitude" DOUBLE PRECISION,
-ADD COLUMN     "location" geography(Point, 4326),
 ADD COLUMN     "longitude" DOUBLE PRECISION;
 
 -- CreateTable
@@ -88,9 +85,3 @@ ALTER TABLE "shift_offers" ADD CONSTRAINT "shift_offers_callout_id_fkey" FOREIGN
 
 -- AddForeignKey
 ALTER TABLE "shift_offers" ADD CONSTRAINT "shift_offers_employee_id_fkey" FOREIGN KEY ("employee_id") REFERENCES "employees"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- Spatial indexes. Prisma cannot express a GIST index over an Unsupported()
--- column, so these are added by hand. Without them ST_Distance/ST_DWithin fall
--- back to a sequential scan over every row.
-CREATE INDEX IF NOT EXISTS "clients_location_idx" ON "clients" USING GIST ("location");
-CREATE INDEX IF NOT EXISTS "employees_location_idx" ON "employees" USING GIST ("location");

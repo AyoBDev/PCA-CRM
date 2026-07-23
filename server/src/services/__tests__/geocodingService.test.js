@@ -111,7 +111,7 @@ describe('geocodeAddress', () => {
 describe('geocodeEntity', () => {
     const ADDRESS = '123 Main St, Las Vegas, NV 89101';
 
-    test('writes lat/lng and the PostGIS point for a client', async () => {
+    test('writes lat/lng for a client', async () => {
         prisma.client.findUnique.mockResolvedValue({ id: 1, address: ADDRESS, geocodedAt: null, geocodeStatus: 'pending' });
         prisma.client.update.mockResolvedValue({});
         mockMapboxResponse([{ center: [-115.1398, 36.1699], relevance: 0.99 }]);
@@ -128,8 +128,9 @@ describe('geocodeEntity', () => {
                 geocodedAt: expect.any(Date),
             }),
         }));
-        // PostGIS geography column cannot be written through the typed client.
-        expect(prisma.$executeRaw).toHaveBeenCalled();
+        // Distance ranking reads these lat/lng columns directly (Haversine);
+        // there is no separate geospatial column to write.
+        expect(prisma.$executeRaw).not.toHaveBeenCalled();
     });
 
     test('skips the provider when the address has not changed since last geocode', async () => {

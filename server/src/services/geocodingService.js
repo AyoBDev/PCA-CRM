@@ -15,7 +15,6 @@
 // audit.logAction is used elsewhere in the codebase.
 
 const crypto = require('crypto');
-const { Prisma } = require('@prisma/client');
 const prisma = require('../lib/prisma');
 
 const PROVIDERS = {
@@ -23,8 +22,8 @@ const PROVIDERS = {
 };
 
 const ENTITIES = {
-    client: { delegate: () => prisma.client, table: 'clients' },
-    employee: { delegate: () => prisma.employee, table: 'employees' },
+    client: { delegate: () => prisma.client },
+    employee: { delegate: () => prisma.employee },
 };
 
 function getProvider() {
@@ -124,18 +123,8 @@ async function geocodeEntity(type, id, options = {}) {
         },
     });
 
-    // The PostGIS geography column is Unsupported() in the Prisma schema, so it
-    // has to be written with raw SQL. Kept alongside the typed write so the two
-    // representations never drift.
-    //
-    // The table name comes from the ENTITIES map above (never from user input),
-    // so Prisma.raw is safe here; the coordinates stay parameterised.
-    await prisma.$executeRaw`
-        UPDATE ${Prisma.raw(entity.table)}
-        SET location = ST_SetSRID(ST_MakePoint(${result.lng}, ${result.lat}), 4326)::geography
-        WHERE id = ${id}
-    `;
-
+    // Distance ranking reads these lat/lng columns directly (Haversine), so
+    // there is no separate geospatial column to maintain.
     return { status: 'ok', lat: result.lat, lng: result.lng };
 }
 

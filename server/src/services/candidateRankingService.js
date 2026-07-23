@@ -14,8 +14,8 @@
 // Calling geocodingService from here would put a metered API on the request
 // path. Un-geocoded candidates are ranked last, never geocoded on demand.
 
-const { Prisma } = require('@prisma/client');
 const prisma = require('../lib/prisma');
+const { haversineMiles } = require('../lib/haversine');
 
 // Compliance certifications that gate eligibility. The data model has no
 // service-type qualification (certType holds compliance items like cpr/tb), so
@@ -65,26 +65,23 @@ function getWeekBounds(dateStr) {
 }
 
 /**
- * Distances from the client to each employee, in miles, via PostGIS.
+ * Distances from the client to each employee, in miles, via Haversine.
  * Returns a Map<employeeId, miles>. Employees without coordinates are simply
  * absent from the result rather than being given a fabricated distance.
+ *
+ * Computed in JS from lat/lng already loaded on the employee rows — no separate
+ * query and no PostGIS, which the deploy target's Postgres does not ship. At
+ * caregiver travel distances Haversine is accurate to within a few feet.
  */
-async function fetchDistances(client, employeeIds) {
-    if (client.latitude == null || client.longitude == null) return new Map();
-    if (employeeIds.length === 0) return new Map();
+function computeDistances(client, employees) {
+    const out = new Map();
+    if (client.latitude == null || client.longitude == null) return out;
 
-    const rows = await prisma.$queryRaw`
-        SELECT id,
-               ST_Distance(
-                   location,
-                   ST_SetSRID(ST_MakePoint(${client.longitude}, ${client.latitude}), 4326)::geography
-               ) / 1609.344 AS "distanceMiles"
-        FROM employees
-        WHERE id IN (${Prisma.join(employeeIds)})
-          AND location IS NOT NULL
-    `;
-
-    return new Map(rows.map(r => [Number(r.id), r.distanceMiles == null ? null : Number(r.distanceMiles)]));
+    for (const emp of employees) {
+        const miles = haversineMiles(client.latitude, client.longitude, emp.latitude, emp.longitude);
+        if (miles != null) out.set(emp.id, miles);
+    }
+    return out;
 }
 
 /**
@@ -125,7 +122,7 @@ async function rankCandidates(request = {}, options = {}) {
     const { start: weekStart, end: weekEnd } = getWeekBounds(date);
     const shiftDate = new Date(`${date}T00:00:00.000Z`);
 
-    const [weekShifts, timeOff, careTeam, certifications, distances] = await Promise.all([
+    const [weekShifts, timeOff, careTeam, certifications] = await Promise.all([
         prisma.shift.findMany({
             where: {
                 employeeId: { in: employeeIds },
@@ -145,8 +142,11 @@ async function rankCandidates(request = {}, options = {}) {
         prisma.employeeCertification.findMany({
             where: { employeeId: { in: employeeIds }, certType: { in: REQUIRED_CERT_TYPES } },
         }),
-        fetchDistances(client, employeeIds),
     ]);
+
+    // Distances are computed in JS from the employee rows already fetched —
+    // no query, no PostGIS.
+    const distances = computeDistances(client, employees);
 
     const careTeamIds = new Set(careTeam.map(m => m.employeeId));
     const timeOffIds = new Set(timeOff.map(t => t.employeeId));

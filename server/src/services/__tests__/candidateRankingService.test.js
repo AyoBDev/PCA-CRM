@@ -30,30 +30,53 @@ const REQUEST = {
     endTime: '13:00',
 };
 
+// 1 mile is ~1/69 degree of latitude. Placing an employee this far north of
+// the client yields a known Haversine distance, so tests can assert on real
+// computed distances instead of a stubbed query result.
+const MILE_IN_LAT_DEG = 1 / 69.0;
+
+function coordsAtMiles(miles) {
+    return { latitude: CLIENT.latitude + miles * MILE_IN_LAT_DEG, longitude: CLIENT.longitude };
+}
+
 function employee(id, name, overrides = {}) {
     return {
         id,
         name,
         active: true,
         archivedAt: null,
-        latitude: 36.17,
-        longitude: -115.14,
+        // Default: co-located with the client (0 mi) unless a test places them.
+        latitude: CLIENT.latitude,
+        longitude: CLIENT.longitude,
         employeeAvailability: null,
         ...overrides,
     };
 }
 
-/** Distances the raw PostGIS query would have returned, keyed by employee id. */
+// Remembers the employee list a test queued, so mockDistances can reposition it.
+let queuedEmployees = [];
+function setEmployees(list) {
+    queuedEmployees = list;
+    prisma.employee.findMany.mockResolvedValue(list);
+}
+
+/**
+ * Place the queued employees at the requested distances (miles), keyed by id.
+ * Distances are now computed from lat/lng in application code, so this sets
+ * coordinates rather than stubbing a query. Call after setEmployees / the
+ * beforeEach default.
+ */
 function mockDistances(map) {
-    prisma.$queryRaw.mockResolvedValue(
-        Object.entries(map).map(([id, distanceMiles]) => ({ id: Number(id), distanceMiles })),
-    );
+    const positioned = queuedEmployees.map(e => (
+        map[e.id] != null ? { ...e, ...coordsAtMiles(map[e.id]) } : e
+    ));
+    setEmployees(positioned);
 }
 
 beforeEach(() => {
     jest.clearAllMocks();
     prisma.client.findUnique.mockResolvedValue(CLIENT);
-    prisma.employee.findMany.mockResolvedValue([]);
+    setEmployees([]);
     prisma.shift.findMany.mockResolvedValue([]);
     prisma.timeOffRequest.findMany.mockResolvedValue([]);
     prisma.clientCareTeam.findMany.mockResolvedValue([]);
@@ -89,7 +112,7 @@ describe('input validation', () => {
 
 describe('availability outranks proximity', () => {
     test('a nearer but double-booked employee is ineligible, not first', async () => {
-        prisma.employee.findMany.mockResolvedValue([
+        setEmployees([
             employee(1, 'Near But Booked'),
             employee(2, 'Far But Free'),
         ]);
@@ -110,7 +133,7 @@ describe('availability outranks proximity', () => {
     });
 
     test('ineligible candidates are never sorted by distance', async () => {
-        prisma.employee.findMany.mockResolvedValue([
+        setEmployees([
             employee(1, 'Booked Far'),
             employee(2, 'Booked Near'),
         ]);
@@ -131,7 +154,7 @@ describe('availability outranks proximity', () => {
 
 describe('hard filters', () => {
     test('excludes the called-out caregiver via excludeEmployeeId', async () => {
-        prisma.employee.findMany.mockResolvedValue([employee(2, 'Other')]);
+        setEmployees([employee(2, 'Other')]);
         mockDistances({ 2: 2 });
 
         const result = await ranking.rankCandidates({ ...REQUEST, excludeEmployeeId: 1 }, { mode: 'soft' });
@@ -147,7 +170,7 @@ describe('hard filters', () => {
     });
 
     test('marks approved time off as a conflict', async () => {
-        prisma.employee.findMany.mockResolvedValue([employee(1, 'On Leave')]);
+        setEmployees([employee(1, 'On Leave')]);
         mockDistances({ 1: 0.5 });
         prisma.timeOffRequest.findMany.mockResolvedValue([
             { id: 5, employeeId: 1, status: 'approved', dateFrom: new Date('2026-08-01'), dateTo: new Date('2026-08-05') },
@@ -160,7 +183,7 @@ describe('hard filters', () => {
     });
 
     test('ignores pending and denied time off', async () => {
-        prisma.employee.findMany.mockResolvedValue([employee(1, 'Maybe Off')]);
+        setEmployees([employee(1, 'Maybe Off')]);
         mockDistances({ 1: 0.5 });
         prisma.timeOffRequest.findMany.mockResolvedValue([]); // service filters to approved
 
@@ -173,7 +196,7 @@ describe('hard filters', () => {
     });
 
     test('marks expired compliance certifications as a conflict', async () => {
-        prisma.employee.findMany.mockResolvedValue([employee(1, 'Lapsed CPR')]);
+        setEmployees([employee(1, 'Lapsed CPR')]);
         mockDistances({ 1: 0.5 });
         prisma.employeeCertification.findMany.mockResolvedValue([
             { employeeId: 1, certType: 'cpr', expirationDate: new Date('2026-01-01'), status: 'active' },
@@ -188,7 +211,7 @@ describe('hard filters', () => {
     });
 
     test('accepts certifications that expire after the shift date', async () => {
-        prisma.employee.findMany.mockResolvedValue([employee(1, 'Current CPR')]);
+        setEmployees([employee(1, 'Current CPR')]);
         mockDistances({ 1: 0.5 });
         prisma.employeeCertification.findMany.mockResolvedValue([
             { employeeId: 1, certType: 'cpr', expirationDate: new Date('2027-01-01'), status: 'active' },
@@ -200,7 +223,7 @@ describe('hard filters', () => {
     });
 
     test('treats a blackout date as a conflict', async () => {
-        prisma.employee.findMany.mockResolvedValue([
+        setEmployees([
             employee(1, 'Blacked Out', {
                 employeeAvailability: { blackoutDates: ['2026-08-03'], weeklySchedule: null },
             }),
@@ -216,7 +239,7 @@ describe('hard filters', () => {
         // The stored `maxTravelDistance` column actually holds MINUTES (the
         // onboarding UI labels it "Max Travel Time"), so it is deliberately not
         // used as a mileage cap — doing so would exclude the wrong people.
-        prisma.employee.findMany.mockResolvedValue([
+        setEmployees([
             employee(1, 'Very Far', {
                 employeeAvailability: { maxTravelDistance: 30, weeklySchedule: null, blackoutDates: [] },
             }),
@@ -231,7 +254,7 @@ describe('hard filters', () => {
 
 describe('strict vs soft mode', () => {
     beforeEach(() => {
-        prisma.employee.findMany.mockResolvedValue([employee(1, 'Booked'), employee(2, 'Free')]);
+        setEmployees([employee(1, 'Booked'), employee(2, 'Free')]);
         mockDistances({ 1: 0.5, 2: 3.0 });
         prisma.shift.findMany.mockResolvedValue([
             { id: 90, employeeId: 1, shiftDate: new Date('2026-08-03T00:00:00Z'), startTime: '08:00', endTime: '12:00', status: 'scheduled' },
@@ -253,7 +276,7 @@ describe('strict vs soft mode', () => {
     });
 
     test('strict mode caps the candidate list at the configured limit', async () => {
-        prisma.employee.findMany.mockResolvedValue([1, 2, 3, 4, 5, 6, 7].map(i => employee(i, `E${i}`)));
+        setEmployees([1, 2, 3, 4, 5, 6, 7].map(i => employee(i, `E${i}`)));
         mockDistances(Object.fromEntries([1, 2, 3, 4, 5, 6, 7].map(i => [i, i])));
         prisma.shift.findMany.mockResolvedValue([]);
 
@@ -265,7 +288,7 @@ describe('strict vs soft mode', () => {
 
 describe('scoring', () => {
     test('care-team membership outranks a closer non-member', async () => {
-        prisma.employee.findMany.mockResolvedValue([
+        setEmployees([
             employee(1, 'Closer Stranger'),
             employee(2, 'Care Team Member'),
         ]);
@@ -280,7 +303,7 @@ describe('scoring', () => {
     });
 
     test('among equals, the nearer candidate ranks first', async () => {
-        prisma.employee.findMany.mockResolvedValue([employee(1, 'Far'), employee(2, 'Near')]);
+        setEmployees([employee(1, 'Far'), employee(2, 'Near')]);
         mockDistances({ 1: 9.0, 2: 1.0 });
 
         const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
@@ -289,7 +312,7 @@ describe('scoring', () => {
     });
 
     test('every candidate carries an explainable score breakdown', async () => {
-        prisma.employee.findMany.mockResolvedValue([employee(1, 'Someone')]);
+        setEmployees([employee(1, 'Someone')]);
         mockDistances({ 1: 2.0 });
 
         const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
@@ -307,7 +330,7 @@ describe('scoring', () => {
     });
 
     test('a lighter weekly load breaks a tie between equidistant candidates', async () => {
-        prisma.employee.findMany.mockResolvedValue([employee(1, 'Busy'), employee(2, 'Light')]);
+        setEmployees([employee(1, 'Busy'), employee(2, 'Light')]);
         mockDistances({ 1: 2.0, 2: 2.0 });
         prisma.shift.findMany.mockResolvedValue([
             // Same week, different day — no conflict, just load.
@@ -323,7 +346,7 @@ describe('scoring', () => {
 
 describe('un-geocoded candidates', () => {
     test('are eligible but sort last, and are not treated as unavailable', async () => {
-        prisma.employee.findMany.mockResolvedValue([
+        setEmployees([
             employee(1, 'No Coords', { latitude: null, longitude: null }),
             employee(2, 'Has Coords'),
         ]);
@@ -341,7 +364,7 @@ describe('un-geocoded candidates', () => {
 
     test('still ranks everyone when the client itself is un-geocoded', async () => {
         prisma.client.findUnique.mockResolvedValue({ ...CLIENT, latitude: null, longitude: null });
-        prisma.employee.findMany.mockResolvedValue([employee(1, 'A'), employee(2, 'B')]);
+        setEmployees([employee(1, 'A'), employee(2, 'B')]);
 
         const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
 
@@ -355,7 +378,7 @@ describe('un-geocoded candidates', () => {
 
 describe('contact details', () => {
     test('returns phone and email so the office can reach a candidate directly', async () => {
-        prisma.employee.findMany.mockResolvedValue([
+        setEmployees([
             employee(1, 'Reachable', { phone: '702-555-0142', email: 'reach@example.com' }),
         ]);
         mockDistances({ 1: 1.0 });
@@ -371,7 +394,7 @@ describe('contact details', () => {
     });
 
     test('tolerates a candidate with no contact details on file', async () => {
-        prisma.employee.findMany.mockResolvedValue([employee(1, 'No Contact', { phone: '', email: '' })]);
+        setEmployees([employee(1, 'No Contact', { phone: '', email: '' })]);
         mockDistances({ 1: 1.0 });
 
         const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
@@ -381,22 +404,19 @@ describe('contact details', () => {
     });
 });
 
-describe('distance query construction', () => {
-    test('passes employee ids as SQL parameters, not a joined string', async () => {
-        prisma.employee.findMany.mockResolvedValue([employee(1, 'A'), employee(2, 'B')]);
+describe('distance computation', () => {
+    test('reports the real Haversine distance from the client, in miles', async () => {
+        setEmployees([employee(1, 'A'), employee(2, 'B')]);
         mockDistances({ 1: 1.0, 2: 2.0 });
 
-        await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
 
-        // Regression guard. This previously fell back to employeeIds.join(','),
-        // which Postgres received as ONE text parameter and rejected with
-        // `operator does not exist: integer = text`. Mocking $queryRaw means the
-        // SQL is never parsed, so the whole suite passed while the endpoint 500'd
-        // against a real database — assert the parameter shape instead.
-        const [strings, ...values] = prisma.$queryRaw.mock.calls[0];
-        expect(Array.isArray(strings)).toBe(true);
-        const joinedAsString = values.some(v => typeof v === 'string' && /^\d+(,\d+)+$/.test(v));
-        expect(joinedAsString).toBe(false);
+        // Distances are now computed in JS from lat/lng — no raw query to build,
+        // and therefore no $queryRaw call. The values must still be correct.
+        expect(prisma.$queryRaw).not.toHaveBeenCalled();
+        const byId = Object.fromEntries(result.eligible.map(c => [c.employeeId, c.distanceMiles]));
+        expect(byId[1]).toBeCloseTo(1.0, 1);
+        expect(byId[2]).toBeCloseTo(2.0, 1);
     });
 });
 
@@ -404,7 +424,7 @@ describe('cost invariant', () => {
     test('never geocodes on the ranking path', async () => {
         const geocodeAddress = jest.spyOn(geocodingService, 'geocodeAddress');
         const geocodeEntity = jest.spyOn(geocodingService, 'geocodeEntity');
-        prisma.employee.findMany.mockResolvedValue([
+        setEmployees([
             employee(1, 'No Coords', { latitude: null, longitude: null }),
         ]);
 
@@ -419,7 +439,7 @@ describe('cost invariant', () => {
 
 describe('overlap detection', () => {
     test('ignores cancelled shifts when checking conflicts', async () => {
-        prisma.employee.findMany.mockResolvedValue([employee(1, 'Had Cancelled Shift')]);
+        setEmployees([employee(1, 'Had Cancelled Shift')]);
         mockDistances({ 1: 1.0 });
         prisma.shift.findMany.mockResolvedValue([
             { id: 90, employeeId: 1, shiftDate: new Date('2026-08-03T00:00:00Z'), startTime: '08:00', endTime: '12:00', status: 'cancelled' },
@@ -431,7 +451,7 @@ describe('overlap detection', () => {
     });
 
     test('back-to-back shifts do not count as overlapping', async () => {
-        prisma.employee.findMany.mockResolvedValue([employee(1, 'Finishes At Nine')]);
+        setEmployees([employee(1, 'Finishes At Nine')]);
         mockDistances({ 1: 1.0 });
         prisma.shift.findMany.mockResolvedValue([
             { id: 90, employeeId: 1, shiftDate: new Date('2026-08-03T00:00:00Z'), startTime: '05:00', endTime: '09:00', status: 'scheduled' },

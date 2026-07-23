@@ -129,9 +129,6 @@ model Employee {
   geocodedAt              DateTime?              @map("geocoded_at")
   geocodeStatus           String                 @default("pending") @map("geocode_status")
   geocodeAddressHash      String                 @default("") @map("geocode_address_hash")
-  /// PostGIS point derived from latitude/longitude. Written via raw SQL in
-  /// geocodingService — Prisma cannot type a geography column.
-  location                Unsupported("geography(Point, 4326)")?
   careTeamAssignments     ClientCareTeam[]
   certifications          EmployeeCertification[]
   scheduleLink            EmployeeScheduleLink?
@@ -270,9 +267,6 @@ model Client {
   geocodedAt                 DateTime?        @map("geocoded_at")
   geocodeStatus              String           @default("pending") @map("geocode_status")
   geocodeAddressHash         String           @default("") @map("geocode_address_hash")
-  /// PostGIS point derived from latitude/longitude. Written via raw SQL in
-  /// geocodingService — Prisma cannot type a geography column.
-  location                   Unsupported("geography(Point, 4326)")?
   authorizations             Authorization[]
   careTeam                   ClientCareTeam[]
   documents                  ClientDocument[]
