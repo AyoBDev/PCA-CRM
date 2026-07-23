@@ -25,11 +25,22 @@ function getProvider() {
 // it means a previous run already placed it, which is the healthy steady state.
 const SUCCESS_STATUSES = new Set(['ok', 'cached']);
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 /**
- * @param {(msg: string) => void} [log]
+ * @param {object} [options]
+ * @param {(msg: string) => void} [options.log]
+ * @param {number} [options.delayMs] pause between geocodes. Mapbox allows
+ *   600 requests/minute; the default 150ms (~400/min) stays comfortably under
+ *   that, so a large first-run backfill does not get rate-limited (429).
  * @returns {Promise<{ok: boolean, reason: string, attempted: number, succeeded: number, failed: number}>}
  */
-async function runBackfill(log = console.log) {
+async function runBackfill(options = {}) {
+    // Back-compat: runBackfill(logFn) still works.
+    const opts = typeof options === 'function' ? { log: options } : options;
+    const log = opts.log || console.log;
+    const delayMs = opts.delayMs != null ? opts.delayMs : 150;
+
     const provider = getProvider();
     if (!provider.isConfigured()) {
         return {
@@ -59,17 +70,22 @@ async function runBackfill(log = console.log) {
     let succeeded = 0;
     let failed = 0;
 
-    for (const [type, id] of targets) {
+    for (let i = 0; i < targets.length; i++) {
+        const [type, id] = targets[i];
         try {
             const result = await geocodeEntity(type, id);
             if (SUCCESS_STATUSES.has(result.status)) succeeded++;
             else failed++;
         } catch (err) {
-            // One address must never take the whole deploy down. Record it as a
+            // One address must never take the whole run down. Record it as a
             // failure and keep going; a later success still proves the pipeline.
             log(`[geocode-backfill] ${type} ${id} threw: ${err.message}`);
             failed++;
         }
+        // Throttle between real geocodes to stay under Mapbox's rate limit.
+        // 'cached' results make no API call, but a flat delay is simpler and the
+        // cost (a few seconds over a whole roster) is negligible.
+        if (delayMs > 0 && i < targets.length - 1) await sleep(delayMs);
     }
 
     log(`[geocode-backfill] ${succeeded} geocoded/cached, ${failed} failed, of ${targets.length}`);

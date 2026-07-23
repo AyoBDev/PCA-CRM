@@ -30,7 +30,12 @@ const REASONS = {
 };
 
 async function main() {
-    const result = await runBackfill();
+    // GEOCODE_BACKFILL_DELAY_MS lets an operator slow it further if needed;
+    // the default already keeps under Mapbox's 600/min limit.
+    const delayMs = process.env.GEOCODE_BACKFILL_DELAY_MS
+        ? Number(process.env.GEOCODE_BACKFILL_DELAY_MS)
+        : undefined;
+    const result = await runBackfill(delayMs != null ? { delayMs } : {});
 
     if (!result.ok) {
         // 'not_configured' is a warning, not a blocker: deploying without a

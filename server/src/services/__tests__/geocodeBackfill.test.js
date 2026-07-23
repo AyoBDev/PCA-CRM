@@ -32,7 +32,7 @@ describe('runBackfill', () => {
     test('aborts when no geocoder is configured', async () => {
         mapbox.isConfigured.mockReturnValue(false);
 
-        const result = await runBackfill();
+        const result = await runBackfill({ delayMs: 0 });
 
         expect(result.ok).toBe(false);
         expect(result.reason).toBe('not_configured');
@@ -43,7 +43,7 @@ describe('runBackfill', () => {
     test('exits cleanly when there is nothing addressable yet', async () => {
         // Fresh install: no clients or employees with addresses. A normal
         // first-deploy state, not an error.
-        const result = await runBackfill();
+        const result = await runBackfill({ delayMs: 0 });
 
         expect(result.ok).toBe(true);
         expect(result.reason).toBe('nothing_to_backfill');
@@ -55,7 +55,7 @@ describe('runBackfill', () => {
         prisma.employee.findMany.mockResolvedValue([{ id: 7 }]);
         geocodeEntity.mockResolvedValue({ status: 'ok' });
 
-        const result = await runBackfill();
+        const result = await runBackfill({ delayMs: 0 });
 
         expect(geocodeEntity).toHaveBeenCalledWith('client', 1);
         expect(geocodeEntity).toHaveBeenCalledWith('client', 2);
@@ -68,7 +68,7 @@ describe('runBackfill', () => {
         prisma.client.findMany.mockResolvedValue([{ id: 1 }]);
         geocodeEntity.mockResolvedValue({ status: 'cached' });
 
-        const result = await runBackfill();
+        const result = await runBackfill({ delayMs: 0 });
 
         // On the second and later deploys everything is cached — that is the
         // healthy steady state, and must not read as total failure.
@@ -81,7 +81,7 @@ describe('runBackfill', () => {
         prisma.client.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
         geocodeEntity.mockResolvedValue({ status: 'error' });
 
-        const result = await runBackfill();
+        const result = await runBackfill({ delayMs: 0 });
 
         // Every geocode failing means a bad token, a rate-limit block, or
         // PostGIS missing — the deploy should not be considered healthy.
@@ -97,7 +97,7 @@ describe('runBackfill', () => {
             .mockResolvedValueOnce({ status: 'ok' })
             .mockResolvedValueOnce({ status: 'error' });
 
-        const result = await runBackfill();
+        const result = await runBackfill({ delayMs: 0 });
 
         // Partial failure (one bad address among many) is expected and fine;
         // only a total wipeout signals a broken configuration.
@@ -110,7 +110,7 @@ describe('runBackfill', () => {
         prisma.client.findMany.mockResolvedValue([{ id: 1 }]);
         geocodeEntity.mockResolvedValue({ status: 'not_found' });
 
-        const result = await runBackfill();
+        const result = await runBackfill({ delayMs: 0 });
 
         // The provider was reached but could not place the address. That is an
         // attempt; if it is the ONLY outcome, the run failed.
@@ -124,7 +124,7 @@ describe('runBackfill', () => {
             .mockRejectedValueOnce(new Error('transient network blip'))
             .mockResolvedValueOnce({ status: 'ok' });
 
-        const result = await runBackfill();
+        const result = await runBackfill({ delayMs: 0 });
 
         // One address should never take the deploy down; keep going and let the
         // successful one prove the pipeline works.
@@ -133,8 +133,34 @@ describe('runBackfill', () => {
         expect(result.failed).toBe(1);
     });
 
+    test('back-compat: still accepts a bare log function', async () => {
+        prisma.client.findMany.mockResolvedValue([{ id: 1 }]);
+        geocodeEntity.mockResolvedValue({ status: 'ok' });
+        const log = jest.fn();
+
+        // Older call shape runBackfill(logFn) must keep working.
+        const result = await runBackfill(log);
+
+        expect(result.ok).toBe(true);
+        expect(log).toHaveBeenCalled();
+    });
+
+    test('throttles between geocodes to stay under the provider rate limit', async () => {
+        prisma.client.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }, { id: 3 }]);
+        geocodeEntity.mockResolvedValue({ status: 'ok' });
+
+        const start = Date.now();
+        await runBackfill({ delayMs: 20 });
+        const elapsed = Date.now() - start;
+
+        // 3 targets => 2 inter-request pauses of 20ms. Guards against the pause
+        // being dropped, which is what would let a large run hit Mapbox's
+        // 600/min limit and start returning 429s.
+        expect(elapsed).toBeGreaterThanOrEqual(35);
+    });
+
     test('only fetches records that actually have an address', async () => {
-        await runBackfill();
+        await runBackfill({ delayMs: 0 });
 
         expect(prisma.client.findMany).toHaveBeenCalledWith(
             expect.objectContaining({ where: expect.objectContaining({ address: expect.anything() }) }),
