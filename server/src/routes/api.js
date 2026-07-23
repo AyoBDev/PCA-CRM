@@ -119,6 +119,16 @@ const {
     listArchivedShifts,
 } = require('../controllers/schedulingController');
 const {
+    recordCallout,
+    getReplacementCandidates,
+    getNearbyEmployees,
+    getOffer,
+    respondToOffer,
+    createOffer,
+    listOffers,
+    resolveCallout: resolveCalloutRoute,
+} = require('../controllers/replacementController');
+const {
     listEmployees,
     getEmployee,
     createEmployee,
@@ -213,6 +223,8 @@ router.post('/schedule/view/:token/open', recordOpen);
 router.get('/schedule/view/:token/notification', getNotificationForView);
 router.get('/pca-form/:token', getPcaForm);
 router.put('/pca-form/:token', updatePcaForm);
+router.get('/shift-offers/:token', getOffer);
+router.post('/shift-offers/:token/respond', respondToOffer);
 router.get('/onboarding/:token', getOnboardingInfo);
 router.post('/onboarding/:token/complete', completeOnboarding);
 
@@ -399,6 +411,9 @@ router.patch('/payroll/visits/:id',        requireRole('admin'), requirePermissi
 router.patch('/payroll/visits/:id/notes',  requireRole('admin', 'user'), requirePermission('payroll'), updatePayrollVisitNotes);
 
 // Employees
+// Must precede /employees/:id — otherwise the parameterised route captures
+// "nearby" as an id and shadows this endpoint.
+router.get('/employees/nearby', requireRole('admin', 'user'), requirePermission('scheduling'), getNearbyEmployees);
 router.get('/employees',       requireRole('admin', 'user'), requirePermission('employees'), listEmployees);
 router.get('/employees/archived', requireRole('admin', 'user'), requirePermission('employees'), listArchivedEmployees);
 router.post('/employees/restore', requireRole('admin', 'user'), requirePermission('employees'), restoreEmployees);
@@ -443,6 +458,14 @@ router.put('/shifts/:id/restore',           requireRole('admin', 'user'), requir
 router.post('/shifts/restore',              requireRole('admin', 'user'), requirePermission('scheduling'), restoreShifts);
 router.delete('/shifts/permanent',          requireRole('admin'), requirePermission('scheduling'), permanentDeleteShifts);
 router.get('/shifts/archived',              requireRole('admin', 'user'), requirePermission('scheduling'), listArchivedShifts);
+// Replacement workflow — declared before /shifts/:id so the more specific
+// paths are not shadowed by the parameterised route.
+router.post('/shifts/:id/callout',                  requireRole('admin', 'user'), requirePermission('scheduling'), recordCallout);
+router.get('/shifts/:id/replacement-candidates',    requireRole('admin', 'user'), requirePermission('scheduling'), getReplacementCandidates);
+router.post('/shifts/:id/offers',                   requireRole('admin', 'user'), requirePermission('scheduling'), createOffer);
+router.get('/shifts/:id/offers',                    requireRole('admin', 'user'), requirePermission('scheduling'), listOffers);
+router.post('/callouts/:id/resolve',                requireRole('admin', 'user'), requirePermission('scheduling'), resolveCalloutRoute);
+
 router.put('/shifts/:id',                   requireRole('admin', 'user'), requirePermission('scheduling'), updateShift);
 router.delete('/shifts/all',                requireRole('admin', 'user'), requirePermission('scheduling'), deleteAllShifts);
 router.delete('/shifts/:id',                requireRole('admin', 'user'), requirePermission('scheduling'), deleteShift);
