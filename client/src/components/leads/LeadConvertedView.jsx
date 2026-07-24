@@ -1,39 +1,26 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icons from '../common/Icons';
+import OverflowMenu from '../common/OverflowMenu';
 import { formatDate } from '../../utils/dates';
+import { getInitials, getAvatarColor } from '../../utils/ui';
 import { LEAD_CASE_TYPES, daysSince } from '../../utils/leadConstants';
 
-// Flat sortable table for leads that became active clients. Shows a link to the
-// created Client's detail page (via convertedClientId) so intake coordinators
-// can jump straight to the client profile.
+// Recently Converted — leads that became active clients.
+// Mirrors LeadListView exactly: same `.leads-list-view` shell, the canonical
+// .data-table--sheet + .data-table--dark-header structure, the design-system
+// name cell (avatar circle + name), and a single 3-dot actions menu. Filtering
+// is driven by the shared LeadFilterBar on LeadsPage, so this component takes
+// an already-filtered array (same contract as LeadListView).
 //
 // Props:
-//   leads : array (all leads where status='converted', server-sorted by
-//           convertedAt desc; this component adds client-side search + sort)
+//   leads : array (already filtered by LeadsPage)
 export default function LeadConvertedView({ leads }) {
     const navigate = useNavigate();
-    const [search, setSearch] = useState('');
     const [sort, setSort] = useState({ field: 'convertedAt', dir: 'desc' });
 
-    const filtered = useMemo(() => {
-        const q = search.trim().toLowerCase();
-        if (!q) return leads;
-        return leads.filter((l) => {
-            const hay = [
-                `${l.firstName || ''} ${l.lastName || ''}`,
-                l.phone,
-                l.insuranceType,
-                l.referralSource,
-            ]
-                .join(' ')
-                .toLowerCase();
-            return hay.includes(q);
-        });
-    }, [leads, search]);
-
     const sorted = useMemo(() => {
-        const rows = [...filtered];
+        const rows = [...leads];
         rows.sort((a, b) => {
             const av = sortValue(a, sort.field);
             const bv = sortValue(b, sort.field);
@@ -45,106 +32,79 @@ export default function LeadConvertedView({ leads }) {
             return 0;
         });
         return rows;
-    }, [filtered, sort]);
+    }, [leads, sort]);
 
     const toggleSort = (field) => {
-        setSort((s) => (s.field === field ? { field, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { field, dir: 'desc' }));
+        setSort((s) => (s.field === field ? { field, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { field, dir: 'asc' }));
     };
 
+    if (!leads.length) {
+        return (
+            <div className="leads-list-view leads-list-view--empty">
+                <div className="empty-state">
+                    <p className="empty-state__title">No converted leads match your filters.</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div className="leads-converted-view">
-            <div className="leads-converted-view__banner">
-                <span className="leads-converted-view__banner-icon" aria-hidden="true">{Icons.checkCircle}</span>
-                <div>
-                    <p className="leads-converted-view__banner-title">Recently Converted</p>
-                    <p className="leads-converted-view__banner-body">
-                        Leads that became active clients. Click a name to open the client profile.
-                    </p>
-                </div>
-                <div className="leads-converted-view__count">
-                    {leads.length} lead{leads.length === 1 ? '' : 's'}
-                </div>
+        <div className="leads-list-view">
+            <div className="table-scroll">
+                <table className="data-table data-table--sheet data-table--dark-header">
+                    <thead>
+                        <tr>
+                            <Th field="name"           label="Name"         sort={sort} onClick={toggleSort} />
+                            <Th field="caseType"       label="Case Type"    sort={sort} onClick={toggleSort} />
+                            <Th field="insuranceType"  label="Insurance"    sort={sort} onClick={toggleSort} />
+                            <Th field="referralSource" label="Source"       sort={sort} onClick={toggleSort} />
+                            <Th field="convertedAt"    label="Converted On" sort={sort} onClick={toggleSort} />
+                            <Th field="daysAgo"        label="Days Ago"     sort={sort} onClick={toggleSort} />
+                            <th scope="col" style={{ width: 64 }}>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sorted.map((l) => {
+                            const ct = LEAD_CASE_TYPES[l.caseType] || LEAD_CASE_TYPES.initial;
+                            const days = l.convertedAt ? daysSince(l.convertedAt) : null;
+                            const clientId = l.convertedClientId;
+                            const name = fullName(l);
+                            return (
+                                <tr key={l.id}>
+                                    <td
+                                        style={clientId ? { cursor: 'pointer' } : undefined}
+                                        onClick={clientId ? () => navigate(`/clients/${clientId}`) : undefined}
+                                    >
+                                        <div className="lead-list-name">
+                                            <div className="client-avatar" style={{ background: getAvatarColor(name) }}>{getInitials(name)}</div>
+                                            <div className="lead-list-name__text">{name}</div>
+                                        </div>
+                                    </td>
+                                    <td><span className={`tag ${ct.tagClass}`}>{ct.label}</span></td>
+                                    <td>{l.insuranceType || '—'}</td>
+                                    <td>{l.referralSource || '—'}</td>
+                                    <td>{l.convertedAt ? formatDate(l.convertedAt) : '—'}</td>
+                                    <td>{days == null ? '—' : `${days} day${days === 1 ? '' : 's'} ago`}</td>
+                                    <td>
+                                        <div className="lead-list-actions">
+                                            <OverflowMenu
+                                                items={[
+                                                    {
+                                                        label: 'View Client',
+                                                        icon: Icons.externalLink,
+                                                        action: () => navigate(`/clients/${clientId}`),
+                                                        disabled: !clientId,
+                                                    },
+                                                ]}
+                                            />
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
             </div>
-
-            <div className="leads-converted-view__search">
-                <span className="leads-converted-view__search-icon" aria-hidden="true">{Icons.search}</span>
-                <input
-                    type="text"
-                    className="finput leads-converted-view__search-input"
-                    placeholder="Search converted leads by name, phone, or insurance…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                />
-                {search && (
-                    <span className="leads-converted-view__search-count">
-                        {sorted.length} match{sorted.length === 1 ? '' : 'es'}
-                    </span>
-                )}
-            </div>
-
-            {sorted.length === 0 ? (
-                <div className="empty-state" style={{ padding: '32px 24px' }}>
-                    <p className="empty-state__title">
-                        {leads.length === 0 ? 'No converted leads yet.' : 'No converted leads match your search.'}
-                    </p>
-                </div>
-            ) : (
-                <div className="table-scroll">
-                    <table className="data-table data-table--sheet data-table--dark-header">
-                        <thead>
-                            <tr>
-                                <Th field="name"          label="Name"          sort={sort} onClick={toggleSort} />
-                                <Th field="caseType"      label="Case Type"     sort={sort} onClick={toggleSort} />
-                                <Th field="insuranceType" label="Insurance"     sort={sort} onClick={toggleSort} />
-                                <Th field="referralSource" label="Source"       sort={sort} onClick={toggleSort} />
-                                <Th field="convertedAt"   label="Converted On"  sort={sort} onClick={toggleSort} />
-                                <Th field="daysAgo"       label="Days Ago"      sort={sort} onClick={toggleSort} />
-                                <th scope="col" style={{ width: 160 }}>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {sorted.map((l) => {
-                                const ct = LEAD_CASE_TYPES[l.caseType] || LEAD_CASE_TYPES.initial;
-                                const days = l.convertedAt ? daysSince(l.convertedAt) : null;
-                                const clientId = l.convertedClientId;
-                                return (
-                                    <tr key={l.id}>
-                                        <td>
-                                            {clientId ? (
-                                                <button
-                                                    type="button"
-                                                    className="lead-list-name"
-                                                    onClick={() => navigate(`/clients/${clientId}`)}
-                                                >
-                                                    {fullName(l)}
-                                                </button>
-                                            ) : (
-                                                fullName(l)
-                                            )}
-                                        </td>
-                                        <td><span className={`tag ${ct.tagClass}`}>{ct.label}</span></td>
-                                        <td>{l.insuranceType || '—'}</td>
-                                        <td>{l.referralSource || '—'}</td>
-                                        <td>{l.convertedAt ? formatDate(l.convertedAt) : '—'}</td>
-                                        <td>{days == null ? '—' : `${days} day${days === 1 ? '' : 's'} ago`}</td>
-                                        <td>
-                                            {clientId && (
-                                                <button
-                                                    type="button"
-                                                    className="btn btn--primary btn--xs"
-                                                    onClick={() => navigate(`/clients/${clientId}`)}
-                                                >
-                                                    View Client
-                                                </button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            )}
         </div>
     );
 }
