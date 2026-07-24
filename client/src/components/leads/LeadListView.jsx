@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import Icons from '../common/Icons';
+import OverflowMenu from '../common/OverflowMenu';
 import { formatDate } from '../../utils/dates';
 import { getInitials, getAvatarColor } from '../../utils/ui';
 import { LEAD_CASE_TYPES, LEAD_STATUSES } from '../../utils/leadConstants';
@@ -60,7 +62,7 @@ export default function LeadListView({ leads, onView, onEdit, onArchive, onConve
                             <Th field="status"        label="Status"        sort={sort} onClick={toggleSort} />
                             <Th field="followUpDate"  label="Follow-up"     sort={sort} onClick={toggleSort} />
                             <Th field="createdAt"     label="Added"         sort={sort} onClick={toggleSort} />
-                            <th scope="col" style={{ width: 220 }}>Actions</th>
+                            <th scope="col" style={{ width: 64 }}>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -92,10 +94,14 @@ export default function LeadListView({ leads, onView, onEdit, onArchive, onConve
                                     <td>{formatDate(l.createdAt)}</td>
                                     <td>
                                         <div className="lead-list-actions">
-                                            <button type="button" className="btn btn--outline btn--xs" onClick={() => onView(l)}>View</button>
-                                            <button type="button" className="btn btn--outline btn--xs" onClick={() => onEdit(l)}>Edit</button>
-                                            <button type="button" className="btn btn--outline btn--xs" onClick={() => onArchive(l)}>Archive</button>
-                                            <button type="button" className="btn btn--success btn--xs" onClick={() => onConvert(l)}>Convert</button>
+                                            <OverflowMenu
+                                                items={[
+                                                    { label: 'View',    icon: Icons.eye,         action: () => onView(l) },
+                                                    { label: 'Edit',    icon: Icons.edit,        action: () => onEdit(l) },
+                                                    { label: 'Convert', icon: Icons.checkCircle, action: () => onConvert(l) },
+                                                    { label: 'Archive', icon: Icons.archive,     action: () => onArchive(l), variant: 'danger' },
+                                                ]}
+                                            />
                                         </div>
                                     </td>
                                 </tr>

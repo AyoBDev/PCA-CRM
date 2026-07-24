@@ -1,38 +1,25 @@
 import { useMemo, useState } from 'react';
 import Icons from '../common/Icons';
+import OverflowMenu from '../common/OverflowMenu';
 import { formatDate } from '../../utils/dates';
-import { LEAD_CASE_TYPES, DORMANT_DAYS, daysSince } from '../../utils/leadConstants';
+import { getInitials, getAvatarColor } from '../../utils/ui';
+import { LEAD_CASE_TYPES, daysSince } from '../../utils/leadConstants';
 
-// Flat sortable table for the Dormant Archive — auto-archived leads older than
-// DORMANT_DAYS with no activity. Own search box (independent of the main filter
-// bar) so intake coordinators can locate a returning caller in one keystroke.
+// Dormant Archive — auto-archived leads with no activity for DORMANT_DAYS.
+// Mirrors LeadListView exactly: same `.leads-list-view` shell, the canonical
+// .data-table--sheet + .data-table--dark-header structure, the design-system
+// name cell (avatar circle + name), and a single 3-dot actions menu. Filtering
+// is driven by the shared LeadFilterBar on LeadsPage, so this component takes
+// an already-filtered array (same contract as LeadListView).
 //
 // Props:
-//   leads         : the fetched dormant leads
+//   leads         : array (already filtered by LeadsPage)
 //   onReactivate  : (lead) => void
 export default function LeadDormantView({ leads, onReactivate }) {
-    const [search, setSearch] = useState('');
     const [sort, setSort] = useState({ field: 'daysSince', dir: 'desc' });
 
-    const filtered = useMemo(() => {
-        const q = search.trim().toLowerCase();
-        if (!q) return leads;
-        return leads.filter((l) => {
-            const hay = [
-                `${l.firstName || ''} ${l.lastName || ''}`,
-                l.phone,
-                l.alternatePhone,
-                l.insuranceType,
-                l.medicaidId,
-            ]
-                .join(' ')
-                .toLowerCase();
-            return hay.includes(q);
-        });
-    }, [leads, search]);
-
     const sorted = useMemo(() => {
-        const rows = [...filtered];
+        const rows = [...leads];
         rows.sort((a, b) => {
             const av = sortValue(a, sort.field);
             const bv = sortValue(b, sort.field);
@@ -44,92 +31,70 @@ export default function LeadDormantView({ leads, onReactivate }) {
             return 0;
         });
         return rows;
-    }, [filtered, sort]);
+    }, [leads, sort]);
 
     const toggleSort = (field) => {
-        setSort((s) => (s.field === field ? { field, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { field, dir: 'desc' }));
+        setSort((s) => (s.field === field ? { field, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { field, dir: 'asc' }));
     };
 
+    if (!leads.length) {
+        return (
+            <div className="leads-list-view leads-list-view--empty">
+                <div className="empty-state">
+                    <p className="empty-state__title">No dormant leads match your filters.</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div className="leads-dormant-view">
-            <div className="leads-dormant-view__banner">
-                <span className="leads-dormant-view__banner-icon" aria-hidden="true">{Icons.archive}</span>
-                <div>
-                    <p className="leads-dormant-view__banner-title">Dormant Archive</p>
-                    <p className="leads-dormant-view__banner-body">
-                        Leads with no activity for {DORMANT_DAYS} days move here automatically. They are never deleted.
-                        Use <b>Reactivate</b> to move a lead back to the active board.
-                    </p>
-                </div>
-                <div className="leads-dormant-view__count">
-                    {leads.length} lead{leads.length === 1 ? '' : 's'}
-                </div>
+        <div className="leads-list-view">
+            <div className="table-scroll">
+                <table className="data-table data-table--sheet data-table--dark-header">
+                    <thead>
+                        <tr>
+                            <Th field="name"          label="Name"        sort={sort} onClick={toggleSort} />
+                            <Th field="caseType"      label="Case Type"   sort={sort} onClick={toggleSort} />
+                            <Th field="insuranceType" label="Insurance"   sort={sort} onClick={toggleSort} />
+                            <Th field="phone"         label="Phone"       sort={sort} onClick={toggleSort} />
+                            <Th field="createdAt"     label="Date Added"  sort={sort} onClick={toggleSort} />
+                            <Th field="daysSince"     label="Days Since"  sort={sort} onClick={toggleSort} />
+                            <th scope="col" style={{ width: 64 }}>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sorted.map((l) => {
+                            const ct = LEAD_CASE_TYPES[l.caseType] || LEAD_CASE_TYPES.initial;
+                            const days = daysSince(l.createdAt);
+                            const name = fullName(l);
+                            return (
+                                <tr key={l.id}>
+                                    <td>
+                                        <div className="lead-list-name">
+                                            <div className="client-avatar" style={{ background: getAvatarColor(name) }}>{getInitials(name)}</div>
+                                            <div className="lead-list-name__text">{name}</div>
+                                        </div>
+                                    </td>
+                                    <td><span className={`tag ${ct.tagClass}`}>{ct.label}</span></td>
+                                    <td>{l.insuranceType || '—'}</td>
+                                    <td>{l.phone || '—'}</td>
+                                    <td>{formatDate(l.createdAt)}</td>
+                                    <td>{days} day{days === 1 ? '' : 's'}</td>
+                                    <td>
+                                        <div className="lead-list-actions">
+                                            <OverflowMenu
+                                                items={[
+                                                    { label: 'Reactivate', icon: Icons.rotateCcw, action: () => onReactivate(l) },
+                                                ]}
+                                            />
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
             </div>
-
-            <div className="leads-dormant-view__search">
-                <span className="leads-dormant-view__search-icon" aria-hidden="true">{Icons.search}</span>
-                <input
-                    type="text"
-                    className="finput leads-dormant-view__search-input"
-                    placeholder="Search dormant leads by name, phone, or insurance…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                />
-                {search && (
-                    <span className="leads-dormant-view__search-count">
-                        {sorted.length} match{sorted.length === 1 ? '' : 'es'}
-                    </span>
-                )}
-            </div>
-
-            {sorted.length === 0 ? (
-                <div className="empty-state" style={{ padding: '32px 24px' }}>
-                    <p className="empty-state__title">
-                        {leads.length === 0 ? 'No dormant leads.' : 'No dormant leads match your search.'}
-                    </p>
-                </div>
-            ) : (
-                <div className="table-scroll">
-                    <table className="data-table data-table--sheet data-table--dark-header">
-                        <thead>
-                            <tr>
-                                <Th field="name"          label="Name"        sort={sort} onClick={toggleSort} />
-                                <Th field="phone"         label="Phone"       sort={sort} onClick={toggleSort} />
-                                <Th field="createdAt"     label="Date Added"  sort={sort} onClick={toggleSort} />
-                                <Th field="daysSince"     label="Days Since"  sort={sort} onClick={toggleSort} />
-                                <Th field="insuranceType" label="Insurance"   sort={sort} onClick={toggleSort} />
-                                <Th field="caseType"      label="Type"        sort={sort} onClick={toggleSort} />
-                                <th scope="col" style={{ width: 140 }}>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {sorted.map((l) => {
-                                const ct = LEAD_CASE_TYPES[l.caseType] || LEAD_CASE_TYPES.initial;
-                                const days = daysSince(l.createdAt);
-                                return (
-                                    <tr key={l.id}>
-                                        <td>{fullName(l)}</td>
-                                        <td>{l.phone || '—'}</td>
-                                        <td>{formatDate(l.createdAt)}</td>
-                                        <td>{days} days</td>
-                                        <td>{l.insuranceType || '—'}</td>
-                                        <td><span className={`tag ${ct.tagClass}`}>{ct.label}</span></td>
-                                        <td>
-                                            <button
-                                                type="button"
-                                                className="btn btn--primary btn--xs"
-                                                onClick={() => onReactivate(l)}
-                                            >
-                                                Reactivate
-                                            </button>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            )}
         </div>
     );
 }
