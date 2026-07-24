@@ -65,15 +65,23 @@ function getServiceMapSync(agencyId) {
   return buildMap([]); // defaults-only until first async load for this agency
 }
 
-// No arg clears every agency's cache (used defensively / in tests). A
-// specific agencyId clears only that tenant's entry so one agency's edit
-// doesn't force every other agency to re-fetch.
+// Clears one tenant's cache entry so one agency's edit doesn't force every
+// other agency to re-fetch. An explicit agencyId always wins; with no arg,
+// falls back to the ambient tenant context (mirrors resolveDb/getServiceMap)
+// so a controller mutation inside runWithTenant only busts its own agency's
+// cache. If there is no explicit agencyId AND no ambient context, there is no
+// well-defined single agency to clear — do nothing rather than guess (callers
+// that really want to clear everything must call invalidateAll()).
 function invalidate(agencyId) {
-  if (agencyId == null) {
-    cacheByAgency.clear();
-  } else {
-    cacheByAgency.delete(agencyId);
-  }
+  const key = agencyId != null ? agencyId : getAgencyId();
+  if (key != null) cacheByAgency.delete(key);
+}
+
+// Explicit escape hatch that clears every agency's cache. Used defensively /
+// in tests — real request-driven invalidation should always go through
+// invalidate(), which is tenant-scoped.
+function invalidateAll() {
+  cacheByAgency.clear();
 }
 
 async function sectionEnforcesLimit(section, agencyId) {
@@ -96,4 +104,4 @@ function deriveTimesheetSection(code, serviceName, agencyId) {
   return null;
 }
 
-module.exports = { getServiceMap, getServiceMapSync, invalidate, deriveTimesheetSection, sectionEnforcesLimit };
+module.exports = { getServiceMap, getServiceMapSync, invalidate, invalidateAll, deriveTimesheetSection, sectionEnforcesLimit };

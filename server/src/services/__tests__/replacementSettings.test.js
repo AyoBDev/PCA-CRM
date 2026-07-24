@@ -8,11 +8,16 @@
 // or the DB is down, auto-offering must default to OFF. Failing open would
 // start texting caregivers because a query failed.
 
-jest.mock('../../lib/prisma', () => ({
+// getReplacementSettings(db, agencyId) takes a tenant-scoped Prisma client as
+// its first argument and caches per-agency — see the file's top comment. The
+// mock plays the role of that db and is passed explicitly into every call,
+// with a fixed agencyId so the per-agency cache behaves like a single agency
+// across these tests (matching the old single-cache-slot assumptions here).
+const prisma = {
     workflowTrigger: { findFirst: jest.fn() },
-}));
+};
+const AGENCY_ID = 1;
 
-const prisma = require('../../lib/prisma');
 const settings = require('../replacementSettings');
 
 beforeEach(() => {
@@ -24,7 +29,7 @@ describe('getReplacementSettings', () => {
     test('reads the shift_replacement trigger row', async () => {
         prisma.workflowTrigger.findFirst.mockResolvedValue({ id: 1, type: 'shift_replacement', enabled: true, thresholdDays: 15 });
 
-        const s = await settings.getReplacementSettings();
+        const s = await settings.getReplacementSettings(prisma, AGENCY_ID);
 
         expect(prisma.workflowTrigger.findFirst).toHaveBeenCalledWith({ where: { type: 'shift_replacement' } });
         expect(s.autoOfferEnabled).toBe(true);
@@ -34,7 +39,7 @@ describe('getReplacementSettings', () => {
     test('defaults to auto-offer OFF when the trigger row is missing', async () => {
         prisma.workflowTrigger.findFirst.mockResolvedValue(null);
 
-        const s = await settings.getReplacementSettings();
+        const s = await settings.getReplacementSettings(prisma, AGENCY_ID);
 
         // Absent configuration must never mean "start messaging people".
         expect(s.autoOfferEnabled).toBe(false);
@@ -44,7 +49,7 @@ describe('getReplacementSettings', () => {
     test('defaults to auto-offer OFF when the lookup throws', async () => {
         prisma.workflowTrigger.findFirst.mockRejectedValue(new Error('db down'));
 
-        const s = await settings.getReplacementSettings();
+        const s = await settings.getReplacementSettings(prisma, AGENCY_ID);
 
         expect(s.autoOfferEnabled).toBe(false);
         expect(s.responseWindowMinutes).toBe(10);
@@ -55,7 +60,7 @@ describe('getReplacementSettings', () => {
             settings._resetCache();
             prisma.workflowTrigger.findFirst.mockResolvedValue({ enabled: true, thresholdDays: bad });
 
-            const s = await settings.getReplacementSettings();
+            const s = await settings.getReplacementSettings(prisma, AGENCY_ID);
 
             // A zero-minute window would expire every offer instantly.
             expect(s.responseWindowMinutes).toBe(10);
@@ -65,26 +70,26 @@ describe('getReplacementSettings', () => {
     test('honours a disabled trigger', async () => {
         prisma.workflowTrigger.findFirst.mockResolvedValue({ enabled: false, thresholdDays: 10 });
 
-        expect((await settings.getReplacementSettings()).autoOfferEnabled).toBe(false);
+        expect((await settings.getReplacementSettings(prisma, AGENCY_ID)).autoOfferEnabled).toBe(false);
     });
 
     test('caches so the offer loop does not re-query per candidate', async () => {
         prisma.workflowTrigger.findFirst.mockResolvedValue({ enabled: true, thresholdDays: 10 });
 
-        await settings.getReplacementSettings();
-        await settings.getReplacementSettings();
+        await settings.getReplacementSettings(prisma, AGENCY_ID);
+        await settings.getReplacementSettings(prisma, AGENCY_ID);
 
         expect(prisma.workflowTrigger.findFirst).toHaveBeenCalledTimes(1);
     });
 
     test('invalidate() forces a re-read so an admin toggle takes effect', async () => {
         prisma.workflowTrigger.findFirst.mockResolvedValue({ enabled: false, thresholdDays: 10 });
-        expect((await settings.getReplacementSettings()).autoOfferEnabled).toBe(false);
+        expect((await settings.getReplacementSettings(prisma, AGENCY_ID)).autoOfferEnabled).toBe(false);
 
         prisma.workflowTrigger.findFirst.mockResolvedValue({ enabled: true, thresholdDays: 20 });
-        settings.invalidate();
+        settings.invalidate(AGENCY_ID);
 
-        const s = await settings.getReplacementSettings();
+        const s = await settings.getReplacementSettings(prisma, AGENCY_ID);
         expect(s.autoOfferEnabled).toBe(true);
         expect(s.responseWindowMinutes).toBe(20);
     });

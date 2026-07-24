@@ -38,6 +38,11 @@ const ALLOWLIST = new Set([
   // enumerates active agencies on the owner connection, then runs the
   // per-agency geocode backfill inside runWithTenant with a tenantClient.
   'src/services/geocodeBackfill.js',
+  // Cron-driver-shaped, but per-job rather than per-agency-sweep: BullMQ job
+  // payloads carry no agencyId, so this worker resolves the offer's agency
+  // on the owner connection first, then runs entirely inside runWithTenant
+  // with a per-agency tenantClient (see replacementWorker.js top comment).
+  'src/workers/replacementWorker.js',
 ]);
 
 test('only allowlisted files import lib/prisma', () => {
