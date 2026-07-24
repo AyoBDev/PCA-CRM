@@ -108,7 +108,7 @@ async function getTimesheet(req, res, next) {
 
 // GET /api/timesheets/activities  — return activity lists
 async function getActivities(req, res) {
-    res.json({ adl: ADL_ACTIVITIES, iadl: IADL_ACTIVITIES, respite: RESPITE_ACTIVITIES });
+    res.json({ adl: ADL_ACTIVITIES, iadl: IADL_ACTIVITIES, respite: RESPITE_ACTIVITIES, companion: COMPANION_ACTIVITIES });
 }
 
 // POST /api/timesheets
