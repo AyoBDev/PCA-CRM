@@ -1,5 +1,6 @@
 const audit = require('../services/auditService');
 const onboarding = require('../services/onboardingService');
+const { geocodeOnWrite } = require('../services/geocodeOnWrite');
 
 async function listEmployees(req, res, next) {
     try {
@@ -29,7 +30,7 @@ async function getEmployee(req, res, next) {
 
 async function createEmployee(req, res, next) {
     try {
-        const { name, phone, email, userId } = req.body;
+        const { name, phone, email, userId, address } = req.body;
         if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
 
         const employee = await req.db.employee.create({
@@ -37,11 +38,14 @@ async function createEmployee(req, res, next) {
                 name: name.trim(),
                 phone: phone || '',
                 email: email || '',
+                address: (address || '').trim(),
                 userId: userId || null,
             },
             include: { user: { select: { id: true, name: true, email: true, role: true } } },
         });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name });
+        // Geocode immediately so a new employee has a distance without a later edit.
+        geocodeOnWrite('employee', employee.id, { oldAddress: '', newAddress: employee.address });
 
         // Auto-send onboarding invite if email provided and no user account linked
         if (employee.email && !userId) {
@@ -76,6 +80,8 @@ async function updateEmployee(req, res, next) {
         });
         const changes = audit.diffFields(oldEmployee, employee, Object.keys(data));
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, changes });
+        // Re-geocode if the address changed, so distance shows without a redeploy.
+        geocodeOnWrite('employee', employee.id, { oldAddress: oldEmployee.address, newAddress: data.address });
         res.json(employee);
     } catch (err) {
         if (err.code === 'P2025') return res.status(404).json({ error: 'Employee not found' });
@@ -198,9 +204,11 @@ async function bulkImportEmployees(req, res, next) {
                 const existing = await req.db.employee.findFirst({ where: { name } });
                 if (existing) {
                     await req.db.employee.update({ where: { id: existing.id }, data: employeeData });
+                    geocodeOnWrite('employee', existing.id, { oldAddress: existing.address, newAddress: employeeData.address });
                     updated++;
                 } else {
-                    await req.db.employee.create({ data: employeeData });
+                    const createdEmp = await req.db.employee.create({ data: employeeData });
+                    geocodeOnWrite('employee', createdEmp.id, { oldAddress: '', newAddress: employeeData.address });
                     created++;
                 }
             }

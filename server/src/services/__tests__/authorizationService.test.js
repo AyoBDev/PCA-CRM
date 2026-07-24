@@ -4,6 +4,7 @@ const {
     computeStatus,
     enrichAuthorization,
     enrichClient,
+    classifyWeekAuthBySection,
 } = require('../authorizationService');
 
 // Helper: create a date N days from "today" (UTC)
@@ -164,5 +165,36 @@ describe('enrichClient', () => {
         const result = enrichClient(client);
         expect(result.overallStatus).toBe('Renewal Reminder');
         expect(result.statusColor).toBe('ORANGE');
+    });
+});
+
+// ── classifyWeekAuthBySection ──────────────────────
+describe('classifyWeekAuthBySection', () => {
+    // Simple section deriver: map PCS→PAS, S5130→Homemaker for these tests.
+    const derive = (a) => ({ PCS: 'PAS', S5130: 'Homemaker' }[a.serviceCode] || null);
+    const weekStart = new Date('2026-07-12T00:00:00Z'); // Sunday
+    const weekEnd = new Date('2026-07-18T00:00:00Z');    // Saturday
+
+    test('active auth → activeUnits populated, no expired', () => {
+        const auths = [{ serviceCode: 'PCS', authorizedUnits: 400, manualStatus: 'active', authorizationStartDate: null, authorizationEndDate: null }];
+        const r = classifyWeekAuthBySection(auths, weekStart, weekEnd, derive);
+        expect(r.activeUnits.PAS).toBe(400);
+        expect(r.expiredOn.PAS).toBeUndefined();
+        expect(r.hadAny.PAS).toBe(true);
+    });
+
+    test('expired auth → no active units but expiredOn set', () => {
+        const auths = [{ serviceCode: 'PCS', authorizedUnits: 400, manualStatus: 'active', authorizationStartDate: '2019-01-01', authorizationEndDate: '2020-01-01' }];
+        const r = classifyWeekAuthBySection(auths, weekStart, weekEnd, derive);
+        expect(r.activeUnits.PAS).toBeUndefined();
+        expect(r.expiredOn.PAS).toBeInstanceOf(Date);
+        expect(r.hadAny.PAS).toBe(true);
+    });
+
+    test('no auth for a section → nothing recorded', () => {
+        const r = classifyWeekAuthBySection([], weekStart, weekEnd, derive);
+        expect(r.activeUnits.PAS).toBeUndefined();
+        expect(r.expiredOn.PAS).toBeUndefined();
+        expect(r.hadAny.PAS).toBeUndefined();
     });
 });

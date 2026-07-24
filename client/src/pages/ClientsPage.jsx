@@ -2,13 +2,13 @@ import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
+import AuthorizationFormModal from '../components/common/AuthorizationFormModal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import DrawerPanel from '../components/common/DrawerPanel';
 import { formatDate as fmtDate, daysClass } from '../utils/dates';
 import { statusLabel } from '../utils/status';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
-import { ServiceCodeSelect } from '../utils/serviceCodes';
 import { ActivityButton, EntityActivityButton } from '../components/common/ActivityDrawer';
 
 // ── Client Form Modal ──
@@ -112,106 +112,7 @@ function ClientFormModal({ client, onSave, onClose, insuranceTypeNames }) {
     );
 }
 
-// ── Authorization Form Modal ──
-function AuthFormModal({ auth, clientId, onSave, onClose }) {
-    const [serviceCategory, setServiceCategory] = useState(auth?.serviceCategory || '');
-    const [serviceCode, setServiceCode] = useState(auth?.serviceCode || 'PCS');
-    const [serviceName, setServiceName] = useState(auth?.serviceName || '');
-    const [authorizedUnits, setAuthorizedUnits] = useState(auth?.authorizedUnits || '');
-    const [startDate, setStartDate] = useState(
-        auth?.authorizationStartDate ? new Date(auth.authorizationStartDate).toISOString().split('T')[0] : ''
-    );
-    const [endDate, setEndDate] = useState(
-        auth?.authorizationEndDate ? new Date(auth.authorizationEndDate).toISOString().split('T')[0] : ''
-    );
-    const [notes, setNotes] = useState(auth?.notes || '');
-    const isEdit = !!auth;
-
-    // Parse pasted date text into YYYY-MM-DD for date inputs
-    const handleDatePaste = (setter) => (e) => {
-        const text = (e.clipboardData || window.clipboardData).getData('text').trim();
-        if (!text) return;
-        let parsed = null;
-        // Try YYYY-MM-DD or YYYY/MM/DD
-        let m = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
-        if (m) parsed = `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
-        // Try MM/DD/YYYY or MM-DD-YYYY
-        if (!parsed) {
-            m = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
-            if (m) parsed = `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
-        }
-        // Try Month DD, YYYY or Mon DD, YYYY (e.g. "May 8, 2026" or "January 15, 2026")
-        if (!parsed) {
-            m = text.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
-            if (m) {
-                const d = new Date(`${m[1]} ${m[2]}, ${m[3]}`);
-                if (!isNaN(d)) parsed = d.toISOString().split('T')[0];
-            }
-        }
-        if (parsed && !isNaN(new Date(parsed + 'T00:00:00'))) {
-            e.preventDefault();
-            setter(parsed);
-        }
-    };
-
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        onSave({
-            serviceCategory,
-            serviceCode,
-            serviceName,
-            authorizedUnits: parseInt(authorizedUnits) || 0,
-            authorizationStartDate: startDate || null,
-            authorizationEndDate: endDate || null,
-            notes,
-        });
-    };
-
-    return (
-        <Modal onClose={onClose} wide>
-            <h2 className="modal__title">{isEdit ? 'Edit Authorization' : 'Add Authorization'}</h2>
-            <p className="modal__desc">{isEdit ? 'Update the authorization details below.' : 'Fill in the service and date details.'}</p>
-            <form onSubmit={handleSubmit}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div className="form-group">
-                        <label>Service Category</label>
-                        <input type="text" value={serviceCategory} onChange={(e) => setServiceCategory(e.target.value)} placeholder="PCS, WAIVER 58…" />
-                    </div>
-                    <div className="form-group">
-                        <label>Service Code</label>
-                        <ServiceCodeSelect value={serviceCode} onChange={(e) => setServiceCode(e.target.value)} />
-                    </div>
-                </div>
-                <div className="form-group">
-                    <label>Service Name</label>
-                    <input type="text" value={serviceName} onChange={(e) => setServiceName(e.target.value)} placeholder="Personal Care Services" />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-                    <div className="form-group">
-                        <label>Auth Units</label>
-                        <input type="number" value={authorizedUnits} onChange={(e) => setAuthorizedUnits(e.target.value)} placeholder="0" />
-                    </div>
-                    <div className="form-group">
-                        <label>Auth Start</label>
-                        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} onPaste={handleDatePaste(setStartDate)} />
-                    </div>
-                    <div className="form-group">
-                        <label>Auth End</label>
-                        <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} onPaste={handleDatePaste(setEndDate)} required />
-                    </div>
-                </div>
-                <div className="form-group">
-                    <label>Notes</label>
-                    <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes…" />
-                </div>
-                <div className="form-actions">
-                    <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn--primary">{isEdit ? 'Save Changes' : 'Add Authorization'}</button>
-                </div>
-            </form>
-        </Modal>
-    );
-}
+// AuthFormModal is now the shared <AuthorizationFormModal> (imported at top).
 
 // ── Bulk Import Modal ──
 function BulkImportModal({ onImport, onClose }) {
@@ -528,12 +429,22 @@ export default function ClientsPage() {
 
     const handleSaveAuth = async (data) => {
         try {
+            const { files, ...authData } = data;
+            let savedAuth;
             if (modal.auth) {
-                await api.updateAuthorization(modal.auth.id, data);
+                savedAuth = await api.updateAuthorization(modal.auth.id, authData);
                 showToast('Authorization updated');
             } else {
-                await api.createAuthorization(modal.clientId, data);
+                savedAuth = await api.createAuthorization(modal.clientId, authData);
                 showToast('Authorization added');
+            }
+            if (files && files.length > 0 && savedAuth?.id) {
+                for (const file of files) {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    await api.uploadAuthDocument(savedAuth.id, formData);
+                }
+                showToast(`${files.length} document${files.length > 1 ? 's' : ''} uploaded`);
             }
             setModal(null);
             const refreshed = await api.getClients();
@@ -881,7 +792,7 @@ export default function ClientsPage() {
                 <ClientFormModal client={modal.client} onSave={handleSaveClient} onClose={() => setModal(null)} insuranceTypeNames={insuranceTypeNames} />
             )}
             {modal?.type === 'auth' && (
-                <AuthFormModal auth={modal.auth} clientId={modal.clientId} onSave={handleSaveAuth} onClose={() => setModal(null)} />
+                <AuthorizationFormModal auth={modal.auth} clientId={modal.clientId} onSave={handleSaveAuth} onClose={() => setModal(null)} />
             )}
             {modal?.type === 'bulkImport' && (
                 <BulkImportModal onImport={handleBulkImport} onClose={() => setModal(null)} />

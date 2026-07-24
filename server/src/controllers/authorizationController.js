@@ -1,20 +1,37 @@
 const { enrichAuthorization, enrichClient } = require('../services/authorizationService');
 const audit = require('../services/auditService');
 const { tenantTransaction } = require('../lib/tenantPrisma');
+const serviceRegistry = require('../services/serviceRegistry');
 
-const VALID_SERVICE_CODES = ['PCS', 'SDPC', 'TIMESHEETS', 'TIMESHEET_PCS', 'TIMESHEET_HOMEMAKER', 'TIMESHEET_RESPITE', 'TIMESHEET_COMPANION', 'TIMESHEET_CHORE', 'S5120', 'S5125', 'S5130', 'S5135', 'S5150', 'PAS', 'COPE'];
-
-function validateBody(body) {
+async function validateBody(body) {
     const { serviceCode } = body;
     const errors = [];
-    if (!serviceCode || !VALID_SERVICE_CODES.includes(serviceCode)) {
-        errors.push(`serviceCode must be one of: ${VALID_SERVICE_CODES.join(', ')}`);
+    const serviceMap = await serviceRegistry.getServiceMap();
+    if (!serviceCode || !serviceMap[serviceCode]) {
+        errors.push(`Unknown service code: ${serviceCode}`);
     }
     return errors;
 }
 
 // Program codes that allow multiple active authorizations (different services under same program)
 const MULTI_AUTH_CODES = ['COPE', 'PAS'];
+
+// Build the authorizationType + GUIDE annual-visits fields.
+// The type is DERIVED from the service category / name — GUIDE is tracked as
+// Annual Visits (visits/year × hours/visit = hours/year, validated cumulatively
+// via usedHoursYtd); every other service is Weekly Units. This mirrors the
+// frontend derivation and keeps the DB consistent for API/import writes too.
+function buildAuthTypeFields(body) {
+    const isGuide = /guide/i.test(body.serviceCategory || '') || /guide/i.test(body.serviceName || '');
+    const authorizationType = isGuide ? 'Annual Visits' : 'Weekly Units';
+    if (authorizationType !== 'Annual Visits') {
+        return { authorizationType, authorizedVisitsPerYear: null, hoursPerVisit: null, authorizedHoursPerYear: null };
+    }
+    const visits = body.authorizedVisitsPerYear != null ? parseInt(body.authorizedVisitsPerYear) || 0 : null;
+    const perVisit = body.hoursPerVisit != null ? parseFloat(body.hoursPerVisit) || 0 : null;
+    const hoursPerYear = (visits != null && perVisit != null) ? Math.round(visits * perVisit * 100) / 100 : null;
+    return { authorizationType, authorizedVisitsPerYear: visits, hoursPerVisit: perVisit, authorizedHoursPerYear: hoursPerYear };
+}
 
 async function deactivatePreviousAuths(db, clientId, serviceCode, serviceName, excludeId, auditContext) {
     // Program codes allow multiple active auths with different service names
@@ -54,7 +71,7 @@ async function createAuthorization(req, res, next) {
         const client = await req.db.client.findUnique({ where: { id: clientId } });
         if (!client) return res.status(404).json({ error: 'Client not found' });
 
-        const errors = validateBody(req.body);
+        const errors = await validateBody(req.body);
         if (errors.length) return res.status(400).json({ errors });
 
         const auth = await req.db.authorization.create({
@@ -73,6 +90,7 @@ async function createAuthorization(req, res, next) {
                 notes: (req.body.notes || '').trim(),
                 accountNumber: (req.body.accountNumber || '').trim(),
                 sandataClientId: (req.body.sandataClientId || '').trim(),
+                ...buildAuthTypeFields(req.body),
             },
         });
 
@@ -90,7 +108,7 @@ async function createAuthorization(req, res, next) {
 async function updateAuthorization(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const errors = validateBody(req.body);
+        const errors = await validateBody(req.body);
         if (errors.length) return res.status(400).json({ errors });
 
         const oldAuth = await req.db.authorization.findUnique({ where: { id } });
@@ -111,6 +129,7 @@ async function updateAuthorization(req, res, next) {
                 accountNumber: (req.body.accountNumber || '').trim(),
                 sandataClientId: (req.body.sandataClientId || '').trim(),
                 ...(req.body.manualStatus && { manualStatus: req.body.manualStatus }),
+                ...buildAuthTypeFields(req.body),
             },
         });
 
@@ -276,7 +295,7 @@ async function renewAuthorization(req, res, next) {
         const oldAuth = await req.db.authorization.findUnique({ where: { id: oldId } });
         if (!oldAuth) return res.status(404).json({ error: 'Authorization not found' });
 
-        const errors = validateBody(req.body);
+        const errors = await validateBody(req.body);
         if (errors.length) return res.status(400).json({ errors });
 
         const clientId = oldAuth.clientId;

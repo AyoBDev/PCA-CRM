@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
+import { ServicesProvider } from './hooks/useServices';
 import Layout from './components/layout/Layout';
 import AttentionToastWatcher from './components/AttentionToastWatcher';
 
@@ -46,7 +47,7 @@ function ProtectedRoute({ children, adminOnly = false, staffOnly = false, office
     if (officeOnly && !isOffice) return <Navigate to="/timesheets" replace />;
     if (staffOnly && !isStaff) return <Navigate to="/timesheets" replace />;
     if (permission && !hasPermission(permission)) return <Navigate to="/dashboard" replace />;
-    return children;
+    return <ServicesProvider>{children}</ServicesProvider>;
 }
 
 function landingPath(user, isStaff, isSuperadmin) {

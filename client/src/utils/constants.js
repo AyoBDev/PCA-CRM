@@ -129,6 +129,8 @@ export const ACTION_COLORS = {
     RESET_PASSWORD: { bg: 'hsl(270 60% 93%)', text: 'hsl(270 60% 35%)', hex: '#f59e0b', label: 'Password Reset' },
     LOGIN: { bg: 'hsl(220 9% 93%)', text: 'hsl(220 9% 40%)', hex: '#6b7280', label: 'Login' },
     REVEAL: { bg: 'hsl(270 60% 93%)', text: 'hsl(270 60% 35%)', hex: '#9333ea', label: 'Revealed' },
+    // Grouped with REVEAL: both record that protected information left the app.
+    EXPORT: { bg: 'hsl(270 60% 93%)', text: 'hsl(270 60% 35%)', hex: '#9333ea', label: 'Exported' },
 };
 
 // ─── Certification Colors (employee) ───

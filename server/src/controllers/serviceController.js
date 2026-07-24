@@ -1,4 +1,5 @@
 const audit = require('../services/auditService');
+const serviceRegistry = require('../services/serviceRegistry');
 
 // GET /api/services
 async function listServices(req, res, next) {
@@ -17,7 +18,7 @@ async function listServices(req, res, next) {
 // POST /api/services
 async function createService(req, res, next) {
     try {
-        const { category, code, name } = req.body;
+        const { category, code, name, label, accountNumber, color, timesheetSection, sortOrder, enforceAuthLimit } = req.body;
         if (!code || typeof code !== 'string' || !code.trim()) {
             return res.status(400).json({ error: 'code is required' });
         }
@@ -26,9 +27,16 @@ async function createService(req, res, next) {
                 category: (category || '').trim().toUpperCase(),
                 code: code.trim().toUpperCase(),
                 name: (name || '').trim(),
+                label: (label || '').trim(),
+                accountNumber: (accountNumber || '').trim(),
+                color: (color || '').trim(),
+                timesheetSection: (timesheetSection || '').trim(),
+                sortOrder: Number.isFinite(Number(sortOrder)) ? Number(sortOrder) : 50,
+                enforceAuthLimit: enforceAuthLimit === undefined ? true : !!enforceAuthLimit,
             },
         });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Service', entityId: service.id, entityName: service.code });
+        serviceRegistry.invalidate();
         res.status(201).json(service);
     } catch (err) {
         if (err.code === 'P2002') return res.status(409).json({ error: 'Service code already exists' });
@@ -40,7 +48,7 @@ async function createService(req, res, next) {
 async function updateService(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const { category, code, name } = req.body;
+        const { category, code, name, label, accountNumber, color, timesheetSection, sortOrder, enforceAuthLimit } = req.body;
         if (!code || typeof code !== 'string' || !code.trim()) {
             return res.status(400).json({ error: 'code is required' });
         }
@@ -51,10 +59,17 @@ async function updateService(req, res, next) {
                 category: (category || '').trim().toUpperCase(),
                 code: code.trim().toUpperCase(),
                 name: (name || '').trim(),
+                label: (label || '').trim(),
+                accountNumber: (accountNumber || '').trim(),
+                color: (color || '').trim(),
+                timesheetSection: (timesheetSection || '').trim(),
+                sortOrder: Number.isFinite(Number(sortOrder)) ? Number(sortOrder) : 50,
+                enforceAuthLimit: enforceAuthLimit === undefined ? true : !!enforceAuthLimit,
             },
         });
-        const changes = audit.diffFields(oldService, service, ['category', 'code', 'name']);
+        const changes = audit.diffFields(oldService, service, ['category', 'code', 'name', 'label', 'accountNumber', 'color', 'timesheetSection', 'sortOrder', 'enforceAuthLimit']);
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Service', entityId: service.id, entityName: service.code, changes });
+        serviceRegistry.invalidate();
         res.json(service);
     } catch (err) {
         if (err.code === 'P2025') return res.status(404).json({ error: 'Service not found' });
@@ -71,6 +86,7 @@ async function deleteService(req, res, next) {
         if (!svc) return res.status(404).json({ error: 'Service not found' });
         const archived = await req.db.service.update({ where: { id }, data: { archivedAt: new Date() } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'ARCHIVE', entityType: 'Service', entityId: id, entityName: svc.code });
+        serviceRegistry.invalidate();
         res.json(archived);
     } catch (err) { next(err); }
 }
@@ -83,6 +99,7 @@ async function restoreService(req, res, next) {
         if (!svc) return res.status(404).json({ error: 'Service not found' });
         const restored = await req.db.service.update({ where: { id }, data: { archivedAt: null } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'RESTORE', entityType: 'Service', entityId: id, entityName: restored.code });
+        serviceRegistry.invalidate();
         res.json(restored);
     } catch (err) { next(err); }
 }
@@ -95,6 +112,7 @@ async function permanentlyDeleteService(req, res, next) {
         if (!svc.archivedAt) return res.status(400).json({ error: 'Only archived services can be permanently deleted' });
         await req.db.service.delete({ where: { id } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'PERMANENT_DELETE', entityType: 'Service', entityId: id, entityName: svc.code });
+        serviceRegistry.invalidate();
         res.json({ success: true });
     } catch (err) { next(err); }
 }
@@ -103,6 +121,7 @@ async function bulkPermanentlyDeleteServices(req, res, next) {
     try {
         const result = await req.db.service.deleteMany({ where: { archivedAt: { not: null } } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'BULK_DELETE', entityType: 'Service', entityId: 0, metadata: { count: result.count } });
+        serviceRegistry.invalidate();
         res.json({ success: true, count: result.count });
     } catch (err) { next(err); }
 }

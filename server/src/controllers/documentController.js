@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const audit = require('../services/auditService');
+const { uploadFile, downloadFile } = require('../lib/storage');
 
 // POST /api/clients/:clientId/documents (multipart — req.file from multer)
 async function uploadDocument(req, res, next) {
@@ -14,15 +15,19 @@ async function uploadDocument(req, res, next) {
         const category = req.body.category;
         if (!category) return res.status(400).json({ error: 'category is required' });
 
+        // Store the file in the object bucket (not inline in the DB). The bucket
+        // key is kept in filePath; downloadDocument streams it back from there.
+        const bucketKey = `client-documents/${clientId}/${Date.now()}-${req.file.originalname}`;
+        await uploadFile(bucketKey, req.file.buffer, req.file.mimetype || 'application/octet-stream');
+
         const doc = await req.db.clientDocument.create({
             data: {
                 clientId,
                 category,
                 fileName: req.file.originalname,
-                filePath: `documents/${clientId}/${req.file.originalname}`,
+                filePath: bucketKey,
                 fileSize: req.file.size,
                 mimeType: req.file.mimetype || '',
-                fileData: req.file.buffer,
                 uploadedBy: req.user.id,
                 notes: (req.body.notes || '').trim(),
             },
@@ -48,16 +53,29 @@ async function downloadDocument(req, res, next) {
         const doc = await req.db.clientDocument.findUnique({ where: { id } });
         if (!doc) return res.status(404).json({ error: 'Document not found' });
 
+        const mimeType = doc.mimeType || 'application/octet-stream';
+        const disposition = mimeType === 'application/pdf' ? 'inline' : 'attachment';
+
+        // Legacy records kept bytes inline; serve those directly.
         if (doc.fileData) {
-            const mimeType = doc.mimeType || 'application/octet-stream';
-            const disposition = mimeType === 'application/pdf' ? 'inline' : 'attachment';
             res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(doc.fileName)}"`);
             res.setHeader('Content-Type', mimeType);
             res.setHeader('Content-Length', doc.fileData.length);
             return res.send(Buffer.from(doc.fileData));
         }
 
-        // Fallback to filesystem for old uploads
+        // Current records store the file in the object bucket (key = filePath).
+        if (doc.filePath) {
+            const buffer = await downloadFile(doc.filePath);
+            if (buffer) {
+                res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(doc.fileName)}"`);
+                res.setHeader('Content-Type', mimeType);
+                res.setHeader('Content-Length', buffer.length);
+                return res.send(buffer);
+            }
+        }
+
+        // Last-resort fallback to the old local filesystem for very old uploads.
         const fullPath = path.join(__dirname, '..', '..', 'uploads', doc.filePath);
         if (!fs.existsSync(fullPath)) return res.status(404).json({ error: 'File not found. It may have been lost during a deployment. Please re-upload.' });
 

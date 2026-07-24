@@ -9,6 +9,7 @@ import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import { useUndoStack } from '../hooks/useUndoStack';
 import PayrollTab from './employee-tabs/PayrollTab';
+import EmployeeNotesTab from './employee-tabs/NotesTab';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import { TIMESHEET_STATUS_STYLES, TIMESHEET_SERVICE_COLORS } from '../utils/constants';
@@ -23,6 +24,7 @@ const TABS = [
     { key: 'schedule', label: 'Schedule', icon: 'calendar' },
     { key: 'scheduleHistory', label: 'Schedule History', icon: 'share' },
     { key: 'payroll', label: 'Payroll', icon: 'dollarSign', adminOnly: true },
+    { key: 'notes', label: 'Notes', icon: 'fileText' },
     { key: 'activity', label: 'Activity Log', icon: 'clipboard' },
 ];
 
@@ -644,6 +646,9 @@ export default function EmployeeDetailPage() {
                     {activeTab === 'payroll' && (
                         <PayrollTab employeeId={employee.id} />
                     )}
+                    {activeTab === 'notes' && (
+                        <EmployeeNotesTab employeeId={employee.id} />
+                    )}
                     {activeTab === 'activity' && (
                         <ActivityTab employeeId={employee.id} />
                     )}
@@ -844,6 +849,26 @@ function CertificationsTab({ employee, onEdit }) {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    // Download an individual history/attachment file (CertificationUpload) from the bucket.
+    const handleDownloadUpload = async (upload) => {
+        try {
+            const res = await api.downloadCertificationUpload(upload.id);
+            if (!res.ok) throw new Error('Download failed');
+            const contentType = res.headers.get('Content-Type') || 'application/octet-stream';
+            const blob = await res.blob();
+            const url = URL.createObjectURL(new Blob([blob], { type: contentType }));
+            if (contentType === 'application/pdf') {
+                window.open(url, '_blank');
+            } else {
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = upload.fileName;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     const statusLabel = (s) => s === 'ok' ? 'Active' : s === 'critical' ? 'Expiring Soon' : s === 'expired' ? 'Expired' : 'Not Set';
     const statusBadgeClass = (s) => s === 'ok' ? 'submitted' : s === 'critical' ? 'draft' : s === 'expired' ? 'critical' : 'draft';
 
@@ -946,7 +971,14 @@ function CertificationsTab({ employee, onEdit }) {
         const expiredRecords = allRecords.filter(r => r.status === 'expired');
         const currentAttachment = activeRecords.find(r => r.fileName);
         const allUploads = allRecords.flatMap(r => r.uploads || []);
-        const attachCount = allRecords.filter(r => r.fileName).length + allUploads.length;
+        // Count distinct files. Each CertificationUpload row IS one stored file
+        // (the active file already has its own "Active (imported)" upload row), so
+        // when uploads exist they are the source of truth. Only fall back to
+        // counting records-with-a-file for legacy certs that have inline fileData
+        // but no upload rows.
+        const attachCount = allUploads.length > 0
+            ? allUploads.length
+            : allRecords.filter(r => r.fileName).length;
 
         return (
             <div key={ct.type} className="pa-service-card" style={{ '--card-accent': colors.accent, '--card-bg': colors.bg, '--card-border': colors.border }}>
@@ -1027,6 +1059,33 @@ function CertificationsTab({ employee, onEdit }) {
                                                 <div className="pa-auth-item__notes">{rec.notes}</div>
                                             </div>
                                         )}
+                                        {(() => {
+                                            // Show history attachments under the active cert. The active file
+                                            // itself already appears in the header with its own download button,
+                                            // so skip the upload row that matches the active fileName to avoid a
+                                            // duplicate; the rest are prior/expired history files.
+                                            const history = (rec.uploads || []).filter(u => u.fileName !== rec.fileName);
+                                            if (history.length === 0) return null;
+                                            return (
+                                                <div className="pa-auth-item__body">
+                                                    <div style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '4px 0' }}>History</div>
+                                                    {history.map(upload => (
+                                                        <div key={upload.id} style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '4px 0 4px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                            <span style={{ display: 'inline-flex', width: 14, height: 14, flexShrink: 0 }}>{Icons.paperclip}</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDownloadUpload(upload)}
+                                                                title="View file"
+                                                                style={{ background: 'none', border: 'none', padding: 0, color: 'hsl(var(--primary))', cursor: 'pointer', textDecoration: 'underline', fontSize: 12 }}
+                                                            >
+                                                                {upload.fileName}
+                                                            </button>
+                                                            <span>({(upload.fileSize / 1024).toFixed(0)} KB)</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 ))}
                                 {pendingRecords.length > 0 && (
@@ -1050,7 +1109,16 @@ function CertificationsTab({ employee, onEdit }) {
                                                 </div>
                                                 {(rec.uploads || []).map(upload => (
                                                     <div key={upload.id} style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '4px 0 4px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        {Icons.paperclip} {upload.fileName} ({(upload.fileSize / 1024).toFixed(0)} KB)
+                                                        <span style={{ display: 'inline-flex', width: 14, height: 14, flexShrink: 0 }}>{Icons.paperclip}</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDownloadUpload(upload)}
+                                                            title="View file"
+                                                            style={{ background: 'none', border: 'none', padding: 0, color: 'hsl(var(--primary))', cursor: 'pointer', textDecoration: 'underline', fontSize: 12 }}
+                                                        >
+                                                            {upload.fileName}
+                                                        </button>
+                                                        <span>({(upload.fileSize / 1024).toFixed(0)} KB)</span>
                                                         {upload.note && <span style={{ fontStyle: 'italic' }}>— {upload.note}</span>}
                                                     </div>
                                                 ))}

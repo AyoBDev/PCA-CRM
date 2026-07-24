@@ -61,6 +61,8 @@ model Agency {
   Notification            Notification[]
   PushSubscription        PushSubscription[]
   PermissionGroup         PermissionGroup[]
+  ShiftCallout            ShiftCallout[]
+  ShiftOffer              ShiftOffer[]
 
   @@map("agencies")
 }
@@ -198,6 +200,11 @@ model Employee {
   complianceStatus       String                  @default("ok") @map("compliance_status")
   onboardingStatus       String                  @default("active") @map("onboarding_status")
   availability           Json?                   @map("availability")
+  latitude               Float?                  @map("latitude")
+  longitude              Float?                  @map("longitude")
+  geocodedAt             DateTime?               @map("geocoded_at")
+  geocodeStatus          String                  @default("pending") @map("geocode_status")
+  geocodeAddressHash     String                  @default("") @map("geocode_address_hash")
   careTeamAssignments    ClientCareTeam[]
   certifications         EmployeeCertification[]
   scheduleLink           EmployeeScheduleLink?
@@ -213,6 +220,8 @@ model Employee {
   conversation           Conversation?
   employeeTasks          EmployeeTask[]
   portalNotifications    Notification[]
+  shiftOffers            ShiftOffer[]
+  shiftCallouts          ShiftCallout[]          @relation("CalloutEmployee")
   agencyId               Int                     @map("agency_id")
   agency                 Agency                  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
@@ -339,6 +348,16 @@ model Client {
   secondaryEmergencyRelation String           @default("") @map("secondary_emergency_relation")
   secondaryPhone             String           @default("") @map("secondary_phone")
   client_status              String           @default("active")
+  authorizationRequired      Boolean          @default(true) @map("authorization_required")
+  overrideActive             Boolean          @default(false) @map("override_active")
+  overrideExpiresOn          DateTime?        @map("override_expires_on")
+  overrideReason             String           @default("") @map("override_reason")
+  overrideBy                 String           @default("") @map("override_by")
+  latitude                   Float?           @map("latitude")
+  longitude                  Float?           @map("longitude")
+  geocodedAt                 DateTime?        @map("geocoded_at")
+  geocodeStatus              String           @default("pending") @map("geocode_status")
+  geocodeAddressHash         String           @default("") @map("geocode_address_hash")
   authorizations             Authorization[]
   careTeam                   ClientCareTeam[]
   documents                  ClientDocument[]
@@ -496,6 +515,11 @@ model Authorization {
   accountNumber           String                    @default("") @map("account_number")
   sandataClientId         String                    @default("") @map("sandata_client_id")
   manualStatus            String                    @default("active") @map("manual_status")
+  authorizationType       String                    @default("Weekly Units") @map("authorization_type")
+  authorizedVisitsPerYear Int?                      @map("authorized_visits_per_year")
+  hoursPerVisit           Float?                    @map("hours_per_visit")
+  authorizedHoursPerYear  Float?                    @map("authorized_hours_per_year")
+  usedHoursYtd            Float                     @default(0) @map("used_hours_ytd")
   authorization_documents authorization_documents[]
   client                  Client                    @relation(fields: [clientId], references: [id], onDelete: Cascade)
   agencyId                Int                       @map("agency_id")
@@ -562,17 +586,22 @@ model Lead {
   assignedTo   String    @default("") @map("assigned_to")
   followUpDate DateTime? @map("follow_up_date")
 
+  // Staff attribution
+  createdBy String @default("") @map("created_by")
+
   // Conversion linkage
   convertedClientId Int?      @map("converted_client_id")
   convertedAt       DateTime? @map("converted_at")
 
   archivedAt DateTime? @map("archived_at")
+  dormantAt  DateTime? @map("dormant_at")
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
   agencyId   Int       @map("agency_id")
   agency     Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([status])
+  @@index([dormantAt])
   @@index([agencyId])
   @@map("leads")
 }
@@ -593,15 +622,21 @@ model InsuranceType {
 }
 
 model Service {
-  id         Int       @id @default(autoincrement())
-  category   String
-  code       String
-  name       String    @default("")
-  archivedAt DateTime? @map("archived_at")
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
-  agencyId   Int       @map("agency_id")
-  agency     Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  id               Int       @id @default(autoincrement())
+  category         String
+  code             String
+  name             String    @default("")
+  label            String    @default("")
+  accountNumber    String    @default("") @map("account_number")
+  color            String    @default("")
+  timesheetSection String    @default("") @map("timesheet_section")
+  sortOrder        Int       @default(50) @map("sort_order")
+  enforceAuthLimit Boolean   @default(true) @map("enforce_auth_limit")
+  archivedAt       DateTime? @map("archived_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  agencyId         Int       @map("agency_id")
+  agency           Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@unique([agencyId, code])
   @@index([agencyId])
@@ -828,33 +863,97 @@ model PayReceipt {
 }
 
 model Shift {
-  id               Int       @id @default(autoincrement())
-  clientId         Int       @map("client_id")
-  employeeId       Int?      @map("employee_id")
-  serviceCode      String    @map("service_code")
-  shiftDate        DateTime  @map("shift_date")
-  startTime        String    @map("start_time")
-  endTime          String    @map("end_time")
-  hours            Float     @default(0)
-  units            Int       @default(0)
-  notes            String    @default("")
-  status           String    @default("scheduled")
-  recurringGroupId String    @default("") @map("recurring_group_id")
-  accountNumber    String    @default("") @map("account_number")
-  sandataClientId  String    @default("") @map("sandata_client_id")
-  archivedAt       DateTime? @map("archived_at")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
-  client           Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  employee         Employee? @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  agencyId         Int       @map("agency_id")
-  agency           Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  id               Int            @id @default(autoincrement())
+  clientId         Int            @map("client_id")
+  employeeId       Int?           @map("employee_id")
+  serviceCode      String         @map("service_code")
+  shiftDate        DateTime       @map("shift_date")
+  startTime        String         @map("start_time")
+  endTime          String         @map("end_time")
+  hours            Float          @default(0)
+  units            Int            @default(0)
+  notes            String         @default("")
+  status           String         @default("scheduled")
+  recurringGroupId String         @default("") @map("recurring_group_id")
+  accountNumber    String         @default("") @map("account_number")
+  sandataClientId  String         @default("") @map("sandata_client_id")
+  archivedAt       DateTime?      @map("archived_at")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  client           Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  employee         Employee?      @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  agencyId         Int            @map("agency_id")
+  agency           Agency         @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  offers           ShiftOffer[]
+  callouts         ShiftCallout[]
 
   @@index([clientId])
   @@index([employeeId])
   @@index([shiftDate])
   @@index([agencyId])
   @@map("shifts")
+}
+
+/// A caregiver calling out of a scheduled shift. Opens the replacement workflow.
+model ShiftCallout {
+  id                Int          @id @default(autoincrement())
+  shiftId           Int          @map("shift_id")
+  calloutEmployeeId Int?         @map("callout_employee_id")
+  reason            String       @default("")
+  reportedById      Int?         @map("reported_by_id")
+  /// 'open' | 'filled' | 'no_coverage' | 'cancelled'
+  resolution        String       @default("open")
+  resolvedAt        DateTime?    @map("resolved_at")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+  shift             Shift        @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  calloutEmployee   Employee?    @relation("CalloutEmployee", fields: [calloutEmployeeId], references: [id], onDelete: SetNull)
+  offers            ShiftOffer[]
+  agencyId          Int          @map("agency_id")
+  agency            Agency       @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@index([shiftId])
+  @@index([resolution])
+  @@index([agencyId])
+  @@map("shift_callouts")
+}
+
+/// One replacement offer to one candidate. This table is the compliance record:
+/// it answers "who was offered this shift, in what order, and when" for audit.
+///
+/// offeredAt is null while an offer is only a ranked suggestion (shadow mode) —
+/// that distinguishes "who we would have asked" from "who we actually asked".
+model ShiftOffer {
+  id             Int           @id @default(autoincrement())
+  shiftId        Int           @map("shift_id")
+  calloutId      Int?          @map("callout_id")
+  employeeId     Int           @map("employee_id")
+  /// Position in the ranked candidate list at the time of ranking.
+  rank           Int           @default(0)
+  /// Per-term score contributions, so a past ranking stays explainable.
+  scoreBreakdown Json          @default("{}") @map("score_breakdown")
+  /// 'portal' | 'email' | 'sms'
+  channel        String        @default("")
+  token          String        @unique @default(uuid())
+  offeredAt      DateTime?     @map("offered_at")
+  expiresAt      DateTime?     @map("expires_at")
+  respondedAt    DateTime?     @map("responded_at")
+  /// '' (pending) | 'accepted' | 'declined' | 'expired' | 'skipped'
+  response       String        @default("")
+  failureReason  String        @default("") @map("failure_reason")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  shift          Shift         @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  callout        ShiftCallout? @relation(fields: [calloutId], references: [id], onDelete: SetNull)
+  employee       Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  agencyId       Int           @map("agency_id")
+  agency         Agency        @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@index([shiftId])
+  @@index([employeeId])
+  @@index([calloutId])
+  @@index([agencyId])
+  @@map("shift_offers")
 }
 
 model AuditLog {

@@ -12,8 +12,10 @@ jest.mock('../../services/onboardingService', () => ({
     createOnboardingToken: jest.fn().mockResolvedValue({ token: 'test-token' }),
     sendOnboardingEmail: jest.fn().mockResolvedValue(undefined),
 }));
+jest.mock('../../services/geocodeOnWrite', () => ({ geocodeOnWrite: jest.fn() }));
 
 const prisma = require('../../lib/prisma');
+const { geocodeOnWrite } = require('../../services/geocodeOnWrite');
 const { listEmployees, createEmployee } = require('../employeeController');
 
 function mockReqRes(overrides = {}) {
@@ -57,5 +59,38 @@ describe('createEmployee', () => {
         const { req, res, next } = mockReqRes({ body: { name: 'Jane' } });
         await createEmployee(req, res, next);
         expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    test('persists the address given at creation', async () => {
+        prisma.employee.create.mockResolvedValue({ id: 1, name: 'Jane', email: '', address: '123 Main St' });
+        const { req, res, next } = mockReqRes({ body: { name: 'Jane', address: '123 Main St' } });
+
+        await createEmployee(req, res, next);
+
+        // Address was previously dropped on create — the field was not even
+        // destructured — so a new employee could never be geocoded.
+        expect(prisma.employee.create).toHaveBeenCalledWith(
+            expect.objectContaining({ data: expect.objectContaining({ address: '123 Main St' }) }),
+        );
+    });
+
+    test('geocodes a new employee that has an address', async () => {
+        prisma.employee.create.mockResolvedValue({ id: 7, name: 'Jane', email: '', address: '123 Main St' });
+        const { req, res, next } = mockReqRes({ body: { name: 'Jane', address: '123 Main St' } });
+
+        await createEmployee(req, res, next);
+
+        // The whole point: a distance should appear without a follow-up edit.
+        expect(geocodeOnWrite).toHaveBeenCalledWith('employee', 7, { oldAddress: '', newAddress: '123 Main St' });
+    });
+
+    test('does not geocode a new employee with no address', async () => {
+        prisma.employee.create.mockResolvedValue({ id: 8, name: 'NoAddr', email: '', address: '' });
+        const { req, res, next } = mockReqRes({ body: { name: 'NoAddr' } });
+
+        await createEmployee(req, res, next);
+
+        expect(geocodeOnWrite).toHaveBeenCalledWith('employee', 8, { oldAddress: '', newAddress: '' });
+        // geocodeOnWrite itself no-ops on a blank address; asserted in its own suite.
     });
 });

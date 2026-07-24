@@ -457,6 +457,45 @@ Auth pill colors: `--pas` (blue), `--hm` (green), `--respite` (orange).
 </div>
 ```
 
+### Service Card
+
+A reference-list card variant used on the **Services** settings page. Reuses the
+`.it-grid` + `.it-card` base, but stacks its content in **three text layers**
+(name → code+category → chips) and renders the entity color as a **vertical strip
+on the card's right edge** instead of a left swatch. Use this variant when a card
+has more than one line of metadata and/or a small set of status chips, and the
+color is an accent rather than the primary content.
+
+```jsx
+<div className="it-grid">
+  <div className="it-card svc-card">
+    <div className="it-card__info svc-card__info">
+      {/* layer 1 — title */}
+      <div className="it-card__name">Homemaker</div>
+      {/* layer 2 — code + category */}
+      <div className="svc-card__meta">
+        <span className="svc-card__code">S5130</span>
+        <span className="svc-card__cat">PCS</span>
+      </div>
+      {/* layer 3 — status chips (optional; row reserves height when empty) */}
+      <div className="svc-card__chips">
+        <span className="badge badge--outline">Homemaker</span>
+        <span className="badge badge--outline text-muted">no limit</span>
+      </div>
+    </div>
+    <div className="it-card__actions">{/* edit/delete, pinned top-right */}</div>
+    {/* color as a full-height strip on the right edge */}
+    <div className="svc-card__strip" style={{background: '#f59e0b'}} />
+  </div>
+</div>
+```
+
+**Layout rules:**
+- `.svc-card` is `position: relative` with right padding reserving room for the strip; `.svc-card__strip` is absolutely positioned full-height, 8px wide, on the right edge with the card's right corners rounded.
+- `.svc-card__info` is `flex: 1; min-width: 0` so long names/codes **wrap** instead of overflowing under the action buttons; `.it-card__actions` is `flex-shrink: 0` and `align-self: flex-start` so buttons stay pinned top-right on taller multi-line cards.
+- `.svc-card__meta` and `.svc-card__chips` both `flex-wrap`; `.svc-card__chips` has a `min-height` so cards keep a steady height whether or not they have chips.
+- List is rendered as one **flat** `.it-grid` (no per-category section headers); sort the data by category → sortOrder → code before mapping.
+
 ---
 
 ## Badges & Status

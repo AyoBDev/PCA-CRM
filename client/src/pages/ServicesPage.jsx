@@ -6,18 +6,40 @@ import ConfirmModal from '../components/common/ConfirmModal';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import { useUndoStack } from '../hooks/useUndoStack';
+import { useServices } from '../hooks/useServices';
+import { ACCOUNT_NUMBER_OPTIONS } from '../utils/accountMapping';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
+
+const TIMESHEET_SECTION_OPTIONS = ['', 'PAS', 'Homemaker', 'Respite', 'Companion'];
 
 function ServiceFormModal({ service, onSave, onClose }) {
     const [category, setCategory] = useState(service?.category || '');
     const [code, setCode] = useState(service?.code || '');
     const [name, setName] = useState(service?.name || '');
+    const [label, setLabel] = useState(service?.label || '');
+    const [accountNumber, setAccountNumber] = useState(service?.accountNumber || '');
+    const [color, setColor] = useState(service?.color || '#64748b');
+    const [timesheetSection, setTimesheetSection] = useState(service?.timesheetSection || '');
+    const [sortOrder, setSortOrder] = useState(service?.sortOrder != null ? service.sortOrder : 50);
+    const [enforceAuthLimit, setEnforceAuthLimit] = useState(service?.enforceAuthLimit ?? true);
     const isEdit = !!service;
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (code.trim()) onSave({ category: category.trim().toUpperCase(), code: code.trim().toUpperCase(), name: name.trim() });
+        if (code.trim()) {
+            onSave({
+                category: category.trim().toUpperCase(),
+                code: code.trim().toUpperCase(),
+                name: name.trim(),
+                label: label.trim(),
+                accountNumber,
+                color,
+                timesheetSection,
+                sortOrder: sortOrder === '' ? 50 : Number(sortOrder),
+                enforceAuthLimit,
+            });
+        }
     };
 
     return (
@@ -37,6 +59,68 @@ function ServiceFormModal({ service, onSave, onClose }) {
                     <label htmlFor="svcName">Name</label>
                     <input id="svcName" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Homemaker" />
                 </div>
+                <div className="form-group">
+                    <label htmlFor="svcLabel">Label</label>
+                    <input id="svcLabel" type="text" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Homemaker (S5130)" />
+                </div>
+                <div className="form-group">
+                    <label htmlFor="svcAccountNumber">Account #</label>
+                    <select id="svcAccountNumber" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)}>
+                        <option value="">— None —</option>
+                        {ACCOUNT_NUMBER_OPTIONS.map((acct) => (
+                            <option key={acct} value={acct}>{acct}</option>
+                        ))}
+                    </select>
+                </div>
+                <div className="form-group">
+                    <label htmlFor="svcColor">Color</label>
+                    <div className="color-picker-row">
+                        <input
+                            id="svcColor"
+                            type="color"
+                            value={color}
+                            onChange={(e) => setColor(e.target.value)}
+                            className="color-picker-input"
+                        />
+                        <input
+                            type="text"
+                            value={color}
+                            onChange={(e) => setColor(e.target.value)}
+                            placeholder="#000000"
+                            style={{ flex: 1 }}
+                        />
+                        <span className="color-preview" style={{ background: color }} />
+                    </div>
+                </div>
+                <div className="form-group">
+                    <label htmlFor="svcTimesheetSection">Timesheet Section</label>
+                    <select id="svcTimesheetSection" value={timesheetSection} onChange={(e) => setTimesheetSection(e.target.value)}>
+                        {TIMESHEET_SECTION_OPTIONS.map((opt) => (
+                            <option key={opt} value={opt}>{opt || '— None —'}</option>
+                        ))}
+                    </select>
+                </div>
+                <div className="form-group">
+                    <label htmlFor="svcSortOrder">Sort Order</label>
+                    <input id="svcSortOrder" type="number" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} placeholder="50" />
+                    <p className="text-muted" style={{ fontSize: 12, marginTop: 4 }}>
+                        Controls display order in service dropdowns and lists (lower shows first). Default 50.
+                    </p>
+                </div>
+                <div className="form-group">
+                    <label className="checkbox-field" htmlFor="svcEnforceAuthLimit">
+                        <input
+                            id="svcEnforceAuthLimit"
+                            type="checkbox"
+                            checked={enforceAuthLimit}
+                            onChange={(e) => setEnforceAuthLimit(e.target.checked)}
+                        />
+                        <span>Enforce auth limit</span>
+                    </label>
+                    <p className="text-muted" style={{ fontSize: 12, marginTop: 4 }}>
+                        When off, this service's timesheet section has no authorized-units ceiling (e.g. private-pay).
+                    </p>
+                </div>
                 <div className="form-actions">
                     <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
                     <button type="submit" className="btn btn--primary">{isEdit ? 'Save Changes' : 'Add Service'}</button>
@@ -50,6 +134,7 @@ export default function ServicesPage() {
     const { isAdmin } = useAuth();
     const { showToast, showUndoToast } = useToast();
     const undoState = useUndoStack();
+    const { refetch: refetchServicesContext } = useServices();
     const [services, setServices] = useState([]);
     const [modal, setModal] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
@@ -66,24 +151,35 @@ export default function ServicesPage() {
     const handleSave = async (data) => {
         try {
             if (modal.service) {
-                const oldData = { category: modal.service.category, code: modal.service.code, name: modal.service.name };
+                const oldData = {
+                    category: modal.service.category,
+                    code: modal.service.code,
+                    name: modal.service.name,
+                    label: modal.service.label,
+                    accountNumber: modal.service.accountNumber,
+                    color: modal.service.color,
+                    timesheetSection: modal.service.timesheetSection,
+                    sortOrder: modal.service.sortOrder,
+                    enforceAuthLimit: modal.service.enforceAuthLimit,
+                };
                 await api.updateService(modal.service.id, data);
                 showToast('Service updated');
                 const id = modal.service.id;
                 undoState.pushAction(`Updated "${data.code}"`,
-                    async () => { await api.updateService(id, oldData); fetchServices(); },
-                    async () => { await api.updateService(id, data); fetchServices(); }
+                    async () => { await api.updateService(id, oldData); fetchServices(); refetchServicesContext(); },
+                    async () => { await api.updateService(id, data); fetchServices(); refetchServicesContext(); }
                 );
             } else {
                 const created = await api.createService(data);
                 showToast('Service created');
                 undoState.pushAction(`Created "${data.code}"`,
-                    async () => { await api.deleteService(created.id); fetchServices(); },
-                    async () => { await api.createService(data); fetchServices(); }
+                    async () => { await api.deleteService(created.id); fetchServices(); refetchServicesContext(); },
+                    async () => { await api.createService(data); fetchServices(); refetchServicesContext(); }
                 );
             }
             setModal(null);
             fetchServices();
+            refetchServicesContext();
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -92,13 +188,15 @@ export default function ServicesPage() {
             await api.deleteService(svc.id);
             setModal(null);
             fetchServices();
+            refetchServicesContext();
             undoState.pushAction(`Archived "${svc.code}"`,
-                async () => { await api.restoreService(svc.id); fetchServices(); },
-                async () => { await api.deleteService(svc.id); fetchServices(); }
+                async () => { await api.restoreService(svc.id); fetchServices(); refetchServicesContext(); },
+                async () => { await api.deleteService(svc.id); fetchServices(); refetchServicesContext(); }
             );
             showUndoToast(`"${svc.code}" archived`, async () => {
                 await api.restoreService(svc.id);
                 fetchServices();
+                refetchServicesContext();
             });
         } catch (err) { showToast(err.message, 'error'); }
     };
@@ -108,9 +206,10 @@ export default function ServicesPage() {
             await api.restoreService(svc.id);
             showToast(`"${svc.code}" restored`);
             fetchServices();
+            refetchServicesContext();
             undoState.pushAction(`Restored "${svc.code}"`,
-                async () => { await api.deleteService(svc.id); fetchServices(); },
-                async () => { await api.restoreService(svc.id); fetchServices(); }
+                async () => { await api.deleteService(svc.id); fetchServices(); refetchServicesContext(); },
+                async () => { await api.restoreService(svc.id); fetchServices(); refetchServicesContext(); }
             );
         } catch (err) { showToast(err.message, 'error'); }
     };
@@ -121,6 +220,7 @@ export default function ServicesPage() {
             setConfirmPermanentDelete(null);
             showToast('Item permanently deleted');
             fetchServices();
+            refetchServicesContext();
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -130,14 +230,17 @@ export default function ServicesPage() {
             setConfirmBulkPermanentDelete(false);
             showToast(`${result.count} archived service(s) permanently deleted`);
             fetchServices();
+            refetchServicesContext();
         } catch (err) { showToast(err.message, 'error'); }
     };
 
-    // Group by category
-    const grouped = services.reduce((acc, s) => {
-        (acc[s.category] = acc[s.category] || []).push(s);
-        return acc;
-    }, {});
+    // Flat list, sorted by category → sortOrder → code (mirrors the clean
+    // single-grid layout of the Insurance Types page).
+    const sortedServices = [...services].sort((a, b) =>
+        (a.category || '').localeCompare(b.category || '')
+        || (a.sortOrder ?? 50) - (b.sortOrder ?? 50)
+        || (a.code || '').localeCompare(b.code || '')
+    );
 
     return (
         <>
@@ -176,49 +279,55 @@ export default function ServicesPage() {
                         </button>
                     </div>
                 )}
-                {services.length === 0 ? (
-                    <div className="empty-state">
-                        <div className="empty-state__icon">{Icons.fileText}</div>
-                        <div className="empty-state__title">No services yet</div>
-                        <div className="empty-state__desc">Click "Add Service" to create one.</div>
-                    </div>
-                ) : (
-                    Object.entries(grouped).map(([cat, items]) => (
-                        <div key={cat} className="svc-group">
-                            <div className="svc-group__label">{cat}</div>
-                            <div className="it-grid">
-                                {items.map((s) => (
-                                    <div key={s.id} className="it-card">
-                                        <div className="svc-code-badge">{s.code}</div>
-                                        <div className="it-card__info">
-                                            <div className="it-card__name">{s.name || s.code}</div>
-                                            <div className="it-card__hex">{s.category} · {s.code}</div>
-                                        </div>
-                                        <div className="it-card__actions">
-                                            {showArchived ? (
-                                                <div style={{ display: 'flex', gap: 6 }}>
-                                                    <button className="btn btn--restore" onClick={() => handleRestore(s)} title="Restore">
-                                                        {Icons.rotateCcw} Restore
-                                                    </button>
-                                                    <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmPermanentDelete(s)} title="Delete permanently">{Icons.trash}</button>
-                                                </div>
-                                            ) : (
-                                                <>
-                                                    <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'form', service: s })} title="Edit">
-                                                        {Icons.edit}
-                                                    </button>
-                                                    <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDelete', service: s })} title="Delete">
-                                                        {Icons.trash}
-                                                    </button>
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                <div className="it-grid">
+                    {services.length === 0 ? (
+                        <div className="empty-state">
+                            <div className="empty-state__icon">{Icons.fileText}</div>
+                            <div className="empty-state__title">No services yet</div>
+                            <div className="empty-state__desc">Click "Add Service" to create one.</div>
                         </div>
-                    ))
-                )}
+                    ) : (
+                        sortedServices.map((s) => (
+                            <div key={s.id} className="it-card svc-card">
+                                <div className="it-card__info svc-card__info">
+                                    <div className="it-card__name">{s.name || s.code}</div>
+                                    <div className="svc-card__meta">
+                                        <span className="svc-card__code">{s.code}</span>
+                                        <span className="svc-card__cat">{s.category}</span>
+                                    </div>
+                                    <div className="svc-card__chips">
+                                        {s.timesheetSection && (
+                                            <span className="badge badge--outline">{s.timesheetSection}</span>
+                                        )}
+                                        {s.enforceAuthLimit === false && (
+                                            <span className="badge badge--outline text-muted">no limit</span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="it-card__actions">
+                                    {showArchived ? (
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                            <button className="btn btn--restore" onClick={() => handleRestore(s)} title="Restore">
+                                                {Icons.rotateCcw} Restore
+                                            </button>
+                                            <button className="btn btn--danger-ghost btn--icon" onClick={() => setConfirmPermanentDelete(s)} title="Delete permanently">{Icons.trash}</button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'form', service: s })} title="Edit">
+                                                {Icons.edit}
+                                            </button>
+                                            <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDelete', service: s })} title="Delete">
+                                                {Icons.trash}
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                                <div className="svc-card__strip" style={{ background: s.color || 'hsl(var(--muted))' }} title={s.color || ''} />
+                            </div>
+                        ))
+                    )}
+                </div>
             </div>
 
             {modal?.type === 'form' && (

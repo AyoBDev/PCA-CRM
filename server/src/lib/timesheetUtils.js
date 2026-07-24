@@ -1,3 +1,5 @@
+const serviceRegistry = require('../services/serviceRegistry');
+
 function isOverdue(timesheet) {
     if (timesheet.status !== 'draft') return false;
     const weekStart = new Date(timesheet.weekStart);
@@ -40,28 +42,17 @@ function computeTotalHoursWithBlocks(timeIn, timeOut, timeBlocksJson) {
 
 function deriveTimesheetService(auth) {
     const code = auth.serviceCode;
-    if (code === 'COPE' || code === 'PAS') {
-        const name = (auth.serviceName || '').toLowerCase();
-        if (name.includes('homemaker')) return 'Homemaker';
-        if (name.includes('respite')) return 'Respite';
-        if (name.includes('companion')) return 'Companion';
-        return 'PAS';
+    if (code && code !== 'TIMESHEETS') {
+        return serviceRegistry.deriveTimesheetSection(code, auth.serviceName);
     }
-    if (code === 'PCS' || code === 'S5125' || code === 'TIMESHEET_PCS') return 'PAS';
-    if (code === 'S5130' || code === 'S5120' || code === 'TIMESHEET_HOMEMAKER' || code === 'TIMESHEET_CHORE') return 'Homemaker';
-    if (code === 'S5150' || code === 'TIMESHEET_RESPITE') return 'Respite';
-    if (code === 'S5135' || code === 'TIMESHEET_COMPANION') return 'Companion';
-    if (code === 'SDPC') return 'PAS';
-    if (code === 'TIMESHEETS' || !code) {
-        const name = (auth.serviceName || auth.serviceCategory || '').toLowerCase();
-        if (name === 'pas' || name === 'pca' || (name.includes('personal') && name.includes('care'))) return 'PAS';
-        if (name === 'hm' || name.includes('homemaker')) return 'Homemaker';
-        if (name.includes('respite')) return 'Respite';
-        if (name.includes('companion')) return 'Companion';
-        if (name.includes('chore')) return 'Homemaker';
-        return 'PAS';
-    }
-    return null;
+    // TIMESHEETS or blank code: keep legacy name/category guessing
+    const name = (auth.serviceName || auth.serviceCategory || '').toLowerCase();
+    if (name === 'pas' || name === 'pca' || (name.includes('personal') && name.includes('care'))) return 'PAS';
+    if (name === 'hm' || name.includes('homemaker')) return 'Homemaker';
+    if (name.includes('respite')) return 'Respite';
+    if (name.includes('companion')) return 'Companion';
+    if (name.includes('chore')) return 'Homemaker';
+    return 'PAS';
 }
 
 const ADL_ACTIVITIES = ['Bathing', 'Dressing', 'Grooming', 'Continence', 'Toileting', 'Ambulation/Mobility', 'Transfer', 'Eating/Feeding'];

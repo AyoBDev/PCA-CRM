@@ -1293,6 +1293,14 @@ body {
   margin-bottom: 20px;
 }
 
+/* Sub-section heading inside a modal/form */
+.modal__section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  margin: 0 0 4px;
+}
+
 /* ── Wizard Step Indicator ── */
 .wizard-steps {
   display: flex;
@@ -1620,6 +1628,13 @@ body {
 }
 .toast--error svg {
   color: hsl(var(--destructive));
+}
+
+.toast--warning {
+  border-left: 3px solid hsl(38 92% 50%);
+}
+.toast--warning svg {
+  color: hsl(38 92% 50%);
 }
 
 .toast--info {
@@ -3085,6 +3100,49 @@ body {
   flex-shrink: 0;
 }
 
+/* ─── Checkbox Field (left-aligned checkbox + label inside a .form-group) ─── */
+/* Scoped to beat `.form-group label { display: block }` which would otherwise
+   collapse the flex gap between the checkbox and its text. */
+.checkbox-field,
+.form-group label.checkbox-field,
+label.checkbox-field {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  margin-bottom: 0;
+}
+
+.form-group .checkbox-field input[type="checkbox"],
+.checkbox-field input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* Helper text shown under a field or checkbox in forms/modals */
+.form-hint {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  line-height: 1.4;
+  margin: 6px 0 0;
+}
+
+.checkbox-field + .form-hint {
+  margin-left: 24px;
+}
+
+/* Subtle divider between sections inside a modal/form */
+.form-divider {
+  border: none;
+  border-top: 1px solid hsl(var(--border));
+  margin: 16px 0;
+}
+
 /* ─── Color Picker ─── */
 .color-picker-row {
   display: flex;
@@ -3121,33 +3179,71 @@ body {
 }
 
 /* ─── Services Page ─── */
-.svc-group {
-  margin-bottom: 24px;
+/* Service cards reuse the Insurance grid (.it-grid) but stack their info in
+   three layers (name / code+category / chips) with the service color shown as
+   a vertical strip on the card's right edge. */
+.svc-card {
+  position: relative;
+  padding-right: 28px;        /* room for the color strip + gap */
+  overflow: hidden;
 }
 
-.svc-group__label {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: hsl(var(--muted-foreground));
-  margin-bottom: 10px;
-  padding-left: 2px;
+.svc-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;               /* allow the text column to shrink/wrap, not overflow under the actions */
 }
 
-.svc-code-badge {
+.svc-card .it-card__actions {
+  flex-shrink: 0;
+  align-self: flex-start;     /* keep buttons pinned top-right on multi-line cards */
+}
+
+.svc-card__name,
+.svc-card .it-card__name {
+  overflow-wrap: anywhere;    /* long names wrap instead of pushing under the buttons */
+}
+
+.svc-card__meta {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 56px;
-  height: 36px;
-  border-radius: var(--radius);
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
-  font-size: 11px;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  min-width: 0;
+}
+
+.svc-card__code {
   font-weight: 700;
-  letter-spacing: 0.04em;
-  flex-shrink: 0;
+  letter-spacing: 0.03em;
+  color: hsl(var(--foreground));
+}
+
+.svc-card__cat {
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: hsl(var(--muted-foreground));
+}
+
+.svc-card__chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 20px;           /* keep card height steady when no chips */
+}
+
+.svc-card__strip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 8px;
+  border-top-right-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
 }
 
 /* ─── Timesheets — PCA Service Delivery Record ─── */
@@ -8095,6 +8191,13 @@ button.sdr-section-tag:hover:not(:disabled) {
 .sched-overview-table__row--cancelled {
     opacity: 0.5;
 }
+
+/* A shift whose caregiver called out and which still needs cover. Warning
+   rather than danger: it is actionable, not broken. */
+.sched-overview-table__row--pending-replacement {
+    background: hsl(var(--warning-bg));
+    box-shadow: inset 3px 0 0 hsl(var(--warning));
+}
 .sched-overview-table__row--selected td {
     background: hsl(217 91% 95%);
 }
@@ -8842,6 +8945,34 @@ button.sdr-section-tag:hover:not(:disabled) {
 .sched-day-row__apply:hover {
     background: hsl(217 91% 95%);
     border-color: hsl(217 91% 50%);
+}
+/* Bulk-edit: add a shift to a day + inline validation error */
+.sched-day-row__add {
+    margin: 4px 14px 4px 42px;
+    align-self: flex-start;
+    font-size: 12px;
+    padding: 5px 12px;
+    border: 1px dashed hsl(217 91% 70%);
+    border-radius: 6px;
+    background: hsl(var(--card));
+    color: hsl(217 91% 50%);
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.sched-day-row__add:hover {
+    background: hsl(217 91% 96%);
+    border-color: hsl(217 91% 50%);
+}
+.sched-day-row__fields--new {
+    border-left: 2px solid hsl(217 91% 70%);
+    background: hsl(217 91% 98%);
+    border-radius: 6px;
+}
+.sched-day-row__error {
+    font-size: 12px;
+    color: hsl(0 72% 45%);
+    padding-left: 42px;
 }
 
 /* Recurring Shift Toggle */
@@ -14287,6 +14418,521 @@ tr:hover .auth-note-icon--empty {
     margin-bottom: 16px;
 }
 
+/* Fix B — KPI card colour-coded left borders */
+.leads-stats .stats-grid .card:nth-child(1) { border-left: 4px solid hsl(var(--primary)); }
+.leads-stats .stats-grid .card:nth-child(2) { border-left: 4px solid #f97316; }
+.leads-stats .stats-grid .card:nth-child(3) { border-left: 4px solid #eab308; }
+.leads-stats .stats-grid .card:nth-child(4) { border-left: 4px solid #22c55e; }
+
+/* ── Filter bar (Board + List views) ─────────────────────────────────────────
+   Reuses the app's canonical `.ts-filter-bar` pattern (see TimesheetsListPage
+   line ~303 and matching CSS around line ~3280). This block only adds the small
+   deltas Leads needs: outer page inset, search icon overlay, and the
+   active-filter pill strip that appears under the row when a filter is active.
+   ────────────────────────────────────────────────────────────────────────── */
+.leads-filter-bar-wrap {
+    padding: 12px 24px 0;
+}
+
+/* Slight override so the search field gets more room than the other fields. */
+.leads-filter-bar__search-field {
+    min-width: 240px;
+    flex: 1 1 240px;
+}
+
+/* Search input with a leading magnifier icon inside the same 34px input the
+   .ts-filter-bar pattern uses. */
+.leads-filter-bar__search-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.leads-filter-bar__search-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+}
+
+.leads-filter-bar__search-icon svg {
+    width: 14px;
+    height: 14px;
+}
+
+.leads-filter-bar__search-wrap input[type="text"] {
+    padding: 6px 10px 6px 32px;
+    font-size: 13px;
+    height: 34px;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    width: 100%;
+}
+
+/* Active-filter pill strip — sits under the filter row when any filter is on */
+.leads-filter-bar__active {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    padding: 8px 0 4px;
+    flex-wrap: wrap;
+}
+
+.leads-filter-bar__active-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.leads-filter-bar__active-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.leads-filter-bar__active-x {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 12px;
+    height: 12px;
+}
+
+.leads-filter-bar__active-x svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* ── View switcher (Board / List / Dormant) — pill-tab group ── */
+/* Matches the design-system tab bar used on ClientDetailPage (.cp-tabs / .cp-tab):
+   dark navy gradient bar, white active tab, vertical dividers between tabs. */
+.lead-view-switcher {
+    display: inline-flex;
+    gap: 0;
+    background: linear-gradient(180deg, hsl(230 35% 22%) 0%, hsl(230 35% 16%) 100%);
+    border-radius: var(--radius);
+    padding: 4px 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.lead-view-switcher::-webkit-scrollbar {
+    display: none;
+}
+
+.lead-view-switcher__tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: none;
+    background: transparent;
+    color: hsl(0 0% 75%);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 7px 12px;
+    border-radius: 6px;
+    margin: 2px 1px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+}
+
+.lead-view-switcher__tab:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    right: -1px;
+    top: 20%;
+    height: 60%;
+    width: 1px;
+    background: #D8DDE6;
+    opacity: 0.35;
+}
+
+.lead-view-switcher__tab:hover {
+    background: hsl(0 0% 100%);
+    color: hsl(0 0% 0%);
+}
+
+.lead-view-switcher__tab--active {
+    background: hsl(0 0% 100%);
+    color: hsl(0 0% 0%);
+    font-weight: 600;
+}
+
+.lead-view-switcher__badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.lead-view-switcher__badge--dormant {
+    background: hsl(38 92% 50% / 0.18);
+    color: hsl(30 90% 42%);
+}
+
+.lead-view-switcher__badge--converted {
+    background: hsl(142 71% 45% / 0.18);
+    color: hsl(142 64% 32%);
+}
+
+/* ── List view — sortable data-table ── */
+.leads-list-view {
+    padding: 0 24px 24px;
+}
+
+.leads-list-view--empty {
+    padding: 40px 24px;
+}
+
+/* Design-system name cell: avatar circle + name (matches ClientsListPage). */
+.lead-list-name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.lead-list-name__text {
+    font-weight: 500;
+    line-height: 1.3;
+    color: hsl(var(--foreground));
+}
+
+.data-table--sheet tbody tr:hover .lead-list-name__text,
+.data-table--dark-header tbody tr:hover .lead-list-name__text {
+    color: hsl(var(--primary));
+}
+
+.lead-list-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.lead-list-status__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.lead-list-actions {
+    display: inline-flex;
+    gap: 4px;
+    flex-wrap: nowrap;
+}
+
+/* ── Dormant Archive view ── */
+.leads-dormant-view {
+    padding: 20px 24px 24px;
+}
+
+.leads-dormant-view__banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    background: hsl(var(--warning-bg));
+    border: 1px solid hsl(var(--warning) / 0.3);
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.leads-dormant-view__banner-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: hsl(var(--warning) / 0.2);
+    color: hsl(var(--warning));
+    flex-shrink: 0;
+}
+
+.leads-dormant-view__banner-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.leads-dormant-view__banner-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: hsl(var(--foreground));
+    margin: 0 0 2px;
+}
+
+.leads-dormant-view__banner-body {
+    font-size: 13px;
+    color: hsl(var(--muted-foreground));
+    line-height: 1.5;
+    margin: 0;
+}
+
+.leads-dormant-view__count {
+    margin-left: auto;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 999px;
+    white-space: nowrap;
+    align-self: center;
+}
+
+.leads-dormant-view__search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    max-width: 480px;
+}
+
+.leads-dormant-view__search-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+}
+
+.leads-dormant-view__search-icon svg {
+    width: 14px;
+    height: 14px;
+}
+
+.leads-dormant-view__search-input {
+    padding: 8px 10px 8px 32px;
+    width: 100%;
+    font-size: 13px;
+}
+
+.leads-dormant-view__search-count {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+}
+
+/* ── Recently Converted view ── */
+.leads-converted-view {
+    padding: 20px 24px 24px;
+}
+
+.leads-converted-view__banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    background: hsl(var(--success-bg));
+    border: 1px solid hsl(var(--success) / 0.3);
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.leads-converted-view__banner-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: hsl(var(--success) / 0.2);
+    color: hsl(var(--success));
+    flex-shrink: 0;
+}
+
+.leads-converted-view__banner-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.leads-converted-view__banner-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: hsl(var(--foreground));
+    margin: 0 0 2px;
+}
+
+.leads-converted-view__banner-body {
+    font-size: 13px;
+    color: hsl(var(--muted-foreground));
+    line-height: 1.5;
+    margin: 0;
+}
+
+.leads-converted-view__count {
+    margin-left: auto;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 999px;
+    white-space: nowrap;
+    align-self: center;
+}
+
+.leads-converted-view__search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    max-width: 480px;
+}
+
+.leads-converted-view__search-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+}
+
+.leads-converted-view__search-icon svg {
+    width: 14px;
+    height: 14px;
+}
+
+.leads-converted-view__search-input {
+    padding: 8px 10px 8px 32px;
+    width: 100%;
+    font-size: 13px;
+}
+
+.leads-converted-view__search-count {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+}
+
+/* ── Reactivate modal ── */
+.reactivate-modal {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 4px;
+}
+
+.reactivate-modal__header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.reactivate-modal__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: hsl(var(--primary) / 0.12);
+    color: hsl(var(--primary));
+    flex-shrink: 0;
+}
+
+.reactivate-modal__icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.reactivate-modal__title {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    color: hsl(var(--foreground));
+}
+
+.reactivate-modal__subtitle {
+    font-size: 13px;
+    color: hsl(var(--muted-foreground));
+    margin: 0;
+    line-height: 1.5;
+}
+
+.reactivate-modal__options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.reactivate-modal__option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 8px;
+    cursor: pointer;
+    background: hsl(var(--card));
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.reactivate-modal__option:hover {
+    border-color: hsl(var(--primary) / 0.5);
+    background: hsl(var(--primary) / 0.03);
+}
+
+.reactivate-modal__option--active {
+    border-color: hsl(var(--primary));
+    background: hsl(var(--primary) / 0.06);
+}
+
+.reactivate-modal__option-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+}
+
+.reactivate-modal__error {
+    padding: 10px 12px;
+    background: hsl(var(--danger-bg));
+    color: hsl(var(--danger));
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.reactivate-modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 4px;
+    border-top: 1px solid hsl(var(--border));
+}
+
 /* ── Kanban board ── */
 .kanban-wrap {
     padding: 0 24px 24px;
@@ -14309,27 +14955,30 @@ tr:hover .auth-note-icon--empty {
     min-height: 200px;
 }
 
+/* Fix B — solid dark slate-blue kanban column headers */
 .k-col__head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 14px;
-    background: hsl(var(--card));
-    border-bottom: 1px solid hsl(var(--border));
-    border-top: 3px solid hsl(var(--border));
+    padding: 11px 14px;
+    background: hsl(222 47% 22%);
+    border-bottom: none;
+    border-top: 3px solid var(--block-color, hsl(222 47% 28%));
 }
 
 .k-col__title {
-    font-size: 13px;
-    font-weight: 600;
-    color: hsl(var(--foreground));
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .k-col__count {
     font-size: 12px;
-    font-weight: 600;
-    color: hsl(var(--muted-foreground));
-    background: hsl(var(--muted));
+    font-weight: 700;
+    color: hsl(222 47% 22%);
+    background: #fff;
     border-radius: 999px;
     padding: 1px 8px;
     min-width: 20px;
@@ -14635,23 +15284,53 @@ tr:hover .auth-note-icon--empty {
     margin: 4px 0 12px;
 }
 
+/* Fix A — card-style sections with bold dark-blue header banner */
 .det-section {
-    margin-bottom: 16px;
+    margin-bottom: 12px;
+    border: 1px solid hsl(222 30% 78%);
+    border-radius: 8px;
+    overflow: hidden;
 }
 
 .det-section__title {
-    font-size: 13px;
-    font-weight: 600;
-    color: hsl(var(--foreground));
-    padding-bottom: 6px;
-    margin-bottom: 8px;
-    border-bottom: 1px solid hsl(var(--border));
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    background: hsl(222 47% 22%);
+    padding: 8px 14px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
 }
 
 .det-section__body {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 0;
+    background: hsl(var(--card));
+    padding: 4px 14px 4px;
+}
+
+/* ── Intake wizard form card (mirrors det-section style) ── */
+.lead-form-card {
+    margin-bottom: 12px;
+    border: 1px solid hsl(222 30% 78%);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.lead-form-card__header {
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    background: hsl(222 47% 22%);
+    padding: 8px 14px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.lead-form-card__body {
+    background: hsl(var(--card));
+    padding: 14px 14px 14px;
 }
 
 .det-row {

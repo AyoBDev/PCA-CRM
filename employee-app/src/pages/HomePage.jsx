@@ -7,6 +7,7 @@ import NextShiftCard from '../components/common/NextShiftCard';
 import WeekStrip from '../components/common/WeekStrip';
 import SummaryChip from '../components/common/SummaryChip';
 import ActivityFeed from '../components/common/ActivityFeed';
+import ShiftOfferCard from '../components/common/ShiftOfferCard';
 
 function thisSundayISO() {
   const d = new Date();
@@ -21,6 +22,8 @@ export default function HomePage() {
   const [nextShift, setNextShift] = useState(null);
   const [weekShifts, setWeekShifts] = useState([]);
   const [activity, setActivity] = useState([]);
+  const [offers, setOffers] = useState([]);
+  const [respondingId, setRespondingId] = useState(null);
   const [loading, setLoading] = useState(true);
   const sunday = thisSundayISO();
 
@@ -30,15 +33,40 @@ export default function HomePage() {
       api.getNextShift(),
       api.getWeekSchedule(sunday),
       api.getActivity(),
-    ]).then(([ns, ws, act]) => {
+      api.getMyOffers(),
+    ]).then(([ns, ws, act, off]) => {
       if (cancelled) return;
       if (ns.status === 'fulfilled') setNextShift(ns.value);
       if (ws.status === 'fulfilled') setWeekShifts(ws.value.shifts || ws.value || []);
       if (act.status === 'fulfilled') setActivity(Array.isArray(act.value) ? act.value : []);
+      if (off.status === 'fulfilled') setOffers(Array.isArray(off.value) ? off.value : []);
       setLoading(false);
     });
     return () => { cancelled = true; };
   }, [sunday]);
+
+  const handleRespond = async (offerId, response) => {
+    setRespondingId(offerId);
+    try {
+      await api.respondToOffer(offerId, response);
+      // Drop the card either way: accepted or declined, it is no longer a
+      // pending decision. On accept, refresh the schedule so the newly
+      // assigned shift appears without a manual reload.
+      setOffers(prev => prev.filter(o => o.id !== offerId));
+      if (response === 'accept') {
+        const [ns, ws] = await Promise.allSettled([api.getNextShift(), api.getWeekSchedule(sunday)]);
+        if (ns.status === 'fulfilled') setNextShift(ns.value);
+        if (ws.status === 'fulfilled') setWeekShifts(ws.value.shifts || ws.value || []);
+      }
+    } catch (err) {
+      // Someone else accepted first, or the window closed. Removing the card
+      // is the honest outcome — it is genuinely no longer available.
+      setOffers(prev => prev.filter(o => o.id !== offerId));
+      alert(err.message || 'This offer is no longer available');
+    } finally {
+      setRespondingId(null);
+    }
+  };
 
   const firstName = user?.name?.split(' ')[0] || 'there';
   const totalHours = weekShifts.reduce((sum, s) => {
@@ -59,6 +87,17 @@ export default function HomePage() {
       </div>
 
       <ComplianceBanner />
+
+      {/* Above the next shift on purpose: an offer is a decision with a
+          closing window, which outranks passive schedule information. */}
+      {offers.map(offer => (
+        <ShiftOfferCard
+          key={offer.id}
+          offer={offer}
+          responding={respondingId === offer.id}
+          onRespond={handleRespond}
+        />
+      ))}
 
       {loading ? <div className="skeleton skeleton--card" /> : <NextShiftCard shift={nextShift} />}
 

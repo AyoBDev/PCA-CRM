@@ -1,25 +1,16 @@
-const DEFAULT_INSURANCE_TYPES = ['MEDICAID', 'Molina', 'SilverSummit', 'CareSource', 'Aging and Disability', 'CognitiveCare', 'Private Pay', 'Other'];
+const { SERVICE_DEFAULTS } = require('../src/lib/serviceDefaults');
 
-const DEFAULT_SERVICES = [
-  { category: 'PCS', code: 'S5120', name: 'Chore Services' },
-  { category: 'PCS', code: 'S5130', name: 'Homemaker' },
-  { category: 'PCS', code: 'S5125', name: 'Attendant Care' },
-  { category: 'PCS', code: 'S5150', name: 'Unskilled Respite Care' },
-  { category: 'SDPC', code: 'SDPC', name: 'Self-Directed Personal Care' },
-  { category: 'TIMESHEETS', code: 'TIMESHEETS', name: 'Timesheet (Private)' },
-  { category: 'TIMESHEETS', code: 'TIMESHEET_PCS', name: 'Timesheet – Personal Care Services (PCS)' },
-  { category: 'TIMESHEETS', code: 'TIMESHEET_HOMEMAKER', name: 'Timesheet – Homemaker' },
-  { category: 'TIMESHEETS', code: 'TIMESHEET_RESPITE', name: 'Timesheet – Respite' },
-  { category: 'TIMESHEETS', code: 'TIMESHEET_COMPANION', name: 'Timesheet – Companion' },
-  { category: 'TIMESHEETS', code: 'TIMESHEET_CHORE', name: 'Timesheet – Chore' },
-  { category: 'COPE', code: 'COPE', name: 'COPE' },
-  { category: 'PAS', code: 'PAS', name: 'Personal Assistance Services' },
-];
+const DEFAULT_INSURANCE_TYPES = ['MEDICAID', 'Molina', 'SilverSummit', 'CareSource', 'Aging and Disability', 'CognitiveCare', 'Private Pay', 'Other'];
 
 const DEFAULT_TRIGGERS = [
   { name: 'Authorization Expiry Warning', type: 'auth_expiry', thresholdDays: 30, urgency: 'high' },
   { name: 'Overdue Timesheet Follow-up', type: 'timesheet_overdue', thresholdDays: 1, urgency: 'medium' },
   { name: 'Credential Expiry Warning', type: 'credential_expiry', thresholdDays: 14, urgency: 'high' },
+  // Shift replacement auto-offering. Seeded DISABLED: it messages
+  // caregivers without a human in the loop, so it must be switched on
+  // deliberately once the ranking has been validated against real
+  // callouts. thresholdDays carries responseWindowMinutes here.
+  { name: 'Shift Replacement', type: 'shift_replacement', thresholdDays: 10, urgency: 'high', enabled: false },
 ];
 
 async function seedAgencyDefaults(prisma, agencyId) {
@@ -30,12 +21,14 @@ async function seedAgencyDefaults(prisma, agencyId) {
       create: { name, agencyId },
     });
   }
-  for (const s of DEFAULT_SERVICES) {
-    await prisma.service.upsert({
-      where: { agencyId_code: { agencyId, code: s.code } },
-      update: { category: s.category, name: s.name },
-      create: { ...s, agencyId },
-    });
+  // Create-missing-only — never overwrite an existing (possibly admin-edited)
+  // row. Mirrors prisma/seed-services.js's seedServices(); kept inline here
+  // (rather than requiring that file) since both are called from prisma/ and
+  // this avoids a circular require between the two seed scripts.
+  for (const [code, d] of Object.entries(SERVICE_DEFAULTS)) {
+    const existing = await prisma.service.findUnique({ where: { agencyId_code: { agencyId, code } } });
+    if (existing) continue;
+    await prisma.service.create({ data: { code, agencyId, ...d } });
   }
   for (const trigger of DEFAULT_TRIGGERS) {
     const existing = await prisma.workflowTrigger.findFirst({ where: { type: trigger.type, agencyId } });
@@ -56,4 +49,4 @@ async function seedAgencyDefaults(prisma, agencyId) {
   }
 }
 
-module.exports = { seedAgencyDefaults, DEFAULT_SERVICES };
+module.exports = { seedAgencyDefaults };

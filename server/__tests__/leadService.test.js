@@ -182,3 +182,129 @@ describe('computeStats', () => {
     expect(computeStats(leads, now).convertedThisMonth).toBe(1);
   });
 });
+
+// ─── T2: Dormancy sweep + reactivate ───────────────────────────────────────────
+const { sweepDormantLeads, reactivateLead, DORMANT_DAYS } = require('../src/services/leadService');
+
+function makeSweepFakePrisma(capturedArgs = {}) {
+  return {
+    lead: {
+      updateMany: async (args) => {
+        capturedArgs.updateMany = args;
+        // Simulate the DB affecting the number of rows the where would match.
+        // Tests inspect capturedArgs.updateMany directly; we return a plausible count.
+        return { count: args.__simulatedCount ?? 2 };
+      },
+    },
+  };
+}
+
+describe('DORMANT_DAYS', () => {
+  test('is set to 90 days', () => {
+    expect(DORMANT_DAYS).toBe(90);
+  });
+});
+
+describe('sweepDormantLeads', () => {
+  test('uses a where filter that excludes archived, converted, and recently-touched leads', async () => {
+    const captured = {};
+    const prisma = makeSweepFakePrisma(captured);
+    const now = new Date('2026-07-16T00:00:00Z');
+    await sweepDormantLeads(prisma, now);
+    expect(captured.updateMany).toBeDefined();
+    const { where, data } = captured.updateMany;
+    expect(where.archivedAt).toBeNull();
+    expect(where.status).toEqual({ notIn: ['converted', 'archived'] });
+    expect(where.updatedAt).toBeDefined();
+    // The cutoff is exactly 90 days before `now`.
+    const cutoff = new Date(now.getTime() - 90 * 86400000);
+    expect(where.updatedAt.lt.getTime()).toBe(cutoff.getTime());
+    // Both timestamps are set to `now`.
+    expect(data.archivedAt).toEqual(now);
+    expect(data.dormantAt).toEqual(now);
+    expect(data.status).toBe('archived');
+  });
+
+  test('returns the update count', async () => {
+    const captured = {};
+    const prisma = {
+      lead: {
+        updateMany: async (args) => { captured.args = args; return { count: 5 }; },
+      },
+    };
+    const result = await sweepDormantLeads(prisma, new Date('2026-07-16T00:00:00Z'));
+    expect(result).toEqual({ count: 5 });
+  });
+
+  test('defaults `now` to the current time if omitted', async () => {
+    const captured = {};
+    const prisma = makeSweepFakePrisma(captured);
+    const before = Date.now();
+    await sweepDormantLeads(prisma);
+    const after = Date.now();
+    // The captured cutoff should be roughly 90 days before "now" (between before-90d and after-90d).
+    const cutoff = captured.updateMany.where.updatedAt.lt.getTime();
+    expect(cutoff).toBeGreaterThanOrEqual(before - 90 * 86400000);
+    expect(cutoff).toBeLessThanOrEqual(after - 90 * 86400000);
+  });
+});
+
+function makeReactivateFakePrisma(existingLead) {
+  const calls = { findUnique: null, update: null };
+  return {
+    calls,
+    lead: {
+      findUnique: async (args) => { calls.findUnique = args; return existingLead; },
+      update: async (args) => { calls.update = args; return { ...existingLead, ...args.data }; },
+    },
+  };
+}
+
+describe('reactivateLead', () => {
+  const dormant = {
+    id: 42,
+    status: 'archived',
+    archivedAt: new Date('2026-03-01'),
+    dormantAt: new Date('2026-03-01'),
+  };
+
+  test('clears archivedAt and dormantAt and sets the column\'s primary status', async () => {
+    const prisma = makeReactivateFakePrisma(dormant);
+    const updated = await reactivateLead(prisma, 42, 'waiting');
+    expect(prisma.calls.update.where).toEqual({ id: 42 });
+    expect(prisma.calls.update.data.archivedAt).toBeNull();
+    expect(prisma.calls.update.data.dormantAt).toBeNull();
+    expect(prisma.calls.update.data.status).toBe('waiting_insurance');
+    expect(updated.status).toBe('waiting_insurance');
+  });
+
+  test('accepts every non-archived column id', async () => {
+    for (const col of ['new', 'review', 'waiting', 'quoted']) {
+      const prisma = makeReactivateFakePrisma(dormant);
+      await reactivateLead(prisma, 42, col);
+      expect(prisma.calls.update.data.status).toBeTruthy();
+      expect(prisma.calls.update.data.status).not.toBe('archived');
+    }
+  });
+
+  test('rejects an unknown column id', async () => {
+    const prisma = makeReactivateFakePrisma(dormant);
+    await expect(reactivateLead(prisma, 42, 'nope')).rejects.toThrow('Invalid column');
+  });
+
+  test('rejects the archived column id (would be a no-op reactivate)', async () => {
+    const prisma = makeReactivateFakePrisma(dormant);
+    await expect(reactivateLead(prisma, 42, 'archived')).rejects.toThrow('Invalid column');
+  });
+
+  test('throws Lead not found when the id is missing', async () => {
+    const prisma = makeReactivateFakePrisma(null);
+    await expect(reactivateLead(prisma, 99, 'new')).rejects.toThrow('Lead not found');
+  });
+
+  test('coerces the id to a Number', async () => {
+    const prisma = makeReactivateFakePrisma(dormant);
+    await reactivateLead(prisma, '42', 'new');
+    expect(prisma.calls.findUnique).toEqual({ where: { id: 42 } });
+  });
+});

@@ -19,6 +19,10 @@ const ALLOWLIST = new Set([
   'src/controllers/signingController.js',
   'src/controllers/scheduleNotificationController.js',
   'src/controllers/employeeScheduleLinkController.js',
+  // getOffer/respondToOffer are public shift-offer token routes: the token
+  // resolves to an agencyId on the owner connection, then enterTokenTenant
+  // switches to that agency's req.db for everything else in the handler.
+  'src/controllers/replacementController.js',
   // Called from onboardingController's public-token endpoints (no tenant
   // context yet — Task 10 wires that). Queries are explicitly scoped by the
   // already-loaded employee's agencyId instead of req.db/getTenantDb().
@@ -29,6 +33,11 @@ const ALLOWLIST = new Set([
   'src/jobs/taskReminders.js',
   'src/jobs/taskTriggers.js',
   'src/jobs/timesheetReminders.js',
+  'src/jobs/leadDormancySweep.js',
+  // Same cron-driver shape as the jobs above, just living under services/:
+  // enumerates active agencies on the owner connection, then runs the
+  // per-agency geocode backfill inside runWithTenant with a tenantClient.
+  'src/services/geocodeBackfill.js',
 ]);
 
 test('only allowlisted files import lib/prisma', () => {

@@ -3,6 +3,7 @@ import Icons from '../../components/common/Icons';
 import * as api from '../../api';
 import { ACCOUNT_NUMBER_OPTIONS } from '../../utils/accountMapping';
 import { AUTH_COLORS, DEFAULT_AUTH_COLOR, getAuthSortKey } from '../../utils/constants';
+import { useServices } from '../../hooks/useServices';
 
 const LEFT_CODES = ['PCS', 'SDPC', 'COPE', 'PAS'];
 const MULTI_AUTH_CODES = ['COPE', 'PAS'];
@@ -77,6 +78,7 @@ export default function ProgramsAuthTab({
     showToast,
     totalDocs,
 }) {
+    const { serviceColor } = useServices();
     const [expandedAuthIds, setExpandedAuthIds] = useState({});
     const [confirmDeleteDoc, setConfirmDeleteDoc] = useState(null);
 
@@ -162,7 +164,7 @@ export default function ProgramsAuthTab({
     function renderServiceCard(code) {
         const { current, archived } = authGroupsForInsurance[code];
         const { baseCode, serviceName: groupServiceName } = parseGroupKey(code);
-        const colors = AUTH_COLORS[baseCode] || DEFAULT_AUTH_COLOR;
+        const colors = { ...(AUTH_COLORS[baseCode] || DEFAULT_AUTH_COLOR), accent: serviceColor(baseCode) };
         const displayLabel = groupServiceName ? `${baseCode} - ${groupServiceName}` : colors.label;
         const allAuths = [...current, ...archived];
         const filteredAuths = sortAuths(filterAuths(allAuths));

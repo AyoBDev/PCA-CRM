@@ -1,6 +1,23 @@
 const prisma = require('../lib/prisma');
 const { roundTo15, computeHours, computeTotalHoursWithBlocks, deriveTimesheetService } = require('../lib/timesheetUtils');
 const { enterTokenTenant } = require('../lib/tokenTenant');
+const serviceRegistry = require('../services/serviceRegistry');
+const audit = require('../services/auditService');
+const { filterAuthsByWeek, classifyWeekAuthBySection } = require('../services/authorizationService');
+
+// Whether a client's override is currently in effect (active and not expired).
+function overrideInEffect(client, now = new Date()) {
+  if (!client || !client.overrideActive) return false;
+  if (!client.overrideExpiresOn) return true;
+  return new Date(client.overrideExpiresOn) >= now;
+}
+
+// Format a Date as "Mon D, YYYY" for caregiver-facing messages.
+function fmtDate(d) {
+  if (!d) return '';
+  const dt = d instanceof Date ? d : new Date(d);
+  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+}
 
 function getCurrentWeekStart() {
   const now = new Date();
@@ -63,6 +80,13 @@ function filterByEnabledServices(entry, enabledServices) {
     filtered.respitePcaInitials = '';
     filtered.respiteClientInitials = '';
   }
+  if (!enabledServices.includes('Companion')) {
+    filtered.companionActivities = '{}';
+    filtered.companionTimeIn = null;
+    filtered.companionTimeOut = null;
+    filtered.companionPcaInitials = '';
+    filtered.companionClientInitials = '';
+  }
   return filtered;
 }
 
@@ -82,6 +106,9 @@ async function getPcaForm(req, res, next) {
       if (!link.active) return res.status(403).json({ error: 'This link has been deactivated' });
       if (link.client.archivedAt) return res.status(403).json({ error: 'This client is no longer active. The timesheet link has been disabled.' });
 
+      // Warm the service registry cache so deriveTimesheetService (sync) reflects DB values
+      await serviceRegistry.getServiceMap();
+
       let weekStart;
       if (req.query.weekStart) {
         weekStart = normalizeWeekStart(req.query.weekStart);
@@ -93,9 +120,14 @@ async function getPcaForm(req, res, next) {
         include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
       });
 
-      let enabledServices = JSON.parse(link.client.enabledServices || '["PAS","Homemaker"]');
+      // Effective enabled services = the client's stored admin toggle. We do NOT
+      // intersect with authorized services here: the caregiver must always be able
+      // to SEE the sections and enter hours. Authorization is enforced at SUBMIT
+      // time (see updatePcaForm) with a clear, specific message — hiding sections
+      // at load time leaves the caregiver with a blank, unusable form.
+      const enabledServices = JSON.parse(link.client.enabledServices || '["PAS","Homemaker"]');
 
-      // Fetch authorizations for this client, filtered to the viewed week
+      // Fetch authorizations for this client
       const weekEnd = new Date(weekStart);
       weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
 
@@ -115,22 +147,8 @@ async function getPcaForm(req, res, next) {
         },
       });
 
-      // Filter to active authorizations overlapping this week (no dedup — accumulate all per derived service)
-      const wsMs = Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate());
-      const weMs = Date.UTC(weekEnd.getUTCFullYear(), weekEnd.getUTCMonth(), weekEnd.getUTCDate());
-      const authorizations = allAuthorizations.filter(auth => {
-        if ((auth.manualStatus || 'active') !== 'active') return false;
-        if (auth.archivedAt) return false;
-        if (auth.authorizationStartDate) {
-          const sd = new Date(auth.authorizationStartDate);
-          if (Date.UTC(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate()) > weMs) return false;
-        }
-        if (auth.authorizationEndDate) {
-          const ed = new Date(auth.authorizationEndDate);
-          if (Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate()) < wsMs) return false;
-        }
-        return true;
-      });
+      // Filter to active authorizations overlapping this week via the SSOT helper.
+      const authorizations = filterAuthsByWeek(allAuthorizations, weekStart, weekEnd);
 
       // Build a map of service → authorized weekly units
       const authLimits = {};
@@ -152,12 +170,51 @@ async function getPcaForm(req, res, next) {
         }
       }
 
-      // Auto-enable services that have active authorizations for this week
-      for (const svc of Object.keys(authLimits)) {
-        if (!enabledServices.includes(svc)) {
-          enabledServices.push(svc);
+      // Compute the authorization gate status per section for this week, so the
+      // caregiver sees WHY submission may be blocked (spec §4). Only meaningful
+      // when the client requires authorization and no override is in effect.
+      const client = link.client;
+      const requiresAuth = client.authorizationRequired !== false && !overrideInEffect(client);
+      const { expiredOn, hadAny } = classifyWeekAuthBySection(
+        allAuthorizations, weekStart, weekEnd, deriveTimesheetService,
+      );
+      const authorizedSet = new Set(Object.keys(authLimits));
+      // Per-section state for sections the client has enabled.
+      const authStatusBySection = {};
+      for (const svc of enabledServices) {
+        if (authorizedSet.has(svc)) {
+          authStatusBySection[svc] = { state: 'ok' };
+        } else if (expiredOn[svc]) {
+          authStatusBySection[svc] = { state: 'expired', expiredOn: expiredOn[svc] };
+        } else {
+          authStatusBySection[svc] = { state: 'none' };
         }
       }
+      // Overall banner state: 'ok' if every enabled section is authorized; otherwise
+      // the worst state (expired takes precedence over none for messaging clarity).
+      let overallState = 'ok';
+      for (const svc of enabledServices) {
+        const s = authStatusBySection[svc]?.state;
+        if (s === 'expired') { overallState = 'expired'; break; }
+        if (s === 'none') overallState = 'none';
+      }
+      const anyExpiredDate = Object.values(expiredOn).sort((a, b) => b - a)[0] || null;
+      const authStatus = {
+        requiresAuth,
+        state: requiresAuth ? overallState : 'ok',
+        bySection: authStatusBySection,
+        expiredOn: overallState === 'expired' ? anyExpiredDate : null,
+      };
+
+      const clientPayload = {
+        id: client.id,
+        clientName: client.clientName,
+        enabledServices,
+        authorizationRequired: client.authorizationRequired !== false,
+        overrideActive: overrideInEffect(client),
+        overrideExpiresOn: overrideInEffect(client) ? client.overrideExpiresOn : null,
+        authStatus,
+      };
 
       // If no timesheet exists yet, return placeholder data without persisting.
       // A real timesheet will only be created when the user saves (PUT).
@@ -173,15 +230,12 @@ async function getPcaForm(req, res, next) {
             adlActivities: '{}', adlTimeIn: null, adlTimeOut: null, adlHours: 0, adlPcaInitials: '', adlClientInitials: '', adlTimeBlocks: '[]',
             iadlActivities: '{}', iadlTimeIn: null, iadlTimeOut: null, iadlHours: 0, iadlPcaInitials: '', iadlClientInitials: '', iadlTimeBlocks: '[]',
             respiteActivities: '{}', respiteTimeIn: null, respiteTimeOut: null, respiteHours: 0, respitePcaInitials: '', respiteClientInitials: '', respiteTimeBlocks: '[]',
+            companionActivities: '{}', companionTimeIn: null, companionTimeOut: null, companionHours: 0, companionPcaInitials: '', companionClientInitials: '', companionTimeBlocks: '[]',
           });
         }
 
         return res.json({
-          client: {
-            id: link.client.id,
-            clientName: link.client.clientName,
-            enabledServices,
-          },
+          client: clientPayload,
           pcaName: link.pcaName,
           authLimits,
           timesheet: {
@@ -204,11 +258,7 @@ async function getPcaForm(req, res, next) {
       }
 
       res.json({
-        client: {
-          id: link.client.id,
-          clientName: link.client.clientName,
-          enabledServices,
-        },
+        client: clientPayload,
         pcaName: link.pcaName,
         authLimits,
         timesheet,
@@ -234,6 +284,9 @@ async function updatePcaForm(req, res, next) {
       const db = req.db;
       if (!link.active) return res.status(403).json({ error: 'This link has been deactivated' });
       if (link.client.archivedAt) return res.status(403).json({ error: 'This client is no longer active. The timesheet link has been disabled.' });
+
+      // Warm the service registry cache so deriveTimesheetService (sync) reflects DB values
+      await serviceRegistry.getServiceMap();
 
       let weekStart;
       if (req.body.weekStart) {
@@ -279,43 +332,31 @@ async function updatePcaForm(req, res, next) {
       if (timesheet.status === 'submitted') return res.status(400).json({ error: 'Timesheet already submitted' });
 
       const { action, entries, pcaFullName, pcaSignature, recipientName, recipientSignature } = req.body;
-      let enabledServices = JSON.parse(link.client.enabledServices || '["PAS","Homemaker"]');
+      // Effective enabled services = the client's admin toggle. Sections are NOT
+      // intersected with authorization here: the caregiver's entered hours for any
+      // admin-enabled section are preserved on save. Authorization is enforced by
+      // BLOCKING submit below (with a specific message) when required and missing —
+      // so unauthorized hours never reach 'submitted' status, while a draft save
+      // keeps them for the office to reconcile.
+      const enabledServices = JSON.parse(link.client.enabledServices || '["PAS","Homemaker"]');
 
-      // Auto-expand enabledServices from active authorizations (same as GET handler)
       const weekEnd = new Date(weekStart);
       weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
-      const wsMs = Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate());
-      const weMs = Date.UTC(weekEnd.getUTCFullYear(), weekEnd.getUTCMonth(), weekEnd.getUTCDate());
       const allAuths = await db.authorization.findMany({
         where: { clientId: link.clientId },
-        select: { serviceCode: true, serviceName: true, serviceCategory: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true, manualStatus: true, archivedAt: true },
+        select: { serviceCode: true, serviceName: true, serviceCategory: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true, manualStatus: true, archivedAt: true, authorizationType: true, authorizedHoursPerYear: true, hoursPerVisit: true, usedHoursYtd: true },
       });
-      for (const auth of allAuths) {
-        if ((auth.manualStatus || 'active') !== 'active') continue;
-        if (auth.archivedAt) continue;
-        if (auth.authorizationStartDate) {
-          const sd = new Date(auth.authorizationStartDate);
-          if (Date.UTC(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate()) > weMs) continue;
-        }
-        if (auth.authorizationEndDate) {
-          const ed = new Date(auth.authorizationEndDate);
-          if (Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate()) < wsMs) continue;
-        }
-        const service = deriveTimesheetService(auth);
-        if (service && !enabledServices.includes(service)) {
-          enabledServices.push(service);
-        }
-      }
 
       // Validate on submit
       if (action === 'submit') {
+        // ── Baseline checks — ALWAYS run, regardless of authorization ──
         if (!pcaFullName || !pcaSignature || !recipientName || !recipientSignature) {
           return res.status(400).json({ error: 'All signatures and names are required' });
         }
 
         const hasAnyTask = (entries || []).some(entry => {
           const f = filterByEnabledServices(entry, enabledServices);
-          return hasActivity(f.adlActivities) || hasActivity(f.iadlActivities) || hasActivity(f.respiteActivities);
+          return hasActivity(f.adlActivities) || hasActivity(f.iadlActivities) || hasActivity(f.respiteActivities) || hasActivity(f.companionActivities);
         });
         if (!hasAnyTask) {
           return res.status(400).json({ error: 'Please select at least one service task before submitting your timesheet.' });
@@ -350,6 +391,14 @@ async function updatePcaForm(req, res, next) {
               errors.push(`${dayLabel}: Respite missing initials`);
             }
           }
+          if (hasActivity(filtered.companionActivities)) {
+            if (!filtered.companionTimeIn || !filtered.companionTimeOut) {
+              errors.push(`${dayLabel}: Companion has activities but missing time in/out`);
+            }
+            if (!filtered.companionPcaInitials || !filtered.companionClientInitials) {
+              errors.push(`${dayLabel}: Companion missing initials`);
+            }
+          }
 
           if (filtered.iadlTimeIn && filtered.iadlTimeOut && filtered.respiteTimeIn && filtered.respiteTimeOut) {
             if (timesOverlap(filtered.iadlTimeIn, filtered.iadlTimeOut, filtered.respiteTimeIn, filtered.respiteTimeOut)) {
@@ -358,57 +407,106 @@ async function updatePcaForm(req, res, next) {
           }
         }
 
-        // Check authorization limits — filter by timesheet week (no dedup)
-        const submitWeekEnd = new Date(weekStart);
-        submitWeekEnd.setUTCDate(submitWeekEnd.getUTCDate() + 6);
-        const allAuthz = await db.authorization.findMany({
-          where: { clientId: link.clientId },
-          select: { serviceCode: true, serviceName: true, serviceCategory: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true, manualStatus: true, archivedAt: true },
-        });
-        const swsMs = Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate());
-        const sweMs = Date.UTC(submitWeekEnd.getUTCFullYear(), submitWeekEnd.getUTCMonth(), submitWeekEnd.getUTCDate());
-        const authz = allAuthz.filter(auth => {
-          if ((auth.manualStatus || 'active') !== 'active') return false;
-          if (auth.archivedAt) return false;
-          if (auth.authorizationStartDate) {
-            const sd = new Date(auth.authorizationStartDate);
-            if (Date.UTC(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate()) > sweMs) return false;
-          }
-          if (auth.authorizationEndDate) {
-            const ed = new Date(auth.authorizationEndDate);
-            if (Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate()) < swsMs) return false;
-          }
-          return true;
-        });
-        const authMap = {};
-        for (const a of authz) {
-          const svc = deriveTimesheetService(a);
-          if (svc) {
-            authMap[svc] = (authMap[svc] || 0) + (a.authorizedUnits || 0);
-          }
-        }
-
-        // Compute total hours per service from submitted entries
-        let checkPas = 0, checkHm = 0, checkRespite = 0;
-        for (const entry of (entries || [])) {
-          const f = filterByEnabledServices(entry, enabledServices);
-          checkPas += computeTotalHoursWithBlocks(f.adlTimeIn, f.adlTimeOut, f.adlTimeBlocks);
-          checkHm += computeTotalHoursWithBlocks(f.iadlTimeIn, f.iadlTimeOut, f.iadlTimeBlocks);
-          checkRespite += computeTotalHoursWithBlocks(f.respiteTimeIn, f.respiteTimeOut, f.respiteTimeBlocks);
-        }
-
-        if (authMap.PAS && Math.round(checkPas * 4) > authMap.PAS) {
-          errors.push(`PAS hours (${checkPas.toFixed(2)} hrs / ${Math.round(checkPas * 4)} units) exceed authorized limit of ${(authMap.PAS / 4).toFixed(2)} hrs / ${authMap.PAS} units`);
-        }
-        if (authMap.Homemaker && Math.round(checkHm * 4) > authMap.Homemaker) {
-          errors.push(`Homemaker hours (${checkHm.toFixed(2)} hrs / ${Math.round(checkHm * 4)} units) exceed authorized limit of ${(authMap.Homemaker / 4).toFixed(2)} hrs / ${authMap.Homemaker} units`);
-        }
-        if (authMap.Respite && Math.round(checkRespite * 4) > authMap.Respite) {
-          errors.push(`Respite hours (${checkRespite.toFixed(2)} hrs / ${Math.round(checkRespite * 4)} units) exceed authorized limit of ${(authMap.Respite / 4).toFixed(2)} hrs / ${authMap.Respite} units`);
-        }
-
         if (errors.length > 0) {
           return res.status(400).json({ error: errors.join('; ') });
+        }
+
+        // ── Authorization branch — gated on the client (spec §3) ──
+        const client = link.client;
+        const skipAuth = client.authorizationRequired === false || overrideInEffect(client);
+
+        if (!skipAuth) {
+          // Total submitted hours per section (units = hours × 4).
+          let checkPas = 0, checkHm = 0, checkRespite = 0, checkCompanion = 0;
+          for (const entry of (entries || [])) {
+            const f = filterByEnabledServices(entry, enabledServices);
+            checkPas += computeTotalHoursWithBlocks(f.adlTimeIn, f.adlTimeOut, f.adlTimeBlocks);
+            checkHm += computeTotalHoursWithBlocks(f.iadlTimeIn, f.iadlTimeOut, f.iadlTimeBlocks);
+            checkRespite += computeTotalHoursWithBlocks(f.respiteTimeIn, f.respiteTimeOut, f.respiteTimeBlocks);
+            checkCompanion += computeTotalHoursWithBlocks(f.companionTimeIn, f.companionTimeOut, f.companionTimeBlocks);
+          }
+          const submitted = { PAS: checkPas, Homemaker: checkHm, Respite: checkRespite, Companion: checkCompanion };
+
+          // Split authorizations into GUIDE (Annual Visits) and weekly.
+          const guideAuths = allAuths.filter(a => a.authorizationType === 'Annual Visits');
+          const weeklyAuths = allAuths.filter(a => a.authorizationType !== 'Annual Visits');
+
+          // Classify weekly sections: active units, expired dates, and whether any
+          // authorization ever existed — so we distinguish none/expired/exceeds.
+          const { activeUnits, expiredOn } = classifyWeekAuthBySection(
+            weeklyAuths, weekStart, weekEnd, deriveTimesheetService,
+          );
+
+          const authErrors = [];
+          const enforceFlags = {
+            PAS: await serviceRegistry.sectionEnforcesLimit('PAS'),
+            Homemaker: await serviceRegistry.sectionEnforcesLimit('Homemaker'),
+            Respite: await serviceRegistry.sectionEnforcesLimit('Respite'),
+            Companion: await serviceRegistry.sectionEnforcesLimit('Companion'),
+          };
+
+          for (const section of ['PAS', 'Homemaker', 'Respite', 'Companion']) {
+            const hours = submitted[section];
+            if (hours <= 0) continue;                 // nothing entered for this section
+            if (!enforceFlags[section]) continue;     // section not authorization-gated
+
+            const units = activeUnits[section] || 0;
+            if (units > 0) {
+              // Active authorization exists — cap on the week's units.
+              if (Math.round(hours * 4) > units) {
+                const remaining = Math.max(0, (units - Math.round(hours * 4)));
+                authErrors.push(`Submitted ${section} hours (${hours.toFixed(2)} hrs / ${Math.round(hours * 4)} units) exceed this client's remaining authorized units (${units} authorized this week).`);
+              }
+            } else if (expiredOn[section]) {
+              authErrors.push(`This client's ${section} authorization expired on ${fmtDate(expiredOn[section])}. Please contact the office.`);
+            } else {
+              authErrors.push(`No active ${section} authorization found. Please contact the office before submitting.`);
+            }
+          }
+
+          // GUIDE annual-visits validation (hours-based, cumulative YTD).
+          if (guideAuths.length > 0) {
+            const guideHours = checkPas + checkHm + checkRespite + checkCompanion; // GUIDE hours span whatever sections were used
+            // Find a GUIDE auth whose period covers the week.
+            const svcDateMs = Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate());
+            const activeGuide = guideAuths.find(a => {
+              if ((a.manualStatus || 'active') !== 'active' || a.archivedAt) return false;
+              const startOk = !a.authorizationStartDate || new Date(a.authorizationStartDate).getTime() <= Date.UTC(weekEnd.getUTCFullYear(), weekEnd.getUTCMonth(), weekEnd.getUTCDate());
+              const endOk = !a.authorizationEndDate || new Date(a.authorizationEndDate).getTime() >= svcDateMs;
+              return startOk && endOk;
+            });
+            if (guideHours > 0) {
+              if (!activeGuide) {
+                authErrors.push('Service date is outside the current GUIDE authorization period. Please contact the office.');
+              } else {
+                const remainingHours = (activeGuide.authorizedHoursPerYear || 0) - (activeGuide.usedHoursYtd || 0);
+                if (guideHours > remainingHours) {
+                  const perVisit = activeGuide.hoursPerVisit || 4;
+                  const remainingVisits = (remainingHours / perVisit).toFixed(1);
+                  authErrors.push(`This visit would exceed the client's remaining GUIDE hours (${remainingHours.toFixed(2)} hrs / ${remainingVisits} visits remaining).`);
+                }
+              }
+            }
+          }
+
+          if (authErrors.length > 0) {
+            return res.status(400).json({ error: authErrors.join('; ') });
+          }
+        } else {
+          // Authorization gate skipped — record why, for the audit trail.
+          audit.logAction({
+            userId: 0,
+            userName: link.client.clientName,
+            userRole: 'pca',
+            action: 'SUBMIT',
+            entityType: 'Timesheet',
+            entityId: timesheet.id,
+            entityName: `${link.client.clientName} — week of ${weekStart.toISOString().slice(0, 10)}`,
+            metadata: {
+              authGate: 'skipped',
+              reason: link.client.authorizationRequired === false ? 'authorizationRequired=false' : 'override_active',
+            },
+          });
         }
       }
 
@@ -419,7 +517,7 @@ async function updatePcaForm(req, res, next) {
         dbEntryByDay[e.dayOfWeek] = e;
       }
 
-      let totalPasHours = 0, totalHmHours = 0, totalRespiteHours = 0;
+      let totalPasHours = 0, totalHmHours = 0, totalRespiteHours = 0, totalCompanionHours = 0;
 
       for (const entry of (entries || [])) {
         const dbEntry = entry.id ? { id: entry.id } : dbEntryByDay[entry.dayOfWeek];
@@ -429,10 +527,12 @@ async function updatePcaForm(req, res, next) {
         const adlHours = computeTotalHoursWithBlocks(filtered.adlTimeIn, filtered.adlTimeOut, filtered.adlTimeBlocks);
         const iadlHours = computeTotalHoursWithBlocks(filtered.iadlTimeIn, filtered.iadlTimeOut, filtered.iadlTimeBlocks);
         const respiteHours = computeTotalHoursWithBlocks(filtered.respiteTimeIn, filtered.respiteTimeOut, filtered.respiteTimeBlocks);
+        const companionHours = computeTotalHoursWithBlocks(filtered.companionTimeIn, filtered.companionTimeOut, filtered.companionTimeBlocks);
 
         totalPasHours += adlHours;
         totalHmHours += iadlHours;
         totalRespiteHours += respiteHours;
+        totalCompanionHours += companionHours;
 
         await db.timesheetEntry.update({
           where: { id: dbEntry.id },
@@ -458,16 +558,24 @@ async function updatePcaForm(req, res, next) {
             respitePcaInitials: filtered.respitePcaInitials || '',
             respiteClientInitials: filtered.respiteClientInitials || '',
             respiteTimeBlocks: filtered.respiteTimeBlocks || '[]',
+            companionActivities: filtered.companionActivities || '{}',
+            companionTimeIn: filtered.companionTimeIn || null,
+            companionTimeOut: filtered.companionTimeOut || null,
+            companionHours,
+            companionPcaInitials: filtered.companionPcaInitials || '',
+            companionClientInitials: filtered.companionClientInitials || '',
+            companionTimeBlocks: filtered.companionTimeBlocks || '[]',
           },
         });
       }
 
-      const totalHours = totalPasHours + totalHmHours + totalRespiteHours;
+      const totalHours = totalPasHours + totalHmHours + totalRespiteHours + totalCompanionHours;
 
       const updateData = {
         totalPasHours,
         totalHmHours,
         totalRespiteHours,
+        totalCompanionHours,
         totalHours,
       };
 
@@ -491,28 +599,10 @@ async function updatePcaForm(req, res, next) {
         include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
       });
 
-      // Fetch auth limits for response — filtered by timesheet week (no dedup)
+      // Fetch auth limits for response — filtered by timesheet week via SSOT helper
       const respWeekEnd = new Date(weekStart);
       respWeekEnd.setUTCDate(respWeekEnd.getUTCDate() + 6);
-      const allAuthzForResp = await db.authorization.findMany({
-        where: { clientId: link.clientId },
-        select: { serviceCode: true, serviceName: true, serviceCategory: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true, manualStatus: true, archivedAt: true },
-      });
-      const rwsMs = Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate());
-      const rweMs = Date.UTC(respWeekEnd.getUTCFullYear(), respWeekEnd.getUTCMonth(), respWeekEnd.getUTCDate());
-      const authzForResp = allAuthzForResp.filter(auth => {
-        if ((auth.manualStatus || 'active') !== 'active') return false;
-        if (auth.archivedAt) return false;
-        if (auth.authorizationStartDate) {
-          const sd = new Date(auth.authorizationStartDate);
-          if (Date.UTC(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate()) > rweMs) return false;
-        }
-        if (auth.authorizationEndDate) {
-          const ed = new Date(auth.authorizationEndDate);
-          if (Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate()) < rwsMs) return false;
-        }
-        return true;
-      });
+      const authzForResp = filterAuthsByWeek(allAuths, weekStart, respWeekEnd);
       const respAuthLimits = {};
       for (const auth of authzForResp) {
         const service = deriveTimesheetService(auth);
@@ -537,6 +627,9 @@ async function updatePcaForm(req, res, next) {
           id: link.client.id,
           clientName: link.client.clientName,
           enabledServices,
+          authorizationRequired: link.client.authorizationRequired !== false,
+          overrideActive: overrideInEffect(link.client),
+          overrideExpiresOn: overrideInEffect(link.client) ? link.client.overrideExpiresOn : null,
         },
         pcaName: link.pcaName,
         authLimits: respAuthLimits,

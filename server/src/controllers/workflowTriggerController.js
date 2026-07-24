@@ -1,4 +1,5 @@
 const audit = require('../services/auditService');
+const replacementSettings = require('../services/replacementSettings');
 
 async function listWorkflowTriggers(req, res, next) {
     try {
@@ -31,6 +32,12 @@ async function updateWorkflowTrigger(req, res, next) {
             data,
             include: { assignToUser: { select: { id: true, name: true, email: true } } },
         });
+
+        // Drop the cached flag so toggling auto-offering takes effect
+        // immediately rather than after the settings TTL expires.
+        if (trigger.type === replacementSettings.TRIGGER_TYPE) {
+            replacementSettings.invalidate();
+        }
 
         const changes = audit.diffFields(existing, trigger, ['enabled', 'thresholdDays', 'urgency', 'assignToRole', 'assignToUserId']);
         audit.logAction({

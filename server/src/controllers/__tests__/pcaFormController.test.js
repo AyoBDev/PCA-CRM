@@ -14,6 +14,9 @@ jest.mock('../../lib/prisma', () => ({
   authorization: {
     findMany: jest.fn().mockResolvedValue([]),
   },
+  service: {
+    findMany: jest.fn().mockResolvedValue([]),
+  },
 }));
 
 // Public-token handlers wrap post-lookup data access in enterTokenTenant.
@@ -65,8 +68,19 @@ const sampleTimesheet = {
   ],
 };
 
+// Default authorization set matching activeLink.client.enabledServices
+// (PAS + Homemaker + Respite). Sections are only exposed to the caregiver when
+// backed by an active authorization, so tests that exercise those sections need
+// the matching auths present. Individual tests override this as needed.
+const defaultAuths = [
+  { serviceCode: 'PCS', serviceName: 'Personal Care Services', serviceCategory: 'PAS', authorizedUnits: 400, authorizationStartDate: null, authorizationEndDate: null, manualStatus: 'active', archivedAt: null },
+  { serviceCode: 'S5130', serviceName: 'Homemaker', serviceCategory: 'Homemaker', authorizedUnits: 400, authorizationStartDate: null, authorizationEndDate: null, manualStatus: 'active', archivedAt: null },
+  { serviceCode: 'S5150', serviceName: 'Respite', serviceCategory: 'Respite', authorizedUnits: 400, authorizationStartDate: null, authorizationEndDate: null, manualStatus: 'active', archivedAt: null },
+];
+
 beforeEach(() => {
   jest.clearAllMocks();
+  prisma.authorization.findMany.mockResolvedValue(defaultAuths);
 });
 
 // ────────────────────────────────────────────────────────────────────────────────
@@ -512,6 +526,104 @@ describe('updatePcaForm submit', () => {
     expect(call.authLimits).toBeDefined();
   });
 
+  test('preserves hours on DRAFT SAVE for an admin-enabled section even without a matching authorization', async () => {
+    // Client's stored enabledServices lists Homemaker, but the client has ONLY a
+    // PAS authorization for this week. On a draft SAVE, the caregiver's Homemaker
+    // hours must be PRESERVED (not silently stripped) — authorization is enforced
+    // at SUBMIT time, not by discarding hours on save.
+    prisma.permanentLink.findUnique.mockResolvedValue({
+      ...activeLink,
+      client: { ...activeLink.client, enabledServices: '["PAS","Homemaker"]' },
+    });
+    prisma.authorization.findMany.mockResolvedValue([
+      {
+        serviceCode: 'PCS',
+        serviceName: 'Personal Care Services',
+        serviceCategory: 'PAS',
+        authorizedUnits: 400,
+        authorizationStartDate: null,
+        authorizationEndDate: null,
+        manualStatus: 'active',
+        archivedAt: null,
+      },
+    ]);
+
+    const { req, res, next } = mockReqRes({
+      params: { token: 'test-token' },
+      body: {
+        action: 'save',
+        entries: [
+          {
+            id: 1,
+            dayOfWeek: 0,
+            adlActivities: '{"Bathing":true}',
+            adlTimeIn: '08:00',
+            adlTimeOut: '10:00',
+            adlPcaInitials: 'JD',
+            adlClientInitials: 'JC',
+            // Homemaker hours entered even though there is no HM authorization
+            iadlActivities: '{"Laundry":true}',
+            iadlTimeIn: '10:00',
+            iadlTimeOut: '12:00',
+            iadlPcaInitials: 'JD',
+            iadlClientInitials: 'JC',
+            respiteActivities: '{}',
+            respiteTimeIn: null,
+            respiteTimeOut: null,
+            respitePcaInitials: '',
+            respiteClientInitials: '',
+          },
+        ],
+      },
+    });
+
+    await updatePcaForm(req, res, next);
+
+    // Homemaker (iadl) hours are PRESERVED on save — the section is admin-enabled.
+    expect(prisma.timesheetEntry.update).toHaveBeenCalledTimes(1);
+    const saved = prisma.timesheetEntry.update.mock.calls[0][0].data;
+    expect(saved.iadlActivities).toBe('{"Laundry":true}');
+    expect(saved.iadlTimeIn).toBe('10:00');
+    expect(saved.iadlTimeOut).toBe('12:00');
+    expect(saved.iadlHours).toBeGreaterThan(0);
+    // PAS (adl) is authorized — must be preserved.
+    expect(saved.adlActivities).toBe('{"Bathing":true}');
+    expect(saved.adlTimeIn).toBe('08:00');
+  });
+
+  test('GET exposes all admin-enabled sections and reports per-section auth status (Homemaker not authorized → state none)', async () => {
+    prisma.permanentLink.findUnique.mockResolvedValue({
+      ...activeLink,
+      client: { ...activeLink.client, enabledServices: '["PAS","Homemaker"]' },
+    });
+    prisma.authorization.findMany.mockResolvedValue([
+      {
+        serviceCode: 'PCS',
+        serviceName: 'Personal Care Services',
+        serviceCategory: 'PAS',
+        authorizedUnits: 400,
+        authorizationStartDate: null,
+        authorizationEndDate: null,
+        manualStatus: 'active',
+        archivedAt: null,
+      },
+    ]);
+    prisma.timesheet.findFirst.mockResolvedValue(sampleTimesheet);
+
+    const { req, res, next } = mockReqRes({ params: { token: 'test-token' } });
+    await getPcaForm(req, res, next);
+
+    const call = res.json.mock.calls[0][0];
+    // Both admin-enabled sections are exposed so the caregiver can enter hours.
+    expect(call.client.enabledServices).toContain('PAS');
+    expect(call.client.enabledServices).toContain('Homemaker');
+    // But the per-section authorization status reflects reality.
+    expect(call.client.authStatus.bySection.PAS.state).toBe('ok');
+    expect(call.client.authStatus.bySection.Homemaker.state).toBe('none');
+    expect(call.client.authStatus.state).toBe('none');
+    expect(call.client.authorizationRequired).toBe(true);
+  });
+
   test('filters out disabled services before validation — Homemaker/Respite overlap ignored when Respite not enabled', async () => {
     // Link with only PAS + Homemaker (no Respite)
     const linkNoRespite = {
@@ -562,5 +674,115 @@ describe('updatePcaForm submit', () => {
     const call = res.json.mock.calls[0][0];
     expect(call.timesheet).toEqual(updatedTimesheet);
     expect(call.client).toBeDefined();
+  });
+});
+
+describe('updatePcaForm submit — authorization gate state machine', () => {
+  const validSignatures = {
+    pcaFullName: 'Jane Doe',
+    pcaSignature: 'data:image/png;base64,abc',
+    recipientName: 'John Client',
+    recipientSignature: 'data:image/png;base64,xyz',
+  };
+  const updatedTimesheet = { ...sampleTimesheet, status: 'submitted' };
+
+  // A single day with 2 hours of PAS (ADL) work = 8 units.
+  const pasEntry = {
+    id: 1, dayOfWeek: 0,
+    adlActivities: '{"bathing":true}', adlTimeIn: '08:00', adlTimeOut: '10:00',
+    adlPcaInitials: 'JD', adlClientInitials: 'JC', adlTimeBlocks: '[]',
+    iadlActivities: '{}', respiteActivities: '{}', companionActivities: '{}',
+  };
+  const submitBody = { action: 'submit', entries: [pasEntry], ...validSignatures };
+
+  function linkWithClient(clientOverrides = {}) {
+    return { ...activeLink, client: { ...activeLink.client, enabledServices: '["PAS","Homemaker"]', authorizationRequired: true, ...clientOverrides } };
+  }
+  function pasAuth(overrides = {}) {
+    return {
+      serviceCode: 'PCS', serviceName: 'Personal Care Services', serviceCategory: 'PAS',
+      authorizedUnits: 400, authorizationStartDate: null, authorizationEndDate: null,
+      manualStatus: 'active', archivedAt: null, authorizationType: 'Weekly Units',
+      authorizedHoursPerYear: null, hoursPerVisit: null, usedHoursYtd: 0, ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    prisma.timesheet.findFirst.mockResolvedValue(sampleTimesheet);
+    prisma.timesheetEntry.update.mockResolvedValue({});
+    prisma.timesheet.update.mockResolvedValue({});
+    prisma.timesheet.findUnique.mockResolvedValue(updatedTimesheet);
+  });
+
+  test('#1 valid auth within weekly units → allowed', async () => {
+    prisma.permanentLink.findUnique.mockResolvedValue(linkWithClient());
+    prisma.authorization.findMany.mockResolvedValue([pasAuth({ authorizedUnits: 400 })]);
+    const { req, res } = mockReqRes({ params: { token: 'test-token' }, body: submitBody });
+    await updatePcaForm(req, res, jest.fn());
+    expect(res.status).not.toHaveBeenCalledWith(400);
+  });
+
+  test('#2 no auth on file → blocked "No active PAS authorization found"', async () => {
+    prisma.permanentLink.findUnique.mockResolvedValue(linkWithClient());
+    prisma.authorization.findMany.mockResolvedValue([]);
+    const { req, res } = mockReqRes({ params: { token: 'test-token' }, body: submitBody });
+    await updatePcaForm(req, res, jest.fn());
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json.mock.calls[0][0].error).toMatch(/No active PAS authorization found/);
+  });
+
+  test('#3 expired auth → blocked with expired message and date', async () => {
+    prisma.permanentLink.findUnique.mockResolvedValue(linkWithClient());
+    prisma.authorization.findMany.mockResolvedValue([pasAuth({ authorizationStartDate: '2019-01-01', authorizationEndDate: '2020-01-01' })]);
+    const { req, res } = mockReqRes({ params: { token: 'test-token' }, body: submitBody });
+    await updatePcaForm(req, res, jest.fn());
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json.mock.calls[0][0].error).toMatch(/authorization expired on/i);
+  });
+
+  test('#5 hours exceed weekly units → blocked exceeds message', async () => {
+    prisma.permanentLink.findUnique.mockResolvedValue(linkWithClient());
+    // Only 4 units authorized (1 hour) but 2 hours (8 units) submitted.
+    prisma.authorization.findMany.mockResolvedValue([pasAuth({ authorizedUnits: 4 })]);
+    const { req, res } = mockReqRes({ params: { token: 'test-token' }, body: submitBody });
+    await updatePcaForm(req, res, jest.fn());
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json.mock.calls[0][0].error).toMatch(/exceed this client's remaining authorized units/);
+  });
+
+  test('#7 authorizationRequired=false (Private Pay) → allowed with no auth on file', async () => {
+    prisma.permanentLink.findUnique.mockResolvedValue(linkWithClient({ authorizationRequired: false }));
+    prisma.authorization.findMany.mockResolvedValue([]);
+    const { req, res } = mockReqRes({ params: { token: 'test-token' }, body: submitBody });
+    await updatePcaForm(req, res, jest.fn());
+    expect(res.status).not.toHaveBeenCalledWith(400);
+  });
+
+  test('#9 authorizationRequired=false but missing clock-out → still blocked by baseline', async () => {
+    prisma.permanentLink.findUnique.mockResolvedValue(linkWithClient({ authorizationRequired: false }));
+    prisma.authorization.findMany.mockResolvedValue([]);
+    const badEntry = { ...pasEntry, adlTimeOut: null };
+    const { req, res } = mockReqRes({ params: { token: 'test-token' }, body: { ...submitBody, entries: [badEntry] } });
+    await updatePcaForm(req, res, jest.fn());
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json.mock.calls[0][0].error).toMatch(/missing time in\/out/);
+  });
+
+  test('#11 active override on a required client → allowed even with no auth', async () => {
+    const future = new Date(Date.now() + 30 * 864e5);
+    prisma.permanentLink.findUnique.mockResolvedValue(linkWithClient({ overrideActive: true, overrideExpiresOn: future }));
+    prisma.authorization.findMany.mockResolvedValue([]);
+    const { req, res } = mockReqRes({ params: { token: 'test-token' }, body: submitBody });
+    await updatePcaForm(req, res, jest.fn());
+    expect(res.status).not.toHaveBeenCalledWith(400);
+  });
+
+  test('#12 expired override → reverts to enforcement (blocked)', async () => {
+    prisma.permanentLink.findUnique.mockResolvedValue(linkWithClient({ overrideActive: true, overrideExpiresOn: new Date('2020-01-01') }));
+    prisma.authorization.findMany.mockResolvedValue([]);
+    const { req, res } = mockReqRes({ params: { token: 'test-token' }, body: submitBody });
+    await updatePcaForm(req, res, jest.fn());
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json.mock.calls[0][0].error).toMatch(/No active PAS authorization found/);
   });
 });

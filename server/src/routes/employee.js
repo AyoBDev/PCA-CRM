@@ -13,6 +13,7 @@ const { getTasks, completeTask } = require('../controllers/employeePortal/tasksC
 const { getMessages, sendMessage, markRead, getUnreadCount } = require('../controllers/employeePortal/chatController');
 const { getNotifications, markNotificationsRead } = require('../controllers/employeePortal/notificationController');
 const { getTimesheet } = require('../controllers/employeePortal/timesheetController');
+const { getMyOffers, respondToMyOffer } = require('../controllers/employeePortal/offersController');
 
 const certUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -67,5 +68,9 @@ router.patch('/notifications/read', markNotificationsRead);
 
 // Timesheet
 router.get('/timesheet', getTimesheet);
+
+// Replacement offers
+router.get('/offers', getMyOffers);
+router.post('/offers/:id/respond', respondToMyOffer);
 
 module.exports = router;

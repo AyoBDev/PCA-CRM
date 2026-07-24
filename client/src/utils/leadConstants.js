@@ -39,3 +39,41 @@ export function computeDeposit({ rate, depositHours }) {
 export function computeWeekly({ rate, hoursPerWeek }) {
   return (Number(rate) || 0) * (Number(hoursPerWeek) || 0);
 }
+
+// ── T6: view switcher + dormancy UI helpers ────────────────────────────────
+// Board = kanban (active leads). List = flat sortable table (active leads).
+// Dormant = auto-archived leads (see server: leadService.sweepDormantLeads).
+export const LEAD_VIEWS = [
+  { id: 'board',     label: 'Board' },
+  { id: 'list',      label: 'List' },
+  { id: 'converted', label: 'Recently Converted' },
+  { id: 'dormant',   label: 'Dormant Archive' },
+];
+
+// UI copy only — server enforces the actual threshold in leadService.
+export const DORMANT_DAYS = 90;
+
+// Whole days elapsed since the given ISO date string (or Date), floored.
+export function daysSince(iso) {
+  if (!iso) return 0;
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+}
+
+export const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Returns { years: [2026, 2025, ...], monthsByYear: { 2026: Set<0..11>, ... } }
+// from a list of leads keyed by their createdAt.
+export function deriveDateFilterOptions(leads) {
+  const monthsByYear = new Map();
+  for (const l of leads) {
+    if (!l?.createdAt) continue;
+    const d = new Date(l.createdAt);
+    if (Number.isNaN(d.getTime())) continue;
+    const y = d.getFullYear();
+    const m = d.getMonth();
+    if (!monthsByYear.has(y)) monthsByYear.set(y, new Set());
+    monthsByYear.get(y).add(m);
+  }
+  const years = [...monthsByYear.keys()].sort((a, b) => b - a);
+  return { years, monthsByYear };
+}
