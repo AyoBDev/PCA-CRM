@@ -3776,6 +3776,12 @@ label.checkbox-field {
   border-color: #ea580c;
 }
 
+.pcaf-auth-pill--companion {
+  background: hsl(330 80% 96%);
+  color: #ec4899;
+  border-color: #ec4899;
+}
+
 .pcaf-auth-card__right {
   display: flex;
   flex-direction: column;
@@ -3861,6 +3867,10 @@ label.checkbox-field {
 
 .pcaf-program__header--respite {
   background: #ea580c;
+}
+
+.pcaf-program__header--companion {
+  background: #ec4899;
 }
 
 .pcaf-program__icon {
@@ -4030,6 +4040,11 @@ label.checkbox-field {
 .pcaf-section-total--respite .pcaf-section-total__hrs,
 .pcaf-section-total--respite .pcaf-section-total__units {
   color: #ea580c;
+}
+
+.pcaf-section-total--companion .pcaf-section-total__hrs,
+.pcaf-section-total--companion .pcaf-section-total__units {
+  color: #ec4899;
 }
 
 /* Inputs */
@@ -4515,6 +4530,12 @@ label.checkbox-field {
   border-color: #ea580c;
 }
 
+.pcaf-mauth__pill--companion {
+  background: hsl(330 80% 96%);
+  color: #ec4899;
+  border-color: #ec4899;
+}
+
 /* ── PCA Form Mobile: Day Card ── */
 .pcaf-mcard {
   padding: 0 12px 16px;
@@ -4591,6 +4612,7 @@ label.checkbox-field {
 .pcaf-mcard__sec-header--pas { background: #1e40af; }
 .pcaf-mcard__sec-header--hm { background: #16a34a; }
 .pcaf-mcard__sec-header--respite { background: #ea580c; }
+.pcaf-mcard__sec-header--companion { background: #ec4899; }
 
 .pcaf-mcard__activities {
   padding: 8px 12px;
@@ -4834,6 +4856,7 @@ label.checkbox-field {
 .pcaf-msummary__total-row--pas strong { color: #1e40af; }
 .pcaf-msummary__total-row--hm strong { color: #16a34a; }
 .pcaf-msummary__total-row--respite strong { color: #ea580c; }
+.pcaf-msummary__total-row--companion strong { color: #ec4899; }
 
 .pcaf-msummary__signatures {
   border: 1px solid hsl(var(--border));
