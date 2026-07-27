@@ -3,6 +3,7 @@ const { roundTo15, computeHours, computeTotalHoursWithBlocks, deriveTimesheetSer
 const serviceRegistry = require('../services/serviceRegistry');
 const audit = require('../services/auditService');
 const { filterAuthsByWeek, classifyWeekAuthBySection } = require('../services/authorizationService');
+const { computeAndStoreIntegrityHash } = require('../services/timesheetIntegrityService');
 
 // Whether a client's override is currently in effect (active and not expired).
 function overrideInEffect(client, now = new Date()) {
@@ -585,6 +586,18 @@ async function updatePcaForm(req, res, next) {
       where: { id: timesheet.id },
       data: updateData,
     });
+
+    if (action === 'submit') {
+      // Signatures are freshly captured on every PCA-form submit, so this is
+      // always a new attestation — bind the hash to the persisted content.
+      await computeAndStoreIntegrityHash(timesheet.id);
+      audit.logAction({
+        userId: 0, userName: link.pcaName, userRole: 'pca',
+        action: 'SUBMIT', entityType: 'Timesheet', entityId: timesheet.id,
+        entityName: `${link.pcaName} - ${link.client?.clientName || ''}`,
+        metadata: { source: 'pca-form' },
+      });
+    }
 
     const updated = await prisma.timesheet.findUnique({
       where: { id: timesheet.id },

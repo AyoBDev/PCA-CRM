@@ -1,4 +1,6 @@
 require('dotenv').config();
+const { validateEnv } = require('./lib/validateEnv');
+validateEnv(); // fail fast if security-critical env vars are missing/malformed
 const http = require('http');
 const app = require('./app');
 const cron = require('node-cron');

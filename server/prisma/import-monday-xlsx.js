@@ -19,9 +19,8 @@
 
 const XLSX = require('xlsx');
 const path = require('path');
-const { PrismaClient } = require('@prisma/client');
 
-const prisma = new PrismaClient();
+const prisma = require('../src/lib/prisma');
 
 // ── Helpers ──
 
@@ -173,7 +172,7 @@ async function importClients(ws, { existingOnly = false } = {}) {
             if (insuranceType) data.insuranceType = insuranceType;
             if (phone) data.phone = phone;
             if (address) data.address = address;
-            if (dob) data.dob = dob;
+            if (dob) data.dob = dob.toISOString().slice(0, 10);
             if (paNumber) data.paNumber = paNumber;
             if (doctorInfo.doctorName) data.doctorName = doctorInfo.doctorName;
             if (doctorInfo.doctorPhone) data.doctorPhone = doctorInfo.doctorPhone;

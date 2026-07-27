@@ -12,9 +12,8 @@
 
 const XLSX = require('xlsx');
 const path = require('path');
-const { PrismaClient } = require('@prisma/client');
 
-const prisma = new PrismaClient();
+const prisma = require('../src/lib/prisma');
 const FILE = path.resolve(__dirname, '../../data/all-data.xlsx');
 
 function parseDate(val) {
