@@ -24,12 +24,17 @@ function encryptValue(value) {
     if (typeof value !== 'string' || value === '') return value;
     if (CIPHERTEXT_RE.test(value)) return value; // already encrypted — never double-encrypt
     if (!hasKey()) {
-        if (process.env.NODE_ENV === 'production') {
-            throw new Error('ENCRYPTION_KEY must be set in production to write PHI fields');
+        // Boot-time validateEnv() already refuses to start without a key unless
+        // ALLOW_PLAINTEXT_PHI=true. Reaching here therefore means the operator
+        // explicitly opted into plaintext (local dev only). Do NOT gate on
+        // NODE_ENV — Railway often leaves it unset, which previously let a
+        // real deploy silently store plaintext.
+        if (process.env.ALLOW_PLAINTEXT_PHI !== 'true') {
+            throw new Error('ENCRYPTION_KEY must be set to write PHI fields (set ALLOW_PLAINTEXT_PHI=true only for local dev)');
         }
         if (!warnedNoKey) {
             warnedNoKey = true;
-            console.warn('[phiCrypto] ENCRYPTION_KEY not set — PHI fields are being stored in PLAINTEXT (dev only)');
+            console.warn('[phiCrypto] ALLOW_PLAINTEXT_PHI=true — PHI fields are being stored in PLAINTEXT (dev only)');
         }
         return value;
     }
