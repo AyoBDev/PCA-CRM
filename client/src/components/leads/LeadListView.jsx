@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
-import Icons from '../common/Icons';
-import OverflowMenu from '../common/OverflowMenu';
 import { formatDate } from '../../utils/dates';
 import { getInitials, getAvatarColor } from '../../utils/ui';
 import { LEAD_CASE_TYPES, LEAD_STATUSES } from '../../utils/leadConstants';
+import LeadActionsMenu from './LeadActionsMenu';
 
 // Flat sortable table for the "List" view — active leads only, dense, keyboard-scannable.
 // Uses the app's canonical .data-table--sheet + .data-table--dark-header structure
@@ -13,10 +12,10 @@ import { LEAD_CASE_TYPES, LEAD_STATUSES } from '../../utils/leadConstants';
 // Props:
 //   leads       : array (already filtered by LeadsPage)
 //   onView      : (lead) => void
-//   onEdit      : (lead) => void
 //   onArchive   : (lead) => void
-//   onConvert   : (lead) => void
-export default function LeadListView({ leads, onView, onEdit, onArchive, onConvert }) {
+//   onMove      : (leadId, columnId) => void
+// Row actions use the shared LeadActionsMenu (same 3-dot menu as the Kanban card).
+export default function LeadListView({ leads, onView, onArchive, onMove }) {
     const [sort, setSort] = useState({ field: 'createdAt', dir: 'desc' });
 
     const sorted = useMemo(() => {
@@ -62,7 +61,7 @@ export default function LeadListView({ leads, onView, onEdit, onArchive, onConve
                             <Th field="status"        label="Status"        sort={sort} onClick={toggleSort} />
                             <Th field="followUpDate"  label="Follow-up"     sort={sort} onClick={toggleSort} />
                             <Th field="createdAt"     label="Added"         sort={sort} onClick={toggleSort} />
-                            <th scope="col" style={{ width: 64 }}>Actions</th>
+                            <th scope="col" style={{ width: 64, textAlign: 'center' }}>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -92,17 +91,14 @@ export default function LeadListView({ leads, onView, onEdit, onArchive, onConve
                                     </td>
                                     <td>{l.followUpDate ? formatDate(l.followUpDate) : '—'}</td>
                                     <td>{formatDate(l.createdAt)}</td>
-                                    <td>
-                                        <div className="lead-list-actions">
-                                            <OverflowMenu
-                                                items={[
-                                                    { label: 'View',    icon: Icons.eye,         action: () => onView(l) },
-                                                    { label: 'Edit',    icon: Icons.edit,        action: () => onEdit(l) },
-                                                    { label: 'Convert', icon: Icons.checkCircle, action: () => onConvert(l) },
-                                                    { label: 'Archive', icon: Icons.archive,     action: () => onArchive(l), variant: 'danger' },
-                                                ]}
-                                            />
-                                        </div>
+                                    <td className="lead-list-actions-cell">
+                                        <LeadActionsMenu
+                                            lead={l}
+                                            onView={onView}
+                                            onMove={onMove}
+                                            onArchive={onArchive}
+                                            fixedPanel
+                                        />
                                     </td>
                                 </tr>
                             );

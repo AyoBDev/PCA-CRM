@@ -31,7 +31,9 @@ const DEFAULT_FILTERS = { year: 'all', month: 'all', caseType: 'all', search: ''
 // page behaves identically on Board, List, Dormant, and Converted.
 // `dateField` is the lead property the Year/Month filters apply to.
 function applyLeadFilters(leads, filters, dateField) {
-    const q = filters.search.trim().toLowerCase();
+    // Collapse internal whitespace so a "First Last" query matches even when
+    // the stored name has stray/double spaces (e.g. "First  Last").
+    const q = filters.search.trim().toLowerCase().replace(/\s+/g, ' ');
     return leads.filter((l) => {
         if (filters.caseType !== 'all' && l.caseType !== filters.caseType) return false;
         if (filters.year !== 'all' || filters.month !== 'all') {
@@ -50,7 +52,8 @@ function applyLeadFilters(leads, filters, dateField) {
                 l.referralSource,
             ]
                 .join(' ')
-                .toLowerCase();
+                .toLowerCase()
+                .replace(/\s+/g, ' ');
             if (!hay.includes(q)) return false;
         }
         return true;
@@ -242,18 +245,6 @@ export default function LeadsPage() {
         navigate(clientId ? `/clients/${clientId}` : '/clients');
     }, [navigate, loadActive]);
 
-    // Detail view actions common between Board and List
-    const openEdit = useCallback((lead) => {
-        setEditLead(lead);
-        setDetailLead(null);
-        setWizardOpen(true);
-    }, []);
-
-    const openConvert = useCallback((lead) => {
-        setConvertLeadObj(lead);
-        setDetailLead(null);
-    }, []);
-
     return (
         <>
             <GlobalToolbar
@@ -345,6 +336,7 @@ export default function LeadsPage() {
                     onMove={handleMove}
                     onView={setDetailLead}
                     onConvert={setConvertLeadObj}
+                    onArchive={handleArchive}
                 />
             )}
 
@@ -352,9 +344,8 @@ export default function LeadsPage() {
                 <LeadListView
                     leads={filteredActive}
                     onView={setDetailLead}
-                    onEdit={openEdit}
                     onArchive={handleArchive}
-                    onConvert={openConvert}
+                    onMove={handleMove}
                 />
             )}
 
