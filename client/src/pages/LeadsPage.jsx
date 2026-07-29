@@ -16,6 +16,7 @@ import LeadDormantView from '../components/leads/LeadDormantView';
 import LeadConvertedView from '../components/leads/LeadConvertedView';
 import LeadViewSwitcher from '../components/leads/LeadViewSwitcher';
 import ReactivateLeadModal from '../components/leads/ReactivateLeadModal';
+import ConfirmModal from '../components/common/ConfirmModal';
 import { statusToColumn, columnToStatus } from '../utils/leadConstants';
 
 const CASE_TYPE_OPTIONS = [
@@ -82,6 +83,8 @@ export default function LeadsPage() {
     const [detailLead, setDetailLead] = useState(null);
     const [convertLeadObj, setConvertLeadObj] = useState(null);
     const [reactivateLeadObj, setReactivateLeadObj] = useState(null);
+    const [revertLeadObj, setRevertLeadObj] = useState(null);
+    const [reverting, setReverting] = useState(false);
 
     // ── Data loading ──────────────────────────────────────────────────────────
     const loadActive = useCallback(async () => {
@@ -245,6 +248,26 @@ export default function LeadsPage() {
         navigate(clientId ? `/clients/${clientId}` : '/clients');
     }, [navigate, loadActive]);
 
+    // Move an accidentally-converted lead back to the board. Deletes the
+    // auto-created (empty) client server-side; not undo-able, so it's confirmed.
+    const handleRevertConfirmed = useCallback(async () => {
+        const lead = revertLeadObj;
+        if (!lead) return;
+        setReverting(true);
+        try {
+            await api.revertLeadConversion(lead.id);
+            setConvertedLeads((c) => c.filter((x) => x.id !== lead.id));
+            setRevertLeadObj(null);
+            showToast('Moved back to Potential Clients', 'success');
+            // Refresh active board + stats so the restored lead + KPIs are current.
+            loadActive();
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setReverting(false);
+        }
+    }, [revertLeadObj, showToast, loadActive]);
+
     return (
         <>
             <GlobalToolbar
@@ -357,7 +380,7 @@ export default function LeadsPage() {
             )}
 
             {view === 'converted' && (
-                <LeadConvertedView leads={filteredConverted} />
+                <LeadConvertedView leads={filteredConverted} onRevert={setRevertLeadObj} />
             )}
 
             {wizardOpen && (
@@ -389,6 +412,17 @@ export default function LeadsPage() {
                     onClose={() => setReactivateLeadObj(null)}
                     onConfirmed={handleReactivateConfirmed}
                     reactivateLead={api.reactivateLead}
+                />
+            )}
+
+            {revertLeadObj && (
+                <ConfirmModal
+                    title="Move back to Potential Clients?"
+                    message={`This will move ${`${revertLeadObj.firstName || ''} ${revertLeadObj.lastName || ''}`.trim() || 'this lead'} back to the leads board and delete the client record created when they were converted. This can't be undone. If the client already has authorizations, shifts, or timesheets, the move will be blocked.`}
+                    confirmLabel={reverting ? 'Moving…' : 'Move Back'}
+                    confirmVariant="danger"
+                    onConfirm={handleRevertConfirmed}
+                    onClose={() => setRevertLeadObj(null)}
                 />
             )}
         </>

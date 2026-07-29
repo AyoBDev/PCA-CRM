@@ -162,6 +162,7 @@ export const setLeadStatus = (id, status) => request(`/leads/${id}/status`, { me
 export const archiveLead = (id) => request(`/leads/${id}/archive`, { method: 'POST' });
 export const restoreLead = (id) => request(`/leads/${id}/restore`, { method: 'POST' });
 export const convertLead = (id) => request(`/leads/${id}/convert`, { method: 'POST' });
+export const revertLeadConversion = (id) => request(`/leads/${id}/revert-conversion`, { method: 'POST' });
 export const reactivateLead = (id, columnId) =>
   request(`/leads/${id}/reactivate`, { method: 'POST', body: JSON.stringify({ status: columnId }) });
 export const getLeadStats = () => request('/leads/stats');

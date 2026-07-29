@@ -14,8 +14,9 @@ import { LEAD_CASE_TYPES, daysSince } from '../../utils/leadConstants';
 // an already-filtered array (same contract as LeadListView).
 //
 // Props:
-//   leads : array (already filtered by LeadsPage)
-export default function LeadConvertedView({ leads }) {
+//   leads    : array (already filtered by LeadsPage)
+//   onRevert : (lead) => void — move an accidentally-converted lead back to the board
+export default function LeadConvertedView({ leads, onRevert }) {
     const navigate = useNavigate();
     const [sort, setSort] = useState({ field: 'convertedAt', dir: 'desc' });
 
@@ -94,6 +95,11 @@ export default function LeadConvertedView({ leads }) {
                                                         icon: Icons.externalLink,
                                                         action: () => navigate(`/clients/${clientId}`),
                                                         disabled: !clientId,
+                                                    },
+                                                    {
+                                                        label: 'Move Back to Potential Clients',
+                                                        icon: Icons.undo,
+                                                        action: () => onRevert?.(l),
                                                     },
                                                 ]}
                                             />

@@ -179,7 +179,7 @@ const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalize
 const { previewSandata, applySandata, undoSandata } = require('../controllers/sandataController');
 const { listConversations, getConversationMessages, adminSendMessage, markConversationRead, getUnreadSummary } = require('../controllers/employeePortal/adminChatController');
 const { getOnboardingInfo, completeOnboarding, resendInvite, approveOnboarding, getOnboardingLink } = require('../controllers/onboardingController');
-const { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, reactivateLead, getLeadStats } = require('../controllers/leadController');
+const { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats } = require('../controllers/leadController');
 const {
     listPermissionGroups,
     getPermissionGroup,
@@ -303,6 +303,7 @@ router.patch('/leads/:id/status', requireRole('admin', 'user'), requirePermissio
 router.post('/leads/:id/archive', requireRole('admin', 'user'), requirePermission('leads'), archiveLead);
 router.post('/leads/:id/restore', requireRole('admin', 'user'), requirePermission('leads'), restoreLead);
 router.post('/leads/:id/convert', requireRole('admin', 'user'), requirePermission('leads'), convertLead);
+router.post('/leads/:id/revert-conversion', requireRole('admin', 'user'), requirePermission('leads'), revertConversion);
 router.post('/leads/:id/reactivate', requireRole('admin', 'user'), requirePermission('leads'), reactivateLead);
 
 // Authorization routes
