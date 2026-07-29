@@ -14598,6 +14598,34 @@ tr:hover .auth-note-icon--empty {
     flex-wrap: nowrap;
 }
 
+/* ── List view: reuse the card's 3-dot actions menu inside a table cell ── */
+.lead-list-actions-cell {
+    text-align: center;
+}
+
+/* In the table the trigger sits inline in the cell, not pinned to a card corner. */
+.lead-list-actions-cell .lead-card__menu {
+    position: static;
+    display: inline-flex;
+}
+
+/* The panel is rendered fixed (positioned in JS) so it escapes the table's
+   horizontal-scroll clip. Stage flyout opens to the LEFT of the panel since
+   the panel sits near the right edge. */
+/* Higher specificity (doubled class) so this wins over the base
+   .lead-card__menu-panel rule regardless of source order. */
+.lead-card__menu-panel.lead-card__menu-panel--fixed {
+    position: fixed;
+    top: auto;
+    right: auto;
+    z-index: 1000;
+}
+
+.lead-card__menu-panel--fixed .lead-card__submenu-panel {
+    left: auto;
+    right: calc(100% + 2px);
+}
+
 /* ── Dormant Archive view ── */
 .leads-dormant-view {
     padding: 20px 24px 24px;
@@ -14909,7 +14937,9 @@ tr:hover .auth-note-icon--empty {
     background: hsl(var(--muted) / 0.4);
     border: 1px solid hsl(var(--border));
     border-radius: var(--radius);
-    overflow: hidden;
+    /* visible (not hidden) so a card's flyout submenu can extend past the
+       column edge into the next column. Header corners are rounded directly. */
+    overflow: visible;
     min-height: 200px;
 }
 
@@ -14922,6 +14952,7 @@ tr:hover .auth-note-icon--empty {
     background: hsl(222 47% 22%);
     border-bottom: none;
     border-top: 3px solid var(--block-color, hsl(222 47% 28%));
+    border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0;
 }
 
 .k-col__title {
@@ -14967,6 +14998,7 @@ tr:hover .auth-note-icon--empty {
 
 /* ── Lead card ── */
 .lead-card {
+    position: relative;
     background: hsl(var(--card));
     border: 1px solid hsl(var(--border));
     border-radius: calc(var(--radius) - 2px);
@@ -14974,6 +15006,109 @@ tr:hover .auth-note-icon--empty {
     cursor: grab;
     box-shadow: 0 1px 2px hsl(var(--foreground) / 0.04);
     transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+/* ── Lead card 3-dot menu ── */
+.lead-card__menu {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 5;
+}
+
+.lead-card__menu-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.lead-card__menu-trigger:hover {
+    background: hsl(var(--accent));
+    color: hsl(var(--foreground));
+}
+
+.lead-card__menu-trigger svg {
+    width: 16px;
+    height: 16px;
+}
+
+.lead-card__menu-panel {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    min-width: 180px;
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 6px;
+    box-shadow: 0 4px 12px hsl(0 0% 0% / 0.12);
+    z-index: 100;
+    padding: 4px 0;
+}
+
+.lead-card__submenu-wrap {
+    position: relative;
+}
+
+.lead-card__submenu-trigger {
+    justify-content: flex-start;
+}
+
+.lead-card__submenu-caret {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+}
+
+.lead-card__submenu-caret svg {
+    width: 14px;
+    height: 14px;
+}
+
+.lead-card__submenu-panel {
+    position: absolute;
+    top: -4px;
+    left: calc(100% + 2px);
+    min-width: 190px;
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 6px;
+    box-shadow: 0 4px 12px hsl(0 0% 0% / 0.18);
+    z-index: 201;
+    padding: 4px 0;
+}
+
+.lead-card__submenu-panel .dropdown-menu__item:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.lead-card__submenu-panel .dropdown-menu__item:disabled:hover {
+    background: none;
+}
+
+.lead-card__stage-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.lead-card__stage-current {
+    margin-left: auto;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: hsl(var(--muted-foreground));
 }
 
 .lead-card:hover {
@@ -14985,6 +15120,12 @@ tr:hover .auth-note-icon--empty {
     cursor: grabbing;
 }
 
+/* Lift the card (and its flyout submenu) above sibling cards and the
+   neighboring column while its actions menu is open. */
+.lead-card--menu-open {
+    z-index: 50;
+}
+
 .lead-card__name {
     font-size: 14px;
     font-weight: 600;
@@ -14994,9 +15135,19 @@ tr:hover .auth-note-icon--empty {
 
 .lead-card__source,
 .lead-card__date {
+    display: flex;
+    align-items: center;
+    gap: 5px;
     font-size: 12px;
     color: hsl(var(--muted-foreground));
     margin-bottom: 2px;
+}
+
+.lead-card__source svg,
+.lead-card__date svg {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
 }
 
 .lead-card__tags {

@@ -6,15 +6,18 @@ import { useAuth } from '../../hooks/useAuth';
 import { LEAD_STATUSES, LEAD_CASE_TYPES, computeDeposit, computeWeekly } from '../../utils/leadConstants';
 
 const SERVICE_OPTIONS = [
-    'Light Housekeeping', 'Meal Preparation', 'Shower Assistance', 'Dressing', 'Grooming',
-    'Diaper Change', 'Transfer Assistance', 'Toileting', 'Medication Reminders',
-    'Companionship', 'Grocery Shopping', 'Other',
+    'B/D/G', 'Toileting', 'Diaper Change', 'Transfer Assistance', 'Mobility',
+    'Eating', 'Meal Preparation', 'Light Housekeeping', 'Grocery Shopping', 'Laundry',
+    'Companionship', 'Transportation / Private Clients Only', 'Medication Reminders', 'Other',
 ];
 const SHIFT_OPTIONS = ['Morning shift', 'Afternoon shift', 'Evening shift'];
 const AUTH_STATUS_OPTIONS = ['Not started', 'Application in process', 'Auth received'];
 const GENDER_PREF_OPTIONS = ['No preference', 'Male', 'Female'];
-const AGE_PREF_OPTIONS = ['No preference', 'Similar age', 'Younger', 'Older'];
+const AGE_PREF_OPTIONS = ['No preference', 'Younger (20s-30s)', 'Middle-aged (40s-50s)', 'Older / more experienced'];
 const LANGUAGE_OPTIONS = ['English', 'Spanish', 'French', 'Creole', 'Other'];
+const RELATION_OPTIONS = ['Spouse', 'Son/Daughter', 'Parent', 'Sibling', 'Other'];
+const DAYS_PER_WEEK_OPTIONS = ['1-2 days', '3-4', '5 days (M-F)', '6-7 days', 'Flexible'];
+const START_DATE_OPTIONS = ['ASAP', 'Within 1 week', 'Within 2 weeks', 'Next month'];
 
 const STEP_LABELS = ['Basic Info', 'Service Needs', 'Case Type', 'Preferences', 'Status'];
 
@@ -225,7 +228,10 @@ function Step1Basic({ form, set, insuranceOptions, users }) {
                     </div>
                     <div className="fld">
                         <label>Relation</label>
-                        <input className="finput" value={form.emergencyContactRelation} onChange={(e) => set('emergencyContactRelation', e.target.value)} />
+                        <select className="finput" value={form.emergencyContactRelation} onChange={(e) => set('emergencyContactRelation', e.target.value)}>
+                            <option value="">— Select —</option>
+                            {RELATION_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
                     </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -284,7 +290,10 @@ function Step2Services({ form, set, toggleArr }) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="fld">
                         <label>Days per Week</label>
-                        <input className="finput" value={form.daysPerWeek} onChange={(e) => set('daysPerWeek', e.target.value)} placeholder="e.g. 5" />
+                        <select className="finput" value={form.daysPerWeek} onChange={(e) => set('daysPerWeek', e.target.value)}>
+                            <option value="">— Select —</option>
+                            {DAYS_PER_WEEK_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
                     </div>
                     <div className="fld">
                         <label>Hours per Day</label>
@@ -293,7 +302,10 @@ function Step2Services({ form, set, toggleArr }) {
                 </div>
                 <div className="fld" style={{ marginBottom: 0 }}>
                     <label>Start Date Needed</label>
-                    <input className="finput" type="date" value={form.startDateNeeded} onChange={(e) => set('startDateNeeded', e.target.value)} />
+                    <select className="finput" value={form.startDateNeeded} onChange={(e) => set('startDateNeeded', e.target.value)}>
+                        <option value="">— Select —</option>
+                        {START_DATE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
                 </div>
             </FormCard>
         </>
@@ -551,8 +563,9 @@ export default function LeadIntakeWizard({ open = true, initialLead, onClose, on
     const toggleArr = (k, v) => setForm((f) => ({ ...f, [k]: f[k].includes(v) ? f[k].filter((x) => x !== v) : [...f[k], v] }));
 
     const insuranceOptions = [
-        ...insuranceTypes.map((t) => t.name),
-        'Private Pay',
+        // Drop any DB "Private Pay" row so it isn't duplicated by the appended option below.
+        ...insuranceTypes.map((t) => t.name).filter((n) => n.trim().toLowerCase() !== 'private pay'),
+        'Private Pay (no insurance)',
     ];
 
     async function submit() {
