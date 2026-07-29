@@ -53,7 +53,7 @@ function mapLeadToClientData(lead) {
     secondaryPhone: lead.alternatePhone || '',
     email: lead.emergencyContactEmail || '',
     gender: lead.gender || '',
-    dob: lead.dob || null,
+    dob: lead.dob ? new Date(lead.dob).toISOString().slice(0, 10) : '',
     doctorName: lead.doctorName || '',
     doctorPhone: lead.doctorPhone || '',
     emergencyContactName: lead.emergencyContactName || '',

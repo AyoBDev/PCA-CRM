@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import * as api from '../../api';
 import Icons from '../../components/common/Icons';
 import { useToast } from '../../hooks/useToast';
+import NotesExportButton from '../../components/common/NotesExportButton';
 
 const SOURCE_CONFIG = {
     authorization: { label: 'Authorization', icon: Icons.shieldCheck, color: '#2563eb' },
@@ -13,6 +14,8 @@ const SOURCE_CONFIG = {
     authDocument: { label: 'Auth Document', icon: Icons.folder, color: '#d97706' },
     timesheet: { label: 'Timesheet', icon: Icons.clock, color: '#8b5cf6' },
     schedule: { label: 'Scheduling', icon: Icons.calendar, color: '#06b6d4' },
+    // Matches the employee Notes tab so a callout looks the same on both sides.
+    callout: { label: 'Callout', icon: Icons.alertTriangle, color: '#f59e0b' },
     activity: { label: 'Activity', icon: Icons.clipboard, color: '#f97316' },
 };
 
@@ -90,7 +93,13 @@ export default function NotesTab({ clientId }) {
             <div className="cp-card">
                 <div className="cp-card__header">
                     <h3 className="cp-card__title">Notes</h3>
-                    <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>{total} entries</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>{total} entries</span>
+                        <NotesExportButton
+                            disabled={loading}
+                            onExport={(range) => api.exportClientNotesPdf(clientId, range)}
+                        />
+                    </div>
                 </div>
                 <div className="cp-card__body">
                     {presentSources.length > 1 && (

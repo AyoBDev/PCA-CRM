@@ -2,6 +2,7 @@ const prisma = require('../lib/prisma');
 const XLSX = require('xlsx');
 const { enrichClient } = require('../services/authorizationService');
 const audit = require('../services/auditService');
+const { geocodeOnWrite } = require('../services/geocodeOnWrite');
 
 // GET /api/clients
 async function listClients(req, res, next) {
@@ -90,7 +91,7 @@ async function createClient(req, res, next) {
                 caregiverRequirements: (caregiverRequirements || '').trim(),
                 mainServices: (mainServices || '').trim(),
                 enabledServices: enabledServices || '["PAS","Homemaker"]',
-                dob: dob ? new Date(dob) : null,
+                dob: dob ? String(dob).slice(0, 10) : '',
                 paNumber: (paNumber || '').trim(),
                 doctorName: (doctorName || '').trim(),
                 doctorPhone: (doctorPhone || '').trim(),
@@ -107,6 +108,7 @@ async function createClient(req, res, next) {
             include: { authorizations: true },
         });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Client', entityId: client.id, entityName: client.clientName });
+        geocodeOnWrite('client', client.id, { oldAddress: '', newAddress: client.address });
         res.status(201).json(enrichClient(client));
     } catch (err) {
         next(err);
@@ -140,7 +142,7 @@ async function updateClient(req, res, next) {
                 caregiverRequirements: (caregiverRequirements || '').trim(),
                 mainServices: (mainServices || '').trim(),
                 enabledServices: enabledServices || '["PAS","Homemaker"]',
-                dob: dob ? new Date(dob) : null,
+                dob: dob ? String(dob).slice(0, 10) : '',
                 paNumber: (paNumber || '').trim(),
                 doctorName: (doctorName || '').trim(),
                 doctorPhone: (doctorPhone || '').trim(),
@@ -157,7 +159,9 @@ async function updateClient(req, res, next) {
             include: { authorizations: { orderBy: { createdAt: 'asc' } } },
         });
         const changes = audit.diffFields(oldClient, updated, ['clientName', 'medicaidId', 'insuranceType', 'address', 'secondaryAddress', 'phone', 'secondaryPhone', 'email', 'gender', 'gateCode', 'notes', 'pcaNotes', 'caregiverRequirements', 'mainServices', 'enabledServices', 'dob', 'paNumber', 'doctorName', 'doctorPhone', 'backupDoctorName', 'backupDoctorPhone', 'emergencyContactName', 'emergencyContactPhone', 'emergencyContactRelation', 'secondaryEmergencyName', 'secondaryEmergencyPhone', 'secondaryEmergencyRelation', 'critical']);
-        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Client', entityId: updated.id, entityName: updated.clientName, changes });
+        const redacted = audit.redactChanges(changes, ['medicaidId', 'dob', 'notes', 'pcaNotes']);
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Client', entityId: updated.id, entityName: updated.clientName, changes: redacted });
+        geocodeOnWrite('client', updated.id, { oldAddress: oldClient?.address, newAddress: updated.address });
         res.json(enrichClient(updated));
     } catch (err) {
         if (err.code === 'P2025') return res.status(404).json({ error: 'Client not found' });
@@ -184,7 +188,7 @@ async function patchClient(req, res, next) {
         if (caregiverRequirements !== undefined) data.caregiverRequirements = caregiverRequirements;
         if (mainServices !== undefined) data.mainServices = mainServices;
         if (enabledServices !== undefined) data.enabledServices = enabledServices;
-        if (dob !== undefined) data.dob = dob ? new Date(dob) : null;
+        if (dob !== undefined) data.dob = dob ? String(dob).slice(0, 10) : '';
         if (paNumber !== undefined) data.paNumber = paNumber;
         if (doctorName !== undefined) data.doctorName = doctorName;
         if (doctorPhone !== undefined) data.doctorPhone = doctorPhone;
@@ -248,9 +252,10 @@ async function patchClient(req, res, next) {
             });
         }
 
-        const changes = audit.diffFields(oldClient, updated, Object.keys(data));
+        const changes = audit.redactChanges(audit.diffFields(oldClient, updated, Object.keys(data)), ['medicaidId', 'dob', 'notes', 'pcaNotes']);
         const auditMeta = touchesCompliance && reasonNote ? { reasonNote: String(reasonNote).trim() } : undefined;
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Client', entityId: id, entityName: updated.clientName, changes, metadata: auditMeta });
+        geocodeOnWrite('client', id, { oldAddress: oldClient?.address, newAddress: data.address });
 
         const final = await prisma.client.findUnique({
             where: { id },

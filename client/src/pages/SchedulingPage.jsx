@@ -5,9 +5,11 @@ import Modal from '../components/common/Modal';
 import { hhmm12 } from '../utils/time';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
+import { useNearbyEmployees, conflictLabel } from '../hooks/useNearbyEmployees';
 import ScheduleDelivery from './scheduling/ScheduleDelivery';
 import MonthlyCalendarView from './scheduling/MonthlyCalendarView';
 import FutureShiftsView from './scheduling/FutureShiftsView';
+import CalloutPanel from './scheduling/CalloutPanel';
 import { getAccountForCategory, ACCOUNT_NUMBER_OPTIONS } from '../utils/accountMapping';
 import UndoBanner from '../components/common/UndoBanner';
 import DeleteConfirmModal from '../components/common/DeleteConfirmModal';
@@ -35,7 +37,7 @@ import SearchableSelect from '../components/common/SearchableSelect';
 
 // Helper: get YYYY-MM-DD from a date value.
 
-function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete, onClose, defaultDate, defaultClientId, defaultEmployeeId, defaultStartTime, weekStart: propWeekStart, draft, onClearDraft }) {
+function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete, onClose, onFindCover, defaultDate, defaultClientId, defaultEmployeeId, defaultStartTime, weekStart: propWeekStart, draft, onClearDraft }) {
     const DAY_NAMES = DAY_NAMES_SHORT;
     const isEdit = !!shift;
 
@@ -47,6 +49,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
     const [status, setStatus] = useState(shift?.status || 'scheduled');
     const [saving, setSaving] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [deleteScope, setDeleteScope] = useState('this'); // 'this' | 'future' | 'all'
     const [accountNumber, setAccountNumber] = useState(d?.accountNumber || shift?.accountNumber || '');
     const [sandataClientId, setSandataClientId] = useState(d?.sandataClientId || shift?.sandataClientId || '');
 
@@ -229,9 +232,43 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const filteredEmployees = employees.filter(e =>
-        e.name.toLowerCase().includes(empSearch.toLowerCase())
-    );
+    // Proximity ranking needs ONE concrete date + time window. Edit mode has
+    // exactly that; create mode spreads shifts across days, so use the first
+    // enabled day as the representative window.
+    const rankingWindow = (() => {
+        if (isEdit) return { date: shiftDate, startTime, endTime };
+        const idx = dayEntries.findIndex(d => d.enabled);
+        if (idx === -1) return { date: '', startTime: '', endTime: '' };
+        const first = dayEntries[idx].shifts?.[0];
+        return { date: weekDates[idx], startTime: first?.startTime || '', endTime: first?.endTime || '' };
+    })();
+
+    const { ranked } = useNearbyEmployees({
+        clientId,
+        serviceCode,
+        date: rankingWindow.date,
+        startTime: rankingWindow.startTime,
+        endTime: rankingWindow.endTime,
+    });
+
+    const nameMatch = e => e.name.toLowerCase().includes(empSearch.toLowerCase());
+    const filteredEmployees = employees.filter(nameMatch);
+
+    // Availability outranks proximity: eligible and ineligible are kept as two
+    // separate groups so a closer-but-double-booked caregiver can never appear
+    // above one who is actually free. Ranking REORDERS the list; it never
+    // removes anyone, and free-text search still filters both groups.
+    const rankedGroups = (() => {
+        if (!ranked) return null;
+        const byId = new Map(employees.map(e => [e.id, e]));
+        const hydrate = list => (list || [])
+            .map(c => ({ ...c, employee: byId.get(c.employeeId) }))
+            .filter(c => c.employee && nameMatch(c.employee));
+        const available = hydrate(ranked.eligible);
+        const unavailable = hydrate(ranked.ineligible);
+        if (available.length === 0 && unavailable.length === 0) return null;
+        return { available, unavailable };
+    })();
 
     const computeHrs = (sT, eT) => {
         if (!sT || !eT) return { hours: 0, units: 0 };
@@ -414,7 +451,17 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                         )}
                     </div>
                     <div className="form-group" ref={empRef} style={{ position: 'relative' }}>
-                        <label htmlFor="shiftEmployee">Employee</label>
+                        <label htmlFor="shiftEmployee">
+                            Employee
+                            {/* Ranking needs a client, day and time window before it can say
+                                who is free. Without this hint the ordering silently never
+                                appears, because the day grid sits below this field. */}
+                            {clientId && !rankedGroups && (
+                                <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 400, color: 'hsl(var(--muted-foreground))' }}>
+                                    pick a day and time below to sort by availability &amp; distance
+                                </span>
+                            )}
+                        </label>
                         <input
                             id="shiftEmployee"
                             value={empSearch}
@@ -428,8 +475,9 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                             <ul style={{
                                 position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
                                 background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))',
-                                borderRadius: 'var(--radius)', maxHeight: 180, overflowY: 'auto',
-                                margin: 0, padding: 0, listStyle: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                borderRadius: 'var(--radius)', maxHeight: 280, overflowY: 'auto',
+                                margin: 0, padding: 0, listStyle: 'none',
+                                boxShadow: '0 4px 16px hsl(var(--foreground) / 0.08), 0 1px 3px hsl(var(--foreground) / 0.04)',
                             }}>
                                 {filteredEmployees.length === 0 && empSearch.trim() && (
                                     <li onClick={() => { setEmployeeId(''); setCreatingNewEmp(true); setEmpDropdownOpen(false); }}
@@ -437,7 +485,11 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                                         + Create "{empSearch.trim()}" as new employee
                                     </li>
                                 )}
-                                {filteredEmployees.map(e => (
+                                {/* Unranked fallback: shown until the shift has a client, date and
+                                    both times — the app must not imply it has checked availability
+                                    before it knows when the shift is. Also the degraded path when
+                                    the lookup fails or no addresses are geocoded. */}
+                                {!rankedGroups && filteredEmployees.map(e => (
                                     <li key={e.id}
                                         onClick={() => { setEmployeeId(String(e.id)); setEmpSearch(e.name); setCreatingNewEmp(false); setNewEmpEmail(''); setEmpDropdownOpen(false); }}
                                         style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, background: String(e.id) === String(employeeId) ? 'hsl(var(--muted))' : undefined }}
@@ -446,6 +498,68 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                                         {e.name}
                                     </li>
                                 ))}
+
+                                {rankedGroups && ['available', 'unavailable'].map(group => {
+                                    const rows = rankedGroups[group];
+                                    if (rows.length === 0) return null;
+                                    const isAvailable = group === 'available';
+                                    return (
+                                        <React.Fragment key={group}>
+                                            <li style={{
+                                                padding: '6px 12px', fontSize: 10, fontWeight: 600,
+                                                letterSpacing: '0.06em', textTransform: 'uppercase',
+                                                color: 'hsl(var(--muted-foreground))',
+                                                background: 'hsl(var(--muted))',
+                                                borderTop: isAvailable ? 'none' : '1px solid hsl(var(--border))',
+                                                position: 'sticky', top: 0,
+                                            }}>
+                                                {isAvailable ? `Available (${rows.length})` : `Unavailable (${rows.length})`}
+                                            </li>
+                                            {rows.map(c => {
+                                                const selected = String(c.employeeId) === String(employeeId);
+                                                return (
+                                                    <li key={c.employeeId}
+                                                        onClick={() => { setEmployeeId(String(c.employeeId)); setEmpSearch(c.employee.name); setCreatingNewEmp(false); setNewEmpEmail(''); setEmpDropdownOpen(false); }}
+                                                        style={{
+                                                            display: 'flex', alignItems: 'center', gap: 8,
+                                                            padding: '8px 12px', cursor: 'pointer', fontSize: 13,
+                                                            background: selected ? 'hsl(var(--muted))' : undefined,
+                                                        }}
+                                                        onMouseEnter={ev => ev.currentTarget.style.background = 'hsl(var(--muted))'}
+                                                        onMouseLeave={ev => ev.currentTarget.style.background = selected ? 'hsl(var(--muted))' : ''}>
+                                                        <span style={{
+                                                            flex: 1, minWidth: 0, whiteSpace: 'nowrap',
+                                                            overflow: 'hidden', textOverflow: 'ellipsis',
+                                                            // Unavailable stays selectable — schedulers must always be
+                                                            // able to assign whoever they want — but reads as secondary.
+                                                            color: isAvailable ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
+                                                        }}>
+                                                            {c.employee.name}
+                                                            {c.onCareTeam && (
+                                                                <span style={{
+                                                                    marginLeft: 6, padding: '1px 6px', borderRadius: 4,
+                                                                    fontSize: 10, fontWeight: 600,
+                                                                    background: 'hsl(var(--primary) / 0.1)',
+                                                                    color: 'hsl(var(--primary))',
+                                                                }}>Care team</span>
+                                                            )}
+                                                        </span>
+                                                        <span style={{
+                                                            fontSize: 11, fontWeight: 500, whiteSpace: 'nowrap',
+                                                            color: isAvailable ? 'hsl(var(--muted-foreground))' : 'hsl(var(--danger))',
+                                                        }}>
+                                                            {isAvailable
+                                                                // Un-geocoded shows an em dash, never a conflict —
+                                                                // a missing address is a data gap, not unavailability.
+                                                                ? (c.distanceMiles == null ? '—' : `${c.distanceMiles.toFixed(1)} mi`)
+                                                                : conflictLabel(c.conflicts)}
+                                                        </span>
+                                                    </li>
+                                                );
+                                            })}
+                                        </React.Fragment>
+                                    );
+                                })}
                             </ul>
                         )}
                     </div>
@@ -577,6 +691,12 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                                 <option value="scheduled">Scheduled</option>
                                 <option value="completed">Completed</option>
                                 <option value="cancelled">Cancelled</option>
+                                {/* Set by the replacement workflow, not chosen manually — listed
+                                    only so an in-progress shift does not silently lose the status
+                                    when its form is saved. */}
+                                {status === 'pending_replacement' && (
+                                    <option value="pending_replacement">Pending replacement</option>
+                                )}
                             </select>
                         </div>
                         {/* Repeat Weekly — only show for shifts not already in a recurring group */}
@@ -765,16 +885,36 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                             {Icons.trash} Delete
                         </button>
                     )}
-                    {isEdit && confirmDelete && (
+                    {isEdit && confirmDelete && !shift.recurringGroupId && (
                         <div style={{ display: 'flex', gap: 6, marginRight: 'auto' }}>
-                            <button type="button" className="btn" style={{ background: 'hsl(0 84% 60%)', color: '#fff' }} onClick={() => onDelete(shift.id, false)}>
+                            <button type="button" className="btn" style={{ background: 'hsl(0 84% 60%)', color: '#fff' }} onClick={() => onDelete(shift.id, { scope: 'this' })}>
                                 Delete This Shift
                             </button>
-                            {shift.recurringGroupId && (
-                                <button type="button" className="btn" style={{ background: 'hsl(0 60% 45%)', color: '#fff' }} onClick={() => onDelete(shift.id, true)}>
-                                    Delete All in Series
+                            <button type="button" className="btn btn--outline" onClick={() => setConfirmDelete(false)}>Cancel</button>
+                        </div>
+                    )}
+                    {isEdit && confirmDelete && shift.recurringGroupId && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginRight: 'auto' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                                    <input type="radio" name="deleteScope" checked={deleteScope === 'this'} onChange={() => setDeleteScope('this')} />
+                                    <span>This shift only</span>
+                                </label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                                    <input type="radio" name="deleteScope" checked={deleteScope === 'future'} onChange={() => setDeleteScope('future')} />
+                                    <span>This &amp; all future occurrences</span>
+                                </label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                                    <input type="radio" name="deleteScope" checked={deleteScope === 'all'} onChange={() => setDeleteScope('all')} />
+                                    <span style={{ color: 'hsl(0 72% 45%)' }}>All occurrences (incl. past) ⚠</span>
+                                </label>
+                            </div>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                                <button type="button" className="btn" style={{ background: 'hsl(0 84% 60%)', color: '#fff' }} onClick={() => onDelete(shift.id, { scope: deleteScope })}>
+                                    Delete
                                 </button>
-                            )}
+                                <button type="button" className="btn btn--outline" onClick={() => { setConfirmDelete(false); setDeleteScope('this'); }}>Cancel</button>
+                            </div>
                         </div>
                     )}
                     {!isEdit && (clientId || employeeId || empSearch || dayEntries.some(de => de.enabled)) && (
@@ -782,10 +922,23 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                             Clear
                         </button>
                     )}
-                    <button type="button" className="btn btn--outline" onClick={handleClose}>Cancel</button>
-                    <button type="submit" className="btn btn--primary" disabled={saving || (!isEdit && enabledCount === 0) || (clientId && authorizedServices.length === 0 && selectedClient?.authorizations?.length > 0)}>
-                        {saving ? 'Saving…' : isEdit ? 'Update Shift' : `Create ${enabledCount} Shift${enabledCount !== 1 ? 's' : ''}`}
-                    </button>
+                    {/* Only offered for an assigned shift — there is nobody to
+                        call out of an unassigned one. Hidden while confirming a
+                        delete, alongside Cancel/Save. */}
+                    {isEdit && !confirmDelete && shift?.employeeId && onFindCover && (
+                        <button type="button" className="btn btn--outline" onClick={() => onFindCover(shift)}>
+                            {shift.status === 'pending_replacement' ? 'View replacement' : 'Find cover'}
+                        </button>
+                    )}
+                    {/* Hide the normal Cancel/Save while confirming a delete — the delete UI has its own buttons. */}
+                    {!confirmDelete && (
+                        <>
+                            <button type="button" className="btn btn--outline" onClick={handleClose}>Cancel</button>
+                            <button type="submit" className="btn btn--primary" disabled={saving || (!isEdit && enabledCount === 0) || (clientId && authorizedServices.length === 0 && selectedClient?.authorizations?.length > 0)}>
+                                {saving ? 'Saving…' : isEdit ? 'Update Shift' : `Create ${enabledCount} Shift${enabledCount !== 1 ? 's' : ''}`}
+                            </button>
+                        </>
+                    )}
                 </div>
             </form>
         </Modal>
@@ -1243,7 +1396,6 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
     };
 
     const selectedShifts = filteredShifts.filter(s => selectedIds.has(s.id));
-    const count = selectedShifts.length;
 
     // Group selected shifts by day
     const shiftsByDay = useMemo(() => {
@@ -1274,6 +1426,51 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
 
     const [applyToFuture, setApplyToFuture] = useState(true);
     const [confirmDelete, setConfirmDelete] = useState(false);
+
+    // ── Option B addition: add / remove shift rows ────────────────────────────
+    // Existing shifts stay in `edits`/`selectedShifts`; we only ADD two things:
+    //   newRows   — brand-new draft shifts the user added, keyed by day.
+    //   removedIds — existing shift ids the user removed with the × (archived on save).
+    const newRowSeq = useRef(0);
+    const [newRows, setNewRows] = useState({});      // { [dateStr]: [draftRow] }
+    const [removedIds, setRemovedIds] = useState(() => new Set());
+
+    const addHour = (hhmm) => {
+        // Default a new row's end to 1 hour after its start (avoids a zero-length shift).
+        const [h, m] = (hhmm || '09:00').split(':').map(Number);
+        const end = (h + 1) % 24;
+        return `${String(end).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    };
+    const seedRowForDay = (dateStr) => {
+        // Seed from the last existing/new row on that day for convenience.
+        const existing = (shiftsByDay.find(([d]) => d === dateStr)?.[1] || []).filter(s => !removedIds.has(s.id));
+        const days = newRows[dateStr] || [];
+        const last = days.length ? days[days.length - 1] : (existing.length ? edits[existing[existing.length - 1].id] : null);
+        const startTime = last?.endTime || '09:00';
+        return {
+            _key: `new_${++newRowSeq.current}`,
+            serviceCode: last?.serviceCode || 'PCS',
+            startTime,
+            endTime: addHour(startTime),
+            accountNumber: last?.accountNumber || '',
+            sandataClientId: last?.sandataClientId || '',
+            employeeId: last?.employeeId || (filterEmployeeId ? String(filterEmployeeId) : ''),
+        };
+    };
+
+    const addShiftToDay = (dateStr) => {
+        setNewRows(prev => ({ ...prev, [dateStr]: [...(prev[dateStr] || []), seedRowForDay(dateStr)] }));
+    };
+    const updateNewRow = (dateStr, key, field, value) => {
+        setNewRows(prev => ({
+            ...prev,
+            [dateStr]: (prev[dateStr] || []).map(r => r._key === key ? { ...r, [field]: value } : r),
+        }));
+    };
+    const removeNewRow = (dateStr, key) => {
+        setNewRows(prev => ({ ...prev, [dateStr]: (prev[dateStr] || []).filter(r => r._key !== key) }));
+    };
+    const markRemoved = (shiftId) => setRemovedIds(prev => new Set(prev).add(shiftId));
 
     // DateSelectionPanel state
     const [showDateSelect, setShowDateSelect] = useState(false);
@@ -1356,10 +1553,16 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
         return { hours, units: Math.round(hours * 4) };
     };
 
-    const totalHours = selectedShifts.reduce((sum, s) => sum + computeHrs(edits[s.id]?.startTime, edits[s.id]?.endTime).hours, 0);
-    const totalUnits = selectedShifts.reduce((sum, s) => sum + computeHrs(edits[s.id]?.startTime, edits[s.id]?.endTime).units, 0);
+    // Live (non-removed) existing shifts + all new rows, for totals and counts.
+    const liveShifts = selectedShifts.filter(s => !removedIds.has(s.id));
+    const allNewRows = Object.values(newRows).flat();
+    const count = liveShifts.length + allNewRows.length;
+    const totalHours = liveShifts.reduce((sum, s) => sum + computeHrs(edits[s.id]?.startTime, edits[s.id]?.endTime).hours, 0)
+        + allNewRows.reduce((sum, r) => sum + computeHrs(r.startTime, r.endTime).hours, 0);
+    const totalUnits = liveShifts.reduce((sum, s) => sum + computeHrs(edits[s.id]?.startTime, edits[s.id]?.endTime).units, 0)
+        + allNewRows.reduce((sum, r) => sum + computeHrs(r.startTime, r.endTime).units, 0);
 
-    const hasChanges = selectedShifts.some(s => {
+    const editsChanged = selectedShifts.some(s => {
         const e = edits[s.id];
         if (!e) return false;
         return e.serviceCode !== (s.serviceCode || 'PCS') ||
@@ -1369,30 +1572,70 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
             e.sandataClientId !== (s.sandataClientId || '') ||
             String(e.employeeId) !== String(s.employeeId || '');
     });
+    const hasChanges = editsChanged || allNewRows.length > 0 || removedIds.size > 0;
 
     const hasRecurringShifts = selectedShifts.some(s => s.recurringGroupId);
 
+    // Incomplete new rows block the save (validation surfaced via rowErrors).
+    const [rowErrors, setRowErrors] = useState({}); // { newRowKey: message }
+    const validateNewRow = (r) => {
+        if (!r.serviceCode) return 'Select a service';
+        if (!r.startTime || !r.endTime) return 'Set start and end time';
+        if (!r.employeeId) return 'Assign an employee';
+        return null;
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
-        const perShiftUpdates = {};
-        // Include both selected shifts and date-selected future shifts
-        const allTargetIds = [...selectedIds, ...(showDateSelect ? dateSelectedIds : [])];
-        const allTargetShifts = allShifts.filter(s => allTargetIds.includes(s.id));
 
-        for (const s of allTargetShifts) {
-            const edit = edits[s.id] || edits[selectedShifts[0]?.id]; // Use first selected shift's edits for future shifts
-            if (!edit) continue;
-            const updates = {};
-            if (edit.serviceCode !== (s.serviceCode || 'PCS')) updates.serviceCode = edit.serviceCode;
-            if (edit.startTime !== (s.startTime || '09:00')) updates.startTime = edit.startTime;
-            if (edit.endTime !== (s.endTime || '13:00')) updates.endTime = edit.endTime;
-            if (edit.accountNumber !== (s.accountNumber || '')) updates.accountNumber = edit.accountNumber;
-            if (edit.sandataClientId !== (s.sandataClientId || '')) updates.sandataClientId = edit.sandataClientId;
-            if (String(edit.employeeId) !== String(s.employeeId || '')) updates.employeeId = edit.employeeId;
-            if (Object.keys(updates).length > 0) perShiftUpdates[s.id] = updates;
+        // Validate new rows first — an incomplete added shift blocks the whole save.
+        const errors = {};
+        for (const [dateStr, rows] of Object.entries(newRows)) {
+            for (const r of rows) {
+                const msg = validateNewRow(r);
+                if (msg) errors[r._key] = msg;
+            }
         }
-        if (Object.keys(perShiftUpdates).length === 0) return;
-        onSave(perShiftUpdates, applyToFuture && hasRecurringShifts);
+        if (Object.keys(errors).length > 0) { setRowErrors(errors); return; }
+        setRowErrors({});
+
+        // Updates for existing (non-removed) selected shifts + date-selected future shifts.
+        const updates = {};
+        const allTargetIds = [...selectedIds, ...(showDateSelect ? dateSelectedIds : [])];
+        const allTargetShifts = allShifts.filter(s => allTargetIds.includes(s.id) && !removedIds.has(s.id));
+        for (const s of allTargetShifts) {
+            const edit = edits[s.id] || edits[selectedShifts[0]?.id];
+            if (!edit) continue;
+            const u = {};
+            if (edit.serviceCode !== (s.serviceCode || 'PCS')) u.serviceCode = edit.serviceCode;
+            if (edit.startTime !== (s.startTime || '09:00')) u.startTime = edit.startTime;
+            if (edit.endTime !== (s.endTime || '13:00')) u.endTime = edit.endTime;
+            if (edit.accountNumber !== (s.accountNumber || '')) u.accountNumber = edit.accountNumber;
+            if (edit.sandataClientId !== (s.sandataClientId || '')) u.sandataClientId = edit.sandataClientId;
+            if (String(edit.employeeId) !== String(s.employeeId || '')) u.employeeId = edit.employeeId;
+            if (Object.keys(u).length > 0) updates[s.id] = u;
+        }
+
+        // Newly added shifts → creates.
+        const creates = [];
+        for (const [dateStr, rows] of Object.entries(newRows)) {
+            for (const r of rows) {
+                creates.push({
+                    clientId: Number(filterClientId) || undefined,
+                    employeeId: r.employeeId,
+                    serviceCode: r.serviceCode,
+                    shiftDate: dateStr,
+                    startTime: r.startTime,
+                    endTime: r.endTime,
+                    accountNumber: r.accountNumber,
+                    sandataClientId: r.sandataClientId,
+                });
+            }
+        }
+
+        const removeIds = [...removedIds];
+        if (Object.keys(updates).length === 0 && creates.length === 0 && removeIds.length === 0) return;
+        onSave({ updates, creates, removeIds }, applyToFuture && hasRecurringShifts);
     };
 
     // Client/employee options for SearchableSelect
@@ -1416,26 +1659,11 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
         const now = new Date();
         const map = {};
         for (const auth of selectedClient.authorizations) {
-            if ((auth.manualStatus || 'active') !== 'active') continue;
-            if (auth.archivedAt) continue;
+            if ((auth.manualStatus || 'active') !== 'active' || auth.archivedAt) continue;
             if (auth.authorizationEndDate && new Date(auth.authorizationEndDate) < now) continue;
-            let code = auth.serviceCode;
-            if (!code || code === 'TIMESHEETS') {
-                const lower = (auth.serviceName || '').toLowerCase();
-                if (lower.includes('self') && (lower.includes('directed') || lower.includes('direct'))) code = 'SDPC';
-                else if (lower.includes('personal') && lower.includes('care')) code = 'PCS';
-                else if (lower === 'pas' || lower === 'pca') code = 'PCS';
-                else if (lower.includes('homemaker') || lower === 'hm') code = 'S5130';
-                else if (lower.includes('attendant')) code = 'S5125';
-                else if (lower.includes('companion')) code = 'S5135';
-                else if (lower.includes('respite')) code = 'S5150';
-                else if (lower === 'timesheets') code = 'TIMESHEETS';
-                else code = auth.serviceCode === 'TIMESHEETS' ? 'TIMESHEETS' : null;
-            }
-            if (!code) continue;
-            if (!map[code]) map[code] = { units: 0, category: '' };
-            map[code].units += auth.authorizedUnits || 0;
-            if (auth.serviceCategory && !map[code].category) map[code].category = auth.serviceCategory;
+            const code = auth.serviceCode;
+            if (!map[code]) map[code] = { units: 0, category: auth.serviceCategory };
+            map[code].units += (auth.authorizedUnits || 0);
         }
         return map;
     }, [selectedClient]);
@@ -1544,11 +1772,16 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
 
                         <div className="sched-day-grid">
                             {shiftsByDay.map(([dateStr, dayShifts]) => {
+                                const liveDayShifts = dayShifts.filter(s => !removedIds.has(s.id));
+                                const dayNewRows = newRows[dateStr] || [];
+                                const rowCount = liveDayShifts.length + dayNewRows.length;
                                 const dateObj = new Date(dateStr + 'T12:00:00');
                                 const dayName = DAY_NAMES[dateObj.getDay()];
-                                const dayTotalHrs = dayShifts.reduce((s, sh) => s + computeHrs(edits[sh.id]?.startTime, edits[sh.id]?.endTime).hours, 0);
-                                const dayTotalUnits = dayShifts.reduce((s, sh) => s + computeHrs(edits[sh.id]?.startTime, edits[sh.id]?.endTime).units, 0);
-                                const firstEdit = edits[dayShifts[0].id];
+                                const dayTotalHrs = liveDayShifts.reduce((s, sh) => s + computeHrs(edits[sh.id]?.startTime, edits[sh.id]?.endTime).hours, 0)
+                                    + dayNewRows.reduce((s, r) => s + computeHrs(r.startTime, r.endTime).hours, 0);
+                                const dayTotalUnits = liveDayShifts.reduce((s, sh) => s + computeHrs(edits[sh.id]?.startTime, edits[sh.id]?.endTime).units, 0)
+                                    + dayNewRows.reduce((s, r) => s + computeHrs(r.startTime, r.endTime).units, 0);
+                                const firstEdit = liveDayShifts.length ? edits[liveDayShifts[0].id] : dayNewRows[0];
                                 const firstColor = SERVICE_COLORS[firstEdit?.serviceCode] || { color: '#6B7280' };
                                 return (
                                     <div key={dateStr} className="sched-day-row sched-day-row--active">
@@ -1563,17 +1796,16 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                 </span>
                                             </div>
                                         </div>
-                                        {dayShifts.map((shift, si) => {
+                                        {liveDayShifts.map((shift, si) => {
                                             const edit = edits[shift.id];
                                             if (!edit) return null;
                                             const shColorInfo = SERVICE_COLORS[edit.serviceCode] || { color: '#6B7280', label: edit.serviceCode };
                                             return (
                                                 <div key={shift.id} className="sched-day-row__fields">
-                                                    {dayShifts.length > 1 && (
-                                                        <div className="sched-day-row__shift-label">
-                                                            <span>Shift {si + 1}</span>
-                                                        </div>
-                                                    )}
+                                                    <div className="sched-day-row__shift-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                        <span>{rowCount > 1 ? `Shift ${si + 1}` : ''}</span>
+                                                        <button type="button" className="sched-day-row__remove-shift" title="Remove this shift" onClick={() => markRemoved(shift.id)}>&times;</button>
+                                                    </div>
                                                     <div className="sched-day-row__row">
                                                         <div className="sched-day-row__field">
                                                             <label className="sched-day-row__field-label">Service</label>
@@ -1626,6 +1858,66 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                 </div>
                                             );
                                         })}
+                                        {dayNewRows.map((r) => {
+                                            const shColorInfo = SERVICE_COLORS[r.serviceCode] || { color: '#6B7280', label: r.serviceCode };
+                                            const err = rowErrors[r._key];
+                                            return (
+                                                <div key={r._key} className="sched-day-row__fields sched-day-row__fields--new">
+                                                    <div className="sched-day-row__shift-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                        <span>New shift</span>
+                                                        <button type="button" className="sched-day-row__remove" title="Remove this shift" onClick={() => removeNewRow(dateStr, r._key)}>{Icons.x}</button>
+                                                    </div>
+                                                    <div className="sched-day-row__row">
+                                                        <div className="sched-day-row__field">
+                                                            <label className="sched-day-row__field-label">Service</label>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                                <span className="sched-day-row__dot" style={{ background: shColorInfo.color }} />
+                                                                <select value={r.serviceCode} onChange={e => updateNewRow(dateStr, r._key, 'serviceCode', e.target.value)} className="sched-day-row__input">
+                                                                    {Object.entries(SERVICE_COLORS).map(([code, info]) => (
+                                                                        <option key={code} value={code}>{info.label}</option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                        <div className="sched-day-row__field">
+                                                            <label className="sched-day-row__field-label">Start</label>
+                                                            <input type="time" value={r.startTime} onChange={e => updateNewRow(dateStr, r._key, 'startTime', e.target.value)} className="sched-day-row__input" />
+                                                        </div>
+                                                        <div className="sched-day-row__field">
+                                                            <label className="sched-day-row__field-label">End</label>
+                                                            <input type="time" value={r.endTime} onChange={e => updateNewRow(dateStr, r._key, 'endTime', e.target.value)} className="sched-day-row__input" />
+                                                        </div>
+                                                    </div>
+                                                    <div className="sched-day-row__row">
+                                                        <div className="sched-day-row__field">
+                                                            <label className="sched-day-row__field-label">Account</label>
+                                                            <select value={r.accountNumber} onChange={e => updateNewRow(dateStr, r._key, 'accountNumber', e.target.value)} className="sched-day-row__input">
+                                                                <option value="">—</option>
+                                                                {ACCOUNT_NUMBER_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+                                                            </select>
+                                                        </div>
+                                                        <div className="sched-day-row__field">
+                                                            <label className="sched-day-row__field-label">Employee</label>
+                                                            <SearchableSelect
+                                                                className="sched-day-row__input"
+                                                                options={employees.map(emp => ({ value: emp.id, label: emp.name }))}
+                                                                value={r.employeeId ? Number(r.employeeId) : ''}
+                                                                onChange={v => updateNewRow(dateStr, r._key, 'employeeId', v)}
+                                                                placeholder="Select employee…"
+                                                            />
+                                                        </div>
+                                                        <div className="sched-day-row__field">
+                                                            <label className="sched-day-row__field-label">Client ID</label>
+                                                            <input value={r.sandataClientId} onChange={e => updateNewRow(dateStr, r._key, 'sandataClientId', e.target.value)} className="sched-day-row__input" placeholder="—" />
+                                                        </div>
+                                                    </div>
+                                                    {err && <div className="sched-day-row__error">{err}</div>}
+                                                </div>
+                                            );
+                                        })}
+                                        <button type="button" className="sched-day-row__add" onClick={() => addShiftToDay(dateStr)}>
+                                            + Add shift
+                                        </button>
                                     </div>
                                 );
                             })}
@@ -1673,18 +1965,14 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                 )}
 
                 <div className="form-actions">
-                    {count > 0 && !confirmDelete ? (
-                        <button type="button" className="btn btn--outline" style={{ color: 'hsl(0 84% 60%)', borderColor: 'hsl(0 84% 80%)', marginRight: 'auto' }} onClick={() => setConfirmDelete(true)}>
-                            {Icons.trash} Delete Selected
-                        </button>
-                    ) : count > 0 && confirmDelete ? (
-                        <button type="button" className="btn" style={{ background: 'hsl(0 84% 60%)', color: '#fff', marginRight: 'auto' }} onClick={() => onDelete(selectedIds)}>
-                            Confirm Delete {count}?
-                        </button>
-                    ) : <span />}
+                    {removedIds.size > 0 && (
+                        <span style={{ marginRight: 'auto', fontSize: 12, color: 'hsl(0 72% 45%)' }}>
+                            {removedIds.size} shift{removedIds.size !== 1 ? 's' : ''} will be removed
+                        </span>
+                    )}
                     <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn--primary" disabled={!hasChanges || saving || count === 0}>
-                        {saving ? 'Saving…' : `Update ${count} Shift${count !== 1 ? 's' : ''}`}
+                    <button type="submit" className="btn btn--primary" disabled={!hasChanges || saving}>
+                        {saving ? 'Saving…' : 'Save Changes'}
                     </button>
                 </div>
             </form>
@@ -1885,7 +2173,7 @@ function ScheduleOverviewTable({ shifts, overlapIds, onEditShift, clientColorMap
                         const cc = hasMultipleClients && s.client?.clientName ? clientColorMap[s.client.clientName] : null;
                         const isSelected = selectedShiftIds && selectedShiftIds.has(s.id);
                         return (
-                            <tr key={s.id} className={`sched-overview-table__row ${isOverlap ? 'sched-overview-table__row--overlap' : ''} ${s.status === 'cancelled' ? 'sched-overview-table__row--cancelled' : ''} ${isSelected ? 'sched-overview-table__row--selected' : ''}`} onClick={() => bulkEditMode ? onToggleSelect(s.id) : onEditShift(s)} style={{ cursor: 'pointer', borderLeft: cc ? `3px solid ${cc.color}` : undefined }}>
+                            <tr key={s.id} className={`sched-overview-table__row ${isOverlap ? 'sched-overview-table__row--overlap' : ''} ${s.status === 'cancelled' ? 'sched-overview-table__row--cancelled' : ''} ${s.status === 'pending_replacement' ? 'sched-overview-table__row--pending-replacement' : ''} ${isSelected ? 'sched-overview-table__row--selected' : ''}`} onClick={() => bulkEditMode ? onToggleSelect(s.id) : onEditShift(s)} style={{ cursor: 'pointer', borderLeft: cc ? `3px solid ${cc.color}` : undefined }}>
                                 {bulkEditMode && <td onClick={e => e.stopPropagation()}><input type="checkbox" checked={isSelected} onChange={() => onToggleSelect(s.id)} /></td>}
                                 <td>{dayNames[dayIdx]}</td>
                                 <td>
@@ -2291,13 +2579,16 @@ export default function SchedulingPage() {
         }
     };
 
-    const handleDeleteShift = async (shiftId, deleteGroup = false) => {
+    const handleDeleteShift = async (shiftId, opts = {}) => {
+        // Back-compat: a boolean second arg meant "delete whole series" (scope 'all').
+        const scope = typeof opts === 'boolean' ? (opts ? 'all' : 'this') : (opts.scope || 'this');
         try {
-            const result = await api.deleteShift(shiftId, { group: deleteGroup });
+            const result = await api.deleteShift(shiftId, { scope });
             const count = result?.archived || 1;
+            const archivedIds = result?.ids && result.ids.length ? result.ids : [shiftId];
             setModal(null);
             refetchAll();
-            if (!deleteGroup) {
+            if (scope === 'this') {
                 showUndoToast('Shift archived', async () => {
                     await api.restoreShift(shiftId);
                     refetchAll();
@@ -2305,17 +2596,19 @@ export default function SchedulingPage() {
                 undoState.pushAction(
                     'Archived shift',
                     async () => { await api.restoreShifts([shiftId]); refetchAll(); },
-                    async () => { await api.deleteShift(shiftId); refetchAll(); }
+                    async () => { await api.deleteShift(shiftId, { scope: 'this' }); refetchAll(); }
                 );
             } else {
-                showToast(`${count} shift(s) archived`);
-                if (result?.batchId) {
-                    undoState.pushAction(
-                        `Archived ${count} shift${count !== 1 ? 's' : ''}`,
-                        async () => { await api.bulkUndoShifts(result.batchId); refetchAll(); fetchBatches(); },
-                        async () => {}
-                    );
-                }
+                const label = scope === 'future' ? 'this & future' : 'all';
+                showUndoToast(`${count} shift${count !== 1 ? 's' : ''} archived (${label})`, async () => {
+                    await api.restoreShifts(archivedIds);
+                    refetchAll();
+                });
+                undoState.pushAction(
+                    `Archived ${count} shift${count !== 1 ? 's' : ''} (${label})`,
+                    async () => { await api.restoreShifts(archivedIds); refetchAll(); },
+                    async () => { await api.deleteShift(shiftId, { scope }); refetchAll(); }
+                );
             }
         } catch (err) { showToast(err.message, 'error'); }
     };
@@ -2400,7 +2693,91 @@ export default function SchedulingPage() {
                 async () => {}
             );
         } catch (err) {
-            showToast(err.message, 'error');
+            // Overlaps BLOCK the save (Bug 3) — surface a clear warning and keep the
+            // modal open so the user can adjust the times. Nothing was written.
+            showToast(err.message, err.isOverlap ? 'warning' : 'error');
+        } finally {
+            setBulkSaving(false);
+        }
+    };
+
+    // Bulk-edit composer save (Bug 2): the modal can now add new shifts, remove
+    // existing ones, and edit existing ones in a single pass. Orchestrate the three
+    // operations and reverse all of them together on undo. Overlaps thrown by the
+    // create/update endpoints block the save (nothing is closed) so the user can fix.
+    const handleBulkComposerSave = async ({ updates = {}, creates = [], removeIds = [] }, applyToFuture) => {
+        const hasWork = Object.keys(updates).length > 0 || creates.length > 0 || removeIds.length > 0;
+        if (!hasWork) return;
+        try {
+            setBulkSaving(true);
+
+            let removedIds = [];
+            let createdIds = [];
+            let updateResult = null;
+
+            // 1. Archive removed shifts first.
+            if (removeIds.length > 0) {
+                await api.bulkDeleteShifts(removeIds);
+                removedIds = removeIds;
+            }
+            // 2. Create new shifts. The bulk-create endpoint applies one employeeId to
+            // every entry (and overlap-checks against it), so group new rows by employee
+            // and issue one create call per employee group.
+            if (creates.length > 0) {
+                const byEmployee = {};
+                for (const c of creates) {
+                    const key = String(c.employeeId || '');
+                    (byEmployee[key] ||= []).push(c);
+                }
+                for (const [empKey, group] of Object.entries(byEmployee)) {
+                    const created = await api.createShift({
+                        clientId: group[0].clientId,
+                        employeeId: empKey ? Number(empKey) : undefined,
+                        shifts: group.map(c => ({
+                            serviceCode: c.serviceCode,
+                            shiftDate: c.shiftDate,
+                            startTime: c.startTime,
+                            endTime: c.endTime,
+                            accountNumber: c.accountNumber || undefined,
+                            sandataClientId: c.sandataClientId || undefined,
+                        })),
+                    });
+                    createdIds.push(...(created?.shifts || []).map(s => s.id));
+                }
+            }
+            // 3. Apply per-shift edits to existing shifts (server-side overlap check applies).
+            if (Object.keys(updates).length > 0) {
+                updateResult = await api.bulkUpdateShiftsPerShift(updates, applyToFuture);
+            }
+
+            setSelectedShiftIds(new Set());
+            setBulkEditMode(false);
+            setModal(null);
+            refetchAll();
+            fetchBatches();
+
+            const parts = [];
+            if (updateResult?.count) parts.push(`updated ${updateResult.count}`);
+            if (createdIds.length) parts.push(`added ${createdIds.length}`);
+            if (removedIds.length) parts.push(`removed ${removedIds.length}`);
+            if (updateResult?.futureUpdated) parts.push(`+${updateResult.futureUpdated} future`);
+            const msg = parts.length ? `Shifts: ${parts.join(', ')}` : 'Shifts updated';
+            showToast(msg, 'success');
+
+            undoState.pushAction(
+                msg,
+                async () => {
+                    if (updateResult?.batchId) await api.bulkUndoShifts(updateResult.batchId);
+                    if (createdIds.length) await api.bulkDeleteShifts(createdIds);
+                    if (removedIds.length) await api.restoreShifts(removedIds);
+                    refetchAll(); fetchBatches();
+                },
+                async () => {}
+            );
+        } catch (err) {
+            // Overlaps (or any failure) block the composer save. Keep the modal open.
+            showToast(err.message, err.isOverlap ? 'warning' : 'error');
+            refetchAll();
         } finally {
             setBulkSaving(false);
         }
@@ -2965,12 +3342,27 @@ export default function SchedulingPage() {
                     onSave={handleSaveShift}
                     onRepeat={handleRepeatShift}
                     onDelete={handleDeleteShift}
+                    onFindCover={(s) => setModal({ type: 'callout', shift: s })}
                     onClose={(draft) => {
                         if (draft && !modal.shift) createDraftRef.current = draft;
                         setModal(null);
                     }}
                     draft={!modal.shift ? createDraftRef.current : null}
                     onClearDraft={() => { createDraftRef.current = null; }}
+                />
+            )}
+
+            {/* Callout / replacement panel */}
+            {modal?.type === 'callout' && (
+                <CalloutPanel
+                    shift={modal.shift}
+                    employees={employees}
+                    undoState={undoState}
+                    // refetchAll refreshes whichever list the current view uses
+                    // (all / client / employee), so undo and redo stay in sync
+                    // with the DB regardless of how the page is filtered.
+                    onShiftChanged={() => refetchAll()}
+                    onClose={() => setModal(null)}
                 />
             )}
 
@@ -3050,15 +3442,7 @@ export default function SchedulingPage() {
                     weekStart={weekStart}
                     employees={employees}
                     clients={clients}
-                    onSave={handleBulkEditPerShift}
-                    onDelete={async (ids) => {
-                        try {
-                            await api.bulkDeleteShifts([...ids]);
-                            showToast(`Deleted ${ids.size} shift${ids.size !== 1 ? 's' : ''}`);
-                            refetchAll();
-                            fetchBatches();
-                        } catch (err) { showToast(err.message, 'error'); }
-                    }}
+                    onSave={handleBulkComposerSave}
                     onClose={() => setModal(null)}
                     saving={bulkSaving}
                     onUndo={async (batchId) => {

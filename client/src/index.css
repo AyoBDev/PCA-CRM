@@ -1630,6 +1630,13 @@ body {
   color: hsl(var(--destructive));
 }
 
+.toast--warning {
+  border-left: 3px solid hsl(38 92% 50%);
+}
+.toast--warning svg {
+  color: hsl(38 92% 50%);
+}
+
 .toast--info {
   border-left: 3px solid hsl(var(--primary));
 }
@@ -3769,6 +3776,12 @@ label.checkbox-field {
   border-color: #ea580c;
 }
 
+.pcaf-auth-pill--companion {
+  background: hsl(330 80% 96%);
+  color: #ec4899;
+  border-color: #ec4899;
+}
+
 .pcaf-auth-card__right {
   display: flex;
   flex-direction: column;
@@ -3854,6 +3867,10 @@ label.checkbox-field {
 
 .pcaf-program__header--respite {
   background: #ea580c;
+}
+
+.pcaf-program__header--companion {
+  background: #ec4899;
 }
 
 .pcaf-program__icon {
@@ -4023,6 +4040,11 @@ label.checkbox-field {
 .pcaf-section-total--respite .pcaf-section-total__hrs,
 .pcaf-section-total--respite .pcaf-section-total__units {
   color: #ea580c;
+}
+
+.pcaf-section-total--companion .pcaf-section-total__hrs,
+.pcaf-section-total--companion .pcaf-section-total__units {
+  color: #ec4899;
 }
 
 /* Inputs */
@@ -4508,6 +4530,12 @@ label.checkbox-field {
   border-color: #ea580c;
 }
 
+.pcaf-mauth__pill--companion {
+  background: hsl(330 80% 96%);
+  color: #ec4899;
+  border-color: #ec4899;
+}
+
 /* ── PCA Form Mobile: Day Card ── */
 .pcaf-mcard {
   padding: 0 12px 16px;
@@ -4584,6 +4612,7 @@ label.checkbox-field {
 .pcaf-mcard__sec-header--pas { background: #1e40af; }
 .pcaf-mcard__sec-header--hm { background: #16a34a; }
 .pcaf-mcard__sec-header--respite { background: #ea580c; }
+.pcaf-mcard__sec-header--companion { background: #ec4899; }
 
 .pcaf-mcard__activities {
   padding: 8px 12px;
@@ -4827,6 +4856,7 @@ label.checkbox-field {
 .pcaf-msummary__total-row--pas strong { color: #1e40af; }
 .pcaf-msummary__total-row--hm strong { color: #16a34a; }
 .pcaf-msummary__total-row--respite strong { color: #ea580c; }
+.pcaf-msummary__total-row--companion strong { color: #ec4899; }
 
 .pcaf-msummary__signatures {
   border: 1px solid hsl(var(--border));
@@ -8184,6 +8214,13 @@ button.sdr-section-tag:hover:not(:disabled) {
 .sched-overview-table__row--cancelled {
     opacity: 0.5;
 }
+
+/* A shift whose caregiver called out and which still needs cover. Warning
+   rather than danger: it is actionable, not broken. */
+.sched-overview-table__row--pending-replacement {
+    background: hsl(var(--warning-bg));
+    box-shadow: inset 3px 0 0 hsl(var(--warning));
+}
 .sched-overview-table__row--selected td {
     background: hsl(217 91% 95%);
 }
@@ -8931,6 +8968,34 @@ button.sdr-section-tag:hover:not(:disabled) {
 .sched-day-row__apply:hover {
     background: hsl(217 91% 95%);
     border-color: hsl(217 91% 50%);
+}
+/* Bulk-edit: add a shift to a day + inline validation error */
+.sched-day-row__add {
+    margin: 4px 14px 4px 42px;
+    align-self: flex-start;
+    font-size: 12px;
+    padding: 5px 12px;
+    border: 1px dashed hsl(217 91% 70%);
+    border-radius: 6px;
+    background: hsl(var(--card));
+    color: hsl(217 91% 50%);
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.sched-day-row__add:hover {
+    background: hsl(217 91% 96%);
+    border-color: hsl(217 91% 50%);
+}
+.sched-day-row__fields--new {
+    border-left: 2px solid hsl(217 91% 70%);
+    background: hsl(217 91% 98%);
+    border-radius: 6px;
+}
+.sched-day-row__error {
+    font-size: 12px;
+    color: hsl(0 72% 45%);
+    padding-left: 42px;
 }
 
 /* Recurring Shift Toggle */
@@ -14611,8 +14676,8 @@ tr:hover .auth-note-icon--empty {
 
 /* The panel is rendered fixed (positioned in JS) so it escapes the table's
    horizontal-scroll clip. Stage flyout opens to the LEFT of the panel since
-   the panel sits near the right edge. */
-/* Higher specificity (doubled class) so this wins over the base
+   the panel sits near the right edge.
+   Higher specificity (doubled class) so this wins over the base
    .lead-card__menu-panel rule regardless of source order. */
 .lead-card__menu-panel.lead-card__menu-panel--fixed {
     position: fixed;
@@ -14629,199 +14694,6 @@ tr:hover .auth-note-icon--empty {
 /* ── Dormant Archive view ── */
 .leads-dormant-view {
     padding: 20px 24px 24px;
-}
-
-.leads-dormant-view__banner {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 12px 16px;
-    background: hsl(var(--warning-bg));
-    border: 1px solid hsl(var(--warning) / 0.3);
-    border-radius: 8px;
-    margin-bottom: 16px;
-}
-
-.leads-dormant-view__banner-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    background: hsl(var(--warning) / 0.2);
-    color: hsl(var(--warning));
-    flex-shrink: 0;
-}
-
-.leads-dormant-view__banner-icon svg {
-    width: 18px;
-    height: 18px;
-}
-
-.leads-dormant-view__banner-title {
-    font-size: 14px;
-    font-weight: 700;
-    color: hsl(var(--foreground));
-    margin: 0 0 2px;
-}
-
-.leads-dormant-view__banner-body {
-    font-size: 13px;
-    color: hsl(var(--muted-foreground));
-    line-height: 1.5;
-    margin: 0;
-}
-
-.leads-dormant-view__count {
-    margin-left: auto;
-    padding: 4px 10px;
-    font-size: 12px;
-    font-weight: 600;
-    color: hsl(var(--muted-foreground));
-    background: hsl(var(--card));
-    border: 1px solid hsl(var(--border));
-    border-radius: 999px;
-    white-space: nowrap;
-    align-self: center;
-}
-
-.leads-dormant-view__search {
-    position: relative;
-    display: flex;
-    align-items: center;
-    margin-bottom: 12px;
-    max-width: 480px;
-}
-
-.leads-dormant-view__search-icon {
-    position: absolute;
-    left: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    display: inline-flex;
-    color: hsl(var(--muted-foreground));
-    pointer-events: none;
-}
-
-.leads-dormant-view__search-icon svg {
-    width: 14px;
-    height: 14px;
-}
-
-.leads-dormant-view__search-input {
-    padding: 8px 10px 8px 32px;
-    width: 100%;
-    font-size: 13px;
-}
-
-.leads-dormant-view__search-count {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 12px;
-    color: hsl(var(--muted-foreground));
-    pointer-events: none;
-}
-
-/* ── Recently Converted view ── */
-.leads-converted-view {
-    padding: 20px 24px 24px;
-}
-
-.leads-converted-view__banner {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 12px 16px;
-    background: hsl(var(--success-bg));
-    border: 1px solid hsl(var(--success) / 0.3);
-    border-radius: 8px;
-    margin-bottom: 16px;
-}
-
-.leads-converted-view__banner-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    background: hsl(var(--success) / 0.2);
-    color: hsl(var(--success));
-    flex-shrink: 0;
-}
-
-.leads-converted-view__banner-icon svg {
-    width: 18px;
-    height: 18px;
-}
-
-.leads-converted-view__banner-title {
-    font-size: 14px;
-    font-weight: 700;
-    color: hsl(var(--foreground));
-    margin: 0 0 2px;
-}
-
-.leads-converted-view__banner-body {
-    font-size: 13px;
-    color: hsl(var(--muted-foreground));
-    line-height: 1.5;
-    margin: 0;
-}
-
-.leads-converted-view__count {
-    margin-left: auto;
-    padding: 4px 10px;
-    font-size: 12px;
-    font-weight: 600;
-    color: hsl(var(--muted-foreground));
-    background: hsl(var(--card));
-    border: 1px solid hsl(var(--border));
-    border-radius: 999px;
-    white-space: nowrap;
-    align-self: center;
-}
-
-.leads-converted-view__search {
-    position: relative;
-    display: flex;
-    align-items: center;
-    margin-bottom: 12px;
-    max-width: 480px;
-}
-
-.leads-converted-view__search-icon {
-    position: absolute;
-    left: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    display: inline-flex;
-    color: hsl(var(--muted-foreground));
-    pointer-events: none;
-}
-
-.leads-converted-view__search-icon svg {
-    width: 14px;
-    height: 14px;
-}
-
-.leads-converted-view__search-input {
-    padding: 8px 10px 8px 32px;
-    width: 100%;
-    font-size: 13px;
-}
-
-.leads-converted-view__search-count {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 12px;
-    color: hsl(var(--muted-foreground));
-    pointer-events: none;
 }
 
 /* ── Reactivate modal ── */

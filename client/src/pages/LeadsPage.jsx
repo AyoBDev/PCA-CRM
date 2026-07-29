@@ -27,6 +27,39 @@ const CASE_TYPE_OPTIONS = [
 
 const DEFAULT_FILTERS = { year: 'all', month: 'all', caseType: 'all', search: '' };
 
+// Shared filter predicate used by all four views so the one LeadFilterBar in the
+// page behaves identically on Board, List, Dormant, and Converted.
+// `dateField` is the lead property the Year/Month filters apply to.
+function applyLeadFilters(leads, filters, dateField) {
+    // Collapse internal whitespace so a "First Last" query matches even when
+    // the stored name has stray/double spaces (e.g. "First  Last").
+    const q = filters.search.trim().toLowerCase().replace(/\s+/g, ' ');
+    return leads.filter((l) => {
+        if (filters.caseType !== 'all' && l.caseType !== filters.caseType) return false;
+        if (filters.year !== 'all' || filters.month !== 'all') {
+            if (!l[dateField]) return false;
+            const d = new Date(l[dateField]);
+            if (filters.year !== 'all' && d.getFullYear() !== filters.year) return false;
+            if (filters.month !== 'all' && d.getMonth() !== filters.month) return false;
+        }
+        if (q) {
+            const hay = [
+                `${l.firstName || ''} ${l.lastName || ''}`,
+                l.phone,
+                l.alternatePhone,
+                l.insuranceType,
+                l.medicaidId,
+                l.referralSource,
+            ]
+                .join(' ')
+                .toLowerCase()
+                .replace(/\s+/g, ' ');
+            if (!hay.includes(q)) return false;
+        }
+        return true;
+    });
+}
+
 export default function LeadsPage() {
     const undoState = useUndoStack();
     const { showToast } = useToast();
@@ -87,39 +120,22 @@ export default function LeadsPage() {
         if (view === 'converted') loadConverted();
     }, [view, loadDormant, loadConverted]);
 
-    // ── Client-side filter pipeline (Board + List share this) ────────────────
-    const filteredActive = useMemo(() => {
-        // Collapse internal whitespace so a "First Last" query matches even when
-        // the stored name has stray/double spaces (e.g. "First  Last").
-        const q = filters.search.trim().toLowerCase().replace(/\s+/g, ' ');
-        return activeLeads.filter((l) => {
-            // Case type
-            if (filters.caseType !== 'all' && l.caseType !== filters.caseType) return false;
-            // Year / Month (against createdAt)
-            if (filters.year !== 'all' || filters.month !== 'all') {
-                if (!l.createdAt) return false;
-                const d = new Date(l.createdAt);
-                if (filters.year !== 'all' && d.getFullYear() !== filters.year) return false;
-                if (filters.month !== 'all' && d.getMonth() !== filters.month) return false;
-            }
-            // Search
-            if (q) {
-                const hay = [
-                    `${l.firstName || ''} ${l.lastName || ''}`,
-                    l.phone,
-                    l.alternatePhone,
-                    l.insuranceType,
-                    l.medicaidId,
-                    l.referralSource,
-                ]
-                    .join(' ')
-                    .toLowerCase()
-                    .replace(/\s+/g, ' ');
-                if (!hay.includes(q)) return false;
-            }
-            return true;
-        });
-    }, [activeLeads, filters]);
+    // ── Client-side filter pipeline ──────────────────────────────────────────
+    // Every view (Board, List, Dormant, Converted) runs the same predicate so the
+    // shared LeadFilterBar behaves identically across tabs. `dateField` differs
+    // per view: active leads filter on createdAt, converted leads on convertedAt.
+    const filteredActive = useMemo(
+        () => applyLeadFilters(activeLeads, filters, 'createdAt'),
+        [activeLeads, filters],
+    );
+    const filteredDormant = useMemo(
+        () => applyLeadFilters(dormantLeads, filters, 'createdAt'),
+        [dormantLeads, filters],
+    );
+    const filteredConverted = useMemo(
+        () => applyLeadFilters(convertedLeads, filters, 'convertedAt'),
+        [convertedLeads, filters],
+    );
 
     // ── Handlers ──────────────────────────────────────────────────────────────
     const handleFilterChange = useCallback((patch) => {
@@ -295,19 +311,22 @@ export default function LeadsPage() {
                 </div>
             )}
 
-            {/* Filter bar for Board + List views only. Dormant has its own search. */}
-            {(view === 'board' || view === 'list') && (
-                <LeadFilterBar
-                    leads={activeLeads}
-                    year={filters.year}
-                    month={filters.month}
-                    caseType={filters.caseType}
-                    search={filters.search}
-                    onChange={handleFilterChange}
-                    onReset={handleFilterReset}
-                    caseTypeOptions={CASE_TYPE_OPTIONS}
-                />
-            )}
+            {/* One shared filter bar across every view. It is fed the current
+                view's dataset so the Year/Month "has data" dots stay accurate. */}
+            <LeadFilterBar
+                leads={
+                    view === 'dormant' ? dormantLeads
+                    : view === 'converted' ? convertedLeads
+                    : activeLeads
+                }
+                year={filters.year}
+                month={filters.month}
+                caseType={filters.caseType}
+                search={filters.search}
+                onChange={handleFilterChange}
+                onReset={handleFilterReset}
+                caseTypeOptions={CASE_TYPE_OPTIONS}
+            />
 
             {view === 'board' && (
                 <LeadKanban
@@ -332,13 +351,13 @@ export default function LeadsPage() {
 
             {view === 'dormant' && (
                 <LeadDormantView
-                    leads={dormantLeads}
+                    leads={filteredDormant}
                     onReactivate={setReactivateLeadObj}
                 />
             )}
 
             {view === 'converted' && (
-                <LeadConvertedView leads={convertedLeads} />
+                <LeadConvertedView leads={filteredConverted} />
             )}
 
             {wizardOpen && (

@@ -49,3 +49,5 @@ server/uploads/admin-files/
 backups/
 scripts/restore-backup.js
 .superpowers/
+.env.backup
+seed-local-demo.js

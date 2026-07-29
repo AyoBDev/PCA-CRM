@@ -1,8 +1,38 @@
 // Notification delivery service
-// Email integration via Brevo
+// Email integration via Brevo. SMS is not wired to a provider yet — see below.
 
 function isEmailConfigured() {
     return !!process.env.BREVO_API_KEY;
+}
+
+// --- SMS -------------------------------------------------------------------
+// No SMS provider is integrated yet. These two functions exist because callers
+// (schedulingController.autoNotify) already import them; without them the
+// destructured import yields `undefined` and throws at call time, taking the
+// email branch down with it.
+//
+// isSmsConfigured() returns false unless EVERY credential is present, so
+// sendSms() is never reached in normal operation. A partially-configured
+// provider must not read as configured — that would defer the failure to
+// delivery time, where it is far harder to diagnose.
+//
+// When the Twilio adapter lands, only sendSms's body changes; the contract and
+// every caller stay as they are.
+
+function isSmsConfigured() {
+    return !!(
+        process.env.TWILIO_ACCOUNT_SID &&
+        process.env.TWILIO_AUTH_TOKEN &&
+        process.env.TWILIO_FROM_NUMBER
+    );
+}
+
+async function sendSms(to, body) {
+    if (!isSmsConfigured()) {
+        throw new Error('SMS not configured — set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM_NUMBER');
+    }
+    // Provider integration lands with the replacement-workflow SMS channel.
+    throw new Error('SMS not configured — no SMS provider is integrated yet');
 }
 
 async function sendEmail(to, subject, html, text, attachments) {
@@ -110,5 +140,7 @@ function formatScheduleEmailHtml(employeeName, shifts, weekLabel, scheduleUrl, m
 module.exports = {
     isEmailConfigured,
     sendEmail,
+    isSmsConfigured,
+    sendSms,
     formatScheduleEmailHtml,
 };

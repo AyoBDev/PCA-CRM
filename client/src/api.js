@@ -477,8 +477,12 @@ export const listBulkEditBatches = () =>
     request('/shifts/bulk-edit-batches');
 export const repeatShift = (id, data) =>
     request(`/shifts/${id}/repeat`, { method: 'POST', body: JSON.stringify(data) });
-export const deleteShift = (id, { group } = {}) =>
-    request(`/shifts/${id}${group ? '?group=true' : ''}`, { method: 'DELETE' });
+export const deleteShift = (id, { group, scope } = {}) => {
+    // scope: 'this' | 'future' | 'all'. Legacy `group: true` maps to scope 'all'.
+    const s = scope || (group ? 'all' : undefined);
+    const qs = s ? `?scope=${s}` : '';
+    return request(`/shifts/${id}${qs}`, { method: 'DELETE' });
+};
 export const restoreShift = (id) =>
     request(`/shifts/${id}/restore`, { method: 'PUT' });
 export const restoreShifts = (shiftIds) =>
@@ -493,6 +497,34 @@ export const getClientSchedule = (clientId, weekStart) =>
     request(`/shifts/client/${clientId}${weekStart ? '?weekStart=' + weekStart : ''}`);
 export const getEmployeeSchedule = (employeeId, weekStart, { all } = {}) =>
     request(`/shifts/employee/${employeeId}${all ? '?all=true' : weekStart ? '?weekStart=' + weekStart : ''}`);
+// ── Replacement workflow ──
+export const recordCallout = (shiftId, body) =>
+    request(`/shifts/${shiftId}/callout`, { method: 'POST', body: JSON.stringify(body) });
+export const getReplacementCandidates = (shiftId) =>
+    request(`/shifts/${shiftId}/replacement-candidates`);
+export const createShiftOffer = (shiftId, body) =>
+    request(`/shifts/${shiftId}/offers`, { method: 'POST', body: JSON.stringify(body) });
+export const listShiftOffers = (shiftId) =>
+    request(`/shifts/${shiftId}/offers`);
+// Record an answer the office took by phone, against an existing offer.
+export const recordOfferResponse = (shiftId, offerId, response, note = '') =>
+    request(`/shifts/${shiftId}/offers/${offerId}/record-response`, {
+        method: 'POST', body: JSON.stringify({ response, note }),
+    });
+export const resolveCallout = (calloutId, resolution) =>
+    request(`/callouts/${calloutId}/resolve`, { method: 'POST', body: JSON.stringify({ resolution }) });
+
+// Ranked employees for a shift: { status, eligible[], ineligible[] }.
+// status 'insufficient_input' means the shift is not yet specific enough to
+// determine availability — callers fall back to their plain unranked list.
+export const getNearbyEmployees = ({ clientId, serviceCode, date, startTime, endTime }) =>
+    request(`/employees/nearby?${new URLSearchParams({
+        clientId: String(clientId ?? ''),
+        serviceCode: serviceCode ?? '',
+        date: date ?? '',
+        startTime: startTime ?? '',
+        endTime: endTime ?? '',
+    })}`);
 // ── Employees ──
 export const getEmployees = (params = {}, { archived } = {}) => {
     if (archived) params.archived = 'true';
@@ -644,6 +676,57 @@ export const getClientActivities = (clientId, page = 1) =>
 
 export const getClientNotesTimeline = (clientId, page = 1) =>
     request(`/clients/${clientId}/notes-timeline?page=${page}`);
+
+// Internal record, admin/office only — deliberately has no employee-portal
+// equivalent. See employeeNotesController for why.
+export const getEmployeeNotesTimeline = (employeeId, page = 1) =>
+    request(`/employees/${employeeId}/notes-timeline?page=${page}`);
+
+/**
+ * Read the filename the server chose from Content-Disposition.
+ *
+ * The server builds it from the person's name (notes-jane-doe.pdf), which is
+ * what someone filing a compliance document needs to see. Falls back only if
+ * the header is missing or unparseable.
+ */
+const filenameFromResponse = (res, fallback) => {
+    const header = res.headers.get('Content-Disposition') || '';
+    const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(header);
+    return match ? decodeURIComponent(match[1]) : fallback;
+};
+
+// Compliance PDF exports. Returned as a Blob rather than JSON so the caller can
+// trigger a download; `request` assumes JSON, hence the raw fetch.
+const downloadPdf = async (path, fallbackName) => {
+    const res = await fetch(`/api${path}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Export failed' }));
+        throw new Error(err.error || 'Export failed');
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filenameFromResponse(res, fallbackName);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+};
+
+export const exportEmployeeNotesPdf = (employeeId, { from = '', to = '' } = {}) =>
+    downloadPdf(
+        `/employees/${employeeId}/notes-timeline/export?from=${from}&to=${to}`,
+        'employee-notes.pdf',
+    );
+
+export const exportClientNotesPdf = (clientId, { from = '', to = '' } = {}) =>
+    downloadPdf(
+        `/clients/${clientId}/notes-timeline/export?from=${from}&to=${to}`,
+        'client-notes.pdf',
+    );
 
 export const createClientActivity = (clientId, data) =>
     request(`/clients/${clientId}/activities`, { method: 'POST', body: JSON.stringify(data) });

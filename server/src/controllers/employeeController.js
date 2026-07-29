@@ -1,6 +1,7 @@
 const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 const onboarding = require('../services/onboardingService');
+const { geocodeOnWrite } = require('../services/geocodeOnWrite');
 
 async function listEmployees(req, res, next) {
     try {
@@ -30,7 +31,7 @@ async function getEmployee(req, res, next) {
 
 async function createEmployee(req, res, next) {
     try {
-        const { name, phone, email, userId } = req.body;
+        const { name, phone, email, userId, address } = req.body;
         if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
 
         const employee = await prisma.employee.create({
@@ -38,11 +39,14 @@ async function createEmployee(req, res, next) {
                 name: name.trim(),
                 phone: phone || '',
                 email: email || '',
+                address: (address || '').trim(),
                 userId: userId || null,
             },
             include: { user: { select: { id: true, name: true, email: true, role: true } } },
         });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name });
+        // Geocode immediately so a new employee has a distance without a later edit.
+        geocodeOnWrite('employee', employee.id, { oldAddress: '', newAddress: employee.address });
 
         // Auto-send onboarding invite if email provided and no user account linked
         if (employee.email && !userId) {
@@ -69,14 +73,19 @@ async function updateEmployee(req, res, next) {
             if (req.body[f] !== undefined) data[f] = req.body[f];
         }
         if (data.name) data.name = data.name.trim();
+        // dob is a YYYY-MM-DD string column (encrypted at rest); normalize
+        // whatever the client sent (date string or full ISO timestamp)
+        if (data.dob !== undefined) data.dob = data.dob ? String(data.dob).slice(0, 10) : '';
 
         const employee = await prisma.employee.update({
             where: { id },
             data,
             include: { user: { select: { id: true, name: true, email: true, role: true } } },
         });
-        const changes = audit.diffFields(oldEmployee, employee, Object.keys(data));
+        const changes = audit.redactChanges(audit.diffFields(oldEmployee, employee, Object.keys(data)), ['dob', 'notes']);
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, changes });
+        // Re-geocode if the address changed, so distance shows without a redeploy.
+        geocodeOnWrite('employee', employee.id, { oldAddress: oldEmployee.address, newAddress: data.address });
         res.json(employee);
     } catch (err) {
         if (err.code === 'P2025') return res.status(404).json({ error: 'Employee not found' });
@@ -180,7 +189,7 @@ async function bulkImportEmployees(req, res, next) {
                     address: (row[4] || '').toString().trim(),
                     clientAssignment: (row[5] || '').toString().trim(),
                     npi: (row[20] || '').toString().trim(),
-                    dob: excelDate(row[1]),
+                    dob: excelDate(row[1]) ? excelDate(row[1]).toISOString().slice(0, 10) : '',
                     idExpDate: excelDate(row[7]),
                     firstAssignmentDate: excelDate(row[8]),
                     tbDueDate: excelDate(row[9]),
@@ -199,9 +208,11 @@ async function bulkImportEmployees(req, res, next) {
                 const existing = await prisma.employee.findFirst({ where: { name } });
                 if (existing) {
                     await prisma.employee.update({ where: { id: existing.id }, data: employeeData });
+                    geocodeOnWrite('employee', existing.id, { oldAddress: existing.address, newAddress: employeeData.address });
                     updated++;
                 } else {
-                    await prisma.employee.create({ data: employeeData });
+                    const createdEmp = await prisma.employee.create({ data: employeeData });
+                    geocodeOnWrite('employee', createdEmp.id, { oldAddress: '', newAddress: employeeData.address });
                     created++;
                 }
             }

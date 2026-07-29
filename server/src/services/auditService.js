@@ -45,6 +45,18 @@ function diffFields(oldObj, newObj, fields) {
 }
 
 /**
+ * Redact the values of PHI fields in a diffFields() result. The audit log
+ * keeps WHICH field changed (and when, by whom) without persisting the PHI
+ * values themselves — the AuditLog table is not encrypted at rest.
+ */
+function redactChanges(changes, phiFields) {
+    const phi = new Set(phiFields || []);
+    return (changes || []).map(c =>
+        phi.has(c.field) ? { ...c, oldValue: '•••', newValue: '•••' } : c
+    );
+}
+
+/**
  * Get audit logs for a specific entity.
  */
 async function getEntityLogs(entityType, entityId, { page = 1, limit = 25 } = {}) {
@@ -89,4 +101,4 @@ async function getPageLogs(entityType, { page = 1, limit = 25, action, dateFrom,
     return { logs, total, page, totalPages: Math.ceil(total / limit) };
 }
 
-module.exports = { logAction, diffFields, getEntityLogs, getPageLogs };
+module.exports = { logAction, diffFields, redactChanges, getEntityLogs, getPageLogs };

@@ -61,7 +61,7 @@ export default function LeadListView({ leads, onView, onArchive, onMove }) {
                             <Th field="status"        label="Status"        sort={sort} onClick={toggleSort} />
                             <Th field="followUpDate"  label="Follow-up"     sort={sort} onClick={toggleSort} />
                             <Th field="createdAt"     label="Added"         sort={sort} onClick={toggleSort} />
-                            <th scope="col" style={{ width: 60, textAlign: 'center' }}>Actions</th>
+                            <th scope="col" style={{ width: 64, textAlign: 'center' }}>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
