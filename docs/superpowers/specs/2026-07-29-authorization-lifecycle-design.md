@@ -240,10 +240,20 @@ round-trips: create → renew → reopen → still shows on that authorization.
 - **Multi-auth programs (COPE, PAS):** renewing one `serviceName` variant does not
   close the sibling variant (respect the `serviceCode|serviceName` composite key).
 
-## 8. Open items for review
+## 8. Resolved decisions
 
-- Keep or cut the "Correct current authorization" in-place edit link (§2).
-- Confirm `'pending'` → `'active'` normalization is acceptable (vs. leaving them).
+- **Keep** the "Correct current authorization" in-place edit link (§2).
+- **Normalize** existing `'pending'` rows → `'active'` in the migration (§1).
+
+## 9. Implementation constraints
+
+- **Frontend** follows the app design system: two-tier toolbar (GlobalToolbar +
+  ContextBar), `.pa-*` / `.data-table` patterns, shared tokens & constants,
+  `useServices()`, and full Undo/Redo/History/Activity wiring per CLAUDE.md. Read
+  `docs/superpowers/specs/2026-06-01-design-system-design.md` before frontend work.
+- **Backend** logic is built test-first (TDD): write the failing test, then the
+  implementation. Covers renew close-out math, inactivate, multi-auth guard,
+  migration normalization, and notes separation.
 - Care-plan upload mechanism (§3): the renew endpoint is JSON, file uploads are
   multipart. Implementation plan to choose either a multipart renew endpoint or an
   upload-then-link two-step (create renewal → attach doc to returned new auth id).
