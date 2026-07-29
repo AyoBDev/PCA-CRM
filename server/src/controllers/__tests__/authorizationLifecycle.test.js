@@ -1,0 +1,67 @@
+const prisma = require('../../lib/prisma');
+const ctrl = require('../authorizationController');
+
+function mockRes() {
+    return {
+        statusCode: 200,
+        body: null,
+        status(c) { this.statusCode = c; return this; },
+        json(b) { this.body = b; return this; },
+    };
+}
+const user = { id: 1, name: 'Tester', role: 'admin' };
+
+describe('renewAuthorization', () => {
+    let client, oldAuth;
+    beforeEach(async () => {
+        // NOTE: created via raw SQL — the shared local DB already has `clients.dob`
+        // migrated to `text` (per the PHI-encryption branch) while this branch's
+        // schema.prisma/Prisma Client still model it as `DateTime?`. That mismatch
+        // makes prisma.client.create()/findUnique() throw on decode. Unrelated to
+        // this task (renewAuthorization); raw SQL sidesteps it for this fixture.
+        const rows = await prisma.$queryRaw`INSERT INTO clients (client_name, updated_at) VALUES ('Renew Test', now()) RETURNING id`;
+        client = { id: rows[0].id };
+        oldAuth = await prisma.authorization.create({
+            data: {
+                clientId: client.id, serviceCode: 'PCS', serviceName: 'Personal Care',
+                authorizationNumber: 'A-OLD', authorizedUnits: 40,
+                authorizationStartDate: new Date('2025-06-01T00:00:00'),
+                authorizationEndDate: new Date('2026-05-31T00:00:00'),
+                accountNumber: 'ACCT-1', sandataClientId: 'SAND-1', manualStatus: 'active',
+            },
+        });
+    });
+    afterEach(async () => {
+        await prisma.authorization.deleteMany({ where: { clientId: client.id } });
+        await prisma.$executeRaw`DELETE FROM clients WHERE id = ${client.id}`;
+    });
+
+    it('closes old auth day-before new start and links the chain', async () => {
+        const req = {
+            params: { id: String(oldAuth.id) }, user,
+            body: {
+                serviceCode: 'PCS', serviceName: 'Personal Care', authorizationNumber: 'A-NEW',
+                authorizedUnits: 48, authorizationStartDate: '2026-06-01', authorizationEndDate: '2027-05-31',
+                notes: 'Hours Increased — 40 to 48',
+            },
+        };
+        const res = mockRes();
+        await ctrl.renewAuthorization(req, res, (e) => { throw e; });
+
+        expect(res.statusCode).toBe(201);
+        const newAuth = await prisma.authorization.findUnique({ where: { id: res.body.id } });
+        const reloadedOld = await prisma.authorization.findUnique({ where: { id: oldAuth.id } });
+
+        // Old auto-closes the day before the new start; no overlap.
+        expect(reloadedOld.authorizationEndDate.toISOString().slice(0, 10)).toBe('2026-05-31');
+        expect(reloadedOld.manualStatus).toBe('inactive');
+        expect(reloadedOld.closedAt).not.toBeNull();
+        expect(reloadedOld.renewedToId).toBe(newAuth.id);
+        // New links back and inherits account/sandata.
+        expect(newAuth.renewedFromId).toBe(oldAuth.id);
+        expect(newAuth.manualStatus).toBe('active');
+        expect(newAuth.accountNumber).toBe('ACCT-1');
+        expect(newAuth.sandataClientId).toBe('SAND-1');
+        expect(newAuth.notes).toBe('Hours Increased — 40 to 48');
+    });
+});
