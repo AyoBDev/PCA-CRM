@@ -5,6 +5,7 @@ const {
   mapLeadToClientData,
   servicesToEnabledServices,
   convertLead,
+  revertConversion,
 } = require('../src/services/leadService');
 
 describe('statusToColumn', () => {
@@ -134,6 +135,85 @@ describe('convertLead', () => {
     expect(prisma.calls.leadUpdate.data.archivedAt).toBeInstanceOf(Date);
     expect(prisma.calls.leadUpdate.data.convertedAt).toBeInstanceOf(Date);
   });
+
+  test('records the pre-conversion stage for later revert', async () => {
+    const prisma = makeFakePrisma(baseLead); // status 'quoted'
+    await convertLead(prisma, 7);
+    expect(prisma.calls.leadUpdate.data.preConvertStatus).toBe('quoted');
+  });
+});
+
+// Fake prisma for revertConversion: a converted lead pointing at a client, with
+// configurable dependency counts to exercise the empty-vs-has-data guard.
+function makeRevertPrisma(lead, { client = { id: 99, clientName: 'Jane Doe' }, counts = {} } = {}) {
+  const calls = { clientDelete: null, leadUpdate: null };
+  const zero = { authorization: 0, shift: 0, timesheet: 0, clientNote: 0, permanentLink: 0, ...counts };
+  const tx = {
+    client: {
+      findUnique: async () => client,
+      delete: async ({ where }) => { calls.clientDelete = where; return client; },
+    },
+    authorization: { count: async () => zero.authorization },
+    shift: { count: async () => zero.shift },
+    timesheet: { count: async () => zero.timesheet },
+    clientNote: { count: async () => zero.clientNote },
+    permanentLink: { count: async () => zero.permanentLink },
+    lead: { update: async ({ where, data }) => { calls.leadUpdate = { where, data }; return { ...lead, ...data }; } },
+  };
+  return {
+    calls,
+    lead: { findUnique: async () => lead },
+    $transaction: async (fn) => fn(tx),
+  };
+}
+
+describe('revertConversion', () => {
+  const convertedLead = { id: 7, firstName: 'Jane', lastName: 'Doe', status: 'converted', preConvertStatus: 'review', convertedClientId: 99 };
+
+  test('restores the lead to its pre-conversion stage', async () => {
+    const prisma = makeRevertPrisma(convertedLead);
+    const { lead } = await revertConversion(prisma, 7);
+    expect(lead.status).toBe('review');
+    expect(prisma.calls.leadUpdate.data.convertedClientId).toBeNull();
+    expect(prisma.calls.leadUpdate.data.convertedAt).toBeNull();
+    expect(prisma.calls.leadUpdate.data.archivedAt).toBeNull();
+    expect(prisma.calls.leadUpdate.data.preConvertStatus).toBe('');
+  });
+
+  test('deletes the auto-created (empty) client', async () => {
+    const prisma = makeRevertPrisma(convertedLead);
+    const { deletedClient } = await revertConversion(prisma, 7);
+    expect(prisma.calls.clientDelete).toEqual({ id: 99 });
+    expect(deletedClient).toEqual({ id: 99, clientName: 'Jane Doe' });
+  });
+
+  test('falls back to "new" when no pre-conversion stage was stored', async () => {
+    const prisma = makeRevertPrisma({ ...convertedLead, preConvertStatus: '' });
+    const { lead } = await revertConversion(prisma, 7);
+    expect(lead.status).toBe('new');
+  });
+
+  test('blocks the revert when the client already has real data', async () => {
+    const prisma = makeRevertPrisma(convertedLead, { counts: { shift: 3 } });
+    await expect(revertConversion(prisma, 7)).rejects.toThrow(/Cannot move back/i);
+    expect(prisma.calls.clientDelete).toBeNull(); // nothing deleted
+    expect(prisma.calls.leadUpdate).toBeNull();   // lead untouched
+  });
+
+  test('throws when the lead is not converted', async () => {
+    const prisma = makeRevertPrisma({ ...convertedLead, status: 'new' });
+    await expect(revertConversion(prisma, 7)).rejects.toThrow(/not converted/i);
+  });
+
+  test('throws when the lead is missing', async () => {
+    const prisma = makeRevertPrisma(convertedLead);
+    prisma.lead.findUnique = async () => null;
+    await expect(revertConversion(prisma, 7)).rejects.toThrow(/not found/i);
+  });
+});
+
+describe('convertLead error cases', () => {
+  const baseLead = { id: 7, firstName: 'Jane', lastName: 'Doe', servicesRequested: '[]', status: 'quoted' };
 
   test('throws when lead is missing', async () => {
     const prisma = makeFakePrisma(null);

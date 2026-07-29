@@ -477,6 +477,9 @@ model Lead {
   // Conversion linkage
   convertedClientId        Int?      @map("converted_client_id")
   convertedAt              DateTime? @map("converted_at")
+  // Pipeline stage the lead was in right before conversion, so a reverted
+  // conversion can restore it to where it was (empty = pre-feature / unknown).
+  preConvertStatus         String    @default("") @map("pre_convert_status")
 
   archivedAt               DateTime? @map("archived_at")
   dormantAt                DateTime? @map("dormant_at")

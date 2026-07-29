@@ -78,9 +78,83 @@ async function convertLead(prisma, id) {
     const now = new Date();
     const updatedLead = await tx.lead.update({
       where: { id: lead.id },
-      data: { status: 'converted', convertedClientId: client.id, convertedAt: now, archivedAt: now },
+      data: {
+        status: 'converted',
+        preConvertStatus: lead.status,
+        convertedClientId: client.id,
+        convertedAt: now,
+        archivedAt: now,
+      },
     });
     return { client, lead: updatedLead };
+  });
+}
+
+// Relations that, if present on the auto-created client, mean real work has
+// started against it — so reverting the conversion (which would cascade-delete
+// the client) is unsafe and must be blocked.
+const CLIENT_DEPENDENCY_COUNTS = {
+  authorizations: (tx, id) => tx.authorization.count({ where: { clientId: id } }),
+  shifts: (tx, id) => tx.shift.count({ where: { clientId: id } }),
+  timesheets: (tx, id) => tx.timesheet.count({ where: { clientId: id } }),
+  clientNotes: (tx, id) => tx.clientNote.count({ where: { clientId: id } }),
+  permanentLinks: (tx, id) => tx.permanentLink.count({ where: { clientId: id } }),
+};
+
+// Revert an accidental conversion: restore the lead to the board and remove the
+// client record the conversion created — but only when that client is still
+// "empty" (no authorizations/shifts/timesheets/notes/links). If real data was
+// added since conversion, we block instead of cascade-deleting it.
+async function revertConversion(prisma, id) {
+  const numericId = Number(id);
+  const lead = await prisma.lead.findUnique({ where: { id: numericId } });
+  if (!lead) throw new Error('Lead not found');
+  if (lead.status !== 'converted') throw new Error('Lead is not converted');
+
+  return prisma.$transaction(async (tx) => {
+    const clientId = lead.convertedClientId;
+    let deletedClient = null;
+
+    if (clientId) {
+      const client = await tx.client.findUnique({ where: { id: clientId } });
+      if (client) {
+        // Guard: refuse if any real work is attached to the client.
+        const entries = Object.entries(CLIENT_DEPENDENCY_COUNTS);
+        const counts = await Promise.all(entries.map(([, fn]) => fn(tx, clientId)));
+        const blockers = entries
+          .map(([name], i) => ({ name, n: counts[i] }))
+          .filter((x) => x.n > 0);
+        if (blockers.length) {
+          const summary = blockers.map((b) => `${b.n} ${b.name}`).join(', ');
+          throw new Error(
+            `Cannot move back: the client "${client.clientName}" already has ${summary}. ` +
+            `Remove that data first, or archive the client instead.`
+          );
+        }
+        await tx.client.delete({ where: { id: clientId } });
+        deletedClient = { id: client.id, clientName: client.clientName };
+      }
+    }
+
+    // Restore the lead to its pre-conversion stage (fallback to 'new' for
+    // leads converted before we started tracking preConvertStatus).
+    const restoredStatus =
+      lead.preConvertStatus && lead.preConvertStatus !== 'converted'
+        ? lead.preConvertStatus
+        : 'new';
+
+    const updatedLead = await tx.lead.update({
+      where: { id: numericId },
+      data: {
+        status: restoredStatus,
+        convertedClientId: null,
+        convertedAt: null,
+        archivedAt: null,
+        dormantAt: null,
+        preConvertStatus: '',
+      },
+    });
+    return { lead: updatedLead, deletedClient };
   });
 }
 
@@ -127,4 +201,4 @@ function computeStats(leads, now = new Date()) {
   };
 }
 
-module.exports = { LEAD_COLUMNS, statusToColumn, columnToStatus, mapLeadToClientData, servicesToEnabledServices, convertLead, computeStats, DORMANT_DAYS, sweepDormantLeads, reactivateLead };
+module.exports = { LEAD_COLUMNS, statusToColumn, columnToStatus, mapLeadToClientData, servicesToEnabledServices, convertLead, revertConversion, computeStats, DORMANT_DAYS, sweepDormantLeads, reactivateLead };
