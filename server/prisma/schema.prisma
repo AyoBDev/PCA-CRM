@@ -396,6 +396,11 @@ model Authorization {
   hoursPerVisit           Float?                    @map("hours_per_visit")
   authorizedHoursPerYear  Float?                    @map("authorized_hours_per_year")
   usedHoursYtd            Float                     @default(0) @map("used_hours_ytd")
+  renewedFromId           Int?                      @map("renewed_from_id")
+  renewedToId             Int?                      @map("renewed_to_id")
+  inactiveReason          String                    @default("") @map("inactive_reason")
+  inactiveNote            String                    @default("") @map("inactive_note")
+  closedAt                DateTime?                 @map("closed_at")
   authorization_documents authorization_documents[]
   client                  Client                    @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
