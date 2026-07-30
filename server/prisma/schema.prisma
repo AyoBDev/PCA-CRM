@@ -250,6 +250,7 @@ model Client {
   emergencyContactRelation   String           @default("") @map("emergency_contact_relation")
   gender                     String           @default("") @map("gender")
   mainServices               String           @default("") @map("main_services")
+  carePlanSchedule           String           @default("") @map("care_plan_schedule")
   pcaNotes                   String           @default("") @map("pca_notes")
   secondaryAddress           String           @default("") @map("secondary_address")
   secondaryEmergencyName     String           @default("") @map("secondary_emergency_name")

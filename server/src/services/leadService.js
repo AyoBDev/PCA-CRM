@@ -43,6 +43,16 @@ function parseServicesList(servicesRequestedJson) {
   return Array.isArray(arr) ? arr.map((s) => String(s).trim()).filter(Boolean) : [];
 }
 
+// Human-readable schedule-needs string from a lead's days/hours/start fields.
+// Reused for both the Care Plan "Schedule Needs" field and the intake summary.
+function buildScheduleNeeds(lead) {
+  return [
+    lead.daysPerWeek && `${lead.daysPerWeek}`,
+    lead.hoursPerDay && `${lead.hoursPerDay} hrs/day`,
+    lead.startDateNeeded && `start ${lead.startDateNeeded}`,
+  ].filter(Boolean).join(', ');
+}
+
 // Builds a human-readable "Intake Summary" block that captures every piece of
 // lead intake data that has no dedicated Client field — so converting a lead
 // never silently loses case manager info, referral source, schedule needs,
@@ -62,12 +72,7 @@ function buildIntakeSummary(lead) {
   add('Insurance #', lead.insuranceNumber);
 
   // Schedule needs.
-  const schedule = [
-    lead.daysPerWeek && `${lead.daysPerWeek}`,
-    lead.hoursPerDay && `${lead.hoursPerDay} hrs/day`,
-    lead.startDateNeeded && `start ${lead.startDateNeeded}`,
-  ].filter(Boolean).join(', ');
-  add('Schedule Needs', schedule);
+  add('Schedule Needs', buildScheduleNeeds(lead));
 
   // Requested services (full list, not just the coarse enabledServices buckets).
   const services = parseServicesList(lead.servicesRequested);
@@ -131,6 +136,8 @@ function mapLeadToClientData(lead) {
     notes,
     // Full requested-services list, one per line (Profile tab renders on \n).
     mainServices: services.join('\n'),
+    // Dedicated Care Plan "Schedule Needs" field (Care Plan Summary section).
+    carePlanSchedule: buildScheduleNeeds(lead),
     caregiverRequirements: prefs,
     enabledServices: servicesToEnabledServices(lead.servicesRequested),
   };

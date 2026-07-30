@@ -134,6 +134,18 @@ describe('mapLeadToClientData', () => {
     expect(d.notes).toContain('ASAP');
   });
 
+  test('puts schedule needs into the dedicated carePlanSchedule field', () => {
+    const d = mapLeadToClientData(richLead);
+    expect(d.carePlanSchedule).toContain('5 days (M-F)');
+    expect(d.carePlanSchedule).toContain('6'); // hours/day
+    expect(d.carePlanSchedule).toContain('ASAP');
+  });
+
+  test('carePlanSchedule is an empty string when the lead has no schedule info', () => {
+    const d = mapLeadToClientData({ firstName: 'A', lastName: 'B' });
+    expect(d.carePlanSchedule).toBe('');
+  });
+
   test('preserves case-type details (transfer) in notes', () => {
     const d = mapLeadToClientData(richLead);
     expect(d.notes).toContain('OldCo');
