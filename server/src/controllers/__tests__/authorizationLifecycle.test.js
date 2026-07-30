@@ -14,13 +14,7 @@ const user = { id: 1, name: 'Tester', role: 'admin' };
 describe('renewAuthorization', () => {
     let client, oldAuth;
     beforeEach(async () => {
-        // NOTE: created via raw SQL — the shared local DB already has `clients.dob`
-        // migrated to `text` (per the PHI-encryption branch) while this branch's
-        // schema.prisma/Prisma Client still model it as `DateTime?`. That mismatch
-        // makes prisma.client.create()/findUnique() throw on decode. Unrelated to
-        // this task (renewAuthorization); raw SQL sidesteps it for this fixture.
-        const rows = await prisma.$queryRaw`INSERT INTO clients (client_name, updated_at) VALUES ('Renew Test', now()) RETURNING id`;
-        client = { id: rows[0].id };
+        client = await prisma.client.create({ data: { clientName: 'Renew Test' } });
         oldAuth = await prisma.authorization.create({
             data: {
                 clientId: client.id, serviceCode: 'PCS', serviceName: 'Personal Care',
@@ -33,7 +27,7 @@ describe('renewAuthorization', () => {
     });
     afterEach(async () => {
         await prisma.authorization.deleteMany({ where: { clientId: client.id } });
-        await prisma.$executeRaw`DELETE FROM clients WHERE id = ${client.id}`;
+        await prisma.client.delete({ where: { id: client.id } });
     });
 
     it('closes old auth day-before new start and links the chain', async () => {

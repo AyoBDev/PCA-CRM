@@ -331,6 +331,7 @@ async function renewAuthorization(req, res, next) {
                 manualStatus: 'inactive',
                 closedAt: new Date(),
                 renewedToId: newAuth.id,
+                // Parses at local midnight by convention, matching the note in server/src/lib/authDates.js.
                 ...(closeDateStr ? { authorizationEndDate: new Date(closeDateStr + 'T00:00:00') } : {}),
             },
         });
