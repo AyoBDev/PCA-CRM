@@ -562,17 +562,30 @@ export default function AuthorizationsPage() {
             const { files, ...authData } = data;
             let savedAuth;
             if (modal.auth?._renewFromId) {
+                // Snapshot the old auth's pre-renew state so undo can restore it exactly —
+                // renewAuthorization truncates its end date and sets renewedToId/closedAt server-side.
+                const oldAuthId = modal.auth._renewFromId;
+                const oldClient = clients.find(c => c.id === modal.clientId);
+                const oldAuthSnapshot = oldClient?.authorizations?.find(a => a.id === oldAuthId);
                 // Atomic renewal — creates new + deactivates old in one transaction
-                savedAuth = await api.renewAuthorization(modal.auth._renewFromId, authData);
+                savedAuth = await api.renewAuthorization(oldAuthId, authData);
                 showToast('Authorization renewed');
                 undoState.pushAction(`Renewed ${authData.serviceCode || 'authorization'}`,
                     async () => {
-                        await api.updateAuthManualStatus(modal.auth._renewFromId, 'active');
-                        await api.deleteAuthorization(savedAuth.id);
+                        await api.archiveAuthorization(savedAuth.id);
+                        await api.updateAuthorization(oldAuthId, {
+                            ...oldAuthSnapshot,
+                            manualStatus: 'active',
+                            authorizationEndDate: oldAuthSnapshot?.authorizationEndDate,
+                            renewedToId: null,
+                            closedAt: null,
+                            skipDeactivate: true,
+                        });
                         fetchClients();
                     },
                     async () => {
-                        await api.renewAuthorization(modal.auth._renewFromId, authData);
+                        await api.restoreAuthorization(savedAuth.id);
+                        await api.updateAuthManualStatus(oldAuthId, 'inactive');
                         fetchClients();
                     }
                 );
