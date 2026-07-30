@@ -565,7 +565,7 @@ export default function ClientDetailPage() {
         // row), so every write must resend the auth's other fields alongside the note.
         try {
             const auth = (client.authorizations || []).find(a => a.id === authId);
-            if (!auth) return;
+            if (!auth) { showToast('Could not find authorization', 'error'); return; }
             const prevNote = auth.notes || '';
             const withNote = (n) => ({
                 serviceCategory: auth.serviceCategory,

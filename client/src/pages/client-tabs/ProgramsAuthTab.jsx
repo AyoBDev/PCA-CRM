@@ -27,7 +27,7 @@ const STATUS_STYLES = {
 function AuthNoteInline({ auth, onSave }) {
     const [editing, setEditing] = useState(false);
     const [text, setText] = useState(auth.notes || '');
-    useEffect(() => { setText(auth.notes || ''); }, [auth.notes]);
+    useEffect(() => { setText(auth.notes || ''); }, [auth.id, auth.notes]);
     if (!editing) {
         return (
             <div className="pa-auth-note">
@@ -241,7 +241,7 @@ export default function ProgramsAuthTab({
                             <div className="pa-service-card__detail">
                                 {Icons.paperclip} <span>{attachCount} ATTACHMENT{attachCount !== 1 ? 'S' : ''}</span>
                             </div>
-                            {(latestAuth.manualStatus === 'inactive') && !latestAuth.renewedToId && (
+                            {(latestAuth.manualStatus === 'inactive') && !latestAuth.renewedToId && latestAuth.inactiveReason && (
                                 <div className="pa-auth-inactive-reason">🛑 <span><b>{latestAuth.inactiveReason}.</b> {latestAuth.inactiveNote}</span></div>
                             )}
                         </>
