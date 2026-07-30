@@ -626,6 +626,29 @@ export default function AuthorizationsPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    const handleInactivateAuth = async (payload) => {
+        try {
+            const { id, ...data } = payload;
+            const prev = modal?.auth;
+            await api.inactivateAuthorization(id, data);
+            showToast('Authorization marked inactive');
+            const refresh = async () => {
+                const refreshed = await api.getClients();
+                setClients(refreshed);
+                if (drawerClient) {
+                    const updated = refreshed.find(c => c.id === drawerClient.id);
+                    if (updated) setDrawerClient(updated);
+                }
+            };
+            undoState.pushAction('Marked authorization inactive',
+                async () => { await api.updateAuthorization(id, { ...prev, manualStatus: 'active' }); await refresh(); },
+                async () => { await api.inactivateAuthorization(id, data); await refresh(); },
+            );
+            setModal(null);
+            await refresh();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     const handleMarkStatus = async (auth, newStatus) => {
         try {
             await api.updateAuthManualStatus(auth.id, newStatus);
@@ -1165,6 +1188,7 @@ export default function AuthorizationsPage() {
                             isRenewal: true,
                         });
                     }}
+                    onInactivate={handleInactivateAuth}
                 />
             )}
             {modal?.type === 'bulkImport' && (

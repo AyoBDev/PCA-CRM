@@ -496,6 +496,46 @@ export default function ClientDetailPage() {
         finally { setSaving(false); }
     };
 
+    const handleRenewAuth = async (payload) => {
+        setSaving(true);
+        try {
+            const { oldAuthId, files, ...data } = payload;
+            const newAuth = await api.renewAuthorization(oldAuthId, data);
+            if (files && files.length && newAuth?.id) {
+                for (const file of files) {
+                    const fd = new FormData();
+                    fd.append('file', file);
+                    await api.uploadAuthDocument(newAuth.id, fd);
+                }
+            }
+            showToast('Authorization renewed');
+            undoState.pushAction('Renewed authorization',
+                async () => { await api.archiveAuthorization(newAuth.id); await api.updateAuthManualStatus(oldAuthId, 'active'); await fetchClient(); },
+                async () => { await api.renewAuthorization(oldAuthId, data); await fetchClient(); },
+            );
+            setShowAuthModal(false);
+            fetchClient();
+        } catch (err) { showToast(err.message, 'error'); }
+        finally { setSaving(false); }
+    };
+
+    const handleInactivateAuth = async (payload) => {
+        setSaving(true);
+        try {
+            const { id, ...data } = payload;
+            const prev = editingAuth;
+            await api.inactivateAuthorization(id, data);
+            showToast('Authorization marked inactive');
+            undoState.pushAction('Marked authorization inactive',
+                async () => { await api.updateAuthorization(id, { ...prev, manualStatus: 'active' }); await fetchClient(); },
+                async () => { await api.inactivateAuthorization(id, data); await fetchClient(); },
+            );
+            setShowAuthModal(false);
+            fetchClient();
+        } catch (err) { showToast(err.message, 'error'); }
+        finally { setSaving(false); }
+    };
+
     const handleArchiveAuth = async (authId) => {
         try {
             await api.archiveAuthorization(authId);
@@ -1378,6 +1418,8 @@ export default function ClientDetailPage() {
                     auth={editingAuth ? { ...editingAuth } : (authPresetServiceCode ? { serviceCode: authPresetServiceCode } : null)}
                     clientId={client.id}
                     onSave={handleSaveAuth}
+                    onRenewal={handleRenewAuth}
+                    onInactivate={handleInactivateAuth}
                     onClose={() => setShowAuthModal(false)}
                 />
             )}

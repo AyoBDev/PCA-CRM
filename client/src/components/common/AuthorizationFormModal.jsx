@@ -153,7 +153,15 @@ export default function AuthorizationFormModal({
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (isEdit && manualStatus === 'renewal' && !correctingInPlace && onRenewal) {
+        if (isEdit && manualStatus === 'renewal' && !correctingInPlace) {
+            if (typeof onRenewal !== 'function') {
+                // Guard: never silently fall through to onSave (which would save
+                // this as manualStatus:'active') when the parent hasn't wired a
+                // renewal handler — that would look like a normal save but
+                // silently discard the intended renewal.
+                console.error('AuthorizationFormModal: manualStatus is "renewal" but no onRenewal handler was provided. Aborting submit to avoid silently saving as active.');
+                return;
+            }
             const note = notePreset === 'custom'
                 ? (notes.trim() || 'Other')
                 : (notePreset + (notes.trim() ? ' — ' + notes.trim() : ''));
@@ -177,7 +185,15 @@ export default function AuthorizationFormModal({
             });
             return;
         }
-        if (isEdit && manualStatus === 'inactive' && onInactivate) {
+        if (isEdit && manualStatus === 'inactive') {
+            if (typeof onInactivate !== 'function') {
+                // Guard: never silently fall through to onSave (which would save
+                // this as manualStatus:'active') when the parent hasn't wired an
+                // inactivate handler — that is the exact opposite of what the
+                // user asked for ("Save & Mark Inactive").
+                console.error('AuthorizationFormModal: manualStatus is "inactive" but no onInactivate handler was provided. Aborting submit to avoid silently saving as active.');
+                return;
+            }
             onInactivate({ id: auth.id, authorizationEndDate: inactiveEnd, inactiveReason, inactiveNote });
             return;
         }
