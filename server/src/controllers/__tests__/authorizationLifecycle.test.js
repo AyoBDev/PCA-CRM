@@ -164,3 +164,17 @@ describe('updateAuthManualStatus validation', () => {
         expect(res.statusCode).toBe(400);
     });
 });
+
+describe('notes separation', () => {
+    it('editing an auth note does not touch client.notes', async () => {
+        const client = await prisma.client.create({ data: { clientName: 'Sep Test', notes: 'GATE 1234' } });
+        const auth = await prisma.authorization.create({ data: { clientId: client.id, serviceCode: 'PCS', notes: 'orig' } });
+        const req = { params: { id: String(auth.id) }, user, body: { serviceCode: 'PCS', notes: 'renewal note edited' } };
+        const res = mockRes();
+        await ctrl.updateAuthorization(req, res, (e) => { throw e; });
+        const reloadedClient = await prisma.client.findUnique({ where: { id: client.id } });
+        expect(reloadedClient.notes).toBe('GATE 1234');
+        await prisma.authorization.deleteMany({ where: { clientId: client.id } });
+        await prisma.client.delete({ where: { id: client.id } });
+    });
+});
