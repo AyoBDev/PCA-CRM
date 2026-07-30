@@ -511,7 +511,7 @@ export default function ClientDetailPage() {
             showToast('Authorization renewed');
             undoState.pushAction('Renewed authorization',
                 async () => { await api.archiveAuthorization(newAuth.id); await api.updateAuthManualStatus(oldAuthId, 'active'); await fetchClient(); },
-                async () => { await api.renewAuthorization(oldAuthId, data); await fetchClient(); },
+                async () => { await api.restoreAuthorization(newAuth.id); await api.updateAuthManualStatus(oldAuthId, 'inactive'); await fetchClient(); },
             );
             setShowAuthModal(false);
             fetchClient();
