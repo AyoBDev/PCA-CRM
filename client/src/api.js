@@ -196,6 +196,8 @@ export const updateAuthManualStatus = (id, manualStatus) =>
     request(`/authorizations/${id}/status`, { method: 'PATCH', body: JSON.stringify({ manualStatus }) });
 export const renewAuthorization = (oldAuthId, data) =>
     request(`/authorizations/${oldAuthId}/renew`, { method: 'POST', body: JSON.stringify(data) });
+export const inactivateAuthorization = (id, data) =>
+    request(`/authorizations/${id}/inactivate`, { method: 'PATCH', body: JSON.stringify(data) });
 
 // Care Team
 export const addCareTeamMember = (clientId, data) =>
