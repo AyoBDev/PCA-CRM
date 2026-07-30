@@ -641,7 +641,17 @@ export default function AuthorizationsPage() {
                 }
             };
             undoState.pushAction('Marked authorization inactive',
-                async () => { await api.updateAuthorization(id, { ...prev, manualStatus: 'active' }); await refresh(); },
+                async () => {
+                    await api.updateAuthorization(id, {
+                        ...prev,
+                        manualStatus: 'active',
+                        inactiveReason: '',
+                        inactiveNote: '',
+                        closedAt: null,
+                        skipDeactivate: true,
+                    });
+                    await refresh();
+                },
                 async () => { await api.inactivateAuthorization(id, data); await refresh(); },
             );
             setModal(null);

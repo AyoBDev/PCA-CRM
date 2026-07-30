@@ -459,6 +459,9 @@ export default function ClientsPage() {
     const handleRenewAuth = async (payload) => {
         try {
             const { oldAuthId, files, ...data } = payload;
+            // Snapshot the old auth's pre-renew state so undo can restore it exactly —
+            // renewAuthorization truncates its end date and sets renewedToId/closedAt server-side.
+            const oldAuthSnapshot = modal?.auth?.id === oldAuthId ? modal.auth : null;
             const newAuth = await api.renewAuthorization(oldAuthId, data);
             if (files && files.length && newAuth?.id) {
                 for (const file of files) {
@@ -477,7 +480,14 @@ export default function ClientsPage() {
             }
             showUndoToast('Authorization renewed', async () => {
                 await api.archiveAuthorization(newAuth.id);
-                await api.updateAuthManualStatus(oldAuthId, 'active');
+                await api.updateAuthorization(oldAuthId, {
+                    ...oldAuthSnapshot,
+                    manualStatus: 'active',
+                    authorizationEndDate: oldAuthSnapshot?.authorizationEndDate,
+                    renewedToId: null,
+                    closedAt: null,
+                    skipDeactivate: true,
+                });
                 const r = await api.getClients();
                 setClients(r);
                 if (drawerClient) {
@@ -502,7 +512,14 @@ export default function ClientsPage() {
                 if (updated) setDrawerClient(updated);
             }
             showUndoToast('Authorization marked inactive', async () => {
-                await api.updateAuthorization(id, { ...prev, manualStatus: 'active' });
+                await api.updateAuthorization(id, {
+                    ...prev,
+                    manualStatus: 'active',
+                    inactiveReason: '',
+                    inactiveNote: '',
+                    closedAt: null,
+                    skipDeactivate: true,
+                });
                 const r = await api.getClients();
                 setClients(r);
                 if (drawerClient) {

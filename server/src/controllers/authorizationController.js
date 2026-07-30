@@ -130,19 +130,32 @@ async function updateAuthorization(req, res, next) {
                 accountNumber: (req.body.accountNumber || '').trim(),
                 sandataClientId: (req.body.sandataClientId || '').trim(),
                 ...(req.body.manualStatus && { manualStatus: req.body.manualStatus }),
+                // Lifecycle fields (renewedToId/closedAt/inactiveReason/inactiveNote) are only
+                // written when explicitly present in the body — this lets undo handlers for
+                // renew/inactivate restore a prior auth's full state, including clearing them
+                // back to null/'' , without every regular save having to carry them.
+                ...('renewedToId' in req.body && { renewedToId: req.body.renewedToId ?? null }),
+                ...('closedAt' in req.body && { closedAt: req.body.closedAt ?? null }),
+                ...('inactiveReason' in req.body && { inactiveReason: (req.body.inactiveReason || '').trim() }),
+                ...('inactiveNote' in req.body && { inactiveNote: (req.body.inactiveNote || '').trim() }),
                 ...buildAuthTypeFields(req.body),
             },
         });
 
         const serviceNameChanged = MULTI_AUTH_CODES.includes(auth.serviceCode) &&
             (auth.serviceName || '') !== (oldAuth.serviceName || '');
-        if (req.body.serviceCode !== oldAuth.serviceCode || serviceNameChanged || (auth.manualStatus === 'active' && (oldAuth.manualStatus || 'active') !== 'active')) {
+        const isReactivating = auth.manualStatus === 'active' && (oldAuth.manualStatus || 'active') !== 'active';
+        // skipDeactivate: true is passed by undo handlers that flip manualStatus back to
+        // 'active' while reversing a renew/inactivate action — that reversal must not
+        // trigger the "new auth supersedes siblings" side effect (see deactivatePreviousAuths).
+        if (!req.body.skipDeactivate &&
+            (req.body.serviceCode !== oldAuth.serviceCode || serviceNameChanged || isReactivating)) {
             await deactivatePreviousAuths(auth.clientId, auth.serviceCode, auth.serviceName || '', auth.id, {
                 userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             });
         }
 
-        const changes = audit.diffFields(oldAuth, auth, ['serviceCode', 'serviceName', 'authorizationNumber', 'authorizedUnits', 'authorizedHours', 'authorizationStartDate', 'authorizationEndDate', 'notes', 'accountNumber', 'sandataClientId', 'manualStatus']);
+        const changes = audit.diffFields(oldAuth, auth, ['serviceCode', 'serviceName', 'authorizationNumber', 'authorizedUnits', 'authorizedHours', 'authorizationStartDate', 'authorizationEndDate', 'notes', 'accountNumber', 'sandataClientId', 'manualStatus', 'renewedToId', 'closedAt', 'inactiveReason', 'inactiveNote']);
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: auth.id, entityName: auth.serviceCode, changes });
         res.json(enrichAuthorization(auth));
     } catch (err) {

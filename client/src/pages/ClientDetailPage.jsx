@@ -500,6 +500,9 @@ export default function ClientDetailPage() {
         setSaving(true);
         try {
             const { oldAuthId, files, ...data } = payload;
+            // Snapshot the old auth's pre-renew state so undo can restore it exactly —
+            // renewAuthorization truncates its end date and sets renewedToId/closedAt server-side.
+            const oldAuthSnapshot = (client.authorizations || []).find(a => a.id === oldAuthId) || editingAuth;
             const newAuth = await api.renewAuthorization(oldAuthId, data);
             if (files && files.length && newAuth?.id) {
                 for (const file of files) {
@@ -510,7 +513,18 @@ export default function ClientDetailPage() {
             }
             showToast('Authorization renewed');
             undoState.pushAction('Renewed authorization',
-                async () => { await api.archiveAuthorization(newAuth.id); await api.updateAuthManualStatus(oldAuthId, 'active'); await fetchClient(); },
+                async () => {
+                    await api.archiveAuthorization(newAuth.id);
+                    await api.updateAuthorization(oldAuthId, {
+                        ...oldAuthSnapshot,
+                        manualStatus: 'active',
+                        authorizationEndDate: oldAuthSnapshot?.authorizationEndDate,
+                        renewedToId: null,
+                        closedAt: null,
+                        skipDeactivate: true,
+                    });
+                    await fetchClient();
+                },
                 async () => { await api.restoreAuthorization(newAuth.id); await api.updateAuthManualStatus(oldAuthId, 'inactive'); await fetchClient(); },
             );
             setShowAuthModal(false);
@@ -527,7 +541,17 @@ export default function ClientDetailPage() {
             await api.inactivateAuthorization(id, data);
             showToast('Authorization marked inactive');
             undoState.pushAction('Marked authorization inactive',
-                async () => { await api.updateAuthorization(id, { ...prev, manualStatus: 'active' }); await fetchClient(); },
+                async () => {
+                    await api.updateAuthorization(id, {
+                        ...prev,
+                        manualStatus: 'active',
+                        inactiveReason: '',
+                        inactiveNote: '',
+                        closedAt: null,
+                        skipDeactivate: true,
+                    });
+                    await fetchClient();
+                },
                 async () => { await api.inactivateAuthorization(id, data); await fetchClient(); },
             );
             setShowAuthModal(false);

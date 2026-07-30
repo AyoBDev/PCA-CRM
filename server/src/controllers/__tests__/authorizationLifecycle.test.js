@@ -1,5 +1,6 @@
 const prisma = require('../../lib/prisma');
 const ctrl = require('../authorizationController');
+const { enrichAuthorization } = require('../../services/authorizationService');
 
 function mockRes() {
     return {
@@ -162,6 +163,165 @@ describe('updateAuthManualStatus validation', () => {
         const res = mockRes();
         await ctrl.updateAuthManualStatus(req, res, () => {});
         expect(res.statusCode).toBe(400);
+    });
+});
+
+describe('enrichAuthorization passthrough', () => {
+    it('includes renewedFromId, renewedToId, inactiveReason, inactiveNote, closedAt', async () => {
+        const client = await prisma.client.create({ data: { clientName: 'Enrich Passthrough Test' } });
+        const oldAuth = await prisma.authorization.create({
+            data: { clientId: client.id, serviceCode: 'PCS', authorizedUnits: 40, manualStatus: 'inactive' },
+        });
+        const closedAt = new Date('2026-05-31T12:00:00Z');
+        const newAuth = await prisma.authorization.create({
+            data: {
+                clientId: client.id, serviceCode: 'PCS', authorizedUnits: 48, manualStatus: 'active',
+                renewedFromId: oldAuth.id,
+            },
+        });
+        const updatedOld = await prisma.authorization.update({
+            where: { id: oldAuth.id },
+            data: {
+                renewedToId: newAuth.id,
+                inactiveReason: 'Client transferred to another agency',
+                inactiveNote: 'Moved to Henderson.',
+                closedAt,
+            },
+        });
+
+        const enriched = enrichAuthorization(updatedOld);
+
+        expect(enriched.renewedToId).toBe(newAuth.id);
+        expect(enriched.renewedFromId).toBeNull();
+        expect(enriched.inactiveReason).toBe('Client transferred to another agency');
+        expect(enriched.inactiveNote).toBe('Moved to Henderson.');
+        expect(enriched.closedAt).not.toBeNull();
+
+        const enrichedNew = enrichAuthorization(newAuth);
+        expect(enrichedNew.renewedFromId).toBe(oldAuth.id);
+
+        await prisma.authorization.deleteMany({ where: { clientId: client.id } });
+        await prisma.client.delete({ where: { id: client.id } });
+    });
+});
+
+describe('updateAuthorization — lifecycle field clearing + skipDeactivate', () => {
+    it('accepts and persists renewedToId/closedAt when present in the body (renew-undo restore)', async () => {
+        const client = await prisma.client.create({ data: { clientName: 'Update Renew Fields Test' } });
+        const oldAuth = await prisma.authorization.create({
+            data: {
+                clientId: client.id, serviceCode: 'PCS', authorizedUnits: 40,
+                authorizationEndDate: new Date('2026-05-31T00:00:00'),
+                manualStatus: 'inactive', closedAt: new Date(), inactiveReason: '', inactiveNote: '',
+            },
+        });
+        const newAuth = await prisma.authorization.create({
+            data: { clientId: client.id, serviceCode: 'PCS', authorizedUnits: 48, manualStatus: 'active', renewedFromId: oldAuth.id },
+        });
+        await prisma.authorization.update({ where: { id: oldAuth.id }, data: { renewedToId: newAuth.id } });
+
+        // Undo restores the old auth's original end date and clears the renewal chain link.
+        const req = {
+            params: { id: String(oldAuth.id) }, user,
+            body: {
+                serviceCode: 'PCS', authorizedUnits: 40, authorizationEndDate: '2027-05-31',
+                manualStatus: 'active', renewedToId: null, closedAt: null, skipDeactivate: true,
+            },
+        };
+        const res = mockRes();
+        await ctrl.updateAuthorization(req, res, (e) => { throw e; });
+
+        expect(res.statusCode).toBe(200);
+        const reloaded = await prisma.authorization.findUnique({ where: { id: oldAuth.id } });
+        expect(reloaded.renewedToId).toBeNull();
+        expect(reloaded.closedAt).toBeNull();
+        expect(reloaded.authorizationEndDate.toISOString().slice(0, 10)).toBe('2027-05-31');
+        expect(reloaded.manualStatus).toBe('active');
+
+        // Sibling (the new auth) must NOT have been deactivated by this undo.
+        const reloadedNew = await prisma.authorization.findUnique({ where: { id: newAuth.id } });
+        expect(reloadedNew.manualStatus).toBe('active');
+
+        await prisma.authorization.deleteMany({ where: { clientId: client.id } });
+        await prisma.client.delete({ where: { id: client.id } });
+    });
+
+    it('clears inactiveReason/inactiveNote/closedAt when present in the body (inactivate-undo restore)', async () => {
+        const client = await prisma.client.create({ data: { clientName: 'Update Inactivate Fields Test' } });
+        const auth = await prisma.authorization.create({
+            data: {
+                clientId: client.id, serviceCode: 'PCS', authorizedUnits: 40, manualStatus: 'inactive',
+                inactiveReason: 'Client transferred to another agency', inactiveNote: 'Moved to Henderson.', closedAt: new Date(),
+            },
+        });
+
+        const req = {
+            params: { id: String(auth.id) }, user,
+            body: {
+                serviceCode: 'PCS', authorizedUnits: 40, manualStatus: 'active',
+                inactiveReason: '', inactiveNote: '', closedAt: null, skipDeactivate: true,
+            },
+        };
+        const res = mockRes();
+        await ctrl.updateAuthorization(req, res, (e) => { throw e; });
+
+        expect(res.statusCode).toBe(200);
+        const reloaded = await prisma.authorization.findUnique({ where: { id: auth.id } });
+        expect(reloaded.inactiveReason).toBe('');
+        expect(reloaded.inactiveNote).toBe('');
+        expect(reloaded.closedAt).toBeNull();
+        expect(reloaded.manualStatus).toBe('active');
+
+        await prisma.authorization.deleteMany({ where: { clientId: client.id } });
+        await prisma.client.delete({ where: { id: client.id } });
+    });
+
+    it('skipDeactivate:true prevents a same-code sibling from being auto-inactivated', async () => {
+        const client = await prisma.client.create({ data: { clientName: 'Skip Deactivate Test' } });
+        const auth = await prisma.authorization.create({
+            data: { clientId: client.id, serviceCode: 'PCS', authorizedUnits: 40, manualStatus: 'inactive' },
+        });
+        const sibling = await prisma.authorization.create({
+            data: { clientId: client.id, serviceCode: 'PCS', authorizedUnits: 40, manualStatus: 'active' },
+        });
+
+        const req = {
+            params: { id: String(auth.id) }, user,
+            body: { serviceCode: 'PCS', authorizedUnits: 40, manualStatus: 'active', skipDeactivate: true },
+        };
+        const res = mockRes();
+        await ctrl.updateAuthorization(req, res, (e) => { throw e; });
+
+        expect(res.statusCode).toBe(200);
+        const reloadedSibling = await prisma.authorization.findUnique({ where: { id: sibling.id } });
+        expect(reloadedSibling.manualStatus).toBe('active');
+
+        await prisma.authorization.deleteMany({ where: { clientId: client.id } });
+        await prisma.client.delete({ where: { id: client.id } });
+    });
+
+    it('without skipDeactivate, activating an auth still deactivates a same-code sibling (regression guard)', async () => {
+        const client = await prisma.client.create({ data: { clientName: 'No Skip Deactivate Test' } });
+        const auth = await prisma.authorization.create({
+            data: { clientId: client.id, serviceCode: 'PCS', authorizedUnits: 40, manualStatus: 'inactive' },
+        });
+        const sibling = await prisma.authorization.create({
+            data: { clientId: client.id, serviceCode: 'PCS', authorizedUnits: 40, manualStatus: 'active' },
+        });
+
+        const req = {
+            params: { id: String(auth.id) }, user,
+            body: { serviceCode: 'PCS', authorizedUnits: 40, manualStatus: 'active' },
+        };
+        const res = mockRes();
+        await ctrl.updateAuthorization(req, res, (e) => { throw e; });
+
+        expect(res.statusCode).toBe(200);
+        const reloadedSibling = await prisma.authorization.findUnique({ where: { id: sibling.id } });
+        expect(reloadedSibling.manualStatus).toBe('inactive');
+
+        await prisma.authorization.deleteMany({ where: { clientId: client.id } });
+        await prisma.client.delete({ where: { id: client.id } });
     });
 });
 
