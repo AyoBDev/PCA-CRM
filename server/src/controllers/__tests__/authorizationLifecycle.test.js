@@ -59,3 +59,34 @@ describe('renewAuthorization', () => {
         expect(newAuth.notes).toBe('Hours Increased — 40 to 48');
     });
 });
+
+describe('inactivateAuthorization', () => {
+    let client, auth;
+    beforeEach(async () => {
+        client = await prisma.client.create({ data: { clientName: 'Inactive Test' } });
+        auth = await prisma.authorization.create({
+            data: { clientId: client.id, serviceCode: 'PCS', authorizedUnits: 40, manualStatus: 'active' },
+        });
+    });
+    afterEach(async () => {
+        await prisma.authorization.deleteMany({ where: { clientId: client.id } });
+        await prisma.client.delete({ where: { id: client.id } });
+    });
+
+    it('marks inactive with end date, reason, and note', async () => {
+        const req = {
+            params: { id: String(auth.id) }, user,
+            body: { authorizationEndDate: '2026-03-15', inactiveReason: 'Client transferred to another agency', inactiveNote: 'Moved to Henderson.' },
+        };
+        const res = mockRes();
+        await ctrl.inactivateAuthorization(req, res, (e) => { throw e; });
+
+        expect(res.statusCode).toBe(200);
+        const reloaded = await prisma.authorization.findUnique({ where: { id: auth.id } });
+        expect(reloaded.manualStatus).toBe('inactive');
+        expect(reloaded.inactiveReason).toBe('Client transferred to another agency');
+        expect(reloaded.inactiveNote).toBe('Moved to Henderson.');
+        expect(reloaded.authorizationEndDate.toISOString().slice(0, 10)).toBe('2026-03-15');
+        expect(reloaded.closedAt).not.toBeNull();
+    });
+});
