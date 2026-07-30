@@ -560,6 +560,37 @@ export default function ClientDetailPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    const handleSaveAuthNote = async (authId, note) => {
+        // updateAuthorization is a full-record PUT (it does not merge with the existing
+        // row), so every write must resend the auth's other fields alongside the note.
+        try {
+            const auth = (client.authorizations || []).find(a => a.id === authId);
+            if (!auth) return;
+            const prevNote = auth.notes || '';
+            const withNote = (n) => ({
+                serviceCategory: auth.serviceCategory,
+                serviceCode: auth.serviceCode,
+                serviceName: auth.serviceName,
+                authorizationNumber: auth.authorizationNumber,
+                authorizedUnits: auth.authorizedUnits,
+                authorizedHours: auth.authorizedHours,
+                authorizationStartDate: auth.authorizationStartDate,
+                authorizationEndDate: auth.authorizationEndDate,
+                accountNumber: auth.accountNumber,
+                sandataClientId: auth.sandataClientId,
+                manualStatus: auth.manualStatus,
+                notes: n,
+            });
+            await api.updateAuthorization(authId, withNote(note));
+            showToast('Note updated');
+            fetchClient();
+            undoState.pushAction('Updated authorization note',
+                async () => { await api.updateAuthorization(authId, withNote(prevNote)); fetchClient(); },
+                async () => { await api.updateAuthorization(authId, withNote(note)); fetchClient(); }
+            );
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     const handleArchiveClient = async () => {
         try {
             const clientName = client.clientName;
@@ -982,6 +1013,7 @@ export default function ClientDetailPage() {
                             fetchClient={fetchClient}
                             showToast={showToast}
                             totalDocs={totalDocs}
+                            onSaveAuthNote={handleSaveAuthNote}
                         />
                     )}
                     {activeTab === 'documents' && (
