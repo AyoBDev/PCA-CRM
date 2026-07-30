@@ -267,8 +267,8 @@ async function updateAuthManualStatus(req, res, next) {
     try {
         const id = Number(req.params.id);
         const { manualStatus } = req.body;
-        if (!['active', 'pending', 'inactive'].includes(manualStatus)) {
-            return res.status(400).json({ error: 'Invalid status. Must be active, pending, or inactive.' });
+        if (!['active', 'inactive'].includes(manualStatus)) {
+            return res.status(400).json({ error: 'Invalid status. Must be active or inactive.' });
         }
         const oldAuth = await prisma.authorization.findUnique({ where: { id } });
         if (!oldAuth) return res.status(404).json({ error: 'Authorization not found' });

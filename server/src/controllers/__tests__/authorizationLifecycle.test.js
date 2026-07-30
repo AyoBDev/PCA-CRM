@@ -155,3 +155,12 @@ describe('inactivateAuthorization', () => {
         expect(res.statusCode).toBe(404);
     });
 });
+
+describe('updateAuthManualStatus validation', () => {
+    it('rejects pending', async () => {
+        const req = { params: { id: '1' }, user, body: { manualStatus: 'pending' } };
+        const res = mockRes();
+        await ctrl.updateAuthManualStatus(req, res, () => {});
+        expect(res.statusCode).toBe(400);
+    });
+});
