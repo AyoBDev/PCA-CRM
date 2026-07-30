@@ -37,13 +37,82 @@ function servicesToEnabledServices(servicesRequestedJson) {
   return JSON.stringify([...buckets].sort());
 }
 
+function parseServicesList(servicesRequestedJson) {
+  let arr = [];
+  try { arr = JSON.parse(servicesRequestedJson || '[]'); } catch { arr = []; }
+  return Array.isArray(arr) ? arr.map((s) => String(s).trim()).filter(Boolean) : [];
+}
+
+// Builds a human-readable "Intake Summary" block that captures every piece of
+// lead intake data that has no dedicated Client field — so converting a lead
+// never silently loses case manager info, referral source, schedule needs,
+// case-type details, etc. Rendered on the client Notes tab (source: General).
+function buildIntakeSummary(lead) {
+  const lines = [];
+  const add = (label, value) => {
+    const v = value == null ? '' : String(value).trim();
+    if (v && v !== 'No preference') lines.push(`${label}: ${v}`);
+  };
+
+  // Case manager / caseworker — the field we were dropping entirely.
+  if (lead.caseworkerName || lead.caseworkerPhone) {
+    add('Case Manager', [lead.caseworkerName, lead.caseworkerPhone].filter(Boolean).join(' — '));
+  }
+  add('Referral Source', lead.referralSource);
+  add('Insurance #', lead.insuranceNumber);
+
+  // Schedule needs.
+  const schedule = [
+    lead.daysPerWeek && `${lead.daysPerWeek}`,
+    lead.hoursPerDay && `${lead.hoursPerDay} hrs/day`,
+    lead.startDateNeeded && `start ${lead.startDateNeeded}`,
+  ].filter(Boolean).join(', ');
+  add('Schedule Needs', schedule);
+
+  // Requested services (full list, not just the coarse enabledServices buckets).
+  const services = parseServicesList(lead.servicesRequested);
+  if (services.length) add('Requested Services', services.join(', '));
+
+  // Preferences (also stored structured in caregiverRequirements; repeated here
+  // so the full intake record reads as one block).
+  add('Gender Preference', lead.genderPreference);
+  add('Age Preference', lead.agePreference);
+  add('Language', lead.languagePreference);
+  if (Array.isArray(parseServicesList(lead.shiftPreferences)) && parseServicesList(lead.shiftPreferences).length) {
+    add('Shift Preference', parseServicesList(lead.shiftPreferences).join(', '));
+  }
+
+  // Case-type specifics.
+  if (lead.caseType === 'transfer') {
+    add('Current Agency', lead.currentAgencyName);
+    add('Current Auth Hours/Month', lead.currentAuthHoursMonth || '');
+    add('Auth #', lead.authNumber);
+    add('Transfer Reason', lead.transferReason);
+    add('Transfer Notes', lead.transferNotes);
+  } else if (lead.caseType === 'private') {
+    if (lead.ppRate) add('Private Pay Rate', `$${lead.ppRate}/hr`);
+    if (lead.ppHoursPerWeek) add('Private Pay Hours/Week', lead.ppHoursPerWeek);
+    if (lead.ppDepositHours) add('Deposit Hours', lead.ppDepositHours);
+  } else {
+    add('Auth Status', lead.authStatus);
+  }
+
+  if (!lines.length) return '';
+  return `— Intake Summary (from referral) —\n${lines.join('\n')}`;
+}
+
 function mapLeadToClientData(lead) {
-  const notes = [lead.callNotes, lead.scheduleNotes].filter(Boolean).join('\n\n');
+  const intakeSummary = buildIntakeSummary(lead);
+  const notes = [lead.callNotes, lead.scheduleNotes, intakeSummary]
+    .map((s) => (s || '').trim())
+    .filter(Boolean)
+    .join('\n\n');
   const prefs = [
     lead.genderPreference && lead.genderPreference !== 'No preference' ? lead.genderPreference : null,
     lead.agePreference && lead.agePreference !== 'No preference' ? lead.agePreference : null,
     lead.languagePreference,
   ].filter(Boolean).join(' · ');
+  const services = parseServicesList(lead.servicesRequested);
   return {
     clientName: `${lead.firstName || ''} ${lead.lastName || ''}`.trim(),
     medicaidId: lead.medicaidId || '',
@@ -60,6 +129,8 @@ function mapLeadToClientData(lead) {
     emergencyContactPhone: lead.emergencyContactPhone || '',
     emergencyContactRelation: lead.emergencyContactRelation || '',
     notes,
+    // Full requested-services list, one per line (Profile tab renders on \n).
+    mainServices: services.join('\n'),
     caregiverRequirements: prefs,
     enabledServices: servicesToEnabledServices(lead.servicesRequested),
   };

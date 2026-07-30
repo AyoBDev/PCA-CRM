@@ -101,6 +101,57 @@ describe('mapLeadToClientData', () => {
     expect(d.caregiverRequirements).toContain('Female preferred');
     expect(d.caregiverRequirements).toContain('Spanish');
   });
+
+  // ── Regression: conversion must never silently drop intake data ──────────
+  const richLead = {
+    ...lead,
+    caseworkerName: 'Carla Manager', caseworkerPhone: '7025551234',
+    referralSource: 'Hospital discharge', insuranceNumber: 'INS-9988',
+    daysPerWeek: '5 days (M-F)', hoursPerDay: '6', startDateNeeded: 'ASAP',
+    caseType: 'transfer', currentAgencyName: 'OldCo', authNumber: 'A-77', transferReason: 'Moving',
+    servicesRequested: '["Light Housekeeping","Meal Preparation","Shower Assistance"]',
+    agePreference: 'Older / more experienced',
+  };
+
+  test('puts the full services-requested list into mainServices', () => {
+    const d = mapLeadToClientData(richLead);
+    expect(d.mainServices).toContain('Light Housekeeping');
+    expect(d.mainServices).toContain('Meal Preparation');
+    expect(d.mainServices).toContain('Shower Assistance');
+  });
+
+  test('preserves case manager / caseworker info in notes (no dedicated field)', () => {
+    const d = mapLeadToClientData(richLead);
+    expect(d.notes).toContain('Carla Manager');
+    expect(d.notes).toContain('7025551234');
+  });
+
+  test('preserves referral source, insurance number, and schedule needs in notes', () => {
+    const d = mapLeadToClientData(richLead);
+    expect(d.notes).toContain('Hospital discharge');
+    expect(d.notes).toContain('INS-9988');
+    expect(d.notes).toContain('5 days (M-F)');
+    expect(d.notes).toContain('ASAP');
+  });
+
+  test('preserves case-type details (transfer) in notes', () => {
+    const d = mapLeadToClientData(richLead);
+    expect(d.notes).toContain('OldCo');
+    expect(d.notes).toContain('A-77');
+  });
+
+  test('still keeps the original call/schedule notes alongside the intake summary', () => {
+    const d = mapLeadToClientData(richLead);
+    expect(d.notes).toContain('Post-surgery.');
+    expect(d.notes).toContain('By 8am.');
+  });
+
+  test('does not crash and produces no summary noise for an empty lead', () => {
+    const d = mapLeadToClientData({ firstName: 'A', lastName: 'B' });
+    expect(d.clientName).toBe('A B');
+    expect(typeof d.notes).toBe('string');
+    expect(typeof d.mainServices).toBe('string');
+  });
 });
 
 function makeFakePrisma(lead) {
