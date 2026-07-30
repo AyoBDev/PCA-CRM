@@ -353,6 +353,17 @@ async function renewAuthorization(req, res, next) {
 async function inactivateAuthorization(req, res, next) {
     try {
         const id = Number(req.params.id);
+        if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+
+        const inactiveReason = (req.body.inactiveReason || '').trim();
+        if (!inactiveReason) return res.status(400).json({ error: 'Reason is required' });
+
+        const rawEndDate = req.body.authorizationEndDate;
+        if (!rawEndDate) return res.status(400).json({ error: 'End date is required' });
+
+        const authorizationEndDate = new Date(rawEndDate + 'T00:00:00');
+        if (Number.isNaN(authorizationEndDate.getTime())) return res.status(400).json({ error: 'Invalid end date' });
+
         const oldAuth = await prisma.authorization.findUnique({ where: { id } });
         if (!oldAuth) return res.status(404).json({ error: 'Authorization not found' });
 
@@ -360,16 +371,15 @@ async function inactivateAuthorization(req, res, next) {
             where: { id },
             data: {
                 manualStatus: 'inactive',
-                inactiveReason: (req.body.inactiveReason || '').trim(),
+                inactiveReason,
                 inactiveNote: (req.body.inactiveNote || '').trim(),
                 closedAt: new Date(),
-                ...(req.body.authorizationEndDate
-                    ? { authorizationEndDate: new Date(req.body.authorizationEndDate + 'T00:00:00') }
-                    : {}),
+                authorizationEndDate,
             },
         });
 
-        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: id, entityName: auth.serviceCode, changes: [{ field: 'manualStatus', oldValue: oldAuth.manualStatus, newValue: 'inactive' }], metadata: { reason: auth.inactiveReason } });
+        const changes = audit.diffFields(oldAuth, auth, ['manualStatus', 'authorizationEndDate', 'inactiveReason', 'inactiveNote', 'closedAt']);
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: id, entityName: auth.serviceCode, changes, metadata: { reason: auth.inactiveReason } });
         res.json(enrichAuthorization(auth));
     } catch (err) { next(err); }
 }

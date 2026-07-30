@@ -89,4 +89,69 @@ describe('inactivateAuthorization', () => {
         expect(reloaded.authorizationEndDate.toISOString().slice(0, 10)).toBe('2026-03-15');
         expect(reloaded.closedAt).not.toBeNull();
     });
+
+    it('rejects a blank/missing inactiveReason with 400 and leaves the auth active', async () => {
+        const req = {
+            params: { id: String(auth.id) }, user,
+            body: { authorizationEndDate: '2026-03-15', inactiveReason: '   ', inactiveNote: 'Moved to Henderson.' },
+        };
+        const res = mockRes();
+        await ctrl.inactivateAuthorization(req, res, (e) => { throw e; });
+
+        expect(res.statusCode).toBe(400);
+        expect(res.body).toEqual({ error: 'Reason is required' });
+        const reloaded = await prisma.authorization.findUnique({ where: { id: auth.id } });
+        expect(reloaded.manualStatus).not.toBe('inactive');
+    });
+
+    it('rejects a missing authorizationEndDate with 400 and leaves the auth active', async () => {
+        const req = {
+            params: { id: String(auth.id) }, user,
+            body: { inactiveReason: 'Client transferred to another agency' },
+        };
+        const res = mockRes();
+        await ctrl.inactivateAuthorization(req, res, (e) => { throw e; });
+
+        expect(res.statusCode).toBe(400);
+        expect(res.body).toEqual({ error: 'End date is required' });
+        const reloaded = await prisma.authorization.findUnique({ where: { id: auth.id } });
+        expect(reloaded.manualStatus).not.toBe('inactive');
+    });
+
+    it('rejects a malformed authorizationEndDate with 400 and leaves the auth active', async () => {
+        const req = {
+            params: { id: String(auth.id) }, user,
+            body: { authorizationEndDate: 'not-a-date', inactiveReason: 'Client transferred to another agency' },
+        };
+        const res = mockRes();
+        await ctrl.inactivateAuthorization(req, res, (e) => { throw e; });
+
+        expect(res.statusCode).toBe(400);
+        expect(res.body).toEqual({ error: 'Invalid end date' });
+        const reloaded = await prisma.authorization.findUnique({ where: { id: auth.id } });
+        expect(reloaded.manualStatus).not.toBe('inactive');
+    });
+
+    it('rejects an invalid id with 400', async () => {
+        const req = {
+            params: { id: 'abc' }, user,
+            body: { authorizationEndDate: '2026-03-15', inactiveReason: 'Client transferred to another agency' },
+        };
+        const res = mockRes();
+        await ctrl.inactivateAuthorization(req, res, (e) => { throw e; });
+
+        expect(res.statusCode).toBe(400);
+        expect(res.body).toEqual({ error: 'Invalid id' });
+    });
+
+    it('returns 404 for a well-formed body pointing at a nonexistent id', async () => {
+        const req = {
+            params: { id: String(auth.id + 999999) }, user,
+            body: { authorizationEndDate: '2026-03-15', inactiveReason: 'Client transferred to another agency' },
+        };
+        const res = mockRes();
+        await ctrl.inactivateAuthorization(req, res, (e) => { throw e; });
+
+        expect(res.statusCode).toBe(404);
+    });
 });
