@@ -248,6 +248,14 @@ export default function LeadsPage() {
         navigate(clientId ? `/clients/${clientId}` : '/clients');
     }, [navigate, loadActive]);
 
+    // Closing the convert overlay without viewing the client: the conversion may
+    // already have happened server-side, so refresh the board so a converted
+    // lead doesn't linger. (Recently Converted stats also update.)
+    const onConvertClosed = useCallback(() => {
+        setConvertLeadObj(null);
+        loadActive();
+    }, [loadActive]);
+
     // Move an accidentally-converted lead back to the board. Deletes the
     // auto-created (empty) client server-side; not undo-able, so it's confirmed.
     const handleRevertConfirmed = useCallback(async () => {
@@ -403,7 +411,7 @@ export default function LeadsPage() {
                 open={!!convertLeadObj}
                 lead={convertLeadObj}
                 onConfirmed={onConverted}
-                onClose={() => setConvertLeadObj(null)}
+                onClose={onConvertClosed}
             />
 
             {reactivateLeadObj && (

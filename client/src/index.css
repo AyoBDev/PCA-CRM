@@ -9817,6 +9817,67 @@ button.sdr-section-tag:hover:not(:disabled) {
   padding: 12px 14px;
 }
 
+/* ─── Care Plan Summary ─── */
+.cp-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.cp-summary-field {
+  min-width: 0;
+}
+
+.cp-summary-field__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.cp-summary-field__label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: hsl(var(--muted-foreground));
+}
+
+.cp-summary-field__value {
+  font-size: 14px;
+  color: hsl(var(--foreground));
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.cp-summary-field__line {
+  padding: 1px 0;
+}
+
+.cp-summary-field__empty {
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+
+.cp-summary-field__edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cp-summary-field__hint {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+
+.cp-summary-field__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 /* ─── Empty State Cards ─── */
 .cp-empty-state-card {
   display: flex;
@@ -15438,6 +15499,44 @@ tr:hover .auth-note-icon--empty {
 .cs-check svg {
     width: 40px;
     height: 40px;
+}
+
+.convert-box {
+    position: relative;
+}
+
+.convert-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.convert-close:hover {
+    background: hsl(var(--accent));
+    color: hsl(var(--foreground));
+}
+
+.convert-close svg {
+    width: 18px;
+    height: 18px;
+}
+
+.convert-actions {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
 }
 
 /* ── Wizard form section helpers (if used) ── */
