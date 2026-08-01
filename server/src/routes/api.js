@@ -27,6 +27,7 @@ const {
     updateSandataClientId,
     updateAuthManualStatus,
     renewAuthorization,
+    inactivateAuthorization,
     dedupAuthorizations,
 } = require('../controllers/authorizationController');
 const {
@@ -322,6 +323,7 @@ router.patch('/authorizations/:id/account-number', requireRole('admin', 'user'),
 router.patch('/authorizations/:id/sandata-client-id', requireRole('admin', 'user'), requirePermission('authorizations'), updateSandataClientId);
 router.patch('/authorizations/:id/status', requireRole('admin', 'user'), requirePermission('authorizations'), updateAuthManualStatus);
 router.post('/authorizations/:id/renew', requireRole('admin', 'user'), requirePermission('authorizations'), renewAuthorization);
+router.patch('/authorizations/:id/inactivate', requireRole('admin', 'user'), requirePermission('authorizations'), inactivateAuthorization);
 router.post('/authorizations/dedup', requireRole('admin'), requirePermission('authorizations'), dedupAuthorizations);
 
 // Care Team

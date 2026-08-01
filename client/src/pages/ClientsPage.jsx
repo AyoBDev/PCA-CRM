@@ -456,6 +456,80 @@ export default function ClientsPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    const handleRenewAuth = async (payload) => {
+        try {
+            const { oldAuthId, files, ...data } = payload;
+            // Snapshot the old auth's pre-renew state so undo can restore it exactly —
+            // renewAuthorization truncates its end date and sets renewedToId/closedAt server-side.
+            const oldAuthSnapshot = modal?.auth?.id === oldAuthId ? modal.auth : null;
+            const newAuth = await api.renewAuthorization(oldAuthId, data);
+            if (files && files.length && newAuth?.id) {
+                for (const file of files) {
+                    const fd = new FormData();
+                    fd.append('file', file);
+                    await api.uploadAuthDocument(newAuth.id, fd);
+                }
+            }
+            showToast('Authorization renewed');
+            setModal(null);
+            const refreshed = await api.getClients();
+            setClients(refreshed);
+            if (drawerClient) {
+                const updated = refreshed.find(c => c.id === drawerClient.id);
+                if (updated) setDrawerClient(updated);
+            }
+            showUndoToast('Authorization renewed', async () => {
+                await api.archiveAuthorization(newAuth.id);
+                await api.updateAuthorization(oldAuthId, {
+                    ...oldAuthSnapshot,
+                    manualStatus: 'active',
+                    authorizationEndDate: oldAuthSnapshot?.authorizationEndDate,
+                    renewedToId: null,
+                    closedAt: null,
+                    skipDeactivate: true,
+                });
+                const r = await api.getClients();
+                setClients(r);
+                if (drawerClient) {
+                    const updated = r.find(c => c.id === drawerClient.id);
+                    if (updated) setDrawerClient(updated);
+                }
+            });
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleInactivateAuth = async (payload) => {
+        try {
+            const { id, ...data } = payload;
+            const prev = modal?.auth;
+            await api.inactivateAuthorization(id, data);
+            showToast('Authorization marked inactive');
+            setModal(null);
+            const refreshed = await api.getClients();
+            setClients(refreshed);
+            if (drawerClient) {
+                const updated = refreshed.find(c => c.id === drawerClient.id);
+                if (updated) setDrawerClient(updated);
+            }
+            showUndoToast('Authorization marked inactive', async () => {
+                await api.updateAuthorization(id, {
+                    ...prev,
+                    manualStatus: 'active',
+                    inactiveReason: '',
+                    inactiveNote: '',
+                    closedAt: null,
+                    skipDeactivate: true,
+                });
+                const r = await api.getClients();
+                setClients(r);
+                if (drawerClient) {
+                    const updated = r.find(c => c.id === drawerClient.id);
+                    if (updated) setDrawerClient(updated);
+                }
+            });
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     const handleDeleteAuth = async (auth) => {
         try {
             await api.deleteAuthorization(auth.id);
@@ -792,7 +866,7 @@ export default function ClientsPage() {
                 <ClientFormModal client={modal.client} onSave={handleSaveClient} onClose={() => setModal(null)} insuranceTypeNames={insuranceTypeNames} />
             )}
             {modal?.type === 'auth' && (
-                <AuthorizationFormModal auth={modal.auth} clientId={modal.clientId} onSave={handleSaveAuth} onClose={() => setModal(null)} />
+                <AuthorizationFormModal auth={modal.auth} clientId={modal.clientId} onSave={handleSaveAuth} onRenewal={handleRenewAuth} onInactivate={handleInactivateAuth} onClose={() => setModal(null)} />
             )}
             {modal?.type === 'bulkImport' && (
                 <BulkImportModal onImport={handleBulkImport} onClose={() => setModal(null)} />
