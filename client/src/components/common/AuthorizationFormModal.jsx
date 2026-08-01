@@ -165,7 +165,7 @@ export default function AuthorizationFormModal({
             }
             const note = notePreset === 'custom'
                 ? (notes.trim() || 'Other')
-                : (notePreset + (notes.trim() ? ' — ' + notes.trim() : ''));
+                : (notePreset + (notes.trim() ? ' - ' + notes.trim() : ''));
             onRenewal({
                 oldAuthId: auth.id,
                 clientId: auth.clientId || clientId,
@@ -225,7 +225,7 @@ export default function AuthorizationFormModal({
     // Edit mode gets an eyebrow + service title (matches the approved mockup);
     // create/renew keep the plain modal title.
     const editTitle = (serviceCode || serviceName)
-        ? `${serviceCode || ''}${serviceCode && serviceName ? ' — ' : ''}${serviceName || ''}`
+        ? `${serviceCode || ''}${serviceCode && serviceName ? ' - ' : ''}${serviceName || ''}`
         : 'Edit Authorization';
 
     return (
@@ -267,7 +267,7 @@ export default function AuthorizationFormModal({
                     <div className="form-group">
                         <label>Account Number</label>
                         <select value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)}>
-                            <option value="">— Select —</option>
+                            <option value="">- Select -</option>
                             {ACCOUNT_NUMBER_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                         </select>
                     </div>
@@ -298,7 +298,7 @@ export default function AuthorizationFormModal({
                     >
                         {isAnnual ? 'Annual Visits (GUIDE)' : 'Weekly Units'}
                     </div>
-                    <p className="form-hint">Set automatically from the service category — GUIDE is tracked by annual visits, all other services by weekly units.</p>
+                    <p className="form-hint">Set automatically from the service category - GUIDE is tracked by annual visits, all other services by weekly units.</p>
                 </div>
 
                 {isAnnual ? (
@@ -342,7 +342,7 @@ export default function AuthorizationFormModal({
                     authorization-type hint, shown above the status cards. */}
                 {isEdit && (
                     <p className="form-hint" style={{ marginTop: 0 }}>
-                        Set automatically from the service category — GUIDE is tracked by annual visits, all other services by weekly units.
+                        Set automatically from the service category - GUIDE is tracked by annual visits, all other services by weekly units.
                     </p>
                 )}
 
@@ -356,7 +356,7 @@ export default function AuthorizationFormModal({
                                 <input type="radio" name="authStatus" value="renewal" checked={manualStatus === 'renewal'} onChange={() => { setManualStatus('renewal'); setCorrectingInPlace(false); }} />
                                 <div className="auth-status-card__radio"><span className="auth-status-card__dot" /></div>
                                 <span className="auth-status-card__label auth-status-card__label--renewal">Renewal</span>
-                                <span className="auth-status-card__desc">Annual renewal or any significant change — new dates, new units, new care plan.</span>
+                                <span className="auth-status-card__desc">Annual renewal or any significant change - new dates, new units, new care plan.</span>
                             </label>
                             <label className={`auth-status-card ${manualStatus === 'inactive' ? 'auth-status-card--inactive' : ''}`}>
                                 <input type="radio" name="authStatus" value="inactive" checked={manualStatus === 'inactive'} onChange={() => setManualStatus('inactive')} />
@@ -372,7 +372,7 @@ export default function AuthorizationFormModal({
                     <>
                         <div className="preview-box">
                             On save, <b>{auth.authorizationNumber || 'the current authorization'}</b> auto-closes
-                            with an end date of <b>{startDate ? fmtDayBefore(startDate) : '—'}</b> — the day before
+                            with an end date of <b>{startDate ? fmtDayBefore(startDate) : '-'}</b> - the day before
                             this new authorization starts. No overlapping dates, no manual entry.
                         </div>
                         <div className="form-group">
@@ -401,7 +401,7 @@ export default function AuthorizationFormModal({
                                     <option>Hours Increased</option>
                                     <option>Hours Decreased</option>
                                     <option>New Care Plan Received</option>
-                                    <option value="custom">Other — write below</option>
+                                    <option value="custom">Other - write below</option>
                                 </select>
                             </div>
                         </div>
@@ -409,14 +409,14 @@ export default function AuthorizationFormModal({
                             <textarea
                                 value={notes}
                                 onChange={(e) => setNotes(e.target.value)}
-                                placeholder="Add detail — e.g. increased from 40 to 48 units/week per new care plan."
+                                placeholder="Add detail - e.g. increased from 40 to 48 units/week per new care plan."
                             />
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                             <div className="form-group">
                                 <label>Account Number</label>
                                 <select value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)}>
-                                    <option value="">— Select —</option>
+                                    <option value="">- Select -</option>
                                     {ACCOUNT_NUMBER_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                 </select>
                             </div>
@@ -457,7 +457,7 @@ export default function AuthorizationFormModal({
                             <div className="form-group">
                                 <label>Account Number</label>
                                 <select value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)}>
-                                    <option value="">— Select —</option>
+                                    <option value="">- Select -</option>
                                     {ACCOUNT_NUMBER_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                 </select>
                             </div>
@@ -472,7 +472,7 @@ export default function AuthorizationFormModal({
                     <>
                         <div className="preview-box preview-box--danger">
                             This authorization will stay visible on this client's profile under <b>{serviceCode}</b>, flagged
-                            inactive with the reason and note below — nothing is deleted.
+                            inactive with the reason and note below - nothing is deleted.
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                             <div className="form-group">
