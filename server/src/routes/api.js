@@ -120,6 +120,18 @@ const {
     listArchivedShifts,
 } = require('../controllers/schedulingController');
 const {
+    recordCallout,
+    getReplacementCandidates,
+    getNearbyEmployees,
+    getOffer,
+    respondToOffer,
+    createOffer,
+    startAutoOffer,
+    listOffers,
+    recordOfferResponse,
+    resolveCallout: resolveCalloutRoute,
+} = require('../controllers/replacementController');
+const {
     listEmployees,
     getEmployee,
     createEmployee,
@@ -153,13 +165,15 @@ const {
     deleteIncident,
 } = require('../controllers/carePlanController');
 const { uploadDocument, downloadDocument, deleteDocument } = require('../controllers/documentController');
+const { listLeadDocuments, uploadLeadDocument, downloadLeadDocument, deleteLeadDocument } = require('../controllers/leadDocumentController');
 const { uploadAuthDocument, downloadAuthDocument, deleteAuthDocument } = require('../controllers/authDocumentController');
 const {
     listFolders, getFolder, createFolder, updateFolder, deleteFolder, restoreFolder,
     uploadFile, downloadFile, replaceFile, updateFile, deleteFile, copyFile, searchFiles, exportFiles,
 } = require('../controllers/fileManagerController');
 const { listActivities, createActivity, deleteActivity } = require('../controllers/activityController');
-const { listNotesTimeline } = require('../controllers/clientNotesController');
+const { listNotesTimeline, exportClientNotesPdf } = require('../controllers/clientNotesController');
+const { listEmployeeNotesTimeline, exportEmployeeNotesPdf } = require('../controllers/employeeNotesController');
 const { listTasks, getTask, createTask, updateTask, deleteTask, bulkUpdateTasks, getTaskSummary } = require('../controllers/taskController');
 const { listWorkflowTriggers, updateWorkflowTrigger } = require('../controllers/workflowTriggerController');
 const { getPayrollProfile, upsertPayrollProfile, revealSensitiveField } = require('../controllers/payrollProfileController');
@@ -167,7 +181,7 @@ const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalize
 const { previewSandata, applySandata, undoSandata } = require('../controllers/sandataController');
 const { listConversations, getConversationMessages, adminSendMessage, markConversationRead, getUnreadSummary } = require('../controllers/employeePortal/adminChatController');
 const { getOnboardingInfo, completeOnboarding, resendInvite, approveOnboarding, getOnboardingLink } = require('../controllers/onboardingController');
-const { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, reactivateLead, getLeadStats } = require('../controllers/leadController');
+const { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats } = require('../controllers/leadController');
 const {
     listPermissionGroups,
     getPermissionGroup,
@@ -214,6 +228,8 @@ router.post('/schedule/view/:token/open', recordOpen);
 router.get('/schedule/view/:token/notification', getNotificationForView);
 router.get('/pca-form/:token', getPcaForm);
 router.put('/pca-form/:token', updatePcaForm);
+router.get('/shift-offers/:token', getOffer);
+router.post('/shift-offers/:token/respond', respondToOffer);
 router.get('/onboarding/:token', getOnboardingInfo);
 router.post('/onboarding/:token/complete', completeOnboarding);
 
@@ -289,7 +305,13 @@ router.patch('/leads/:id/status', requireRole('admin', 'user'), requirePermissio
 router.post('/leads/:id/archive', requireRole('admin', 'user'), requirePermission('leads'), archiveLead);
 router.post('/leads/:id/restore', requireRole('admin', 'user'), requirePermission('leads'), restoreLead);
 router.post('/leads/:id/convert', requireRole('admin', 'user'), requirePermission('leads'), convertLead);
+router.post('/leads/:id/revert-conversion', requireRole('admin', 'user'), requirePermission('leads'), revertConversion);
 router.post('/leads/:id/reactivate', requireRole('admin', 'user'), requirePermission('leads'), reactivateLead);
+// Lead attachments (images / PDFs / docs)
+router.get('/leads/:leadId/documents', requireRole('admin', 'user'), requirePermission('leads'), listLeadDocuments);
+router.post('/leads/:leadId/documents', requireRole('admin', 'user'), requirePermission('leads'), upload.single('file'), uploadLeadDocument);
+router.get('/lead-documents/:id/download', requireRole('admin', 'user'), requirePermission('leads'), downloadLeadDocument);
+router.delete('/lead-documents/:id', requireRole('admin', 'user'), requirePermission('leads'), deleteLeadDocument);
 
 // Authorization routes
 router.post('/clients/:clientId/authorizations', requireRole('admin', 'user'), requirePermission('authorizations'), createAuthorization);
@@ -401,6 +423,9 @@ router.patch('/payroll/visits/:id',        requireRole('admin'), requirePermissi
 router.patch('/payroll/visits/:id/notes',  requireRole('admin', 'user'), requirePermission('payroll'), updatePayrollVisitNotes);
 
 // Employees
+// Must precede /employees/:id — otherwise the parameterised route captures
+// "nearby" as an id and shadows this endpoint.
+router.get('/employees/nearby', requireRole('admin', 'user'), requirePermission('scheduling'), getNearbyEmployees);
 router.get('/employees',       requireRole('admin', 'user'), requirePermission('employees'), listEmployees);
 router.get('/employees/archived', requireRole('admin', 'user'), requirePermission('employees'), listArchivedEmployees);
 router.post('/employees/restore', requireRole('admin', 'user'), requirePermission('employees'), restoreEmployees);
@@ -419,6 +444,9 @@ router.get('/employees/:id/availability', requireRole('admin', 'user'), requireP
 
 // Employee Certifications
 router.get('/employees/:employeeId/certifications', requireRole('admin', 'user'), requirePermission('employees'), listCertifications);
+// Internal record — admin/office only, never reachable from the employee portal.
+router.get('/employees/:employeeId/notes-timeline', requireRole('admin', 'user'), requirePermission('employees'), listEmployeeNotesTimeline);
+router.get('/employees/:employeeId/notes-timeline/export', requireRole('admin', 'user'), requirePermission('employees'), exportEmployeeNotesPdf);
 router.post('/employees/:employeeId/certifications', requireRole('admin', 'user'), requirePermission('employees'), upload.single('file'), createCertification);
 router.put('/certifications/:id', requireRole('admin', 'user'), requirePermission('employees'), upload.single('file'), updateCertification);
 router.delete('/certifications/:id', requireRole('admin', 'user'), requirePermission('employees'), deleteCertification);
@@ -445,6 +473,16 @@ router.put('/shifts/:id/restore',           requireRole('admin', 'user'), requir
 router.post('/shifts/restore',              requireRole('admin', 'user'), requirePermission('scheduling'), restoreShifts);
 router.delete('/shifts/permanent',          requireRole('admin'), requirePermission('scheduling'), permanentDeleteShifts);
 router.get('/shifts/archived',              requireRole('admin', 'user'), requirePermission('scheduling'), listArchivedShifts);
+// Replacement workflow — declared before /shifts/:id so the more specific
+// paths are not shadowed by the parameterised route.
+router.post('/shifts/:id/callout',                  requireRole('admin', 'user'), requirePermission('scheduling'), recordCallout);
+router.get('/shifts/:id/replacement-candidates',    requireRole('admin', 'user'), requirePermission('scheduling'), getReplacementCandidates);
+router.post('/shifts/:id/offers',                   requireRole('admin', 'user'), requirePermission('scheduling'), createOffer);
+router.post('/shifts/:id/auto-offer',               requireRole('admin', 'user'), requirePermission('scheduling'), startAutoOffer);
+router.get('/shifts/:id/offers',                    requireRole('admin', 'user'), requirePermission('scheduling'), listOffers);
+router.post('/shifts/:id/offers/:offerId/record-response', requireRole('admin', 'user'), requirePermission('scheduling'), recordOfferResponse);
+router.post('/callouts/:id/resolve',                requireRole('admin', 'user'), requirePermission('scheduling'), resolveCalloutRoute);
+
 router.put('/shifts/:id',                   requireRole('admin', 'user'), requirePermission('scheduling'), updateShift);
 router.delete('/shifts/all',                requireRole('admin', 'user'), requirePermission('scheduling'), deleteAllShifts);
 router.delete('/shifts/:id',                requireRole('admin', 'user'), requirePermission('scheduling'), deleteShift);
@@ -467,6 +505,7 @@ router.delete('/activities/:id', requireRole('admin'), deleteActivity);
 
 // Client Notes Timeline (read-only aggregation of every note tied to a client)
 router.get('/clients/:clientId/notes-timeline', requirePermission('clients'), listNotesTimeline);
+router.get('/clients/:clientId/notes-timeline/export', requirePermission('clients'), exportClientNotesPdf);
 
 // Audit Logs (admin only)
 router.get('/audit-logs',                     requireRole('admin'), requirePermission('history'), getAuditLogs);

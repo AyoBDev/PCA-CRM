@@ -109,6 +109,9 @@ export default function TimesheetsTab({ client, navigate }) {
                                                 {(ts.totalRespiteHours || 0) > 0 && (
                                                     <span style={{ color: TIMESHEET_SERVICE_COLORS.Respite }}>RP {ts.totalRespiteHours.toFixed(2)}h</span>
                                                 )}
+                                                {(ts.totalCompanionHours || 0) > 0 && (
+                                                    <span style={{ color: TIMESHEET_SERVICE_COLORS.Companion }}>CP {ts.totalCompanionHours.toFixed(2)}h</span>
+                                                )}
                                                 <span style={{ fontWeight: 600, fontSize: 13 }}>{ts.totalHours?.toFixed(1) || '0.0'}h</span>
                                             </div>
                                             <span style={{

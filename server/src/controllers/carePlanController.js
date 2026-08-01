@@ -127,7 +127,7 @@ async function updateHospitalVisit(req, res, next) {
 
         const visit = await prisma.hospitalVisit.update({ where: { id }, data });
 
-        const changes = audit.diffFields(existing, visit, ['visitDate', 'visitTime', 'providerName', 'location', 'purpose', 'status', 'notes']);
+        const changes = audit.redactChanges(audit.diffFields(existing, visit, ['visitDate', 'visitTime', 'providerName', 'location', 'purpose', 'status', 'notes']), ['providerName', 'location', 'purpose', 'notes']);
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             action: 'UPDATE', entityType: 'HospitalVisit', entityId: id,

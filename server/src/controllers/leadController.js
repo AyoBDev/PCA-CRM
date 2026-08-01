@@ -119,6 +119,21 @@ async function convertLead(req, res, next) {
   }
 }
 
+async function revertConversion(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    const { lead, deletedClient } = await leadService.revertConversion(prisma, id);
+    if (deletedClient) {
+      audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'DELETE', entityType: 'Client', entityId: deletedClient.id, entityName: deletedClient.clientName, metadata: { reason: 'conversion_reverted', leadId: id } });
+    }
+    audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'RESTORE', entityType: 'Lead', entityId: id, entityName: leadName(lead), metadata: { action: 'conversion_reverted', restoredStatus: lead.status, deletedClientId: deletedClient?.id || null } });
+    res.json(lead);
+  } catch (err) {
+    if (/not found|not converted|cannot move back/i.test(err.message)) return res.status(400).json({ error: err.message });
+    next(err);
+  }
+}
+
 async function reactivateLead(req, res, next) {
   try {
     const id = Number(req.params.id);
@@ -153,4 +168,4 @@ async function getLeadStats(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, reactivateLead, getLeadStats };
+module.exports = { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats };

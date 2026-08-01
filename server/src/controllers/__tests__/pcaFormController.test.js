@@ -19,7 +19,14 @@ jest.mock('../../lib/prisma', () => ({
   },
 }));
 
+jest.mock('../../services/auditService', () => ({ logAction: jest.fn(), diffFields: () => [] }));
+jest.mock('../../services/timesheetIntegrityService', () => ({
+  computeAndStoreIntegrityHash: jest.fn().mockResolvedValue('hash'),
+}));
+
 const prisma = require('../../lib/prisma');
+const audit = require('../../services/auditService');
+const { computeAndStoreIntegrityHash } = require('../../services/timesheetIntegrityService');
 const { getPcaForm, updatePcaForm } = require('../pcaFormController');
 
 function mockReqRes(overrides = {}) {
@@ -512,6 +519,25 @@ describe('updatePcaForm submit', () => {
     expect(call.timesheet).toEqual(updatedTimesheet);
     expect(call.client).toBeDefined();
     expect(call.authLimits).toBeDefined();
+
+    // Submit is a fresh attestation: the integrity hash is bound to the
+    // persisted content and the public submit is audit-logged.
+    expect(computeAndStoreIntegrityHash).toHaveBeenCalledWith(sampleTimesheet.id);
+    expect(audit.logAction).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'SUBMIT', entityType: 'Timesheet', entityId: sampleTimesheet.id, userId: 0,
+    }));
+  });
+
+  test('does NOT hash or audit on a plain save (draft progress)', async () => {
+    const { req, res, next } = mockReqRes({
+      params: { token: 'test-token' },
+      body: { action: 'save', entries: [] },
+    });
+
+    await updatePcaForm(req, res, next);
+
+    expect(computeAndStoreIntegrityHash).not.toHaveBeenCalled();
+    expect(audit.logAction).not.toHaveBeenCalled();
   });
 
   test('preserves hours on DRAFT SAVE for an admin-enabled section even without a matching authorization', async () => {

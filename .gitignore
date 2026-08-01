@@ -50,3 +50,5 @@ backups/
 scripts/restore-backup.js
 .superpowers/
 .env.test
+.env.backup
+seed-local-demo.js

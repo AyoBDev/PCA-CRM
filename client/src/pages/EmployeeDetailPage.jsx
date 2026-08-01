@@ -9,6 +9,7 @@ import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import { useUndoStack } from '../hooks/useUndoStack';
 import PayrollTab from './employee-tabs/PayrollTab';
+import EmployeeNotesTab from './employee-tabs/NotesTab';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import { TIMESHEET_STATUS_STYLES, TIMESHEET_SERVICE_COLORS } from '../utils/constants';
@@ -23,6 +24,7 @@ const TABS = [
     { key: 'schedule', label: 'Schedule', icon: 'calendar' },
     { key: 'scheduleHistory', label: 'Schedule History', icon: 'share' },
     { key: 'payroll', label: 'Payroll', icon: 'dollarSign', adminOnly: true },
+    { key: 'notes', label: 'Notes', icon: 'fileText' },
     { key: 'activity', label: 'Activity Log', icon: 'clipboard' },
 ];
 
@@ -643,6 +645,9 @@ export default function EmployeeDetailPage() {
                     )}
                     {activeTab === 'payroll' && (
                         <PayrollTab employeeId={employee.id} />
+                    )}
+                    {activeTab === 'notes' && (
+                        <EmployeeNotesTab employeeId={employee.id} />
                     )}
                     {activeTab === 'activity' && (
                         <ActivityTab employeeId={employee.id} />

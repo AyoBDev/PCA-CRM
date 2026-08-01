@@ -55,6 +55,11 @@ async function main() {
         { name: 'Authorization Expiry Warning', type: 'auth_expiry', thresholdDays: 30, urgency: 'high' },
         { name: 'Overdue Timesheet Follow-up', type: 'timesheet_overdue', thresholdDays: 1, urgency: 'medium' },
         { name: 'Credential Expiry Warning', type: 'credential_expiry', thresholdDays: 14, urgency: 'high' },
+        // Shift replacement auto-offering. Seeded DISABLED: it messages
+        // caregivers without a human in the loop, so it must be switched on
+        // deliberately once the ranking has been validated against real
+        // callouts. thresholdDays carries responseWindowMinutes here.
+        { name: 'Shift Replacement', type: 'shift_replacement', thresholdDays: 10, urgency: 'high', enabled: false },
     ];
     for (const trigger of defaultTriggers) {
         const existing = await prisma.workflowTrigger.findFirst({ where: { type: trigger.type } });

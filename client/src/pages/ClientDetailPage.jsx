@@ -355,6 +355,22 @@ export default function ClientDetailPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    // Generic saver for the Care Plan Summary section (services / schedule /
+    // preferences). Patches one field, updates local state, and logs undo.
+    const handleSaveCarePlanField = async (field, value) => {
+        const oldValue = client[field] || '';
+        try {
+            await api.patchClient(client.id, { [field]: value });
+            setClient(prev => ({ ...prev, [field]: value }));
+            showToast('Care plan updated');
+            undoState?.pushAction?.(
+                'Update care plan',
+                async () => { await api.patchClient(client.id, { [field]: oldValue }); setClient(prev => ({ ...prev, [field]: oldValue })); },
+                async () => { await api.patchClient(client.id, { [field]: value }); setClient(prev => ({ ...prev, [field]: value })); },
+            );
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     const toggleFolder = (key) => {
         setExpandedFolders(prev => ({ ...prev, [key]: !prev[key] }));
     };
@@ -1063,6 +1079,7 @@ export default function ClientDetailPage() {
                             setConfirmDelete={setConfirmDelete}
                             formatDate={formatDate}
                             formatDateTime={formatDateTime}
+                            onSaveField={handleSaveCarePlanField}
                         />
                     )}
                     {activeTab === 'schedule' && (

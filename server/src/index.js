@@ -1,4 +1,6 @@
 require('dotenv').config();
+const { validateEnv } = require('./lib/validateEnv');
+validateEnv(); // fail fast if security-critical env vars are missing/malformed
 const http = require('http');
 const app = require('./app');
 const cron = require('node-cron');
@@ -8,6 +10,7 @@ const { runTaskTriggers } = require('./jobs/taskTriggers');
 const { sendTaskReminders } = require('./jobs/taskReminders');
 const { runComplianceCheck } = require('./jobs/complianceCron');
 const { runLeadDormancySweep } = require('./jobs/leadDormancySweep');
+const { startWorker } = require('./workers/replacementWorker');
 
 const PORT = process.env.PORT || 4000;
 const server = http.createServer(app);
@@ -70,4 +73,11 @@ server.listen(PORT, () => {
     }, { timezone: 'UTC' });
 
     console.log('[Cron] Scheduled: lead dormancy sweep (daily 3:00 AM UTC)');
+
+    // Start the BullMQ worker that expires unanswered offers and escalates the
+    // replacement loop. No-ops when REDIS_URL is unset, so this is safe to call
+    // unconditionally; without it, offer-expiry jobs would be queued but never
+    // processed, so offers would never auto-advance.
+    startWorker();
+    console.log('[Worker] Replacement offer-expiry worker started (or skipped if REDIS_URL unset)');
 });

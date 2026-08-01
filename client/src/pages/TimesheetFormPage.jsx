@@ -452,6 +452,23 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                             <div className="tsv2-info-card__value"><span className={`tsv2-status-badge tsv2-status-badge--${ts.status}`}><span className="tsv2-icon-svg">{Icons.checkCircle}</span> {ts.status.charAt(0).toUpperCase() + ts.status.slice(1)}</span></div>
                         </div>
                     </div>
+                    <div className="tsv2-info-card">
+                        <div>
+                            <div className="tsv2-info-card__label">Integrity</div>
+                            {ts.integrityStatus === 'valid' && (
+                                <div className="tsv2-info-card__value" style={{ color: 'hsl(142 71% 29%)' }}>✓ Verified</div>
+                            )}
+                            {ts.integrityStatus === 'tampered' && (
+                                <>
+                                    <div className="tsv2-info-card__value" style={{ color: 'hsl(0 72% 42%)' }}>⚠ Tampered</div>
+                                    <div className="tsv2-info-card__sub">Content changed after signing</div>
+                                </>
+                            )}
+                            {(!ts.integrityStatus || ts.integrityStatus === 'unsigned') && (
+                                <div className="tsv2-info-card__value" style={{ color: 'hsl(var(--muted-foreground))' }}>— Unsigned</div>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Program Cards (admin toggle) */}

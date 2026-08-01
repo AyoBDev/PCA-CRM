@@ -12,7 +12,9 @@
     "db:seed": "node prisma/seed.js",
     "db:migrate-employees": "node prisma/migrate-employees.js",
     "db:migrate-data": "node prisma/migrate-data.js",
-    "db:backfill-auth-required": "node prisma/backfill-authorization-required.js"
+    "db:backfill-auth-required": "node prisma/backfill-authorization-required.js",
+    "db:backfill-geocodes": "node prisma/backfill-geocodes.js",
+    "db:encrypt-phi": "node prisma/encrypt-phi.js"
   },
   "jest": {
     "setupFiles": [
@@ -25,12 +27,14 @@
     "@prisma/client": "^6.4.0",
     "archiver": "^8.0.0",
     "bcryptjs": "^3.0.3",
+    "bullmq": "^5.81.0",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-rate-limit": "^8.5.2",
     "helmet": "^8.2.0",
+    "ioredis": "^5.11.1",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.0",
     "node-cron": "^4.2.1",
