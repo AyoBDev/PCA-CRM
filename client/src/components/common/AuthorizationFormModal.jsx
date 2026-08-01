@@ -412,19 +412,6 @@ export default function AuthorizationFormModal({
                                 placeholder="Add detail - e.g. increased from 40 to 48 units/week per new care plan."
                             />
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                            <div className="form-group">
-                                <label>Account Number</label>
-                                <select value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)}>
-                                    <option value="">- Select -</option>
-                                    {ACCOUNT_NUMBER_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                </select>
-                            </div>
-                            <div className="form-group">
-                                <label>Sandata Client ID</label>
-                                <input type="text" value={sandataClientId} onChange={(e) => setSandataClientId(e.target.value)} placeholder="e.g. 1234567" />
-                            </div>
-                        </div>
                         <button type="button" className="btn btn--ghost btn--sm" onClick={() => setCorrectingInPlace(true)}>
                             Correct current authorization instead
                         </button>

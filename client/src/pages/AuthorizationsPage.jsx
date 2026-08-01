@@ -625,6 +625,52 @@ export default function AuthorizationsPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    // Renewal from the edit modal saves in ONE step (the modal already collects
+    // the new auth #, units, dates and note). No second "Renew Authorization"
+    // modal — create the new auth + auto-close the old one, then close.
+    const handleRenewAuth = async (payload) => {
+        try {
+            const { oldAuthId, files, ...data } = payload;
+            const oldClient = clients.find(c => c.id === (payload.clientId || modal.clientId));
+            const oldAuthSnapshot = oldClient?.authorizations?.find(a => a.id === oldAuthId);
+            const newAuth = await api.renewAuthorization(oldAuthId, data);
+            if (files && files.length && newAuth?.id) {
+                for (const file of files) {
+                    const fd = new FormData();
+                    fd.append('file', file);
+                    await api.uploadAuthDocument(newAuth.id, fd);
+                }
+            }
+            showToast('Authorization renewed');
+            undoState.pushAction(`Renewed ${data.serviceCode || 'authorization'}`,
+                async () => {
+                    await api.archiveAuthorization(newAuth.id);
+                    await api.updateAuthorization(oldAuthId, {
+                        ...oldAuthSnapshot,
+                        manualStatus: 'active',
+                        authorizationEndDate: oldAuthSnapshot?.authorizationEndDate,
+                        renewedToId: null,
+                        closedAt: null,
+                        skipDeactivate: true,
+                    });
+                    fetchClients();
+                },
+                async () => {
+                    await api.restoreAuthorization(newAuth.id);
+                    await api.updateAuthManualStatus(oldAuthId, 'inactive');
+                    fetchClients();
+                }
+            );
+            setModal(null);
+            const refreshed = await api.getClients();
+            setClients(refreshed);
+            if (drawerClient) {
+                const updated = refreshed.find(c => c.id === drawerClient.id);
+                if (updated) setDrawerClient(updated);
+            }
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     const handleDeleteAuth = async (auth) => {
         try {
             await api.deleteAuthorization(auth.id);
@@ -1203,14 +1249,7 @@ export default function AuthorizationsPage() {
                     isRenewal={modal.isRenewal}
                     onSave={handleSaveAuth}
                     onClose={() => setModal(null)}
-                    onRenewal={async ({ oldAuthId, clientId: cId, serviceCategory, serviceCode, serviceName, accountNumber }) => {
-                        setModal({
-                            type: 'auth',
-                            auth: { serviceCategory, serviceCode, serviceName, accountNumber, manualStatus: 'active', _renewFromId: oldAuthId },
-                            clientId: cId,
-                            isRenewal: true,
-                        });
-                    }}
+                    onRenewal={handleRenewAuth}
                     onInactivate={handleInactivateAuth}
                 />
             )}
