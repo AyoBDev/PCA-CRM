@@ -121,7 +121,7 @@ describe('createClient — new fields', () => {
     prisma.client.create.mockResolvedValue({
       id: 1,
       clientName: 'Test Client',
-      dob: new Date('1965-03-15'),
+      dob: '1965-03-15',
       paNumber: 'PA12345',
       doctorName: 'Dr. Smith',
       doctorPhone: '702-555-1234',
@@ -136,6 +136,7 @@ describe('createClient — new fields', () => {
     expect(prisma.client.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
+          dob: '1965-03-15',
           paNumber: 'PA12345',
           doctorName: 'Dr. Smith',
           doctorPhone: '702-555-1234',

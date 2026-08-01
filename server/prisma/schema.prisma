@@ -63,6 +63,7 @@ model Agency {
   PermissionGroup         PermissionGroup[]
   ShiftCallout            ShiftCallout[]
   ShiftOffer              ShiftOffer[]
+  LeadDocument            LeadDocument[]
 
   @@map("agencies")
 }
@@ -83,6 +84,7 @@ model User {
   updatedAt                 DateTime                  @updatedAt @map("updated_at")
   authorization_documents   authorization_documents[]
   uploadedDocuments         ClientDocument[]
+  uploadedLeadDocuments     LeadDocument[]
   activities                ClientActivity[]
   employee                  Employee?
   assignedTasks             Task[]                    @relation("TaskAssignee")
@@ -182,7 +184,7 @@ model Employee {
   archivedAt             DateTime?               @map("archived_at")
   createdAt              DateTime                @default(now()) @map("created_at")
   updatedAt              DateTime                @updatedAt @map("updated_at")
-  dob                    DateTime?               @map("dob")
+  dob                    String                  @default("") @map("dob")
   address                String                  @default("") @map("address")
   clientAssignment       String                  @default("") @map("client_assignment")
   npi                    String                  @default("") @map("npi")
@@ -330,7 +332,7 @@ model Client {
   backupDoctorName           String           @default("") @map("backup_doctor_name")
   backupDoctorPhone          String           @default("") @map("backup_doctor_phone")
   critical                   Boolean          @default(false) @map("critical")
-  dob                        DateTime?        @map("dob")
+  dob                        String           @default("") @map("dob")
   doctorName                 String           @default("") @map("doctor_name")
   doctorPhone                String           @default("") @map("doctor_phone")
   paNumber                   String           @default("") @map("pa_number")
@@ -341,6 +343,7 @@ model Client {
   emergencyContactRelation   String           @default("") @map("emergency_contact_relation")
   gender                     String           @default("") @map("gender")
   mainServices               String           @default("") @map("main_services")
+  carePlanSchedule           String           @default("") @map("care_plan_schedule")
   pcaNotes                   String           @default("") @map("pca_notes")
   secondaryAddress           String           @default("") @map("secondary_address")
   secondaryEmergencyName     String           @default("") @map("secondary_emergency_name")
@@ -545,6 +548,8 @@ model Lead {
   insuranceNumber          String    @default("") @map("insurance_number")
   insuranceType            String    @default("") @map("insurance_type")
   referralSource           String    @default("") @map("referral_source")
+  // Channel the lead came in through: referrer | call | website | fax | other
+  leadSource               String    @default("") @map("lead_source")
   doctorName               String    @default("") @map("doctor_name")
   doctorPhone              String    @default("") @map("doctor_phone")
   caseworkerName           String    @default("") @map("caseworker_name")
@@ -592,6 +597,9 @@ model Lead {
   // Conversion linkage
   convertedClientId Int?      @map("converted_client_id")
   convertedAt       DateTime? @map("converted_at")
+  // Pipeline stage the lead was in right before conversion, so a reverted
+  // conversion can restore it to where it was (empty = pre-feature / unknown).
+  preConvertStatus  String    @default("") @map("pre_convert_status")
 
   archivedAt DateTime? @map("archived_at")
   dormantAt  DateTime? @map("dormant_at")
@@ -600,10 +608,33 @@ model Lead {
   agencyId   Int       @map("agency_id")
   agency     Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  documents LeadDocument[]
+
   @@index([status])
   @@index([dormantAt])
   @@index([agencyId])
   @@map("leads")
+}
+
+// Files/images attached to a lead at intake (referral scans, forms, photos).
+// Mirrors ClientDocument: bytes live in the object bucket (key = filePath).
+model LeadDocument {
+  id         Int      @id @default(autoincrement())
+  leadId     Int      @map("lead_id")
+  fileName   String   @map("file_name")
+  filePath   String   @map("file_path")
+  fileSize   Int      @map("file_size")
+  mimeType   String   @default("") @map("mime_type")
+  uploadedBy Int?     @map("uploaded_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  uploader   User?    @relation(fields: [uploadedBy], references: [id])
+  agencyId   Int      @map("agency_id")
+  agency     Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([agencyId])
+  @@map("lead_documents")
 }
 
 model InsuranceType {
@@ -664,6 +695,9 @@ model Timesheet {
   supervisorSignature String              @default("") @map("supervisor_signature")
   completionDate      String              @default("") @map("completion_date")
   correctionNote      String              @default("") @map("correction_note")
+  signedPayloadHash   String              @default("") @map("signed_payload_hash")
+  signaturesHash      String              @default("") @map("signatures_hash")
+  hashedAt            DateTime?           @map("hashed_at")
   submittedAt         DateTime?           @map("submitted_at")
   acceptedAt          DateTime?           @map("accepted_at")
   archivedAt          DateTime?           @map("archived_at")

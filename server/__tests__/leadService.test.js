@@ -5,6 +5,7 @@ const {
   mapLeadToClientData,
   servicesToEnabledServices,
   convertLead,
+  revertConversion,
 } = require('../src/services/leadService');
 
 describe('statusToColumn', () => {
@@ -84,7 +85,8 @@ describe('mapLeadToClientData', () => {
     expect(d.phone).toBe('7025550000');
     expect(d.secondaryPhone).toBe('7025550001');
     expect(d.emergencyContactName).toBe('Bob Doe');
-    expect(d.dob).toEqual(lead.dob);
+    // Client.dob is a YYYY-MM-DD string column (encrypted at rest)
+    expect(d.dob).toBe('1950-01-02');
   });
   test('derives enabledServices from servicesRequested', () => {
     expect(JSON.parse(mapLeadToClientData(lead).enabledServices)).toContain('PAS');
@@ -98,6 +100,75 @@ describe('mapLeadToClientData', () => {
     const d = mapLeadToClientData(lead);
     expect(d.caregiverRequirements).toContain('Female preferred');
     expect(d.caregiverRequirements).toContain('Spanish');
+  });
+
+  // ── Regression: conversion must never silently drop intake data ──────────
+  const richLead = {
+    ...lead,
+    caseworkerName: 'Carla Manager', caseworkerPhone: '7025551234',
+    referralSource: 'Hospital discharge', insuranceNumber: 'INS-9988',
+    leadSource: 'fax',
+    daysPerWeek: '5 days (M-F)', hoursPerDay: '6', startDateNeeded: 'ASAP',
+    caseType: 'transfer', currentAgencyName: 'OldCo', authNumber: 'A-77', transferReason: 'Moving',
+    servicesRequested: '["Light Housekeeping","Meal Preparation","Shower Assistance"]',
+    agePreference: 'Older / more experienced',
+  };
+
+  test('records the lead source channel (friendly label) in notes', () => {
+    const d = mapLeadToClientData(richLead);
+    expect(d.notes).toContain('Lead Source: Fax');
+  });
+
+  test('puts the full services-requested list into mainServices', () => {
+    const d = mapLeadToClientData(richLead);
+    expect(d.mainServices).toContain('Light Housekeeping');
+    expect(d.mainServices).toContain('Meal Preparation');
+    expect(d.mainServices).toContain('Shower Assistance');
+  });
+
+  test('preserves case manager / caseworker info in notes (no dedicated field)', () => {
+    const d = mapLeadToClientData(richLead);
+    expect(d.notes).toContain('Carla Manager');
+    expect(d.notes).toContain('7025551234');
+  });
+
+  test('preserves referral source, insurance number, and schedule needs in notes', () => {
+    const d = mapLeadToClientData(richLead);
+    expect(d.notes).toContain('Hospital discharge');
+    expect(d.notes).toContain('INS-9988');
+    expect(d.notes).toContain('5 days (M-F)');
+    expect(d.notes).toContain('ASAP');
+  });
+
+  test('puts schedule needs into the dedicated carePlanSchedule field', () => {
+    const d = mapLeadToClientData(richLead);
+    expect(d.carePlanSchedule).toContain('5 days (M-F)');
+    expect(d.carePlanSchedule).toContain('6'); // hours/day
+    expect(d.carePlanSchedule).toContain('ASAP');
+  });
+
+  test('carePlanSchedule is an empty string when the lead has no schedule info', () => {
+    const d = mapLeadToClientData({ firstName: 'A', lastName: 'B' });
+    expect(d.carePlanSchedule).toBe('');
+  });
+
+  test('preserves case-type details (transfer) in notes', () => {
+    const d = mapLeadToClientData(richLead);
+    expect(d.notes).toContain('OldCo');
+    expect(d.notes).toContain('A-77');
+  });
+
+  test('still keeps the original call/schedule notes alongside the intake summary', () => {
+    const d = mapLeadToClientData(richLead);
+    expect(d.notes).toContain('Post-surgery.');
+    expect(d.notes).toContain('By 8am.');
+  });
+
+  test('does not crash and produces no summary noise for an empty lead', () => {
+    const d = mapLeadToClientData({ firstName: 'A', lastName: 'B' });
+    expect(d.clientName).toBe('A B');
+    expect(typeof d.notes).toBe('string');
+    expect(typeof d.mainServices).toBe('string');
   });
 });
 
@@ -144,6 +215,87 @@ describe('convertLead', () => {
     expect(db.calls.leadUpdate.data.archivedAt).toBeInstanceOf(Date);
     expect(db.calls.leadUpdate.data.convertedAt).toBeInstanceOf(Date);
   });
+
+  test('records the pre-conversion stage for later revert', async () => {
+    const db = makeFakeDb(baseLead); // status 'quoted'
+    await convertLead(db, 1, 7);
+    expect(db.calls.leadUpdate.data.preConvertStatus).toBe('quoted');
+  });
+});
+
+// Fake db for revertConversion: a converted lead pointing at a client, with
+// configurable dependency counts to exercise the empty-vs-has-data guard.
+// revertConversion uses tenantTransaction (mocked above to run the callback
+// against global.__leadServiceTestTx), same as convertLead.
+function makeRevertDb(lead, { client = { id: 99, clientName: 'Jane Doe' }, counts = {} } = {}) {
+  const calls = { clientDelete: null, leadUpdate: null };
+  const zero = { authorization: 0, shift: 0, timesheet: 0, clientNote: 0, permanentLink: 0, ...counts };
+  const tx = {
+    client: {
+      findUnique: async () => client,
+      delete: async ({ where }) => { calls.clientDelete = where; return client; },
+    },
+    authorization: { count: async () => zero.authorization },
+    shift: { count: async () => zero.shift },
+    timesheet: { count: async () => zero.timesheet },
+    clientNote: { count: async () => zero.clientNote },
+    permanentLink: { count: async () => zero.permanentLink },
+    lead: { update: async ({ where, data }) => { calls.leadUpdate = { where, data }; return { ...lead, ...data }; } },
+  };
+  global.__leadServiceTestTx = tx;
+  return {
+    calls,
+    lead: { findUnique: async () => lead },
+  };
+}
+
+describe('revertConversion', () => {
+  const convertedLead = { id: 7, firstName: 'Jane', lastName: 'Doe', status: 'converted', preConvertStatus: 'review', convertedClientId: 99 };
+
+  test('restores the lead to its pre-conversion stage', async () => {
+    const db = makeRevertDb(convertedLead);
+    const { lead } = await revertConversion(db, 1, 7);
+    expect(lead.status).toBe('review');
+    expect(db.calls.leadUpdate.data.convertedClientId).toBeNull();
+    expect(db.calls.leadUpdate.data.convertedAt).toBeNull();
+    expect(db.calls.leadUpdate.data.archivedAt).toBeNull();
+    expect(db.calls.leadUpdate.data.preConvertStatus).toBe('');
+  });
+
+  test('deletes the auto-created (empty) client', async () => {
+    const db = makeRevertDb(convertedLead);
+    const { deletedClient } = await revertConversion(db, 1, 7);
+    expect(db.calls.clientDelete).toEqual({ id: 99 });
+    expect(deletedClient).toEqual({ id: 99, clientName: 'Jane Doe' });
+  });
+
+  test('falls back to "new" when no pre-conversion stage was stored', async () => {
+    const db = makeRevertDb({ ...convertedLead, preConvertStatus: '' });
+    const { lead } = await revertConversion(db, 1, 7);
+    expect(lead.status).toBe('new');
+  });
+
+  test('blocks the revert when the client already has real data', async () => {
+    const db = makeRevertDb(convertedLead, { counts: { shift: 3 } });
+    await expect(revertConversion(db, 1, 7)).rejects.toThrow(/Cannot move back/i);
+    expect(db.calls.clientDelete).toBeNull(); // nothing deleted
+    expect(db.calls.leadUpdate).toBeNull();   // lead untouched
+  });
+
+  test('throws when the lead is not converted', async () => {
+    const db = makeRevertDb({ ...convertedLead, status: 'new' });
+    await expect(revertConversion(db, 1, 7)).rejects.toThrow(/not converted/i);
+  });
+
+  test('throws when the lead is missing', async () => {
+    const db = makeRevertDb(convertedLead);
+    db.lead.findUnique = async () => null;
+    await expect(revertConversion(db, 1, 7)).rejects.toThrow(/not found/i);
+  });
+});
+
+describe('convertLead error cases', () => {
+  const baseLead = { id: 7, firstName: 'Jane', lastName: 'Doe', servicesRequested: '[]', status: 'quoted' };
 
   test('throws when lead is missing', async () => {
     const db = makeFakeDb(null);

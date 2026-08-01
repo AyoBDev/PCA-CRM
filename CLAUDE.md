@@ -464,6 +464,14 @@ All tables use the `.data-table` class system. **Every new table MUST follow thi
 - Client addresses on schedule pages are Google Maps hyperlinks
 - **Design System**: See `docs/superpowers/specs/2026-06-01-design-system-design.md` for color tokens, component patterns, spacing, and UI conventions. Agents must read this before any frontend work.
 
+## PHI Encryption at Rest & Timesheet Integrity
+
+- **Encrypted PHI fields** (AES-256-GCM, `ENCRYPTION_KEY`): `Client.medicaidId/dob/notes/pcaNotes`, `Employee.dob/notes`, `HospitalVisit.providerName/location/purpose/notes` — plus the pre-existing SSN/EIN on payroll profiles.
+- **Transparent crypto layer**: `server/src/lib/prisma.js` is a Prisma client extension that encrypts PHI on write and deep-decrypts query results (incl. nested includes). Field list lives in `server/src/lib/phiCrypto.js` (`PHI_FIELDS`). `server/src/lib/prismaBase.js` is the raw client — use it ONLY where ciphertext must stay as-is (backup export uses raw SQL and emits ciphertext by design; the encrypt-phi migration script).
+- **Rules**: encrypted fields must never appear in Prisma `where`/`orderBy`/`@unique`; `dob` columns are `YYYY-MM-DD` **strings**, not DateTime; audit diffs of PHI fields must be wrapped in `audit.redactChanges(changes, fields)` so plaintext never lands in AuditLog.
+- **One-time data migration**: `npm run db:encrypt-phi` (idempotent — skips already-encrypted rows by format).
+- **Timesheet signature integrity**: `server/src/services/timesheetIntegrityService.js` stores an HMAC-SHA256 (`INTEGRITY_KEY`) over the persisted signed payload at submit. The hash is bound to the signing event: PCA-form submits always recompute; admin re-submits only recompute when the PCA/recipient signatures changed. `integrityStatus` (`valid`/`tampered`/`unsigned`) is returned on timesheet GET/list, shown in `TimesheetFormPage`, and printed on the PDF export. Any new code path that mutates timesheet entries or signatures must keep this rule intact.
+
 ## Database & Backup
 - **Database**: PostgreSQL (migrated from SQLite, April 2026)
 - **Local dev**: Postgres.app or Docker (`postgresql://mac@localhost:5432/nvbestpca`)
@@ -490,7 +498,7 @@ Full-featured file management system for administrative documents (insurance, el
 - Single service: Express serves the React build from `client/dist`
 - Start command: `prisma migrate deploy` → `setup-app-role.js` → `seed.js` → `node src/index.js`
 - **Storage Bucket**: Create bucket on Railway canvas → Connect to service → env vars auto-injected
-- Environment variables: `DATABASE_URL` (PostgreSQL, owner connection used by `lib/prisma.js`), `JWT_SECRET`, `PORT`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `BREVO_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`
+- Environment variables: `DATABASE_URL` (PostgreSQL, owner connection used by `lib/prisma.js`), `JWT_SECRET`, `PORT`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `BREVO_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`, `ENCRYPTION_KEY` (64 hex chars — PHI-at-rest encryption; losing it makes encrypted PHI unrecoverable, including in backups), `INTEGRITY_KEY` (64 hex chars — timesheet signature HMAC; falls back to a key derived from `ENCRYPTION_KEY`)
 - **Multi-tenancy env vars**:
   - `BASE_DOMAIN` — the root domain agencies are subdomained under (e.g. `pcalink.com`); drives `resolveAgency.js` subdomain parsing, CORS origin matching (`lib/corsOrigin.js`), and socket auth. Defaults to `localhost` for local dev.
   - `APP_DATABASE_URL` — connection string for the RLS-constrained `app_user` role that `tenantClient()` uses for all tenant-scoped queries; falls back to `DATABASE_URL` if unset (fine locally before `setup-app-role.js` has run, unsafe in production — always set it on Railway).

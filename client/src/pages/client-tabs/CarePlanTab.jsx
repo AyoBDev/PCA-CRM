@@ -8,8 +8,10 @@ export default function CarePlanTab({
     setConfirmDelete,
     formatDate,
     formatDateTime,
+    onSaveField,
 }) {
     const [expandedSections, setExpandedSections] = useState({
+        summary: true,
         timeline: true,
         diagnoses: true,
         mar: true,
@@ -24,6 +26,14 @@ export default function CarePlanTab({
 
     return (
         <div className="cp-tab-panel">
+            {/* CARE PLAN SUMMARY — captured at intake, editable here */}
+            <CarePlanSummary
+                client={client}
+                expanded={expandedSections.summary}
+                onToggle={() => toggleSection('summary')}
+                onSaveField={onSaveField}
+            />
+
             {/* TIMELINE SECTION */}
             <div className="cp-card cp-card--elevated" style={{ marginBottom: 16 }}>
                 <div
@@ -285,6 +295,112 @@ export default function CarePlanTab({
                     </div>
                 )}
             </div>
+        </div>
+    );
+}
+
+// ── Care Plan Summary ───────────────────────────────────────────────────────
+// Shows the intake info captured when a lead is converted to a client:
+// requested services, schedule needs, and caregiver preferences. Every field is
+// editable inline and saves via onSaveField(field, value).
+function CarePlanSummary({ client, expanded, onToggle, onSaveField }) {
+    return (
+        <div className="cp-card cp-card--elevated" style={{ marginBottom: 16 }}>
+            <div
+                className="cp-card__header"
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+                onClick={onToggle}
+            >
+                <h3 className="cp-card__title">Care Plan Summary</h3>
+                <span>{expanded ? Icons.chevronDown : Icons.chevronRight}</span>
+            </div>
+            {expanded && (
+                <div className="cp-card__body">
+                    <div className="cp-summary-grid">
+                        <EditableField
+                            label="Services Requested"
+                            value={client.mainServices || ''}
+                            placeholder="e.g. Light Housekeeping, Meal Preparation…"
+                            multiline
+                            hint="One service per line"
+                            onSave={(v) => onSaveField('mainServices', v)}
+                        />
+                        <EditableField
+                            label="Schedule Needs"
+                            value={client.carePlanSchedule || ''}
+                            placeholder="e.g. 5 days (M-F), 6 hrs/day, start ASAP"
+                            onSave={(v) => onSaveField('carePlanSchedule', v)}
+                        />
+                        <EditableField
+                            label="Caregiver Preferences"
+                            value={client.caregiverRequirements || ''}
+                            placeholder="e.g. Female · Older / more experienced · Spanish"
+                            onSave={(v) => onSaveField('caregiverRequirements', v)}
+                        />
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function EditableField({ label, value, placeholder, multiline, hint, onSave }) {
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState(value);
+
+    const startEdit = () => { setDraft(value); setEditing(true); };
+    const cancel = () => { setDraft(value); setEditing(false); };
+    const save = () => { onSave((draft || '').trim()); setEditing(false); };
+
+    return (
+        <div className="cp-summary-field">
+            <div className="cp-summary-field__head">
+                <span className="cp-summary-field__label">{label}</span>
+                {!editing && (
+                    <button className="btn btn--ghost btn--icon btn--sm" title="Edit" onClick={startEdit}>
+                        {Icons.edit}
+                    </button>
+                )}
+            </div>
+            {editing ? (
+                <div className="cp-summary-field__edit">
+                    {multiline ? (
+                        <textarea
+                            className="finput"
+                            rows={4}
+                            value={draft}
+                            placeholder={placeholder}
+                            onChange={(e) => setDraft(e.target.value)}
+                            autoFocus
+                        />
+                    ) : (
+                        <input
+                            className="finput"
+                            value={draft}
+                            placeholder={placeholder}
+                            onChange={(e) => setDraft(e.target.value)}
+                            autoFocus
+                        />
+                    )}
+                    {hint && <span className="cp-summary-field__hint">{hint}</span>}
+                    <div className="cp-summary-field__actions">
+                        <button className="btn btn--outline btn--sm" onClick={cancel}>Cancel</button>
+                        <button className="btn btn--primary btn--sm" onClick={save}>Save</button>
+                    </div>
+                </div>
+            ) : (
+                <div className="cp-summary-field__value">
+                    {value && value.trim() ? (
+                        multiline
+                            ? value.split('\n').filter((l) => l.trim()).map((line, i) => (
+                                <div key={i} className="cp-summary-field__line">{line}</div>
+                              ))
+                            : value
+                    ) : (
+                        <span className="cp-summary-field__empty">Not specified</span>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as api from '../../api';
-import * as Icons from '../common/Icons';
+import Icons from '../common/Icons';
 
 const STEPS = ['Validating lead data...', 'Copying profile to Active Clients...', 'Migrating records...', 'Finalizing client profile...', 'Conversion complete!'];
 
@@ -24,10 +24,31 @@ export default function ConvertLeadOverlay({ open, lead, onConfirmed, onClose })
 
     useEffect(() => { if (result && idx >= STEPS.length - 1) setDone(true); }, [result, idx]);
 
+    // The overlay can be dismissed once the conversion has settled (succeeded or
+    // errored) — never while it's still mid-flight.
+    const dismissable = done || !!error;
+
+    // Esc closes when dismissable.
+    useEffect(() => {
+        if (!open) return;
+        const onKey = (e) => { if (e.key === 'Escape' && dismissable) onClose(); };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [open, dismissable, onClose]);
+
     if (!open) return null;
+
+    // Backdrop click closes when dismissable (clicks on the box don't bubble out).
+    const onBackdropClick = () => { if (dismissable) onClose(); };
+
     return (
-        <div className="convert-overlay convert-overlay--open">
-            <div className="convert-box">
+        <div className="convert-overlay convert-overlay--open" onClick={onBackdropClick}>
+            <div className="convert-box" onClick={(e) => e.stopPropagation()}>
+                {dismissable && (
+                    <button className="convert-close" aria-label="Close" onClick={onClose}>
+                        {Icons.x}
+                    </button>
+                )}
                 {error ? (
                     <>
                         <div className="convert-title">Conversion failed</div>
@@ -45,7 +66,10 @@ export default function ConvertLeadOverlay({ open, lead, onConfirmed, onClose })
                         <div className="cs-check">{Icons.checkCircle}</div>
                         <div className="convert-title">Conversion Complete!</div>
                         <div className="convert-sub">Profile migrated to Active Clients.</div>
-                        <button className="btn btn--success" onClick={() => onConfirmed(result)}>View Client</button>
+                        <div className="convert-actions">
+                            <button className="btn btn--outline" onClick={onClose}>Close</button>
+                            <button className="btn btn--success" onClick={() => onConfirmed(result)}>View Client</button>
+                        </div>
                     </>
                 )}
             </div>

@@ -56,7 +56,9 @@ describe('MobileDayCard', () => {
     });
 
     it('shows daily total hours', () => {
-        render(<MobileDayCard {...defaultProps} />);
-        expect(screen.getByText('3.00 hrs')).toBeInTheDocument();
+        const { container } = render(<MobileDayCard {...defaultProps} />);
+        // The card shows the figure twice — once in the header, once as the
+        // footer daily total. Assert on the daily total specifically.
+        expect(container.querySelector('.pcaf-mcard__daily-total-value')).toHaveTextContent('3.00 hrs');
     });
 });

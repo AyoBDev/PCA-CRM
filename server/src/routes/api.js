@@ -165,6 +165,7 @@ const {
     deleteIncident,
 } = require('../controllers/carePlanController');
 const { uploadDocument, downloadDocument, deleteDocument } = require('../controllers/documentController');
+const { listLeadDocuments, uploadLeadDocument, downloadLeadDocument, deleteLeadDocument } = require('../controllers/leadDocumentController');
 const { uploadAuthDocument, downloadAuthDocument, deleteAuthDocument } = require('../controllers/authDocumentController');
 const {
     listFolders, getFolder, createFolder, updateFolder, deleteFolder, restoreFolder,
@@ -181,7 +182,7 @@ const { previewSandata, applySandata, undoSandata } = require('../controllers/sa
 const { listConversations, getConversationMessages, adminSendMessage, markConversationRead, getUnreadSummary } = require('../controllers/employeePortal/adminChatController');
 const { getOnboardingInfo, completeOnboarding, resendInvite, approveOnboarding, getOnboardingLink } = require('../controllers/onboardingController');
 const { agencyInfo, hostInfo } = require('../controllers/platformController');
-const { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, reactivateLead, getLeadStats } = require('../controllers/leadController');
+const { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats } = require('../controllers/leadController');
 const {
     listPermissionGroups,
     getPermissionGroup,
@@ -320,7 +321,13 @@ router.patch('/leads/:id/status', requireRole('admin', 'user'), requirePermissio
 router.post('/leads/:id/archive', requireRole('admin', 'user'), requirePermission('leads'), archiveLead);
 router.post('/leads/:id/restore', requireRole('admin', 'user'), requirePermission('leads'), restoreLead);
 router.post('/leads/:id/convert', requireRole('admin', 'user'), requirePermission('leads'), convertLead);
+router.post('/leads/:id/revert-conversion', requireRole('admin', 'user'), requirePermission('leads'), revertConversion);
 router.post('/leads/:id/reactivate', requireRole('admin', 'user'), requirePermission('leads'), reactivateLead);
+// Lead attachments (images / PDFs / docs)
+router.get('/leads/:leadId/documents', requireRole('admin', 'user'), requirePermission('leads'), listLeadDocuments);
+router.post('/leads/:leadId/documents', requireRole('admin', 'user'), requirePermission('leads'), upload.single('file'), uploadLeadDocument);
+router.get('/lead-documents/:id/download', requireRole('admin', 'user'), requirePermission('leads'), downloadLeadDocument);
+router.delete('/lead-documents/:id', requireRole('admin', 'user'), requirePermission('leads'), deleteLeadDocument);
 
 // Authorization routes
 router.post('/clients/:clientId/authorizations', requireRole('admin', 'user'), requirePermission('authorizations'), createAuthorization);

@@ -16,6 +16,16 @@ function columnToStatus(columnId) {
   return col ? col.primaryStatus : null;
 }
 
+// Channel a lead came in through. Keys are stored on Lead.leadSource; labels
+// are shown in the UI and the conversion Intake Summary.
+const LEAD_SOURCE_LABELS = {
+  referrer: 'Referrer',
+  call:     'Call',
+  website:  'Website',
+  fax:      'Fax',
+  other:    'Other',
+};
+
 const SERVICE_TO_BUCKET = [
   { bucket: 'Homemaker', match: ['housekeeping', 'meal', 'grocery', 'chore'] },
   { bucket: 'Companion', match: ['companion'] },
@@ -37,13 +47,88 @@ function servicesToEnabledServices(servicesRequestedJson) {
   return JSON.stringify([...buckets].sort());
 }
 
+function parseServicesList(servicesRequestedJson) {
+  let arr = [];
+  try { arr = JSON.parse(servicesRequestedJson || '[]'); } catch { arr = []; }
+  return Array.isArray(arr) ? arr.map((s) => String(s).trim()).filter(Boolean) : [];
+}
+
+// Human-readable schedule-needs string from a lead's days/hours/start fields.
+// Reused for both the Care Plan "Schedule Needs" field and the intake summary.
+function buildScheduleNeeds(lead) {
+  return [
+    lead.daysPerWeek && `${lead.daysPerWeek}`,
+    lead.hoursPerDay && `${lead.hoursPerDay} hrs/day`,
+    lead.startDateNeeded && `start ${lead.startDateNeeded}`,
+  ].filter(Boolean).join(', ');
+}
+
+// Builds a human-readable "Intake Summary" block that captures every piece of
+// lead intake data that has no dedicated Client field — so converting a lead
+// never silently loses case manager info, referral source, schedule needs,
+// case-type details, etc. Rendered on the client Notes tab (source: General).
+function buildIntakeSummary(lead) {
+  const lines = [];
+  const add = (label, value) => {
+    const v = value == null ? '' : String(value).trim();
+    if (v && v !== 'No preference') lines.push(`${label}: ${v}`);
+  };
+
+  // Case manager / caseworker — the field we were dropping entirely.
+  if (lead.caseworkerName || lead.caseworkerPhone) {
+    add('Case Manager', [lead.caseworkerName, lead.caseworkerPhone].filter(Boolean).join(' — '));
+  }
+  add('Lead Source', LEAD_SOURCE_LABELS[lead.leadSource] || lead.leadSource);
+  add('Referral Source', lead.referralSource);
+  add('Insurance #', lead.insuranceNumber);
+
+  // Schedule needs.
+  add('Schedule Needs', buildScheduleNeeds(lead));
+
+  // Requested services (full list, not just the coarse enabledServices buckets).
+  const services = parseServicesList(lead.servicesRequested);
+  if (services.length) add('Requested Services', services.join(', '));
+
+  // Preferences (also stored structured in caregiverRequirements; repeated here
+  // so the full intake record reads as one block).
+  add('Gender Preference', lead.genderPreference);
+  add('Age Preference', lead.agePreference);
+  add('Language', lead.languagePreference);
+  if (Array.isArray(parseServicesList(lead.shiftPreferences)) && parseServicesList(lead.shiftPreferences).length) {
+    add('Shift Preference', parseServicesList(lead.shiftPreferences).join(', '));
+  }
+
+  // Case-type specifics.
+  if (lead.caseType === 'transfer') {
+    add('Current Agency', lead.currentAgencyName);
+    add('Current Auth Hours/Month', lead.currentAuthHoursMonth || '');
+    add('Auth #', lead.authNumber);
+    add('Transfer Reason', lead.transferReason);
+    add('Transfer Notes', lead.transferNotes);
+  } else if (lead.caseType === 'private') {
+    if (lead.ppRate) add('Private Pay Rate', `$${lead.ppRate}/hr`);
+    if (lead.ppHoursPerWeek) add('Private Pay Hours/Week', lead.ppHoursPerWeek);
+    if (lead.ppDepositHours) add('Deposit Hours', lead.ppDepositHours);
+  } else {
+    add('Auth Status', lead.authStatus);
+  }
+
+  if (!lines.length) return '';
+  return `— Intake Summary (from referral) —\n${lines.join('\n')}`;
+}
+
 function mapLeadToClientData(lead) {
-  const notes = [lead.callNotes, lead.scheduleNotes].filter(Boolean).join('\n\n');
+  const intakeSummary = buildIntakeSummary(lead);
+  const notes = [lead.callNotes, lead.scheduleNotes, intakeSummary]
+    .map((s) => (s || '').trim())
+    .filter(Boolean)
+    .join('\n\n');
   const prefs = [
     lead.genderPreference && lead.genderPreference !== 'No preference' ? lead.genderPreference : null,
     lead.agePreference && lead.agePreference !== 'No preference' ? lead.agePreference : null,
     lead.languagePreference,
   ].filter(Boolean).join(' · ');
+  const services = parseServicesList(lead.servicesRequested);
   return {
     clientName: `${lead.firstName || ''} ${lead.lastName || ''}`.trim(),
     medicaidId: lead.medicaidId || '',
@@ -53,13 +138,17 @@ function mapLeadToClientData(lead) {
     secondaryPhone: lead.alternatePhone || '',
     email: lead.emergencyContactEmail || '',
     gender: lead.gender || '',
-    dob: lead.dob || null,
+    dob: lead.dob ? new Date(lead.dob).toISOString().slice(0, 10) : '',
     doctorName: lead.doctorName || '',
     doctorPhone: lead.doctorPhone || '',
     emergencyContactName: lead.emergencyContactName || '',
     emergencyContactPhone: lead.emergencyContactPhone || '',
     emergencyContactRelation: lead.emergencyContactRelation || '',
     notes,
+    // Full requested-services list, one per line (Profile tab renders on \n).
+    mainServices: services.join('\n'),
+    // Dedicated Care Plan "Schedule Needs" field (Care Plan Summary section).
+    carePlanSchedule: buildScheduleNeeds(lead),
     caregiverRequirements: prefs,
     enabledServices: servicesToEnabledServices(lead.servicesRequested),
   };
@@ -83,9 +172,88 @@ async function convertLead(db, agencyId, id) {
     const now = new Date();
     const updatedLead = await tx.lead.update({
       where: { id: lead.id },
-      data: { status: 'converted', convertedClientId: client.id, convertedAt: now, archivedAt: now },
+      data: {
+        status: 'converted',
+        preConvertStatus: lead.status,
+        convertedClientId: client.id,
+        convertedAt: now,
+        archivedAt: now,
+      },
     });
     return { client, lead: updatedLead };
+  });
+}
+
+// Relations that, if present on the auto-created client, mean real work has
+// started against it — so reverting the conversion (which would cascade-delete
+// the client) is unsafe and must be blocked.
+const CLIENT_DEPENDENCY_COUNTS = {
+  authorizations: (tx, id) => tx.authorization.count({ where: { clientId: id } }),
+  shifts: (tx, id) => tx.shift.count({ where: { clientId: id } }),
+  timesheets: (tx, id) => tx.timesheet.count({ where: { clientId: id } }),
+  clientNotes: (tx, id) => tx.clientNote.count({ where: { clientId: id } }),
+  permanentLinks: (tx, id) => tx.permanentLink.count({ where: { clientId: id } }),
+};
+
+// Revert an accidental conversion: restore the lead to the board and remove the
+// client record the conversion created — but only when that client is still
+// "empty" (no authorizations/shifts/timesheets/notes/links). If real data was
+// added since conversion, we block instead of cascade-deleting it.
+async function revertConversion(db, agencyId, id) {
+  const numericId = Number(id);
+  const lead = await db.lead.findUnique({ where: { id: numericId } });
+  if (!lead) throw new Error('Lead not found');
+  if (lead.status !== 'converted') throw new Error('Lead is not converted');
+
+  // Interactive $transaction(callback) on the extended tenant client would
+  // hand the callback a raw (non-RLS-scoped) tx — use tenantTransaction so
+  // the agency GUC is set for the whole transaction (same reasoning as
+  // convertLead above).
+  const { tenantTransaction } = require('../lib/tenantPrisma');
+  return tenantTransaction(agencyId, async (tx) => {
+    const clientId = lead.convertedClientId;
+    let deletedClient = null;
+
+    if (clientId) {
+      const client = await tx.client.findUnique({ where: { id: clientId } });
+      if (client) {
+        // Guard: refuse if any real work is attached to the client.
+        const entries = Object.entries(CLIENT_DEPENDENCY_COUNTS);
+        const counts = await Promise.all(entries.map(([, fn]) => fn(tx, clientId)));
+        const blockers = entries
+          .map(([name], i) => ({ name, n: counts[i] }))
+          .filter((x) => x.n > 0);
+        if (blockers.length) {
+          const summary = blockers.map((b) => `${b.n} ${b.name}`).join(', ');
+          throw new Error(
+            `Cannot move back: the client "${client.clientName}" already has ${summary}. ` +
+            `Remove that data first, or archive the client instead.`
+          );
+        }
+        await tx.client.delete({ where: { id: clientId } });
+        deletedClient = { id: client.id, clientName: client.clientName };
+      }
+    }
+
+    // Restore the lead to its pre-conversion stage (fallback to 'new' for
+    // leads converted before we started tracking preConvertStatus).
+    const restoredStatus =
+      lead.preConvertStatus && lead.preConvertStatus !== 'converted'
+        ? lead.preConvertStatus
+        : 'new';
+
+    const updatedLead = await tx.lead.update({
+      where: { id: numericId },
+      data: {
+        status: restoredStatus,
+        convertedClientId: null,
+        convertedAt: null,
+        archivedAt: null,
+        dormantAt: null,
+        preConvertStatus: '',
+      },
+    });
+    return { lead: updatedLead, deletedClient };
   });
 }
 
@@ -132,4 +300,4 @@ function computeStats(leads, now = new Date()) {
   };
 }
 
-module.exports = { LEAD_COLUMNS, statusToColumn, columnToStatus, mapLeadToClientData, servicesToEnabledServices, convertLead, computeStats, DORMANT_DAYS, sweepDormantLeads, reactivateLead };
+module.exports = { LEAD_COLUMNS, LEAD_SOURCE_LABELS, statusToColumn, columnToStatus, mapLeadToClientData, servicesToEnabledServices, convertLead, revertConversion, computeStats, DORMANT_DAYS, sweepDormantLeads, reactivateLead };

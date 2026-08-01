@@ -3776,6 +3776,12 @@ label.checkbox-field {
   border-color: #ea580c;
 }
 
+.pcaf-auth-pill--companion {
+  background: hsl(330 80% 96%);
+  color: #ec4899;
+  border-color: #ec4899;
+}
+
 .pcaf-auth-card__right {
   display: flex;
   flex-direction: column;
@@ -3861,6 +3867,10 @@ label.checkbox-field {
 
 .pcaf-program__header--respite {
   background: #ea580c;
+}
+
+.pcaf-program__header--companion {
+  background: #ec4899;
 }
 
 .pcaf-program__icon {
@@ -4030,6 +4040,11 @@ label.checkbox-field {
 .pcaf-section-total--respite .pcaf-section-total__hrs,
 .pcaf-section-total--respite .pcaf-section-total__units {
   color: #ea580c;
+}
+
+.pcaf-section-total--companion .pcaf-section-total__hrs,
+.pcaf-section-total--companion .pcaf-section-total__units {
+  color: #ec4899;
 }
 
 /* Inputs */
@@ -4515,6 +4530,12 @@ label.checkbox-field {
   border-color: #ea580c;
 }
 
+.pcaf-mauth__pill--companion {
+  background: hsl(330 80% 96%);
+  color: #ec4899;
+  border-color: #ec4899;
+}
+
 /* ── PCA Form Mobile: Day Card ── */
 .pcaf-mcard {
   padding: 0 12px 16px;
@@ -4591,6 +4612,7 @@ label.checkbox-field {
 .pcaf-mcard__sec-header--pas { background: #1e40af; }
 .pcaf-mcard__sec-header--hm { background: #16a34a; }
 .pcaf-mcard__sec-header--respite { background: #ea580c; }
+.pcaf-mcard__sec-header--companion { background: #ec4899; }
 
 .pcaf-mcard__activities {
   padding: 8px 12px;
@@ -4834,6 +4856,7 @@ label.checkbox-field {
 .pcaf-msummary__total-row--pas strong { color: #1e40af; }
 .pcaf-msummary__total-row--hm strong { color: #16a34a; }
 .pcaf-msummary__total-row--respite strong { color: #ea580c; }
+.pcaf-msummary__total-row--companion strong { color: #ec4899; }
 
 .pcaf-msummary__signatures {
   border: 1px solid hsl(var(--border));
@@ -9794,6 +9817,67 @@ button.sdr-section-tag:hover:not(:disabled) {
   padding: 12px 14px;
 }
 
+/* ─── Care Plan Summary ─── */
+.cp-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.cp-summary-field {
+  min-width: 0;
+}
+
+.cp-summary-field__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.cp-summary-field__label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: hsl(var(--muted-foreground));
+}
+
+.cp-summary-field__value {
+  font-size: 14px;
+  color: hsl(var(--foreground));
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.cp-summary-field__line {
+  padding: 1px 0;
+}
+
+.cp-summary-field__empty {
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+
+.cp-summary-field__edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cp-summary-field__hint {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+
+.cp-summary-field__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 /* ─── Empty State Cards ─── */
 .cp-empty-state-card {
   display: flex;
@@ -14640,202 +14724,37 @@ tr:hover .auth-note-icon--empty {
     flex-wrap: nowrap;
 }
 
+/* ── List view: reuse the card's 3-dot actions menu inside a table cell ── */
+.lead-list-actions-cell {
+    text-align: center;
+}
+
+/* In the table the trigger sits inline in the cell, not pinned to a card corner. */
+.lead-list-actions-cell .lead-card__menu {
+    position: static;
+    display: inline-flex;
+}
+
+/* The panel is rendered fixed (positioned in JS) so it escapes the table's
+   horizontal-scroll clip. Stage flyout opens to the LEFT of the panel since
+   the panel sits near the right edge.
+   Higher specificity (doubled class) so this wins over the base
+   .lead-card__menu-panel rule regardless of source order. */
+.lead-card__menu-panel.lead-card__menu-panel--fixed {
+    position: fixed;
+    top: auto;
+    right: auto;
+    z-index: 1000;
+}
+
+.lead-card__menu-panel--fixed .lead-card__submenu-panel {
+    left: auto;
+    right: calc(100% + 2px);
+}
+
 /* ── Dormant Archive view ── */
 .leads-dormant-view {
     padding: 20px 24px 24px;
-}
-
-.leads-dormant-view__banner {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 12px 16px;
-    background: hsl(var(--warning-bg));
-    border: 1px solid hsl(var(--warning) / 0.3);
-    border-radius: 8px;
-    margin-bottom: 16px;
-}
-
-.leads-dormant-view__banner-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    background: hsl(var(--warning) / 0.2);
-    color: hsl(var(--warning));
-    flex-shrink: 0;
-}
-
-.leads-dormant-view__banner-icon svg {
-    width: 18px;
-    height: 18px;
-}
-
-.leads-dormant-view__banner-title {
-    font-size: 14px;
-    font-weight: 700;
-    color: hsl(var(--foreground));
-    margin: 0 0 2px;
-}
-
-.leads-dormant-view__banner-body {
-    font-size: 13px;
-    color: hsl(var(--muted-foreground));
-    line-height: 1.5;
-    margin: 0;
-}
-
-.leads-dormant-view__count {
-    margin-left: auto;
-    padding: 4px 10px;
-    font-size: 12px;
-    font-weight: 600;
-    color: hsl(var(--muted-foreground));
-    background: hsl(var(--card));
-    border: 1px solid hsl(var(--border));
-    border-radius: 999px;
-    white-space: nowrap;
-    align-self: center;
-}
-
-.leads-dormant-view__search {
-    position: relative;
-    display: flex;
-    align-items: center;
-    margin-bottom: 12px;
-    max-width: 480px;
-}
-
-.leads-dormant-view__search-icon {
-    position: absolute;
-    left: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    display: inline-flex;
-    color: hsl(var(--muted-foreground));
-    pointer-events: none;
-}
-
-.leads-dormant-view__search-icon svg {
-    width: 14px;
-    height: 14px;
-}
-
-.leads-dormant-view__search-input {
-    padding: 8px 10px 8px 32px;
-    width: 100%;
-    font-size: 13px;
-}
-
-.leads-dormant-view__search-count {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 12px;
-    color: hsl(var(--muted-foreground));
-    pointer-events: none;
-}
-
-/* ── Recently Converted view ── */
-.leads-converted-view {
-    padding: 20px 24px 24px;
-}
-
-.leads-converted-view__banner {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 12px 16px;
-    background: hsl(var(--success-bg));
-    border: 1px solid hsl(var(--success) / 0.3);
-    border-radius: 8px;
-    margin-bottom: 16px;
-}
-
-.leads-converted-view__banner-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    background: hsl(var(--success) / 0.2);
-    color: hsl(var(--success));
-    flex-shrink: 0;
-}
-
-.leads-converted-view__banner-icon svg {
-    width: 18px;
-    height: 18px;
-}
-
-.leads-converted-view__banner-title {
-    font-size: 14px;
-    font-weight: 700;
-    color: hsl(var(--foreground));
-    margin: 0 0 2px;
-}
-
-.leads-converted-view__banner-body {
-    font-size: 13px;
-    color: hsl(var(--muted-foreground));
-    line-height: 1.5;
-    margin: 0;
-}
-
-.leads-converted-view__count {
-    margin-left: auto;
-    padding: 4px 10px;
-    font-size: 12px;
-    font-weight: 600;
-    color: hsl(var(--muted-foreground));
-    background: hsl(var(--card));
-    border: 1px solid hsl(var(--border));
-    border-radius: 999px;
-    white-space: nowrap;
-    align-self: center;
-}
-
-.leads-converted-view__search {
-    position: relative;
-    display: flex;
-    align-items: center;
-    margin-bottom: 12px;
-    max-width: 480px;
-}
-
-.leads-converted-view__search-icon {
-    position: absolute;
-    left: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    display: inline-flex;
-    color: hsl(var(--muted-foreground));
-    pointer-events: none;
-}
-
-.leads-converted-view__search-icon svg {
-    width: 14px;
-    height: 14px;
-}
-
-.leads-converted-view__search-input {
-    padding: 8px 10px 8px 32px;
-    width: 100%;
-    font-size: 13px;
-}
-
-.leads-converted-view__search-count {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 12px;
-    color: hsl(var(--muted-foreground));
-    pointer-events: none;
 }
 
 /* ── Reactivate modal ── */
@@ -14951,7 +14870,9 @@ tr:hover .auth-note-icon--empty {
     background: hsl(var(--muted) / 0.4);
     border: 1px solid hsl(var(--border));
     border-radius: var(--radius);
-    overflow: hidden;
+    /* visible (not hidden) so a card's flyout submenu can extend past the
+       column edge into the next column. Header corners are rounded directly. */
+    overflow: visible;
     min-height: 200px;
 }
 
@@ -14964,6 +14885,7 @@ tr:hover .auth-note-icon--empty {
     background: hsl(222 47% 22%);
     border-bottom: none;
     border-top: 3px solid var(--block-color, hsl(222 47% 28%));
+    border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0;
 }
 
 .k-col__title {
@@ -15009,6 +14931,7 @@ tr:hover .auth-note-icon--empty {
 
 /* ── Lead card ── */
 .lead-card {
+    position: relative;
     background: hsl(var(--card));
     border: 1px solid hsl(var(--border));
     border-radius: calc(var(--radius) - 2px);
@@ -15016,6 +14939,109 @@ tr:hover .auth-note-icon--empty {
     cursor: grab;
     box-shadow: 0 1px 2px hsl(var(--foreground) / 0.04);
     transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+/* ── Lead card 3-dot menu ── */
+.lead-card__menu {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 5;
+}
+
+.lead-card__menu-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.lead-card__menu-trigger:hover {
+    background: hsl(var(--accent));
+    color: hsl(var(--foreground));
+}
+
+.lead-card__menu-trigger svg {
+    width: 16px;
+    height: 16px;
+}
+
+.lead-card__menu-panel {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    min-width: 180px;
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 6px;
+    box-shadow: 0 4px 12px hsl(0 0% 0% / 0.12);
+    z-index: 100;
+    padding: 4px 0;
+}
+
+.lead-card__submenu-wrap {
+    position: relative;
+}
+
+.lead-card__submenu-trigger {
+    justify-content: flex-start;
+}
+
+.lead-card__submenu-caret {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+}
+
+.lead-card__submenu-caret svg {
+    width: 14px;
+    height: 14px;
+}
+
+.lead-card__submenu-panel {
+    position: absolute;
+    top: -4px;
+    left: calc(100% + 2px);
+    min-width: 190px;
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 6px;
+    box-shadow: 0 4px 12px hsl(0 0% 0% / 0.18);
+    z-index: 201;
+    padding: 4px 0;
+}
+
+.lead-card__submenu-panel .dropdown-menu__item:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.lead-card__submenu-panel .dropdown-menu__item:disabled:hover {
+    background: none;
+}
+
+.lead-card__stage-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.lead-card__stage-current {
+    margin-left: auto;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: hsl(var(--muted-foreground));
 }
 
 .lead-card:hover {
@@ -15027,6 +15053,12 @@ tr:hover .auth-note-icon--empty {
     cursor: grabbing;
 }
 
+/* Lift the card (and its flyout submenu) above sibling cards and the
+   neighboring column while its actions menu is open. */
+.lead-card--menu-open {
+    z-index: 50;
+}
+
 .lead-card__name {
     font-size: 14px;
     font-weight: 600;
@@ -15036,9 +15068,19 @@ tr:hover .auth-note-icon--empty {
 
 .lead-card__source,
 .lead-card__date {
+    display: flex;
+    align-items: center;
+    gap: 5px;
     font-size: 12px;
     color: hsl(var(--muted-foreground));
     margin-bottom: 2px;
+}
+
+.lead-card__source svg,
+.lead-card__date svg {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
 }
 
 .lead-card__tags {
@@ -15333,6 +15375,117 @@ tr:hover .auth-note-icon--empty {
     padding: 14px 14px 14px;
 }
 
+/* ── Lead attachments ── */
+.lead-attach {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.lead-attach .btn svg {
+    width: 14px;
+    height: 14px;
+    margin-right: 4px;
+    vertical-align: -2px;
+}
+
+.lead-attach__hint {
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+}
+
+.lead-attach__list {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.lead-attach__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 6px;
+    background: hsl(var(--muted) / 0.4);
+}
+
+.lead-attach__icon {
+    display: flex;
+    color: hsl(var(--muted-foreground));
+    flex-shrink: 0;
+}
+
+.lead-attach__icon svg {
+    width: 15px;
+    height: 15px;
+}
+
+.lead-attach__name {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    color: hsl(var(--foreground));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lead-attach__size {
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+    flex-shrink: 0;
+}
+
+.lead-attach__badge {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: hsl(var(--primary));
+    background: hsl(var(--primary) / 0.1);
+    padding: 1px 6px;
+    border-radius: 999px;
+    flex-shrink: 0;
+}
+
+.lead-attach__remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    border-radius: 4px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.lead-attach__remove:hover:not(:disabled) {
+    background: hsl(var(--danger) / 0.1);
+    color: hsl(var(--danger));
+}
+
+.lead-attach__remove svg {
+    width: 14px;
+    height: 14px;
+}
+
+.lead-attach__note {
+    display: block;
+    margin-top: 8px;
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+    font-style: italic;
+}
+
 .det-row {
     display: flex;
     justify-content: space-between;
@@ -15457,6 +15610,44 @@ tr:hover .auth-note-icon--empty {
 .cs-check svg {
     width: 40px;
     height: 40px;
+}
+
+.convert-box {
+    position: relative;
+}
+
+.convert-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.convert-close:hover {
+    background: hsl(var(--accent));
+    color: hsl(var(--foreground));
+}
+
+.convert-close svg {
+    width: 18px;
+    height: 18px;
+}
+
+.convert-actions {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
 }
 
 /* ── Wizard form section helpers (if used) ── */

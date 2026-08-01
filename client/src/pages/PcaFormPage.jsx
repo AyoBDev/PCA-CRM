@@ -12,6 +12,24 @@ import MobileSummaryTab from '../components/pca-form/MobileSummaryTab';
 import MobileAuthBar from '../components/pca-form/MobileAuthBar';
 import { ADL_ACTIVITIES, IADL_ACTIVITIES, RESPITE_ACTIVITIES, COMPANION_ACTIVITIES, DAY_NAMES_UPPER as DAY_SHORT } from '../utils/constants';
 
+// Every timesheet section that must round-trip to the server on save/submit.
+// Driven off one list so a new section can't be silently dropped from the
+// payload (which would blank out its stored data on the next save).
+export const PAYLOAD_SECTIONS = ['adl', 'iadl', 'respite', 'companion'];
+
+export function buildEntryPayload(e) {
+    const out = { id: e.id, dayOfWeek: e.dayOfWeek, dateOfService: e.dateOfService };
+    for (const sec of PAYLOAD_SECTIONS) {
+        out[`${sec}Activities`] = e[`${sec}Activities`] || '{}';
+        out[`${sec}TimeIn`] = e[`${sec}TimeIn`] || null;
+        out[`${sec}TimeOut`] = e[`${sec}TimeOut`] || null;
+        out[`${sec}PcaInitials`] = e[`${sec}PcaInitials`] || '';
+        out[`${sec}ClientInitials`] = e[`${sec}ClientInitials`] || '';
+        out[`${sec}TimeBlocks`] = e[`${sec}TimeBlocks`] || '[]';
+    }
+    return out;
+}
+
 function totalHoursWithBlocks(entry, section) {
     let total = computeHours(entry[`${section}TimeIn`], entry[`${section}TimeOut`]);
     try {
@@ -37,6 +55,13 @@ function getSunday(date) {
     return dt.toISOString().slice(0, 10);
 }
 
+const SECTION_SUBTITLES = {
+    pas: '(PERSONAL ASSISTANCE SERVICES)',
+    hm: '(IADL SERVICES)',
+    respite: '(RESPITE CARE SERVICES)',
+    companion: '(COMPANION CARE SERVICES)',
+};
+
 function ProgramSection({ title, icon, colorClass, activities, section, entries, updateEntry, dailyHoursFn, disabled, sectionDisabled, onAddShift, onRemoveShift, fieldErrors = {} }) {
     const SHIFT_COLORS = ['', 'pcaf-shift--s2', 'pcaf-shift--s3', 'pcaf-shift--s4'];
 
@@ -56,7 +81,7 @@ function ProgramSection({ title, icon, colorClass, activities, section, entries,
             <div className={`pcaf-program__header pcaf-program__header--${colorClass}`}>
                 <span className="pcaf-program__icon">{icon}</span>
                 <span className="pcaf-program__name">{title}</span>
-                <span className="pcaf-program__subtitle">{colorClass === 'pas' ? '(PERSONAL ASSISTANCE SERVICES)' : colorClass === 'hm' ? '(IADL SERVICES)' : '(COMPANION CARE SERVICES)'}</span>
+                <span className="pcaf-program__subtitle">{SECTION_SUBTITLES[colorClass] || ''}</span>
             </div>
 
             <div className="pcaf-grid">
@@ -459,18 +484,7 @@ export default function PcaFormPage() {
     const buildPayload = (action) => ({
         action,
         weekStart: selectedWeekStart || undefined,
-        entries: entries.map((e) => ({
-            id: e.id, dayOfWeek: e.dayOfWeek, dateOfService: e.dateOfService,
-            adlActivities: e.adlActivities || '{}', adlTimeIn: e.adlTimeIn || null, adlTimeOut: e.adlTimeOut || null,
-            adlPcaInitials: e.adlPcaInitials || '', adlClientInitials: e.adlClientInitials || '',
-            adlTimeBlocks: e.adlTimeBlocks || '[]',
-            iadlActivities: e.iadlActivities || '{}', iadlTimeIn: e.iadlTimeIn || null, iadlTimeOut: e.iadlTimeOut || null,
-            iadlPcaInitials: e.iadlPcaInitials || '', iadlClientInitials: e.iadlClientInitials || '',
-            iadlTimeBlocks: e.iadlTimeBlocks || '[]',
-            respiteActivities: e.respiteActivities || '{}', respiteTimeIn: e.respiteTimeIn || null, respiteTimeOut: e.respiteTimeOut || null,
-            respitePcaInitials: e.respitePcaInitials || '', respiteClientInitials: e.respiteClientInitials || '',
-            respiteTimeBlocks: e.respiteTimeBlocks || '[]',
-        })),
+        entries: entries.map(buildEntryPayload),
         pcaFullName,
         pcaSignature: pcaSig,
         recipientName,

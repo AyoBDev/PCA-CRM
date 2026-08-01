@@ -1,5 +1,6 @@
 const audit = require('../services/auditService');
 const serviceRegistry = require('../services/serviceRegistry');
+const { computeAndStoreIntegrityHash, computeSignaturesHash, verifyTimesheetIntegrity } = require('../services/timesheetIntegrityService');
 const { isOverdue, roundTo15, computeHours, computeTotalHoursWithBlocks, deriveTimesheetService, ADL_ACTIVITIES, IADL_ACTIVITIES, RESPITE_ACTIVITIES, COMPANION_ACTIVITIES } = require('../lib/timesheetUtils');
 function filterActiveAuthsForWeek(auths, weekStart, weekEnd) {
     const wsMs = Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate());
@@ -50,7 +51,7 @@ async function listTimesheets(req, res, next) {
 
         const enriched = timesheets.map(ts => {
             if (!ts.clientId || !authsByClientId[ts.clientId]) {
-                return { ...ts, authLimits: null, isOverdue: isOverdue(ts) };
+                return { ...ts, authLimits: null, isOverdue: isOverdue(ts), integrityStatus: verifyTimesheetIntegrity(ts) };
             }
             const wsDate = new Date(ts.weekStart);
             const weDate = new Date(wsDate);
@@ -63,7 +64,7 @@ async function listTimesheets(req, res, next) {
                 if (!svc) continue;
                 limits[svc] = (limits[svc] || 0) + (a.authorizedUnits || 0);
             }
-            return { ...ts, authLimits: Object.keys(limits).length > 0 ? limits : null, isOverdue: isOverdue(ts) };
+            return { ...ts, authLimits: Object.keys(limits).length > 0 ? limits : null, isOverdue: isOverdue(ts), integrityStatus: verifyTimesheetIntegrity(ts) };
         });
 
         res.json(enriched);
@@ -101,13 +102,13 @@ async function getTimesheet(req, res, next) {
             if (Object.keys(limits).length > 0) authLimits = limits;
         }
 
-        res.json({ ...ts, authLimits });
+        res.json({ ...ts, authLimits, integrityStatus: verifyTimesheetIntegrity(ts) });
     } catch (err) { next(err); }
 }
 
 // GET /api/timesheets/activities  — return activity lists
 async function getActivities(req, res) {
-    res.json({ adl: ADL_ACTIVITIES, iadl: IADL_ACTIVITIES, respite: RESPITE_ACTIVITIES });
+    res.json({ adl: ADL_ACTIVITIES, iadl: IADL_ACTIVITIES, respite: RESPITE_ACTIVITIES, companion: COMPANION_ACTIVITIES });
 }
 
 // POST /api/timesheets
@@ -285,17 +286,29 @@ async function submitTimesheet(req, res, next) {
         if (!existing) return res.status(404).json({ error: 'Timesheet not found' });
         if (existing.status === 'submitted' || existing.status === 'accepted') return res.status(400).json({ error: 'Already submitted' });
 
-        const ts = await req.db.timesheet.update({
+        let ts = await req.db.timesheet.update({
             where: { id },
             data: { status: 'submitted', submittedAt: new Date() },
             include: { client: { select: { id: true, clientName: true } }, entries: { orderBy: { dayOfWeek: 'asc' } } },
         });
+        // Bind the integrity hash to the signing event, not the submit event:
+        // only (re)compute when the attesting signatures changed since the last
+        // hash (a fresh attestation) or no hash exists yet. Re-submitting old
+        // signatures over edited content must NOT refresh the hash — that is
+        // exactly the tamper case the hash exists to expose.
+        if (!ts.signedPayloadHash || computeSignaturesHash(ts) !== ts.signaturesHash) {
+            await computeAndStoreIntegrityHash(ts.id);
+            ts = await req.db.timesheet.findUnique({
+                where: { id },
+                include: { client: { select: { id: true, clientName: true } }, entries: { orderBy: { dayOfWeek: 'asc' } } },
+            });
+        }
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             action: 'SUBMIT', entityType: 'Timesheet', entityId: ts.id,
             entityName: `${ts.pcaName} - ${ts.client?.clientName || ''}`,
         });
-        res.json(ts);
+        res.json({ ...ts, integrityStatus: verifyTimesheetIntegrity(ts) });
     } catch (err) { next(err); }
 }
 
@@ -685,6 +698,14 @@ function renderTimesheetPage(doc, ts) {
         doc.text('Accepted By: ______________________________     Date: ______________', cols[3], gridY + 20);
         doc.text('Comments: _______________________________________________________________', cols[3], gridY + 38);
 
+        // Integrity verification — recomputed at export time so a printed copy
+        // carries tamper evidence for the signed content
+        const integrity = verifyTimesheetIntegrity(ts);
+        const integrityLabel = { valid: 'VERIFIED', tampered: 'TAMPERED — CONTENT CHANGED AFTER SIGNING', unsigned: 'UNSIGNED' }[integrity];
+        const integrityColor = { valid: '#166534', tampered: '#b91c1c', unsigned: '#777' }[integrity];
+        doc.fontSize(5.5).font('Helvetica-Bold').fillColor(integrityColor);
+        doc.text(`Integrity: ${integrityLabel}${ts.signedPayloadHash ? `   Digest: ${ts.signedPayloadHash.slice(0, 16)}` : ''}`, cols[3], gridY + 48, { width: sw });
+
 }
 
 async function exportTimesheetPdf(req, res, next) {
@@ -755,11 +776,20 @@ async function updateTimesheetStatus(req, res, next) {
             data.correctionNote = '';
         }
 
-        const ts = await req.db.timesheet.update({
+        let ts = await req.db.timesheet.update({
             where: { id },
             data,
             include: { client: { select: { id: true, clientName: true } }, entries: { orderBy: { dayOfWeek: 'asc' } } },
         });
+        // Alternate submit path — same signing-event rule as submitTimesheet:
+        // only refresh the integrity hash when the attesting signatures changed.
+        if (data.status === 'submitted' && (!ts.signedPayloadHash || computeSignaturesHash(ts) !== ts.signaturesHash)) {
+            await computeAndStoreIntegrityHash(ts.id);
+            ts = await req.db.timesheet.findUnique({
+                where: { id },
+                include: { client: { select: { id: true, clientName: true } }, entries: { orderBy: { dayOfWeek: 'asc' } } },
+            });
+        }
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             action: 'UPDATE', entityType: 'Timesheet', entityId: ts.id,
@@ -769,7 +799,7 @@ async function updateTimesheetStatus(req, res, next) {
                 ...(correctionNote ? [{ field: 'correctionNote', oldValue: '', newValue: correctionNote }] : []),
             ],
         });
-        res.json(ts);
+        res.json({ ...ts, integrityStatus: verifyTimesheetIntegrity(ts) });
     } catch (err) {
         if (err.code === 'P2025') return res.status(404).json({ error: 'Timesheet not found' });
         next(err);

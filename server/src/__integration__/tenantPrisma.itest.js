@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const { tenantClient, tenantTransaction } = require('../lib/tenantPrisma');
+const { CIPHERTEXT_RE } = require('../lib/phiCrypto');
 
 const owner = new PrismaClient({ datasourceUrl: process.env.DATABASE_URL });
 let a, b;
@@ -64,4 +65,43 @@ test('$queryRawUnsafe and $executeRawUnsafe are blocked on tenant clients', asyn
   const db = tenantClient(a.id);
   await expect(db.$queryRawUnsafe('SELECT 1')).rejects.toThrow(/not allowed on tenant clients/);
   await expect(db.$executeRawUnsafe('SELECT 1')).rejects.toThrow(/not allowed on tenant clients/);
+});
+
+describe('PHI transparency on the tenant client', () => {
+  // The headline risk this test guards against: tenantPrisma.js's base
+  // connection has no PHI extension of its own. If tenantClient() were ever
+  // built directly off that raw connection (skipping phiCrypto's
+  // encrypt-on-write / decrypt-on-read layer), every tenant-scoped request —
+  // i.e. all normal app traffic — would silently read and write PHI fields
+  // (Client.medicaidId/dob/notes/pcaNotes, etc.) in PLAINTEXT.
+  test('a PHI field written through tenantClient is stored encrypted and read back decrypted, scoped to its agency', async () => {
+    const db = tenantClient(a.id);
+
+    const created = await db.client.create({
+      data: { clientName: 'TP PHI Alice', medicaidId: '99988877701', dob: '1955-04-10' },
+    });
+    expect(created.agencyId).toBe(a.id);
+    // Transparent decryption: the tenant client hands back plaintext.
+    expect(created.medicaidId).toBe('99988877701');
+    expect(created.dob).toBe('1955-04-10');
+
+    // What's actually on disk must be ciphertext, not plaintext — verified via
+    // the raw, unextended owner connection (mirrors how lib/prismaBase.js /
+    // the backup export intentionally see ciphertext).
+    const raw = await owner.client.findUnique({ where: { id: created.id } });
+    expect(CIPHERTEXT_RE.test(raw.medicaidId)).toBe(true);
+    expect(CIPHERTEXT_RE.test(raw.dob)).toBe(true);
+    expect(raw.medicaidId).not.toBe('99988877701');
+
+    // Reading it back through the tenant client decrypts again.
+    const refetched = await db.client.findUnique({ where: { id: created.id } });
+    expect(refetched.medicaidId).toBe('99988877701');
+    expect(refetched.dob).toBe('1955-04-10');
+
+    // And it's still tenant-scoped: agency B's tenant client can't see it.
+    const leaked = await tenantClient(b.id).client.findUnique({ where: { id: created.id } });
+    expect(leaked).toBeNull();
+
+    await owner.client.delete({ where: { id: created.id } });
+  });
 });

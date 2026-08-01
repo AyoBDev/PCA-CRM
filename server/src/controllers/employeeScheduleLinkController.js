@@ -112,10 +112,11 @@ async function getScheduleView(req, res) {
                 totalPasHours: true,
                 totalHmHours: true,
                 totalRespiteHours: true,
+                totalCompanionHours: true,
                 totalHours: true,
                 client: { select: { clientName: true } },
                 entries: {
-                    select: { dayOfWeek: true, adlHours: true, iadlHours: true, respiteHours: true },
+                    select: { dayOfWeek: true, adlHours: true, iadlHours: true, respiteHours: true, companionHours: true },
                     orderBy: { dayOfWeek: 'asc' },
                 },
             },
@@ -128,9 +129,10 @@ async function getScheduleView(req, res) {
             totalPasHours: ts.totalPasHours,
             totalHmHours: ts.totalHmHours,
             totalRespiteHours: ts.totalRespiteHours,
+            totalCompanionHours: ts.totalCompanionHours,
             dailyHours: ts.entries.map(e => ({
                 dayOfWeek: e.dayOfWeek,
-                hours: Math.round(((e.adlHours || 0) + (e.iadlHours || 0) + (e.respiteHours || 0)) * 100) / 100,
+                hours: Math.round(((e.adlHours || 0) + (e.iadlHours || 0) + (e.respiteHours || 0) + (e.companionHours || 0)) * 100) / 100,
             })),
         }));
 

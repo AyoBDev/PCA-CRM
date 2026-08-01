@@ -2,7 +2,7 @@ import { DndContext, useDroppable, PointerSensor, useSensor, useSensors } from '
 import { LEAD_COLUMNS } from '../../utils/leadConstants';
 import LeadCard from './LeadCard';
 
-function Column({ column, leads, onView, onConvert }) {
+function Column({ column, leads, onView, onConvert, onMove, onArchive }) {
   const { setNodeRef, isOver } = useDroppable({ id: `col-${column.id}` });
   return (
     <div className="k-col">
@@ -12,20 +12,24 @@ function Column({ column, leads, onView, onConvert }) {
       </div>
       <div ref={setNodeRef} className={`k-col__body${isOver ? ' k-col__body--over' : ''}`}>
         {leads.length === 0 && <div className="k-empty">Drop leads here</div>}
-        {leads.map((l) => <LeadCard key={l.id} lead={l} onView={onView} onConvert={onConvert} />)}
+        {leads.map((l) => (
+          <LeadCard key={l.id} lead={l} onView={onView} onConvert={onConvert} onMove={onMove} onArchive={onArchive} />
+        ))}
       </div>
     </div>
   );
 }
 
-export default function LeadKanban({ leads, search, caseTypeFilter, onMove, onView, onConvert }) {
+export default function LeadKanban({ leads, search, caseTypeFilter, onMove, onView, onConvert, onArchive }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-  const q = (search || '').trim().toLowerCase();
+  const q = (search || '').trim().toLowerCase().replace(/\s+/g, ' ');
   const visible = leads.filter((l) => {
     if (caseTypeFilter && caseTypeFilter !== 'all' && l.caseType !== caseTypeFilter) return false;
     if (!q) return true;
-    return [l.firstName, l.lastName, l.phone, l.insuranceType, l.referralSource]
-      .filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
+    // Single haystack (with the full name as one token) so "First Last" matches.
+    const hay = [`${l.firstName || ''} ${l.lastName || ''}`, l.phone, l.insuranceType, l.referralSource]
+      .join(' ').toLowerCase().replace(/\s+/g, ' ');
+    return hay.includes(q);
   });
   function handleDragEnd(e) {
     const overId = e.over?.id;
@@ -40,7 +44,7 @@ export default function LeadKanban({ leads, search, caseTypeFilter, onMove, onVi
         {LEAD_COLUMNS.map((col) => (
           <Column key={col.id} column={col}
             leads={visible.filter((l) => col.statuses.includes(l.status))}
-            onView={onView} onConvert={onConvert} />
+            onView={onView} onConvert={onConvert} onMove={onMove} onArchive={onArchive} />
         ))}
       </div></div>
     </DndContext>

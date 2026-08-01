@@ -16,6 +16,7 @@ import LeadDormantView from '../components/leads/LeadDormantView';
 import LeadConvertedView from '../components/leads/LeadConvertedView';
 import LeadViewSwitcher from '../components/leads/LeadViewSwitcher';
 import ReactivateLeadModal from '../components/leads/ReactivateLeadModal';
+import ConfirmModal from '../components/common/ConfirmModal';
 import { statusToColumn, columnToStatus } from '../utils/leadConstants';
 
 const CASE_TYPE_OPTIONS = [
@@ -26,6 +27,39 @@ const CASE_TYPE_OPTIONS = [
 ];
 
 const DEFAULT_FILTERS = { year: 'all', month: 'all', caseType: 'all', search: '' };
+
+// Shared filter predicate used by all four views so the one LeadFilterBar in the
+// page behaves identically on Board, List, Dormant, and Converted.
+// `dateField` is the lead property the Year/Month filters apply to.
+function applyLeadFilters(leads, filters, dateField) {
+    // Collapse internal whitespace so a "First Last" query matches even when
+    // the stored name has stray/double spaces (e.g. "First  Last").
+    const q = filters.search.trim().toLowerCase().replace(/\s+/g, ' ');
+    return leads.filter((l) => {
+        if (filters.caseType !== 'all' && l.caseType !== filters.caseType) return false;
+        if (filters.year !== 'all' || filters.month !== 'all') {
+            if (!l[dateField]) return false;
+            const d = new Date(l[dateField]);
+            if (filters.year !== 'all' && d.getFullYear() !== filters.year) return false;
+            if (filters.month !== 'all' && d.getMonth() !== filters.month) return false;
+        }
+        if (q) {
+            const hay = [
+                `${l.firstName || ''} ${l.lastName || ''}`,
+                l.phone,
+                l.alternatePhone,
+                l.insuranceType,
+                l.medicaidId,
+                l.referralSource,
+            ]
+                .join(' ')
+                .toLowerCase()
+                .replace(/\s+/g, ' ');
+            if (!hay.includes(q)) return false;
+        }
+        return true;
+    });
+}
 
 export default function LeadsPage() {
     const undoState = useUndoStack();
@@ -49,6 +83,8 @@ export default function LeadsPage() {
     const [detailLead, setDetailLead] = useState(null);
     const [convertLeadObj, setConvertLeadObj] = useState(null);
     const [reactivateLeadObj, setReactivateLeadObj] = useState(null);
+    const [revertLeadObj, setRevertLeadObj] = useState(null);
+    const [reverting, setReverting] = useState(false);
 
     // ── Data loading ──────────────────────────────────────────────────────────
     const loadActive = useCallback(async () => {
@@ -87,36 +123,22 @@ export default function LeadsPage() {
         if (view === 'converted') loadConverted();
     }, [view, loadDormant, loadConverted]);
 
-    // ── Client-side filter pipeline (Board + List share this) ────────────────
-    const filteredActive = useMemo(() => {
-        const q = filters.search.trim().toLowerCase();
-        return activeLeads.filter((l) => {
-            // Case type
-            if (filters.caseType !== 'all' && l.caseType !== filters.caseType) return false;
-            // Year / Month (against createdAt)
-            if (filters.year !== 'all' || filters.month !== 'all') {
-                if (!l.createdAt) return false;
-                const d = new Date(l.createdAt);
-                if (filters.year !== 'all' && d.getFullYear() !== filters.year) return false;
-                if (filters.month !== 'all' && d.getMonth() !== filters.month) return false;
-            }
-            // Search
-            if (q) {
-                const hay = [
-                    `${l.firstName || ''} ${l.lastName || ''}`,
-                    l.phone,
-                    l.alternatePhone,
-                    l.insuranceType,
-                    l.medicaidId,
-                    l.referralSource,
-                ]
-                    .join(' ')
-                    .toLowerCase();
-                if (!hay.includes(q)) return false;
-            }
-            return true;
-        });
-    }, [activeLeads, filters]);
+    // ── Client-side filter pipeline ──────────────────────────────────────────
+    // Every view (Board, List, Dormant, Converted) runs the same predicate so the
+    // shared LeadFilterBar behaves identically across tabs. `dateField` differs
+    // per view: active leads filter on createdAt, converted leads on convertedAt.
+    const filteredActive = useMemo(
+        () => applyLeadFilters(activeLeads, filters, 'createdAt'),
+        [activeLeads, filters],
+    );
+    const filteredDormant = useMemo(
+        () => applyLeadFilters(dormantLeads, filters, 'createdAt'),
+        [dormantLeads, filters],
+    );
+    const filteredConverted = useMemo(
+        () => applyLeadFilters(convertedLeads, filters, 'convertedAt'),
+        [convertedLeads, filters],
+    );
 
     // ── Handlers ──────────────────────────────────────────────────────────────
     const handleFilterChange = useCallback((patch) => {
@@ -153,13 +175,16 @@ export default function LeadsPage() {
 
     const handleSave = useCallback(async (payload) => {
         try {
+            let saved;
             if (editLead) {
                 const r = await api.updateLead(editLead.id, payload);
                 setActiveLeads((c) => c.map((x) => (x.id === r.id ? r : x)));
+                saved = r;
                 showToast('Lead updated', 'success');
             } else {
                 const created = await api.createLead(payload);
                 setActiveLeads((c) => [created, ...c]);
+                saved = created;
                 undoState.pushAction(
                     'Add lead',
                     async () => {
@@ -176,8 +201,11 @@ export default function LeadsPage() {
             setWizardOpen(false);
             setEditLead(null);
             loadActive();
+            // Return the saved lead so the wizard can upload any staged attachments.
+            return saved;
         } catch (err) {
             showToast(err.message, 'error');
+            throw err;
         }
     }, [editLead, undoState, showToast, loadActive]);
 
@@ -226,17 +254,33 @@ export default function LeadsPage() {
         navigate(clientId ? `/clients/${clientId}` : '/clients');
     }, [navigate, loadActive]);
 
-    // Detail view actions common between Board and List
-    const openEdit = useCallback((lead) => {
-        setEditLead(lead);
-        setDetailLead(null);
-        setWizardOpen(true);
-    }, []);
+    // Closing the convert overlay without viewing the client: the conversion may
+    // already have happened server-side, so refresh the board so a converted
+    // lead doesn't linger. (Recently Converted stats also update.)
+    const onConvertClosed = useCallback(() => {
+        setConvertLeadObj(null);
+        loadActive();
+    }, [loadActive]);
 
-    const openConvert = useCallback((lead) => {
-        setConvertLeadObj(lead);
-        setDetailLead(null);
-    }, []);
+    // Move an accidentally-converted lead back to the board. Deletes the
+    // auto-created (empty) client server-side; not undo-able, so it's confirmed.
+    const handleRevertConfirmed = useCallback(async () => {
+        const lead = revertLeadObj;
+        if (!lead) return;
+        setReverting(true);
+        try {
+            await api.revertLeadConversion(lead.id);
+            setConvertedLeads((c) => c.filter((x) => x.id !== lead.id));
+            setRevertLeadObj(null);
+            showToast('Moved back to Potential Clients', 'success');
+            // Refresh active board + stats so the restored lead + KPIs are current.
+            loadActive();
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setReverting(false);
+        }
+    }, [revertLeadObj, showToast, loadActive]);
 
     return (
         <>
@@ -304,19 +348,22 @@ export default function LeadsPage() {
                 </div>
             )}
 
-            {/* Filter bar for Board + List views only. Dormant has its own search. */}
-            {(view === 'board' || view === 'list') && (
-                <LeadFilterBar
-                    leads={activeLeads}
-                    year={filters.year}
-                    month={filters.month}
-                    caseType={filters.caseType}
-                    search={filters.search}
-                    onChange={handleFilterChange}
-                    onReset={handleFilterReset}
-                    caseTypeOptions={CASE_TYPE_OPTIONS}
-                />
-            )}
+            {/* One shared filter bar across every view. It is fed the current
+                view's dataset so the Year/Month "has data" dots stay accurate. */}
+            <LeadFilterBar
+                leads={
+                    view === 'dormant' ? dormantLeads
+                    : view === 'converted' ? convertedLeads
+                    : activeLeads
+                }
+                year={filters.year}
+                month={filters.month}
+                caseType={filters.caseType}
+                search={filters.search}
+                onChange={handleFilterChange}
+                onReset={handleFilterReset}
+                caseTypeOptions={CASE_TYPE_OPTIONS}
+            />
 
             {view === 'board' && (
                 <LeadKanban
@@ -326,6 +373,7 @@ export default function LeadsPage() {
                     onMove={handleMove}
                     onView={setDetailLead}
                     onConvert={setConvertLeadObj}
+                    onArchive={handleArchive}
                 />
             )}
 
@@ -333,21 +381,20 @@ export default function LeadsPage() {
                 <LeadListView
                     leads={filteredActive}
                     onView={setDetailLead}
-                    onEdit={openEdit}
                     onArchive={handleArchive}
-                    onConvert={openConvert}
+                    onMove={handleMove}
                 />
             )}
 
             {view === 'dormant' && (
                 <LeadDormantView
-                    leads={dormantLeads}
+                    leads={filteredDormant}
                     onReactivate={setReactivateLeadObj}
                 />
             )}
 
             {view === 'converted' && (
-                <LeadConvertedView leads={convertedLeads} />
+                <LeadConvertedView leads={filteredConverted} onRevert={setRevertLeadObj} />
             )}
 
             {wizardOpen && (
@@ -370,7 +417,7 @@ export default function LeadsPage() {
                 open={!!convertLeadObj}
                 lead={convertLeadObj}
                 onConfirmed={onConverted}
-                onClose={() => setConvertLeadObj(null)}
+                onClose={onConvertClosed}
             />
 
             {reactivateLeadObj && (
@@ -379,6 +426,17 @@ export default function LeadsPage() {
                     onClose={() => setReactivateLeadObj(null)}
                     onConfirmed={handleReactivateConfirmed}
                     reactivateLead={api.reactivateLead}
+                />
+            )}
+
+            {revertLeadObj && (
+                <ConfirmModal
+                    title="Move back to Potential Clients?"
+                    message={`This will move ${`${revertLeadObj.firstName || ''} ${revertLeadObj.lastName || ''}`.trim() || 'this lead'} back to the leads board and delete the client record created when they were converted. This can't be undone. If the client already has authorizations, shifts, or timesheets, the move will be blocked.`}
+                    confirmLabel={reverting ? 'Moving…' : 'Move Back'}
+                    confirmVariant="danger"
+                    onConfirm={handleRevertConfirmed}
+                    onClose={() => setRevertLeadObj(null)}
                 />
             )}
         </>
