@@ -63,11 +63,12 @@ export default function AuthorizationFormModal({
         !isRenewal && auth?.authorizationEndDate ? new Date(auth.authorizationEndDate).toISOString().split('T')[0] : ''
     );
     const [notes, setNotes] = useState(isRenewal ? '' : (auth?.notes || ''));
-    // Editing an existing auth defaults to the Renewal flow (no manual "Active"
-    // status anymore); a brand-new auth or an explicit /renew flow keeps its
-    // own defaults.
+    // Editing an existing auth opens with NO status chosen — the user must pick
+    // Renewal or Inactive, and only then do that flow's fields appear. An
+    // explicit /renew flow starts on renewal; a brand-new auth uses 'active'
+    // (its create flow doesn't show status cards).
     const [manualStatus, setManualStatus] = useState(
-        isRenewal ? 'renewal' : (auth?.id ? 'renewal' : 'active')
+        isRenewal ? 'renewal' : (auth?.id ? '' : 'active')
     );
     const [notePreset, setNotePreset] = useState('Annual Renewal – No Changes');
     const [inactiveEnd, setInactiveEnd] = useState(new Date().toISOString().split('T')[0]);
@@ -473,20 +474,22 @@ export default function AuthorizationFormModal({
                             This authorization will stay visible on this client's profile under <b>{serviceCode}</b>, flagged
                             inactive with the reason and note below — nothing is deleted.
                         </div>
-                        <div className="field">
-                            <label>Authorization End Date</label>
-                            <input type="date" value={inactiveEnd} onChange={(e) => setInactiveEnd(e.target.value)} />
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div className="form-group">
+                                <label>Authorization End Date</label>
+                                <input type="date" value={inactiveEnd} onChange={(e) => setInactiveEnd(e.target.value)} />
+                            </div>
+                            <div className="form-group">
+                                <label>Reason</label>
+                                <select value={inactiveReason} onChange={(e) => setInactiveReason(e.target.value)}>
+                                    <option>Client transferred to another agency</option>
+                                    <option>Client passed away</option>
+                                    <option>No contact with client</option>
+                                    <option>Other</option>
+                                </select>
+                            </div>
                         </div>
-                        <div className="field">
-                            <label>Reason</label>
-                            <select value={inactiveReason} onChange={(e) => setInactiveReason(e.target.value)}>
-                                <option>Client transferred to another agency</option>
-                                <option>Client passed away</option>
-                                <option>No contact with client</option>
-                                <option>Other</option>
-                            </select>
-                        </div>
-                        <div className="field">
+                        <div className="form-group">
                             <label>Notes</label>
                             <textarea value={inactiveNote} onChange={(e) => setInactiveNote(e.target.value)} placeholder="Optional additional detail..." />
                         </div>
@@ -512,11 +515,16 @@ export default function AuthorizationFormModal({
 
                 <div className="form-actions">
                     <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn--primary">
+                    <button
+                        type="submit"
+                        className="btn btn--primary"
+                        disabled={isEdit && manualStatus !== 'renewal' && manualStatus !== 'inactive'}
+                    >
                         {!isEdit ? 'Add Authorization'
                             : correctingInPlace ? 'Save Correction'
                             : manualStatus === 'inactive' ? 'Save & Mark Inactive'
-                            : 'Save Renewal'}
+                            : manualStatus === 'renewal' ? 'Save Renewal'
+                            : 'Save'}
                     </button>
                 </div>
             </form>
