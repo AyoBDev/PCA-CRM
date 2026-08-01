@@ -11247,16 +11247,16 @@ button.sdr-section-tag:hover:not(:disabled) {
   background: hsl(142 76% 97%);
 }
 .auth-status-card--inactive {
-  border-color: #6b7280;
-  background: hsl(220 9% 97%);
+  border-color: hsl(var(--destructive));
+  background: hsl(var(--destructive) / 0.06);
 }
 .auth-status-card--expired {
   border-color: #dc2626;
   background: hsl(0 84% 97%);
 }
 .auth-status-card--renewal {
-  border-color: #2563eb;
-  background: hsl(217 91% 97%);
+  border-color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.06);
 }
 .auth-status-card__radio {
   width: 18px;
@@ -11272,13 +11272,13 @@ button.sdr-section-tag:hover:not(:disabled) {
   border-color: #16a34a;
 }
 .auth-status-card--inactive .auth-status-card__radio {
-  border-color: #6b7280;
+  border-color: hsl(var(--destructive));
 }
 .auth-status-card--expired .auth-status-card__radio {
   border-color: #dc2626;
 }
 .auth-status-card--renewal .auth-status-card__radio {
-  border-color: #2563eb;
+  border-color: hsl(var(--primary));
 }
 .auth-status-card__dot {
   width: 8px;
@@ -11291,13 +11291,13 @@ button.sdr-section-tag:hover:not(:disabled) {
   background: #16a34a;
 }
 .auth-status-card--inactive .auth-status-card__dot {
-  background: #6b7280;
+  background: hsl(var(--destructive));
 }
 .auth-status-card--expired .auth-status-card__dot {
   background: #dc2626;
 }
 .auth-status-card--renewal .auth-status-card__dot {
-  background: #2563eb;
+  background: hsl(var(--primary));
 }
 .auth-status-card__label {
   display: block;
@@ -11305,12 +11305,35 @@ button.sdr-section-tag:hover:not(:disabled) {
   font-weight: 600;
   line-height: 1;
 }
+.auth-status-card__label--renewal {
+  color: hsl(var(--primary));
+}
+.auth-status-card--inactive .auth-status-card__label {
+  color: hsl(var(--destructive));
+}
 .auth-status-card__desc {
   display: block;
   font-size: 12px;
   color: hsl(var(--muted-foreground));
   line-height: 1.4;
   margin-top: 4px;
+}
+
+/* Edit Authorization modal — eyebrow above the service title */
+.modal__eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+  margin-bottom: 2px;
+}
+
+/* Danger variant of the renewal preview banner, used for the inactive notice */
+.preview-box--danger {
+  background: hsl(var(--destructive) / 0.06);
+  border-color: hsl(var(--destructive) / 0.25);
+  color: hsl(var(--destructive));
 }
 
 /* Auth attachment link in table row */

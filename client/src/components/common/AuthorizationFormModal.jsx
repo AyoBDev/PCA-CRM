@@ -221,12 +221,33 @@ export default function AuthorizationFormModal({
     const desc = isRenewal
         ? 'Create a new authorization to replace the previous one.'
         : isEdit ? 'Update the authorization details below.' : 'Fill in the service and date details.';
+    // Edit mode gets an eyebrow + service title (matches the approved mockup);
+    // create/renew keep the plain modal title.
+    const editTitle = (serviceCode || serviceName)
+        ? `${serviceCode || ''}${serviceCode && serviceName ? ' — ' : ''}${serviceName || ''}`
+        : 'Edit Authorization';
 
     return (
         <Modal onClose={onClose} wide>
-            <h2 className="modal__title">{title}</h2>
-            <p className="modal__desc">{desc}</p>
+            {isEdit ? (
+                <>
+                    <div className="modal__eyebrow">Edit Authorization</div>
+                    <h2 className="modal__title">{editTitle}</h2>
+                </>
+            ) : (
+                <>
+                    <h2 className="modal__title">{title}</h2>
+                    <p className="modal__desc">{desc}</p>
+                </>
+            )}
             <form onSubmit={handleSubmit}>
+                {/* Create/renew flow shows the full field set up front. Edit mode
+                    hides these — the status cards come first and reveal only the
+                    fields relevant to the chosen action. Values still live in
+                    state (seeded from `auth`) so renewal + correct-in-place carry
+                    them. */}
+                {!isEdit && (
+                <>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-group" style={{ position: 'relative' }}>
                         <label>Service Category</label>
@@ -313,11 +334,15 @@ export default function AuthorizationFormModal({
                         <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} onPaste={handleDatePaste(setEndDate)} required />
                     </div>
                 </div>
-                {!(isEdit && manualStatus === 'inactive') && (
-                    <div className="form-group">
-                        <label>Notes</label>
-                        <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes…" />
-                    </div>
+                </>
+                )}
+
+                {/* Edit mode: a one-line helper mirrors the create flow's derived
+                    authorization-type hint, shown above the status cards. */}
+                {isEdit && (
+                    <p className="form-hint" style={{ marginTop: 0 }}>
+                        Set automatically from the service category — GUIDE is tracked by annual visits, all other services by weekly units.
+                    </p>
                 )}
 
                 {/* Existing auth: Renewal / Inactive toggle only — no manual "Active" card.
@@ -329,7 +354,7 @@ export default function AuthorizationFormModal({
                             <label className={`auth-status-card ${manualStatus === 'renewal' ? 'auth-status-card--renewal' : ''}`}>
                                 <input type="radio" name="authStatus" value="renewal" checked={manualStatus === 'renewal'} onChange={() => { setManualStatus('renewal'); setCorrectingInPlace(false); }} />
                                 <div className="auth-status-card__radio"><span className="auth-status-card__dot" /></div>
-                                <span className="auth-status-card__label" style={{ color: '#2563eb' }}>Renewal</span>
+                                <span className="auth-status-card__label auth-status-card__label--renewal">Renewal</span>
                                 <span className="auth-status-card__desc">Annual renewal or any significant change — new dates, new units, new care plan.</span>
                             </label>
                             <label className={`auth-status-card ${manualStatus === 'inactive' ? 'auth-status-card--inactive' : ''}`}>
@@ -349,21 +374,55 @@ export default function AuthorizationFormModal({
                             with an end date of <b>{startDate ? fmtDayBefore(startDate) : '—'}</b> — the day before
                             this new authorization starts. No overlapping dates, no manual entry.
                         </div>
-                        <div className="field">
-                            <label>Authorization Note</label>
-                            <select value={notePreset} onChange={(e) => setNotePreset(e.target.value)}>
-                                <option>Annual Renewal – No Changes</option>
-                                <option>Hours Increased</option>
-                                <option>Hours Decreased</option>
-                                <option>New Care Plan Received</option>
-                                <option value="custom">Other — write below</option>
-                            </select>
+                        <div className="form-group">
+                            <label>New Authorization Number</label>
+                            <input type="text" value={authorizationNumber} onChange={(e) => setAuthorizationNumber(e.target.value)} placeholder="e.g. A-2026-0119" />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div className="form-group">
+                                <label>{isAnnual ? 'Authorized Visits' : 'Auth Units'}</label>
+                                <input type="number" value={isAnnual ? authorizedVisitsPerYear : authorizedUnits} onChange={(e) => (isAnnual ? setAuthorizedVisitsPerYear(e.target.value) : setAuthorizedUnits(e.target.value))} placeholder="0" />
+                            </div>
+                            <div className="form-group">
+                                <label>Auth Start</label>
+                                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} onPaste={handleDatePaste(setStartDate)} />
+                            </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div className="form-group">
+                                <label>Auth End</label>
+                                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} onPaste={handleDatePaste(setEndDate)} required />
+                            </div>
+                            <div className="form-group">
+                                <label>Note</label>
+                                <select value={notePreset} onChange={(e) => setNotePreset(e.target.value)}>
+                                    <option>Annual Renewal – No Changes</option>
+                                    <option>Hours Increased</option>
+                                    <option>Hours Decreased</option>
+                                    <option>New Care Plan Received</option>
+                                    <option value="custom">Other — write below</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="form-group">
                             <textarea
-                                style={{ marginTop: 8 }}
                                 value={notes}
                                 onChange={(e) => setNotes(e.target.value)}
                                 placeholder="Add detail — e.g. increased from 40 to 48 units/week per new care plan."
                             />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div className="form-group">
+                                <label>Account Number</label>
+                                <select value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)}>
+                                    <option value="">— Select —</option>
+                                    {ACCOUNT_NUMBER_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label>Sandata Client ID</label>
+                                <input type="text" value={sandataClientId} onChange={(e) => setSandataClientId(e.target.value)} placeholder="e.g. 1234567" />
+                            </div>
                         </div>
                         <button type="button" className="btn btn--ghost btn--sm" onClick={() => setCorrectingInPlace(true)}>
                             Correct current authorization instead
@@ -371,8 +430,49 @@ export default function AuthorizationFormModal({
                     </>
                 )}
 
+                {/* Correct-in-place: fix a typo on the current auth without creating
+                    a new one. Reveals the editable core fields only. */}
+                {isEdit && manualStatus === 'renewal' && correctingInPlace && (
+                    <>
+                        <div className="form-group">
+                            <label>Authorization Number</label>
+                            <input type="text" value={authorizationNumber} onChange={(e) => setAuthorizationNumber(e.target.value)} placeholder="e.g. A-2025-0119" />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div className="form-group">
+                                <label>{isAnnual ? 'Authorized Visits' : 'Auth Units'}</label>
+                                <input type="number" value={isAnnual ? authorizedVisitsPerYear : authorizedUnits} onChange={(e) => (isAnnual ? setAuthorizedVisitsPerYear(e.target.value) : setAuthorizedUnits(e.target.value))} placeholder="0" />
+                            </div>
+                            <div className="form-group">
+                                <label>Auth Start</label>
+                                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} onPaste={handleDatePaste(setStartDate)} />
+                            </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div className="form-group">
+                                <label>Auth End</label>
+                                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} onPaste={handleDatePaste(setEndDate)} required />
+                            </div>
+                            <div className="form-group">
+                                <label>Account Number</label>
+                                <select value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)}>
+                                    <option value="">— Select —</option>
+                                    {ACCOUNT_NUMBER_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                        <button type="button" className="btn btn--ghost btn--sm" onClick={() => setCorrectingInPlace(false)}>
+                            ← Back to renewal
+                        </button>
+                    </>
+                )}
+
                 {isEdit && manualStatus === 'inactive' && (
                     <>
+                        <div className="preview-box preview-box--danger">
+                            This authorization will stay visible on this client's profile under <b>{serviceCode}</b>, flagged
+                            inactive with the reason and note below — nothing is deleted.
+                        </div>
                         <div className="field">
                             <label>Authorization End Date</label>
                             <input type="date" value={inactiveEnd} onChange={(e) => setInactiveEnd(e.target.value)} />
@@ -393,7 +493,7 @@ export default function AuthorizationFormModal({
                     </>
                 )}
 
-                {showUpload && (
+                {showUpload && (!isEdit || (manualStatus === 'renewal' && !correctingInPlace)) && (
                     <div className="form-group">
                         <label>Upload PA / Care Plan Documents</label>
                         <input
