@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Modal from '../common/Modal';
 import * as api from '../../api';
-import * as Icons from '../common/Icons';
+import Icons from '../common/Icons';
 import { useAuth } from '../../hooks/useAuth';
+import { useToast } from '../../hooks/useToast';
 import { LEAD_STATUSES, LEAD_CASE_TYPES, computeDeposit, computeWeekly } from '../../utils/leadConstants';
 
 const SERVICE_OPTIONS = [
@@ -18,6 +19,14 @@ const LANGUAGE_OPTIONS = ['English', 'Spanish', 'French', 'Creole', 'Other'];
 const RELATION_OPTIONS = ['Spouse', 'Son/Daughter', 'Parent', 'Sibling', 'Other'];
 const DAYS_PER_WEEK_OPTIONS = ['1-2 days', '3-4', '5 days (M-F)', '6-7 days', 'Flexible'];
 const START_DATE_OPTIONS = ['ASAP', 'Within 1 week', 'Within 2 weeks', 'Next month'];
+// Channel the lead came in through (value stored on Lead.leadSource).
+const LEAD_SOURCE_OPTIONS = [
+    { value: 'referrer', label: 'Referrer' },
+    { value: 'call',     label: 'Call' },
+    { value: 'website',  label: 'Website' },
+    { value: 'fax',      label: 'Fax' },
+    { value: 'other',    label: 'Other' },
+];
 
 const STEP_LABELS = ['Basic Info', 'Service Needs', 'Case Type', 'Preferences', 'Status'];
 
@@ -25,7 +34,7 @@ const EMPTY = {
     createdBy: '',
     firstName: '', lastName: '', phone: '', alternatePhone: '', address: '', dob: '', gender: '',
     medicaidId: '', insuranceNumber: '', insuranceType: '',
-    referralSource: '', doctorName: '', doctorPhone: '', caseworkerName: '', caseworkerPhone: '',
+    leadSource: '', otherLeadSource: '', referralSource: '', doctorName: '', doctorPhone: '', caseworkerName: '', caseworkerPhone: '',
     emergencyContactName: '', emergencyContactRelation: '', emergencyContactPhone: '', emergencyContactEmail: '', callNotes: '',
     servicesRequested: [], otherService: '', daysPerWeek: '', hoursPerDay: '', startDateNeeded: '',
     caseType: 'initial', authStatus: '', expectedStartDate: '', currentAgencyName: '', currentAuthHoursMonth: 0, authNumber: '', transferReason: '', transferNotes: '',
@@ -47,6 +56,10 @@ function hydrate(lead) {
     const otherService = otherEntry ? otherEntry.slice('Other:'.length).trim() : '';
     const storedLang = lead.languagePreference || 'English';
     const isCustomLang = storedLang && !LANGUAGE_OPTIONS.includes(storedLang);
+    // Lead source: if the stored value isn't one of the known channel keys,
+    // treat it as a custom "Other" entry and surface the text in the input.
+    const storedSource = lead.leadSource || '';
+    const isCustomSource = storedSource && !LEAD_SOURCE_OPTIONS.some((o) => o.value === storedSource);
     return {
         ...EMPTY,
         ...lead,
@@ -55,6 +68,8 @@ function hydrate(lead) {
         shiftPreferences: safeArr(lead.shiftPreferences).length ? safeArr(lead.shiftPreferences) : ['Morning shift'],
         languagePreference: isCustomLang ? 'Other' : storedLang,
         otherLanguage: isCustomLang ? storedLang : '',
+        leadSource: isCustomSource ? 'other' : storedSource,
+        otherLeadSource: isCustomSource ? storedSource : '',
         dob: lead.dob ? lead.dob.slice(0, 10) : '',
         expectedStartDate: lead.expectedStartDate ? lead.expectedStartDate.slice(0, 10) : '',
         followUpDate: lead.followUpDate ? lead.followUpDate.slice(0, 10) : '',
@@ -89,6 +104,75 @@ function FormCard({ title, children }) {
             <div className="lead-form-card__header">{title}</div>
             <div className="lead-form-card__body">{children}</div>
         </div>
+    );
+}
+
+const ATTACH_ACCEPT = 'image/*,application/pdf,.doc,.docx';
+
+function fmtSize(bytes) {
+    if (!bytes && bytes !== 0) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Attachments card — staged files on a new lead, live upload/delete on an edit.
+function AttachmentsCard({ isEdit, pendingFiles, existingDocs, busy, onAdd, onRemovePending, onRemoveExisting }) {
+    const inputRef = useRef(null);
+    const rows = [
+        ...existingDocs.map((d) => ({ key: `e-${d.id}`, name: d.fileName, size: d.fileSize, saved: true, id: d.id })),
+        ...pendingFiles.map((f, i) => ({ key: `p-${i}`, name: f.name, size: f.size, saved: false, idx: i })),
+    ];
+    return (
+        <FormCard title="Attachments">
+            <div className="fld" style={{ marginBottom: 0 }}>
+                <label>Documents &amp; Images</label>
+                <input
+                    ref={inputRef}
+                    type="file"
+                    multiple
+                    accept={ATTACH_ACCEPT}
+                    style={{ display: 'none' }}
+                    onChange={(e) => { onAdd(e.target.files); e.target.value = ''; }}
+                />
+                <div className="lead-attach">
+                    <button
+                        type="button"
+                        className="btn btn--outline btn--sm"
+                        onClick={() => inputRef.current?.click()}
+                        disabled={busy}
+                    >
+                        {Icons.paperclip} Add files
+                    </button>
+                    <span className="lead-attach__hint">Images, PDF, or Word docs · up to 20 MB each</span>
+                </div>
+
+                {rows.length > 0 && (
+                    <ul className="lead-attach__list">
+                        {rows.map((r) => (
+                            <li key={r.key} className="lead-attach__item">
+                                <span className="lead-attach__icon">{Icons.fileText}</span>
+                                <span className="lead-attach__name" title={r.name}>{r.name}</span>
+                                <span className="lead-attach__size">{fmtSize(r.size)}</span>
+                                {!r.saved && <span className="lead-attach__badge">Pending</span>}
+                                <button
+                                    type="button"
+                                    className="lead-attach__remove"
+                                    aria-label={`Remove ${r.name}`}
+                                    disabled={busy}
+                                    onClick={() => (r.saved ? onRemoveExisting(r.id) : onRemovePending(r.idx))}
+                                >
+                                    {Icons.x}
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+                {!isEdit && pendingFiles.length > 0 && (
+                    <span className="lead-attach__note">These upload automatically when you save the referral.</span>
+                )}
+            </div>
+        </FormCard>
     );
 }
 
@@ -193,6 +277,29 @@ function Step1Basic({ form, set, insuranceOptions, users }) {
                     <div className="fld">
                         <label>Referral Source</label>
                         <input className="finput" value={form.referralSource} onChange={(e) => set('referralSource', e.target.value)} placeholder="e.g. Hospital discharge planner" />
+                    </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="fld" style={{ marginBottom: 0 }}>
+                        <label>Lead Source</label>
+                        <select className="finput" value={form.leadSource} onChange={(e) => set('leadSource', e.target.value)}>
+                            <option value="">— Select —</option>
+                            {LEAD_SOURCE_OPTIONS.map((o) => (
+                                <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                        </select>
+                        {form.leadSource === 'other' && (
+                            <input
+                                className="finput"
+                                style={{ marginTop: 8 }}
+                                value={form.otherLeadSource}
+                                onChange={(e) => set('otherLeadSource', e.target.value)}
+                                placeholder="Please specify the source"
+                            />
+                        )}
+                        <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 2 }}>
+                            How did this lead reach us?
+                        </span>
                     </div>
                 </div>
             </FormCard>
@@ -528,12 +635,18 @@ function Step5Status({ form, set, users }) {
 
 export default function LeadIntakeWizard({ open = true, initialLead, onClose, onSave }) {
     const { user } = useAuth();
+    const { showToast } = useToast();
     const [step, setStep] = useState(1);
     const [form, setForm] = useState(() => hydrate(initialLead));
     const [insuranceTypes, setInsuranceTypes] = useState([]);
     const [users, setUsers] = useState([]);
     const [submitting, setSubmitting] = useState(false);
     const [step1Error, setStep1Error] = useState('');
+    // Attachments staged on a NEW lead (uploaded after the lead is created).
+    const [pendingFiles, setPendingFiles] = useState([]);
+    // Attachments already saved on an EXISTING lead (edit mode).
+    const [existingDocs, setExistingDocs] = useState([]);
+    const [docBusy, setDocBusy] = useState(false);
 
     useEffect(() => {
         if (open) {
@@ -545,6 +658,12 @@ export default function LeadIntakeWizard({ open = true, initialLead, onClose, on
             }
             setForm(hydrated);
             setStep1Error('');
+            setPendingFiles([]);
+            setExistingDocs([]);
+            // Edit mode: load any attachments already on this lead.
+            if (initialLead?.id) {
+                api.listLeadDocuments(initialLead.id).then(setExistingDocs).catch(() => setExistingDocs([]));
+            }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, initialLead, user]);
@@ -562,6 +681,41 @@ export default function LeadIntakeWizard({ open = true, initialLead, onClose, on
     const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
     const toggleArr = (k, v) => setForm((f) => ({ ...f, [k]: f[k].includes(v) ? f[k].filter((x) => x !== v) : [...f[k], v] }));
 
+    const isEdit = !!form.id;
+
+    // Add picked files: in edit mode upload immediately; otherwise stage them.
+    async function addFiles(fileList) {
+        const files = Array.from(fileList || []);
+        if (!files.length) return;
+        if (isEdit) {
+            setDocBusy(true);
+            try {
+                for (const file of files) {
+                    const doc = await api.uploadLeadDocument(form.id, file);
+                    setExistingDocs((d) => [doc, ...d]);
+                }
+            } catch (err) {
+                showToast(err.message || 'Upload failed', 'error');
+            } finally {
+                setDocBusy(false);
+            }
+        } else {
+            setPendingFiles((p) => [...p, ...files]);
+        }
+    }
+    const removePending = (idx) => setPendingFiles((p) => p.filter((_, i) => i !== idx));
+    async function removeExisting(id) {
+        setDocBusy(true);
+        try {
+            await api.deleteLeadDocument(id);
+            setExistingDocs((d) => d.filter((x) => x.id !== id));
+        } catch (err) {
+            showToast(err.message || 'Delete failed', 'error');
+        } finally {
+            setDocBusy(false);
+        }
+    }
+
     const insuranceOptions = [
         // Drop any DB "Private Pay" row so it isn't duplicated by the appended option below.
         ...insuranceTypes.map((t) => t.name).filter((n) => n.trim().toLowerCase() !== 'private pay'),
@@ -571,7 +725,7 @@ export default function LeadIntakeWizard({ open = true, initialLead, onClose, on
     async function submit() {
         setSubmitting(true);
         try {
-            const { otherService, otherLanguage, ...rest } = form;
+            const { otherService, otherLanguage, otherLeadSource, ...rest } = form;
             const services = form.servicesRequested.map((s) =>
                 s === 'Other' && otherService.trim() ? `Other: ${otherService.trim()}` : s
             );
@@ -579,9 +733,15 @@ export default function LeadIntakeWizard({ open = true, initialLead, onClose, on
                 form.languagePreference === 'Other' && otherLanguage.trim()
                     ? otherLanguage.trim()
                     : form.languagePreference;
-            await onSave({
+            // When "Other" is picked, persist the typed value as the lead source.
+            const leadSource =
+                form.leadSource === 'other' && otherLeadSource.trim()
+                    ? otherLeadSource.trim()
+                    : form.leadSource;
+            const saved = await onSave({
                 ...rest,
                 languagePreference,
+                leadSource,
                 currentAuthHoursMonth: Number(form.currentAuthHoursMonth) || 0,
                 ppRate: Number(form.ppRate) || 0,
                 ppHoursPerWeek: Number(form.ppHoursPerWeek) || 0,
@@ -589,6 +749,18 @@ export default function LeadIntakeWizard({ open = true, initialLead, onClose, on
                 servicesRequested: JSON.stringify(services),
                 shiftPreferences: JSON.stringify(form.shiftPreferences),
             });
+            // Upload any files staged for a brand-new lead now that it exists.
+            const newLeadId = saved?.id;
+            if (newLeadId && pendingFiles.length) {
+                let failed = 0;
+                for (const file of pendingFiles) {
+                    try { await api.uploadLeadDocument(newLeadId, file); }
+                    catch { failed += 1; }
+                }
+                if (failed) showToast(`${failed} attachment${failed > 1 ? 's' : ''} failed to upload`, 'error');
+            }
+        } catch {
+            // onSave surfaces its own error toast; keep the wizard open on failure.
         } finally {
             setSubmitting(false);
         }
@@ -610,7 +782,20 @@ export default function LeadIntakeWizard({ open = true, initialLead, onClose, on
             <StepBar step={step} />
 
             <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: 4, paddingBottom: 4 }}>
-                {step === 1 && <Step1Basic form={form} set={set} insuranceOptions={insuranceOptions} users={users} />}
+                {step === 1 && (
+                    <>
+                        <Step1Basic form={form} set={set} insuranceOptions={insuranceOptions} users={users} />
+                        <AttachmentsCard
+                            isEdit={isEdit}
+                            pendingFiles={pendingFiles}
+                            existingDocs={existingDocs}
+                            busy={docBusy}
+                            onAdd={addFiles}
+                            onRemovePending={removePending}
+                            onRemoveExisting={removeExisting}
+                        />
+                    </>
+                )}
                 {step === 2 && <Step2Services form={form} set={set} toggleArr={toggleArr} />}
                 {step === 3 && <Step3CaseType form={form} set={set} />}
                 {step === 4 && <Step4Preferences form={form} set={set} toggleArr={toggleArr} />}
