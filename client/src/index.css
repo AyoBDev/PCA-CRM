@@ -10976,6 +10976,11 @@ button.sdr-section-tag:hover:not(:disabled) {
   gap: 5px;
   padding: 4px 2px;
 }
+.pa-history__toggle svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
 .pa-history__toggle:hover {
   opacity: 0.8;
 }
