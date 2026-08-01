@@ -15375,6 +15375,117 @@ tr:hover .auth-note-icon--empty {
     padding: 14px 14px 14px;
 }
 
+/* ── Lead attachments ── */
+.lead-attach {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.lead-attach .btn svg {
+    width: 14px;
+    height: 14px;
+    margin-right: 4px;
+    vertical-align: -2px;
+}
+
+.lead-attach__hint {
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+}
+
+.lead-attach__list {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.lead-attach__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 6px;
+    background: hsl(var(--muted) / 0.4);
+}
+
+.lead-attach__icon {
+    display: flex;
+    color: hsl(var(--muted-foreground));
+    flex-shrink: 0;
+}
+
+.lead-attach__icon svg {
+    width: 15px;
+    height: 15px;
+}
+
+.lead-attach__name {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    color: hsl(var(--foreground));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lead-attach__size {
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+    flex-shrink: 0;
+}
+
+.lead-attach__badge {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: hsl(var(--primary));
+    background: hsl(var(--primary) / 0.1);
+    padding: 1px 6px;
+    border-radius: 999px;
+    flex-shrink: 0;
+}
+
+.lead-attach__remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    border-radius: 4px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.lead-attach__remove:hover:not(:disabled) {
+    background: hsl(var(--danger) / 0.1);
+    color: hsl(var(--danger));
+}
+
+.lead-attach__remove svg {
+    width: 14px;
+    height: 14px;
+}
+
+.lead-attach__note {
+    display: block;
+    margin-top: 8px;
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+    font-style: italic;
+}
+
 .det-row {
     display: flex;
     justify-content: space-between;

@@ -23,6 +23,7 @@ model User {
   updatedAt               DateTime                  @updatedAt @map("updated_at")
   authorization_documents authorization_documents[]
   uploadedDocuments       ClientDocument[]
+  uploadedLeadDocuments   LeadDocument[]
   activities              ClientActivity[]
   employee                Employee?
   assignedTasks           Task[]            @relation("TaskAssignee")
@@ -431,6 +432,8 @@ model Lead {
   insuranceNumber          String    @default("") @map("insurance_number")
   insuranceType            String    @default("") @map("insurance_type")
   referralSource           String    @default("") @map("referral_source")
+  // Channel the lead came in through: referrer | call | website | fax | other
+  leadSource               String    @default("") @map("lead_source")
   doctorName               String    @default("") @map("doctor_name")
   doctorPhone              String    @default("") @map("doctor_phone")
   caseworkerName           String    @default("") @map("caseworker_name")
@@ -487,9 +490,29 @@ model Lead {
   createdAt                DateTime  @default(now()) @map("created_at")
   updatedAt                DateTime  @updatedAt @map("updated_at")
 
+  documents                LeadDocument[]
+
   @@index([status])
   @@index([dormantAt])
   @@map("leads")
+}
+
+// Files/images attached to a lead at intake (referral scans, forms, photos).
+// Mirrors ClientDocument: bytes live in the object bucket (key = filePath).
+model LeadDocument {
+  id         Int      @id @default(autoincrement())
+  leadId     Int      @map("lead_id")
+  fileName   String   @map("file_name")
+  filePath   String   @map("file_path")
+  fileSize   Int      @map("file_size")
+  mimeType   String   @default("") @map("mime_type")
+  uploadedBy Int?     @map("uploaded_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  uploader   User?    @relation(fields: [uploadedBy], references: [id])
+
+  @@index([leadId])
+  @@map("lead_documents")
 }
 
 model InsuranceType {
