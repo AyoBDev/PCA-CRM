@@ -17,6 +17,8 @@ import LeadConvertedView from '../components/leads/LeadConvertedView';
 import LeadViewSwitcher from '../components/leads/LeadViewSwitcher';
 import ReactivateLeadModal from '../components/leads/ReactivateLeadModal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import LeadRemindersModal from '../components/leads/LeadRemindersModal';
+import { useAuth } from '../hooks/useAuth';
 import { statusToColumn, columnToStatus } from '../utils/leadConstants';
 
 const CASE_TYPE_OPTIONS = [
@@ -65,6 +67,8 @@ export default function LeadsPage() {
     const undoState = useUndoStack();
     const { showToast } = useToast();
     const navigate = useNavigate();
+    const { hasPermission } = useAuth();
+    const [remindersOpen, setRemindersOpen] = useState(false);
 
     // View + per-view fetch caches. Board and List share the "active" fetch;
     // Dormant is fetched separately since it's a different dataset.
@@ -139,6 +143,42 @@ export default function LeadsPage() {
         () => applyLeadFilters(convertedLeads, filters, 'convertedAt'),
         [convertedLeads, filters],
     );
+
+    // ── Follow-up reminders modal: show once per calendar day ──────────────────
+    useEffect(() => {
+        if (!hasPermission('leads')) return;
+        const today = new Date().toISOString().slice(0, 10);
+        if (localStorage.getItem('leadRemindersShown') === today) return;
+        setRemindersOpen(true);
+        localStorage.setItem('leadRemindersShown', today);
+    }, [hasPermission]);
+
+    const handleContactLogged = useCallback((leadId, contact) => {
+        undoState.pushAction(
+            `Logged follow-up for lead #${leadId}`,
+            async () => { await api.deleteLeadContact(leadId, contact.id); },
+            async () => {
+                await api.createLeadContact(leadId, {
+                    outcome: contact.outcome,
+                    method: contact.method,
+                    note: contact.note,
+                    followUpDate: contact.followUpDate ? String(contact.followUpDate).slice(0, 10) : '',
+                });
+            }
+        );
+    }, [undoState]);
+
+    const openLeadById = useCallback(async (leadId) => {
+        let lead = activeLeads.find((l) => l.id === leadId) || dormantLeads.find((l) => l.id === leadId);
+        if (!lead) {
+            try {
+                lead = await api.getLead(leadId);
+            } catch {
+                /* ignore */
+            }
+        }
+        if (lead) setDetailLead(lead);
+    }, [activeLeads, dormantLeads]);
 
     // ── Handlers ──────────────────────────────────────────────────────────────
     const handleFilterChange = useCallback((patch) => {
@@ -405,6 +445,14 @@ export default function LeadsPage() {
                 onEdit={() => { setEditLead(detailLead); setDetailLead(null); setWizardOpen(true); }}
                 onArchive={() => handleArchive()}
                 onConvert={() => { setConvertLeadObj(detailLead); setDetailLead(null); }}
+                onContactLogged={handleContactLogged}
+            />
+
+            <LeadRemindersModal
+                open={remindersOpen}
+                onClose={() => setRemindersOpen(false)}
+                onOpenLead={(id) => { setRemindersOpen(false); openLeadById(id); }}
+                onContactLogged={handleContactLogged}
             />
 
             <ConvertLeadOverlay
