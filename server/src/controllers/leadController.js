@@ -58,7 +58,9 @@ async function createLead(req, res, next) {
     if (!(firstName || '').trim() && !(lastName || '').trim()) {
       return res.status(400).json({ error: 'firstName or lastName is required' });
     }
-    const lead = await prisma.lead.create({ data: sanitizeLeadBody(req.body) });
+    const data = sanitizeLeadBody(req.body);
+    if (!data.createdBy) data.createdBy = req.user.name;
+    const lead = await prisma.lead.create({ data });
     audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Lead', entityId: lead.id, entityName: leadName(lead) });
     res.status(201).json(lead);
   } catch (err) { next(err); }
@@ -168,4 +170,49 @@ async function getLeadStats(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats };
+async function createLeadContact(req, res, next) {
+  try {
+    const leadId = Number(req.params.id);
+    const { outcome = '', method = 'call', note = '', followUpDate } = req.body;
+    if (!leadService.isTerminalOutcome(outcome) && !followUpDate) {
+      return res.status(400).json({ error: 'followUpDate required unless outcome is terminal' });
+    }
+    const nextDate = followUpDate ? new Date(followUpDate) : null;
+    const contact = await prisma.leadContact.create({
+      data: { leadId, outcome, method, note, followUpDate: nextDate, createdBy: req.user.name },
+    });
+    await prisma.lead.update({
+      where: { id: leadId },
+      data: { updatedAt: new Date(), ...(nextDate ? { followUpDate: nextDate } : {}) },
+    });
+    audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'LeadContact', entityId: contact.id, entityName: `Lead #${leadId} — ${outcome}`, metadata: { leadId } });
+    res.status(201).json(contact);
+  } catch (err) { next(err); }
+}
+
+async function listLeadContacts(req, res, next) {
+  try {
+    const leadId = Number(req.params.id);
+    const contacts = await prisma.leadContact.findMany({ where: { leadId }, orderBy: { createdAt: 'desc' } });
+    res.json(contacts);
+  } catch (err) { next(err); }
+}
+
+async function deleteLeadContact(req, res, next) {
+  try {
+    const contactId = Number(req.params.contactId);
+    const existing = await prisma.leadContact.findUnique({ where: { id: contactId } });
+    await prisma.leadContact.delete({ where: { id: contactId } });
+    audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'DELETE', entityType: 'LeadContact', entityId: contactId, entityName: `Lead #${existing ? existing.leadId : '?'} — ${existing ? existing.outcome : ''}`, metadata: { leadId: existing ? existing.leadId : null } });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+}
+
+async function getLeadReminders(req, res, next) {
+  try {
+    const buckets = await leadService.getReminders(prisma, req.user, new Date());
+    res.json(buckets);
+  } catch (err) { next(err); }
+}
+
+module.exports = { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats, createLeadContact, listLeadContacts, deleteLeadContact, getLeadReminders };

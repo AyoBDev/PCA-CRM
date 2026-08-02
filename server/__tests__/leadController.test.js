@@ -1,5 +1,6 @@
 jest.mock('../src/lib/prisma', () => ({
   lead: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+  leadContact: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), delete: jest.fn() },
 }));
 jest.mock('../src/services/authorizationService', () => ({ enrichClient: (c) => c }));
 jest.mock('../src/services/auditService', () => ({ logAction: jest.fn() }));
@@ -139,6 +140,54 @@ describe('reactivateLead', () => {
     const res = mockRes();
     await controller.reactivateLead({ ...reqUser, params: { id: '99' }, body: { status: 'new' } }, res, jest.fn());
     expect(res.statusCode).toBe(400);
+  });
+});
+
+describe('createLeadContact', () => {
+  test('400 when non-terminal outcome has no followUpDate', async () => {
+    const res = mockRes();
+    await controller.createLeadContact(
+      { ...reqUser, params: { id: '5' }, body: { outcome: 'no_answer', note: 'rang out' } },
+      res, jest.fn()
+    );
+    expect(res.statusCode).toBe(400);
+  });
+  test('creates contact for terminal outcome without followUpDate', async () => {
+    prisma.leadContact.create.mockResolvedValue({ id: 9, leadId: 5, outcome: 'wrong_number' });
+    prisma.lead.update.mockResolvedValue({ id: 5 });
+    const res = mockRes();
+    await controller.createLeadContact(
+      { ...reqUser, params: { id: '5' }, body: { outcome: 'wrong_number', note: 'bad #' } },
+      res, jest.fn()
+    );
+    expect(res.statusCode).toBe(201);
+    expect(prisma.leadContact.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ leadId: 5, outcome: 'wrong_number', createdBy: 'Admin' }) })
+    );
+  });
+  test('writes followUpDate back to the lead when provided', async () => {
+    prisma.leadContact.create.mockResolvedValue({ id: 10, leadId: 5 });
+    prisma.lead.update.mockResolvedValue({ id: 5 });
+    const res = mockRes();
+    await controller.createLeadContact(
+      { ...reqUser, params: { id: '5' }, body: { outcome: 'no_answer', followUpDate: '2026-08-10' } },
+      res, jest.fn()
+    );
+    expect(res.statusCode).toBe(201);
+    expect(prisma.lead.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 5 }, data: expect.objectContaining({ followUpDate: expect.any(Date) }) })
+    );
+  });
+});
+
+describe('createLead sets createdBy from the authenticated user', () => {
+  test('createdBy is req.user.name', async () => {
+    prisma.lead.create.mockResolvedValue({ id: 7, firstName: 'Jane', lastName: 'Doe' });
+    const res = mockRes();
+    await controller.createLead({ ...reqUser, body: { firstName: 'Jane', lastName: 'Doe' } }, res, jest.fn());
+    expect(prisma.lead.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ createdBy: 'Admin' }) })
+    );
   });
 });
 
