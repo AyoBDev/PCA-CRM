@@ -110,3 +110,25 @@ describe('classifyLeadForReminders', () => {
     expect(classifyLeadForReminders(lead({ followUpDate: todayLate }), { now })).toContain('due');
   });
 });
+
+const { matchesOwner } = require('../src/services/leadService');
+
+describe('matchesOwner', () => {
+  const user = { name: 'Grace Intake', role: 'user' };
+  const admin = { name: 'Boss', role: 'admin' };
+  test('matches by assignedTo (case-insensitive, trimmed)', () => {
+    expect(matchesOwner({ assignedTo: '  grace intake ', createdBy: '' }, user)).toBe(true);
+  });
+  test('matches by createdBy', () => {
+    expect(matchesOwner({ assignedTo: '', createdBy: 'Grace Intake' }, user)).toBe(true);
+  });
+  test('non-owner user does not match', () => {
+    expect(matchesOwner({ assignedTo: 'Someone Else', createdBy: 'Another' }, user)).toBe(false);
+  });
+  test('admin also matches unowned leads', () => {
+    expect(matchesOwner({ assignedTo: '', createdBy: '' }, admin)).toBe(true);
+  });
+  test('non-admin does NOT match unowned leads', () => {
+    expect(matchesOwner({ assignedTo: '', createdBy: '' }, user)).toBe(false);
+  });
+});

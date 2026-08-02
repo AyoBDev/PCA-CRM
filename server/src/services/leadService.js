@@ -319,4 +319,47 @@ function classifyLeadForReminders(lead, ctx) {
   return buckets;
 }
 
-module.exports = { LEAD_COLUMNS, statusToColumn, columnToStatus, mapLeadToClientData, servicesToEnabledServices, convertLead, revertConversion, computeStats, DORMANT_DAYS, sweepDormantLeads, reactivateLead, STALE_WARN_DAYS, STUCK_DAYS, TERMINAL_OUTCOMES, isTerminalOutcome, classifyLeadForReminders };
+function matchesOwner(lead, user) {
+  const norm = (s) => (s || '').trim().toLowerCase();
+  const me = norm(user.name);
+  const assigned = norm(lead.assignedTo);
+  const creator = norm(lead.createdBy);
+  if (me && (assigned === me || creator === me)) return true;
+  if (user.role === 'admin' && !assigned && !creator) return true;
+  return false;
+}
+
+async function getReminders(prisma, user, now = new Date()) {
+  const DAY = 86400000;
+  const leads = await prisma.lead.findMany({
+    where: { status: { not: 'archived' }, convertedAt: null },
+    include: {
+      contacts: { orderBy: { createdAt: 'desc' }, take: 1 },
+      _count: { select: { contacts: true } },
+    },
+  });
+  const out = { due: [], stale_soon: [], new_untouched: [], stuck: [] };
+  for (const lead of leads) {
+    if (!matchesOwner(lead, user)) continue;
+    const buckets = classifyLeadForReminders(
+      { ...lead, contactCount: lead._count.contacts },
+      { now }
+    );
+    if (buckets.length === 0) continue;
+    const last = lead.contacts[0] || null;
+    const item = {
+      id: lead.id,
+      firstName: lead.firstName,
+      lastName: lead.lastName,
+      phone: lead.phone,
+      status: lead.status,
+      followUpDate: lead.followUpDate,
+      daysInactive: Math.floor((now.getTime() - new Date(lead.updatedAt).getTime()) / DAY),
+      lastContact: last ? { outcome: last.outcome, method: last.method, note: last.note, createdAt: last.createdAt } : null,
+    };
+    for (const b of buckets) out[b].push(item);
+  }
+  return out;
+}
+
+module.exports = { LEAD_COLUMNS, statusToColumn, columnToStatus, mapLeadToClientData, servicesToEnabledServices, convertLead, revertConversion, computeStats, DORMANT_DAYS, sweepDormantLeads, reactivateLead, STALE_WARN_DAYS, STUCK_DAYS, TERMINAL_OUTCOMES, isTerminalOutcome, classifyLeadForReminders, matchesOwner, getReminders };
