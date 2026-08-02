@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "test": "jest --verbose",
-    "test:integration": "jest --config jest.integration.config.js --runInBand --verbose",
+    "test": "TZ=UTC jest --verbose",
+    "test:integration": "TZ=UTC jest --config jest.integration.config.js --runInBand --verbose",
     "db:migrate": "npx prisma migrate dev",
     "db:generate": "npx prisma generate",
     "db:seed": "node prisma/seed.js",
@@ -16,6 +16,11 @@
     "db:backfill-auth-required": "node prisma/backfill-authorization-required.js",
     "db:backfill-geocodes": "node prisma/backfill-geocodes.js",
     "db:encrypt-phi": "node prisma/encrypt-phi.js"
+  },
+  "jest": {
+    "setupFiles": [
+      "<rootDir>/jest.setup.js"
+    ]
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1068.0",
