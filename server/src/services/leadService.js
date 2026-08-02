@@ -237,6 +237,13 @@ async function revertConversion(prisma, id) {
 }
 
 const DORMANT_DAYS = 90;
+const STALE_WARN_DAYS = 7;
+const STUCK_DAYS = 7;
+const TERMINAL_OUTCOMES = ['reached_not_interested', 'wrong_number', 'went_elsewhere'];
+
+function isTerminalOutcome(outcome) {
+  return TERMINAL_OUTCOMES.includes(outcome);
+}
 
 async function sweepDormantLeads(prisma, now = new Date()) {
   const cutoff = new Date(now.getTime() - DORMANT_DAYS * 86400000);
@@ -279,4 +286,4 @@ function computeStats(leads, now = new Date()) {
   };
 }
 
-module.exports = { LEAD_COLUMNS, statusToColumn, columnToStatus, mapLeadToClientData, servicesToEnabledServices, convertLead, revertConversion, computeStats, DORMANT_DAYS, sweepDormantLeads, reactivateLead };
+module.exports = { LEAD_COLUMNS, statusToColumn, columnToStatus, mapLeadToClientData, servicesToEnabledServices, convertLead, revertConversion, computeStats, DORMANT_DAYS, sweepDormantLeads, reactivateLead, STALE_WARN_DAYS, STUCK_DAYS, TERMINAL_OUTCOMES, isTerminalOutcome };
