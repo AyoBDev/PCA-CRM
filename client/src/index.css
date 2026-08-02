@@ -15577,3 +15577,289 @@ tr:hover .auth-note-icon--empty {
         min-width: 0;
     }
 }
+
+/* ── Log Contact Form (Task 11) ── */
+.log-contact-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.log-contact-form__row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.log-contact-form__row label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.log-contact-form__row select,
+.log-contact-form textarea,
+.log-contact-form input[type="date"] {
+    padding: 8px 12px;
+    border: 1px solid hsl(var(--input));
+    border-radius: var(--radius);
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: inherit;
+    font-size: 13px;
+    transition: all 0.15s ease;
+}
+
+.log-contact-form__row select:focus,
+.log-contact-form textarea:focus,
+.log-contact-form input[type="date"]:focus {
+    outline: none;
+    border-color: hsl(var(--ring));
+    box-shadow: 0 0 0 2px hsl(var(--ring) / 0.15);
+}
+
+.log-contact-form textarea {
+    width: 100%;
+    font-family: inherit;
+    resize: vertical;
+}
+
+.log-contact-form__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.log-contact-form__hint {
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+    font-style: italic;
+    margin-top: 8px;
+}
+
+.log-contact-form__required {
+    color: hsl(var(--destructive));
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* ── Lead History Timeline (Task 11) ── */
+.lead-history {
+    margin-top: 20px;
+    border-top: 1px solid hsl(var(--border));
+    padding-top: 16px;
+}
+
+.lead-history__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.lead-history__head h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin: 0;
+}
+
+.lead-history__intake {
+    font-size: 13px;
+    color: hsl(var(--foreground));
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: hsl(var(--muted) / 0.3);
+    border-radius: var(--radius);
+    border-left: 3px solid hsl(var(--primary));
+}
+
+.lead-history__intake strong {
+    font-weight: 600;
+    color: hsl(var(--foreground));
+}
+
+.lead-history__empty {
+    font-size: 13px;
+    color: hsl(var(--muted-foreground));
+    font-style: italic;
+}
+
+.lead-history__list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.lead-history__item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 6px;
+    background: hsl(var(--background));
+    font-size: 13px;
+}
+
+.lead-history__badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    color: white;
+    width: fit-content;
+}
+
+.lead-history__method {
+    font-size: 12px;
+    color: hsl(var(--foreground));
+    font-weight: 500;
+}
+
+.lead-history__note {
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+    margin: 2px 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.lead-history__foot {
+    display: flex;
+    gap: 12px;
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid hsl(var(--border) / 0.3);
+    flex-wrap: wrap;
+}
+
+.lead-history__foot span {
+    flex-shrink: 0;
+}
+
+/* ── Lead Reminders Modal (Task 11) ── */
+.lead-reminders {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.lead-reminders__empty {
+    font-size: 14px;
+    color: hsl(var(--muted-foreground));
+    text-align: center;
+    padding: 32px 16px;
+    font-weight: 500;
+}
+
+.lead-reminders__bucket {
+    border: 1px solid hsl(var(--border));
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.lead-reminders__bucket-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    padding: 12px 14px;
+    background: hsl(var(--primary) / 0.06);
+    border-bottom: 1px solid hsl(var(--border));
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+
+.lead-reminders__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.lead-reminders__hint {
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+    padding: 8px 14px 0;
+    margin: 0;
+}
+
+.lead-reminders__list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid hsl(var(--border));
+}
+
+.lead-reminders__row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid hsl(var(--border));
+    transition: background 0.15s ease;
+}
+
+.lead-reminders__row:last-child {
+    border-bottom: none;
+}
+
+.lead-reminders__row:hover {
+    background: hsl(var(--primary) / 0.02);
+}
+
+.lead-reminders__who {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.lead-reminders__who strong {
+    font-size: 13px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+}
+
+.lead-reminders__who span {
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+}
+
+.lead-reminders__last-contact {
+    font-size: 11px;
+    color: hsl(var(--primary));
+    font-style: italic;
+}
+
+.lead-reminders__actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.lead-reminders__inline-form {
+    grid-column: 1 / -1;
+    padding: 12px 14px;
+    background: hsl(var(--muted) / 0.2);
+    border-top: 1px solid hsl(var(--border));
+    margin: 0 -14px -12px;
+}
