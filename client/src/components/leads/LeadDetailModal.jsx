@@ -1,6 +1,11 @@
+import { useState, useEffect } from 'react';
 import Modal from '../common/Modal';
-import { LEAD_CASE_TYPES, LEAD_STATUSES } from '../../utils/leadConstants';
+import LogContactForm from './LogContactForm';
+import { LEAD_CASE_TYPES, LEAD_STATUSES, LEAD_CONTACT_OUTCOMES } from '../../utils/leadConstants';
 import { formatDate } from '../../utils/dates';
+import * as api from '../../api';
+
+const OUTCOME_BY_ID = Object.fromEntries(LEAD_CONTACT_OUTCOMES.map((o) => [o.id, o]));
 
 function safeArr(v) {
     try {
@@ -30,7 +35,18 @@ function DetSection({ title, children }) {
     );
 }
 
-export default function LeadDetailModal({ lead, onClose, onEdit, onArchive, onConvert }) {
+export default function LeadDetailModal({ lead, onClose, onEdit, onArchive, onConvert, onContactLogged }) {
+    const [contacts, setContacts] = useState([]);
+    const [logging, setLogging] = useState(false);
+    const [showForm, setShowForm] = useState(false);
+
+    useEffect(() => {
+        if (!lead?.id) return;
+        let alive = true;
+        api.listLeadContacts(lead.id).then((rows) => { if (alive) setContacts(rows); }).catch(() => {});
+        return () => { alive = false; };
+    }, [lead?.id]);
+
     if (!lead) return null;
 
     const name = `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Unnamed lead';
@@ -112,6 +128,59 @@ export default function LeadDetailModal({ lead, onClose, onEdit, onArchive, onCo
                 <DetSection title="Call Notes">
                     <div className="det-notes">{lead.callNotes || 'No call notes recorded.'}</div>
                 </DetSection>
+
+                <section className="lead-history">
+                    <div className="lead-history__head">
+                        <h4>Follow-up history</h4>
+                        <button type="button" className="btn btn--sm" onClick={() => setShowForm((s) => !s)}>
+                            {showForm ? 'Close' : '+ Log follow-up'}
+                        </button>
+                    </div>
+
+                    {showForm && (
+                        <LogContactForm
+                            busy={logging}
+                            onCancel={() => setShowForm(false)}
+                            onSubmit={async (values) => {
+                                setLogging(true);
+                                try {
+                                    const contact = await api.createLeadContact(lead.id, values);
+                                    setContacts((prev) => [contact, ...prev]);
+                                    setShowForm(false);
+                                    onContactLogged?.(lead.id, contact);
+                                } finally {
+                                    setLogging(false);
+                                }
+                            }}
+                        />
+                    )}
+
+                    {lead.callNotes ? (
+                        <p className="lead-history__intake"><strong>Intake note:</strong> {lead.callNotes}</p>
+                    ) : null}
+
+                    {contacts.length === 0 ? (
+                        <p className="lead-history__empty">No follow-ups logged yet.</p>
+                    ) : (
+                        <ul className="lead-history__list">
+                            {contacts.map((c) => {
+                                const meta = OUTCOME_BY_ID[c.outcome] || { label: c.outcome || 'Unknown', color: '#94a3b8' };
+                                return (
+                                    <li key={c.id} className="lead-history__item">
+                                        <span className="lead-history__badge" style={{ background: meta.color }}>{meta.label}</span>
+                                        <span className="lead-history__method">{c.method}</span>
+                                        {c.note && <p className="lead-history__note">{c.note}</p>}
+                                        <div className="lead-history__foot">
+                                            <span>{c.createdBy}</span>
+                                            <span>{formatDate(c.createdAt)}</span>
+                                            {c.followUpDate && <span>next: {formatDate(c.followUpDate)}</span>}
+                                        </div>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    )}
+                </section>
             </div>
 
             <div className="wizard-nav" style={{ marginTop: 16 }}>
