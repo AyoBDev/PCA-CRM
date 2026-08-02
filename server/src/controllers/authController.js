@@ -208,7 +208,9 @@ async function resetPassword(req, res, next) {
         const user = await prisma.user.findUnique({ where: { id } });
         if (!user) return res.status(404).json({ error: 'User not found' });
         const passwordHash = await bcrypt.hash(password, 10);
-        await prisma.user.update({ where: { id }, data: { passwordHash } });
+        // Bump permissionsVersion so all of the user's existing tokens are
+        // rejected on their next request, forcing a re-login with the new password.
+        await prisma.user.update({ where: { id }, data: { passwordHash, permissionsVersion: { increment: 1 } } });
 
         // Send password reset email (fire-and-forget)
         if (isEmailConfigured()) {
@@ -349,8 +351,10 @@ async function resetPasswordWithToken(req, res, next) {
         }
 
         const passwordHash = await bcrypt.hash(password, 10);
+        // Bump permissionsVersion so all of the user's existing tokens are
+        // rejected on their next request, forcing a re-login with the new password.
         await prisma.$transaction([
-            prisma.user.update({ where: { id: resetToken.userId }, data: { passwordHash } }),
+            prisma.user.update({ where: { id: resetToken.userId }, data: { passwordHash, permissionsVersion: { increment: 1 } } }),
             prisma.passwordResetToken.update({ where: { id: resetToken.id }, data: { usedAt: new Date() } }),
         ]);
 
