@@ -286,4 +286,37 @@ function computeStats(leads, now = new Date()) {
   };
 }
 
-module.exports = { LEAD_COLUMNS, statusToColumn, columnToStatus, mapLeadToClientData, servicesToEnabledServices, convertLead, revertConversion, computeStats, DORMANT_DAYS, sweepDormantLeads, reactivateLead, STALE_WARN_DAYS, STUCK_DAYS, TERMINAL_OUTCOMES, isTerminalOutcome };
+function classifyLeadForReminders(lead, ctx) {
+  const now = ctx.now || new Date();
+  if (lead.convertedAt || lead.status === 'archived') return [];
+  const DAY = 86400000;
+  const buckets = [];
+
+  // Follow-ups due today or earlier
+  if (lead.followUpDate) {
+    const due = new Date(lead.followUpDate);
+    const endOfToday = new Date(now); endOfToday.setHours(23, 59, 59, 999);
+    if (due <= endOfToday) buckets.push('due');
+  }
+
+  // Going stale soon: inactive between (DORMANT_DAYS - STALE_WARN_DAYS) and DORMANT_DAYS
+  const daysInactive = Math.floor((now.getTime() - new Date(lead.updatedAt).getTime()) / DAY);
+  if (daysInactive >= DORMANT_DAYS - STALE_WARN_DAYS && daysInactive < DORMANT_DAYS) {
+    buckets.push('stale_soon');
+  }
+
+  // New & untouched: status 'new', created > 24h ago, zero contacts
+  const ageHours = (now.getTime() - new Date(lead.createdAt).getTime()) / 3600000;
+  if (lead.status === 'new' && ageHours > 24 && (lead.contactCount || 0) === 0) {
+    buckets.push('new_untouched');
+  }
+
+  // Stuck: any non-new, non-archived stage inactive longer than STUCK_DAYS
+  if (lead.status !== 'new' && daysInactive > STUCK_DAYS) {
+    buckets.push('stuck');
+  }
+
+  return buckets;
+}
+
+module.exports = { LEAD_COLUMNS, statusToColumn, columnToStatus, mapLeadToClientData, servicesToEnabledServices, convertLead, revertConversion, computeStats, DORMANT_DAYS, sweepDormantLeads, reactivateLead, STALE_WARN_DAYS, STUCK_DAYS, TERMINAL_OUTCOMES, isTerminalOutcome, classifyLeadForReminders };
