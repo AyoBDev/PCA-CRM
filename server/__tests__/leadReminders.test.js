@@ -67,4 +67,46 @@ describe('classifyLeadForReminders', () => {
     expect(classifyLeadForReminders(lead({ status: 'archived' }), { now })).toEqual([]);
     expect(classifyLeadForReminders(lead({ convertedAt: now }), { now })).toEqual([]);
   });
+
+  // Boundary tests for stale_soon: window is [83, 90) days
+  test('stale_soon boundary: exactly 83 days inactive (lower bound, inclusive)', () => {
+    const updatedAt = new Date(now.getTime() - 83 * DAY);
+    expect(classifyLeadForReminders(lead({ updatedAt }), { now })).toContain('stale_soon');
+  });
+  test('stale_soon boundary: exactly 82 days inactive (below window, exclusive)', () => {
+    const updatedAt = new Date(now.getTime() - 82 * DAY);
+    expect(classifyLeadForReminders(lead({ updatedAt }), { now })).not.toContain('stale_soon');
+  });
+  test('stale_soon boundary: exactly 90 days inactive (upper bound, exclusive — becomes dormant)', () => {
+    const updatedAt = new Date(now.getTime() - 90 * DAY);
+    expect(classifyLeadForReminders(lead({ updatedAt }), { now })).not.toContain('stale_soon');
+  });
+
+  // Boundary tests for stuck: strict > 7 days
+  test('stuck boundary: exactly 7 days with non-new status (exclusive)', () => {
+    const l = lead({ status: 'review', updatedAt: new Date(now.getTime() - 7 * DAY) });
+    expect(classifyLeadForReminders(l, { now })).not.toContain('stuck');
+  });
+  test('stuck boundary: exactly 8 days with non-new status (inclusive)', () => {
+    const l = lead({ status: 'review', updatedAt: new Date(now.getTime() - 8 * DAY) });
+    expect(classifyLeadForReminders(l, { now })).toContain('stuck');
+  });
+
+  // Boundary tests for new_untouched: strict > 24 hours
+  test('new_untouched boundary: 23 hours old, status new, zero contacts (exclusive)', () => {
+    const l = lead({ status: 'new', createdAt: new Date(now.getTime() - 23 * 3600000), contactCount: 0 });
+    expect(classifyLeadForReminders(l, { now })).not.toContain('new_untouched');
+  });
+  test('new_untouched boundary: 25 hours old, status new, zero contacts (inclusive)', () => {
+    const l = lead({ status: 'new', createdAt: new Date(now.getTime() - 25 * 3600000), contactCount: 0 });
+    expect(classifyLeadForReminders(l, { now })).toContain('new_untouched');
+  });
+
+  // Boundary test for due: follow-up on same calendar day
+  test('due boundary: follow-up date on same day as now (inclusive)', () => {
+    // Create a follow-up date for "today" at 15:30 (3:30 PM)
+    const todayLate = new Date(now);
+    todayLate.setHours(15, 30, 0, 0);
+    expect(classifyLeadForReminders(lead({ followUpDate: todayLate }), { now })).toContain('due');
+  });
 });
