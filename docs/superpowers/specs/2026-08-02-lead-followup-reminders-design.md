@@ -143,7 +143,16 @@ match by creator; assignment matching and the admin unowned-fallback still cover
 - `LogContactForm` — compact form (outcome select, method, note, conditional next-date
   picker shown/required when outcome is non-terminal). Reused by the modal **and** the
   `LeadDetailModal`.
-- Contact timeline rendered inside `LeadDetailModal.jsx` (newest first).
+- **Contact timeline in the lead view** (`LeadDetailModal.jsx`): a dedicated
+  "Follow-up history" section showing every `LeadContact` for the lead, newest first.
+  Each entry renders the outcome (as a colored label), method, the note text, who logged
+  it (`createdBy`), the relative timestamp, and the next follow-up date it scheduled (if
+  any). This is the primary place anyone opens a lead to read the full history of
+  follow-up actions across all attempts — "called Tue, no answer" and "called Fri,
+  interested" both remain visible instead of overwriting each other. The legacy
+  single-string `Lead.callNotes` is shown once, labeled as the original intake note,
+  above the timeline. The same `LogContactForm` sits at the top of this section so a new
+  follow-up can be logged directly from the lead view.
 - **Once-per-morning mechanic:** on app load, if the user has the `leads` permission,
   compare `localStorage('leadRemindersShown')` to today's date; if not shown today and
   `/leads/reminders` has any non-empty bucket, show the modal and stamp today. Dismiss
