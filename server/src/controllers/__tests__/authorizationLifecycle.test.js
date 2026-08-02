@@ -1,4 +1,5 @@
 const prisma = require('../../lib/prisma');
+const { tenantClient } = require('../../lib/tenantPrisma');
 const ctrl = require('../authorizationController');
 const { enrichAuthorization } = require('../../services/authorizationService');
 
@@ -10,13 +11,16 @@ function mockRes() {
         json(b) { this.body = b; return this; },
     };
 }
-const user = { id: 1, name: 'Tester', role: 'admin' };
+// Controllers read req.db; use a real tenant-scoped client so creates
+// auto-stamp agencyId (agency 1 = the seeded default agency).
+const db = tenantClient(1);
+const user = { id: 1, name: 'Tester', role: 'admin', agencyId: 1 };
 
 describe('renewAuthorization', () => {
     let client, oldAuth;
     beforeEach(async () => {
-        client = await prisma.client.create({ data: { clientName: 'Renew Test' } });
-        oldAuth = await prisma.authorization.create({
+        client = await db.client.create({ data: { clientName: 'Renew Test' } });
+        oldAuth = await db.authorization.create({
             data: {
                 clientId: client.id, serviceCode: 'PCS', serviceName: 'Personal Care',
                 authorizationNumber: 'A-OLD', authorizedUnits: 40,
@@ -33,7 +37,7 @@ describe('renewAuthorization', () => {
 
     it('closes old auth day-before new start and links the chain', async () => {
         const req = {
-            params: { id: String(oldAuth.id) }, user,
+            params: { id: String(oldAuth.id) }, user, db,
             body: {
                 serviceCode: 'PCS', serviceName: 'Personal Care', authorizationNumber: 'A-NEW',
                 authorizedUnits: 48, authorizationStartDate: '2026-06-01', authorizationEndDate: '2027-05-31',
@@ -64,8 +68,8 @@ describe('renewAuthorization', () => {
 describe('inactivateAuthorization', () => {
     let client, auth;
     beforeEach(async () => {
-        client = await prisma.client.create({ data: { clientName: 'Inactive Test' } });
-        auth = await prisma.authorization.create({
+        client = await db.client.create({ data: { clientName: 'Inactive Test' } });
+        auth = await db.authorization.create({
             data: { clientId: client.id, serviceCode: 'PCS', authorizedUnits: 40, manualStatus: 'active' },
         });
     });
@@ -76,7 +80,7 @@ describe('inactivateAuthorization', () => {
 
     it('marks inactive with end date, reason, and note', async () => {
         const req = {
-            params: { id: String(auth.id) }, user,
+            params: { id: String(auth.id) }, user, db,
             body: { authorizationEndDate: '2026-03-15', inactiveReason: 'Client transferred to another agency', inactiveNote: 'Moved to Henderson.' },
         };
         const res = mockRes();
@@ -93,7 +97,7 @@ describe('inactivateAuthorization', () => {
 
     it('rejects a blank/missing inactiveReason with 400 and leaves the auth active', async () => {
         const req = {
-            params: { id: String(auth.id) }, user,
+            params: { id: String(auth.id) }, user, db,
             body: { authorizationEndDate: '2026-03-15', inactiveReason: '   ', inactiveNote: 'Moved to Henderson.' },
         };
         const res = mockRes();
@@ -107,7 +111,7 @@ describe('inactivateAuthorization', () => {
 
     it('rejects a missing authorizationEndDate with 400 and leaves the auth active', async () => {
         const req = {
-            params: { id: String(auth.id) }, user,
+            params: { id: String(auth.id) }, user, db,
             body: { inactiveReason: 'Client transferred to another agency' },
         };
         const res = mockRes();
@@ -121,7 +125,7 @@ describe('inactivateAuthorization', () => {
 
     it('rejects a malformed authorizationEndDate with 400 and leaves the auth active', async () => {
         const req = {
-            params: { id: String(auth.id) }, user,
+            params: { id: String(auth.id) }, user, db,
             body: { authorizationEndDate: 'not-a-date', inactiveReason: 'Client transferred to another agency' },
         };
         const res = mockRes();
@@ -135,7 +139,7 @@ describe('inactivateAuthorization', () => {
 
     it('rejects an invalid id with 400', async () => {
         const req = {
-            params: { id: 'abc' }, user,
+            params: { id: 'abc' }, user, db,
             body: { authorizationEndDate: '2026-03-15', inactiveReason: 'Client transferred to another agency' },
         };
         const res = mockRes();
@@ -147,7 +151,7 @@ describe('inactivateAuthorization', () => {
 
     it('returns 404 for a well-formed body pointing at a nonexistent id', async () => {
         const req = {
-            params: { id: String(auth.id + 999999) }, user,
+            params: { id: String(auth.id + 999999) }, user, db,
             body: { authorizationEndDate: '2026-03-15', inactiveReason: 'Client transferred to another agency' },
         };
         const res = mockRes();
@@ -159,7 +163,7 @@ describe('inactivateAuthorization', () => {
 
 describe('updateAuthManualStatus validation', () => {
     it('rejects pending', async () => {
-        const req = { params: { id: '1' }, user, body: { manualStatus: 'pending' } };
+        const req = { params: { id: '1' }, user, db, body: { manualStatus: 'pending' } };
         const res = mockRes();
         await ctrl.updateAuthManualStatus(req, res, () => {});
         expect(res.statusCode).toBe(400);
@@ -168,12 +172,12 @@ describe('updateAuthManualStatus validation', () => {
 
 describe('enrichAuthorization passthrough', () => {
     it('includes renewedFromId, renewedToId, inactiveReason, inactiveNote, closedAt', async () => {
-        const client = await prisma.client.create({ data: { clientName: 'Enrich Passthrough Test' } });
-        const oldAuth = await prisma.authorization.create({
+        const client = await db.client.create({ data: { clientName: 'Enrich Passthrough Test' } });
+        const oldAuth = await db.authorization.create({
             data: { clientId: client.id, serviceCode: 'PCS', authorizedUnits: 40, manualStatus: 'inactive' },
         });
         const closedAt = new Date('2026-05-31T12:00:00Z');
-        const newAuth = await prisma.authorization.create({
+        const newAuth = await db.authorization.create({
             data: {
                 clientId: client.id, serviceCode: 'PCS', authorizedUnits: 48, manualStatus: 'active',
                 renewedFromId: oldAuth.id,
@@ -207,22 +211,22 @@ describe('enrichAuthorization passthrough', () => {
 
 describe('updateAuthorization — lifecycle field clearing + skipDeactivate', () => {
     it('accepts and persists renewedToId/closedAt when present in the body (renew-undo restore)', async () => {
-        const client = await prisma.client.create({ data: { clientName: 'Update Renew Fields Test' } });
-        const oldAuth = await prisma.authorization.create({
+        const client = await db.client.create({ data: { clientName: 'Update Renew Fields Test' } });
+        const oldAuth = await db.authorization.create({
             data: {
                 clientId: client.id, serviceCode: 'PCS', authorizedUnits: 40,
                 authorizationEndDate: new Date('2026-05-31T00:00:00'),
                 manualStatus: 'inactive', closedAt: new Date(), inactiveReason: '', inactiveNote: '',
             },
         });
-        const newAuth = await prisma.authorization.create({
+        const newAuth = await db.authorization.create({
             data: { clientId: client.id, serviceCode: 'PCS', authorizedUnits: 48, manualStatus: 'active', renewedFromId: oldAuth.id },
         });
         await prisma.authorization.update({ where: { id: oldAuth.id }, data: { renewedToId: newAuth.id } });
 
         // Undo restores the old auth's original end date and clears the renewal chain link.
         const req = {
-            params: { id: String(oldAuth.id) }, user,
+            params: { id: String(oldAuth.id) }, user, db,
             body: {
                 serviceCode: 'PCS', authorizedUnits: 40, authorizationEndDate: '2027-05-31',
                 manualStatus: 'active', renewedToId: null, closedAt: null, skipDeactivate: true,
@@ -247,8 +251,8 @@ describe('updateAuthorization — lifecycle field clearing + skipDeactivate', ()
     });
 
     it('clears inactiveReason/inactiveNote/closedAt when present in the body (inactivate-undo restore)', async () => {
-        const client = await prisma.client.create({ data: { clientName: 'Update Inactivate Fields Test' } });
-        const auth = await prisma.authorization.create({
+        const client = await db.client.create({ data: { clientName: 'Update Inactivate Fields Test' } });
+        const auth = await db.authorization.create({
             data: {
                 clientId: client.id, serviceCode: 'PCS', authorizedUnits: 40, manualStatus: 'inactive',
                 inactiveReason: 'Client transferred to another agency', inactiveNote: 'Moved to Henderson.', closedAt: new Date(),
@@ -256,7 +260,7 @@ describe('updateAuthorization — lifecycle field clearing + skipDeactivate', ()
         });
 
         const req = {
-            params: { id: String(auth.id) }, user,
+            params: { id: String(auth.id) }, user, db,
             body: {
                 serviceCode: 'PCS', authorizedUnits: 40, manualStatus: 'active',
                 inactiveReason: '', inactiveNote: '', closedAt: null, skipDeactivate: true,
@@ -277,16 +281,16 @@ describe('updateAuthorization — lifecycle field clearing + skipDeactivate', ()
     });
 
     it('skipDeactivate:true prevents a same-code sibling from being auto-inactivated', async () => {
-        const client = await prisma.client.create({ data: { clientName: 'Skip Deactivate Test' } });
-        const auth = await prisma.authorization.create({
+        const client = await db.client.create({ data: { clientName: 'Skip Deactivate Test' } });
+        const auth = await db.authorization.create({
             data: { clientId: client.id, serviceCode: 'PCS', authorizedUnits: 40, manualStatus: 'inactive' },
         });
-        const sibling = await prisma.authorization.create({
+        const sibling = await db.authorization.create({
             data: { clientId: client.id, serviceCode: 'PCS', authorizedUnits: 40, manualStatus: 'active' },
         });
 
         const req = {
-            params: { id: String(auth.id) }, user,
+            params: { id: String(auth.id) }, user, db,
             body: { serviceCode: 'PCS', authorizedUnits: 40, manualStatus: 'active', skipDeactivate: true },
         };
         const res = mockRes();
@@ -301,16 +305,16 @@ describe('updateAuthorization — lifecycle field clearing + skipDeactivate', ()
     });
 
     it('without skipDeactivate, activating an auth still deactivates a same-code sibling (regression guard)', async () => {
-        const client = await prisma.client.create({ data: { clientName: 'No Skip Deactivate Test' } });
-        const auth = await prisma.authorization.create({
+        const client = await db.client.create({ data: { clientName: 'No Skip Deactivate Test' } });
+        const auth = await db.authorization.create({
             data: { clientId: client.id, serviceCode: 'PCS', authorizedUnits: 40, manualStatus: 'inactive' },
         });
-        const sibling = await prisma.authorization.create({
+        const sibling = await db.authorization.create({
             data: { clientId: client.id, serviceCode: 'PCS', authorizedUnits: 40, manualStatus: 'active' },
         });
 
         const req = {
-            params: { id: String(auth.id) }, user,
+            params: { id: String(auth.id) }, user, db,
             body: { serviceCode: 'PCS', authorizedUnits: 40, manualStatus: 'active' },
         };
         const res = mockRes();
@@ -327,9 +331,9 @@ describe('updateAuthorization — lifecycle field clearing + skipDeactivate', ()
 
 describe('notes separation', () => {
     it('editing an auth note does not touch client.notes', async () => {
-        const client = await prisma.client.create({ data: { clientName: 'Sep Test', notes: 'GATE 1234' } });
-        const auth = await prisma.authorization.create({ data: { clientId: client.id, serviceCode: 'PCS', notes: 'orig' } });
-        const req = { params: { id: String(auth.id) }, user, body: { serviceCode: 'PCS', notes: 'renewal note edited' } };
+        const client = await db.client.create({ data: { clientName: 'Sep Test', notes: 'GATE 1234' } });
+        const auth = await db.authorization.create({ data: { clientId: client.id, serviceCode: 'PCS', notes: 'orig' } });
+        const req = { params: { id: String(auth.id) }, user, db, body: { serviceCode: 'PCS', notes: 'renewal note edited' } };
         const res = mockRes();
         await ctrl.updateAuthorization(req, res, (e) => { throw e; });
         const reloadedClient = await prisma.client.findUnique({ where: { id: client.id } });
