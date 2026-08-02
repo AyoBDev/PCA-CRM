@@ -147,7 +147,7 @@ export default function LeadsPage() {
     // ── Follow-up reminders modal: show once per calendar day ──────────────────
     useEffect(() => {
         if (!hasPermission('leads')) return;
-        const today = new Date().toISOString().slice(0, 10);
+        const today = new Date().toLocaleDateString('en-CA');
         if (localStorage.getItem('leadRemindersShown') === today) return;
         setRemindersOpen(true);
         localStorage.setItem('leadRemindersShown', today);
