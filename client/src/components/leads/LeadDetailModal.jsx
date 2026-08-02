@@ -172,7 +172,7 @@ export default function LeadDetailModal({ lead, onClose, onEdit, onArchive, onCo
                                         {c.note && <p className="lead-history__note">{c.note}</p>}
                                         <div className="lead-history__foot">
                                             <span>{c.createdBy}</span>
-                                            <span>{formatDate(c.createdAt)}</span>
+                                            <span>{new Date(c.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</span>
                                             {c.followUpDate && <span>next: {formatDate(c.followUpDate)}</span>}
                                         </div>
                                     </li>
