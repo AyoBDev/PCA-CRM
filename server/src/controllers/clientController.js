@@ -212,7 +212,7 @@ async function patchClient(req, res, next) {
         if (touchesCompliance && req.user.role !== 'admin') {
             return res.status(403).json({ error: 'Only an administrator can change authorization settings.' });
         }
-        const oldClientForCompliance = touchesCompliance ? await prisma.client.findUnique({ where: { id } }) : null;
+        const oldClientForCompliance = touchesCompliance ? await req.db.client.findUnique({ where: { id } }) : null;
         if (authorizationRequired !== undefined) {
             const changing = (oldClientForCompliance?.authorizationRequired !== false) !== (authorizationRequired !== false);
             if (changing && !(reasonNote && String(reasonNote).trim())) {
