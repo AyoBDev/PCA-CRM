@@ -30,7 +30,7 @@ cd client && npm run build        # Build to client/dist (served by Express at p
 npm start                         # prisma migrate deploy → setup-app-role.js → seed → start server
 
 # Tests
-cd server && npm test             # Run Jest unit tests (--verbose)
+cd server && npm test             # Run Jest unit tests (--verbose) — auto-provisions its DB, see note below
 cd server && npm run test:integration   # Run Postgres-backed integration tests (RLS, tenant isolation, cross-agency guards) — spins up/migrates a nvbestpca_test DB automatically
 cd server && npx jest --testPathPattern=authorizationService  # Run a single test file
 
@@ -479,6 +479,14 @@ All tables use the `.data-table` class system. **Every new table MUST follow thi
 - **On-demand backup**: `GET /api/backup/export` (admin-only) — downloads all tables as JSON. Dashboard has a "Backup" button.
 - **Seed script**: `seed.js` only creates admin if none exists (never overwrites). Uses `ADMIN_EMAIL` and `ADMIN_PASSWORD` env vars with fallback defaults.
 - **Data migration**: `prisma/migrate-data.js` transfers data from SQLite `dev.db` to PostgreSQL (one-time use, requires `better-sqlite3` devDependency)
+
+## Unit Test Environment (`server/jest.setup.js` + `jest.globalSetup.js`)
+`npm test` runs against a dedicated `nvbestpca_authlifecycle_test` Postgres database — never the dev DB — and is fully reproducible from a cold checkout:
+- **Auto-provisioning**: `jest.globalSetup.js` runs once before any test worker starts. It resolves the target DB URL (from `server/.env.test` if present, else the hardcoded `nvbestpca_authlifecycle_test` fallback), runs `createdb` (no-op if it already exists), then `prisma migrate deploy`, then `node prisma/seed.js` (idempotent — creates the default agency + an `admin`-role user only if missing; several suites, e.g. `permissionGroupController.test.js`, assume an admin user exists). No manual `createdb`/`migrate`/`seed` step is required — `npm test` on a brand-new clone provisions everything itself.
+- **`.env.test` override**: copy `server/.env.test.example` → `server/.env.test` (gitignored) to point at a different DB or override the keys below. `jest.setup.js` refuses to run if the resolved `DATABASE_URL` doesn't end in `_test` (guards against ever touching dev/prod data).
+- **`ENCRYPTION_KEY` / `INTEGRITY_KEY` defaults**: `jest.setup.js` defaults both to fixed dev values (`'e'.repeat(64)` / `'f'.repeat(64)`) when not set via `.env.test`, mirroring `src/__integration__/setupEnv.js` — so PHI-field writes and signed-timesheet tests work out of the box with no key setup.
+- **`TZ=UTC` requirement unchanged**: the `test` npm script sets it; `jest.setup.js` throws if the effective timezone isn't UTC (date-assertion drift otherwise). Prefix `TZ=UTC` on any direct `npx jest` invocation.
+- Integration tests (`npm run test:integration`) are a separate, unaffected harness against `nvbestpca_test` — see `src/__integration__/globalSetup.js` / `setupEnv.js`, which this unit-test setup mirrors.
 
 ## Admin File Manager
 
