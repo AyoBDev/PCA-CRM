@@ -166,6 +166,12 @@ export const revertLeadConversion = (id) => request(`/leads/${id}/revert-convers
 export const reactivateLead = (id, columnId) =>
   request(`/leads/${id}/reactivate`, { method: 'POST', body: JSON.stringify({ status: columnId }) });
 export const getLeadStats = () => request('/leads/stats');
+export const getLeadReminders = () => request('/leads/reminders');
+export const listLeadContacts = (leadId) => request(`/leads/${leadId}/contacts`);
+export const createLeadContact = (leadId, body) =>
+    request(`/leads/${leadId}/contacts`, { method: 'POST', body: JSON.stringify(body) });
+export const deleteLeadContact = (leadId, contactId) =>
+    request(`/leads/${leadId}/contacts/${contactId}`, { method: 'DELETE' });
 
 // Bulk Import
 export const bulkImport = (file) => {
