@@ -18,6 +18,7 @@
     "db:encrypt-phi": "node prisma/encrypt-phi.js"
   },
   "jest": {
+    "globalSetup": "<rootDir>/jest.globalSetup.js",
     "setupFiles": [
       "<rootDir>/jest.setup.js"
     ]
