@@ -202,8 +202,21 @@ async function deleteLeadContact(req, res, next) {
   try {
     const contactId = Number(req.params.contactId);
     const existing = await prisma.leadContact.findUnique({ where: { id: contactId } });
+    if (!existing) return res.json({ ok: true });
     await prisma.leadContact.delete({ where: { id: contactId } });
-    audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'DELETE', entityType: 'LeadContact', entityId: contactId, entityName: `Lead #${existing ? existing.leadId : '?'} — ${existing ? existing.outcome : ''}`, metadata: { leadId: existing ? existing.leadId : null } });
+
+    // Revert the lead's followUpDate to the most recent REMAINING contact that
+    // set one, so a deleted contact doesn't leave a phantom follow-up commitment.
+    const leadId = existing.leadId;
+    const remaining = await prisma.leadContact.findMany({
+      where: { leadId, followUpDate: { not: null } },
+      orderBy: { createdAt: 'desc' },
+      take: 1,
+    });
+    const revertedFollowUp = remaining.length ? remaining[0].followUpDate : null;
+    await prisma.lead.update({ where: { id: leadId }, data: { followUpDate: revertedFollowUp } });
+
+    audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'DELETE', entityType: 'LeadContact', entityId: contactId, entityName: `Lead #${leadId} — ${existing.outcome}`, metadata: { leadId } });
     res.json({ ok: true });
   } catch (err) { next(err); }
 }

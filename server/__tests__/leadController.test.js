@@ -191,6 +191,40 @@ describe('createLead sets createdBy from the authenticated user', () => {
   });
 });
 
+describe('deleteLeadContact', () => {
+  test('returns ok and does not throw when the contact does not exist', async () => {
+    prisma.leadContact.findUnique.mockResolvedValue(null);
+    const res = mockRes();
+    await controller.deleteLeadContact({ ...reqUser, params: { id: '5', contactId: '999' } }, res, jest.fn());
+    expect(res.body.ok).toBe(true);
+    expect(prisma.leadContact.delete).not.toHaveBeenCalled();
+  });
+
+  test('deletes the contact and reverts lead followUpDate to the most recent remaining contact', async () => {
+    prisma.leadContact.findUnique.mockResolvedValue({ id: 10, leadId: 5, followUpDate: new Date('2026-08-10'), outcome: 'no_answer' });
+    prisma.leadContact.delete.mockResolvedValue({});
+    const remainingDate = new Date('2026-08-05');
+    prisma.leadContact.findMany.mockResolvedValue([{ followUpDate: remainingDate }]);
+    prisma.lead.update.mockResolvedValue({ id: 5, followUpDate: remainingDate });
+    const res = mockRes();
+    await controller.deleteLeadContact({ ...reqUser, params: { id: '5', contactId: '10' } }, res, jest.fn());
+    expect(prisma.leadContact.delete).toHaveBeenCalledWith({ where: { id: 10 } });
+    expect(prisma.lead.update).toHaveBeenCalledWith({ where: { id: 5 }, data: { followUpDate: remainingDate } });
+    expect(res.body.ok).toBe(true);
+  });
+
+  test('reverts lead followUpDate to null when no contacts remain', async () => {
+    prisma.leadContact.findUnique.mockResolvedValue({ id: 10, leadId: 5, followUpDate: new Date('2026-08-10'), outcome: 'no_answer' });
+    prisma.leadContact.delete.mockResolvedValue({});
+    prisma.leadContact.findMany.mockResolvedValue([]);
+    prisma.lead.update.mockResolvedValue({ id: 5, followUpDate: null });
+    const res = mockRes();
+    await controller.deleteLeadContact({ ...reqUser, params: { id: '5', contactId: '10' } }, res, jest.fn());
+    expect(prisma.lead.update).toHaveBeenCalledWith({ where: { id: 5 }, data: { followUpDate: null } });
+    expect(res.body.ok).toBe(true);
+  });
+});
+
 describe('getLeadStats', () => {
   test('response includes a dormant count from prisma.lead.count', async () => {
     prisma.lead.findMany.mockResolvedValue([]);

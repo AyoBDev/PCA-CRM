@@ -154,16 +154,23 @@ export default function LeadsPage() {
     }, [hasPermission]);
 
     const handleContactLogged = useCallback((leadId, contact) => {
+        // Hold the live contact id in a mutable ref so redo can update what the
+        // next undo will delete — createLeadContact returns a NEW id on redo, and
+        // the undo closure must always target the CURRENT row, not the original.
+        const ref = { current: contact };
         undoState.pushAction(
             `Logged follow-up for lead #${leadId}`,
-            async () => { await api.deleteLeadContact(leadId, contact.id); },
             async () => {
-                await api.createLeadContact(leadId, {
-                    outcome: contact.outcome,
-                    method: contact.method,
-                    note: contact.note,
-                    followUpDate: contact.followUpDate ? String(contact.followUpDate).slice(0, 10) : '',
+                await api.deleteLeadContact(leadId, ref.current.id);
+            },
+            async () => {
+                const recreated = await api.createLeadContact(leadId, {
+                    outcome: ref.current.outcome,
+                    method: ref.current.method,
+                    note: ref.current.note,
+                    followUpDate: ref.current.followUpDate ? String(ref.current.followUpDate).slice(0, 10) : '',
                 });
+                ref.current = recreated;
             }
         );
     }, [undoState]);
