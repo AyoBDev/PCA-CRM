@@ -1,5 +1,5 @@
 jest.mock('../src/lib/prisma', () => ({
-  lead: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+  lead: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
   leadContact: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), delete: jest.fn() },
 }));
 jest.mock('../src/services/authorizationService', () => ({ enrichClient: (c) => c }));
@@ -233,5 +233,52 @@ describe('getLeadStats', () => {
     await controller.getLeadStats({ ...reqUser, query: {} }, res, jest.fn());
     expect(prisma.lead.count).toHaveBeenCalledWith({ where: { dormantAt: { not: null } } });
     expect(res.body.dormant).toBe(7);
+  });
+});
+
+describe('listLeadContacts', () => {
+  test('returns the leadʼs contacts newest-first', async () => {
+    const rows = [{ id: 2, leadId: 5 }, { id: 1, leadId: 5 }];
+    prisma.leadContact.findMany.mockResolvedValue(rows);
+    const res = mockRes();
+    await controller.listLeadContacts({ ...reqUser, params: { id: '5' } }, res, jest.fn());
+    expect(prisma.leadContact.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { leadId: 5 }, orderBy: { createdAt: 'desc' } })
+    );
+    expect(res.body).toBe(rows);
+  });
+});
+
+describe('getLeadReminders', () => {
+  test('returns the four reminder buckets', async () => {
+    prisma.lead.findMany.mockResolvedValue([]); // getReminders queries leads
+    const res = mockRes();
+    await controller.getLeadReminders(reqUser, res, jest.fn());
+    expect(res.body).toEqual({ due: [], stale_soon: [], new_untouched: [], stuck: [] });
+  });
+});
+
+describe('getClientLeadContacts', () => {
+  test('returns [] when no lead was converted into this client', async () => {
+    prisma.lead.findFirst.mockResolvedValue(null);
+    const res = mockRes();
+    await controller.getClientLeadContacts({ ...reqUser, params: { id: '9' } }, res, jest.fn());
+    expect(prisma.lead.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { convertedClientId: 9 } })
+    );
+    expect(res.body).toEqual([]);
+    expect(prisma.leadContact.findMany).not.toHaveBeenCalled();
+  });
+
+  test('returns the originating leadʼs contacts when one exists', async () => {
+    prisma.lead.findFirst.mockResolvedValue({ id: 42 });
+    const rows = [{ id: 1, leadId: 42 }];
+    prisma.leadContact.findMany.mockResolvedValue(rows);
+    const res = mockRes();
+    await controller.getClientLeadContacts({ ...reqUser, params: { id: '9' } }, res, jest.fn());
+    expect(prisma.leadContact.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { leadId: 42 }, orderBy: { createdAt: 'desc' } })
+    );
+    expect(res.body).toBe(rows);
   });
 });

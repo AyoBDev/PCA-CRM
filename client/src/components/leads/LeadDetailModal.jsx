@@ -34,17 +34,19 @@ function DetSection({ title, children }) {
     );
 }
 
-export default function LeadDetailModal({ lead, onClose, onEdit, onArchive, onConvert, onContactLogged }) {
+export default function LeadDetailModal({ lead, onClose, onEdit, onArchive, onConvert, onContactLogged, contactsRefreshKey }) {
     const [contacts, setContacts] = useState([]);
     const [logging, setLogging] = useState(false);
     const [showForm, setShowForm] = useState(false);
 
+    // Reload the timeline when the lead changes or when an external undo/redo
+    // (contactsRefreshKey bump from LeadsPage) changes this lead's contacts.
     useEffect(() => {
         if (!lead?.id) return;
         let alive = true;
         api.listLeadContacts(lead.id).then((rows) => { if (alive) setContacts(rows); }).catch(() => {});
         return () => { alive = false; };
-    }, [lead?.id]);
+    }, [lead?.id, contactsRefreshKey]);
 
     if (!lead) return null;
 

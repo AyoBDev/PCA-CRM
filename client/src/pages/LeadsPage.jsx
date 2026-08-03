@@ -82,6 +82,8 @@ export default function LeadsPage() {
     const [wizardOpen, setWizardOpen] = useState(false);
     const [editLead, setEditLead] = useState(null);
     const [detailLead, setDetailLead] = useState(null);
+    // Bumped when a follow-up undo/redo changes contacts, so an open detail modal reloads its timeline.
+    const [contactsRefreshKey, setContactsRefreshKey] = useState(0);
     const [convertLeadObj, setConvertLeadObj] = useState(null);
     const [reactivateLeadObj, setReactivateLeadObj] = useState(null);
     const [revertLeadObj, setRevertLeadObj] = useState(null);
@@ -152,6 +154,8 @@ export default function LeadsPage() {
             `Logged follow-up for lead #${leadId}`,
             async () => {
                 await api.deleteLeadContact(leadId, ref.current.id);
+                // Keep an open detail modal's timeline in sync with the DB.
+                setContactsRefreshKey((k) => k + 1);
             },
             async () => {
                 const recreated = await api.createLeadContact(leadId, {
@@ -161,6 +165,7 @@ export default function LeadsPage() {
                     followUpDate: ref.current.followUpDate ? String(ref.current.followUpDate).slice(0, 10) : '',
                 });
                 ref.current = recreated;
+                setContactsRefreshKey((k) => k + 1);
             }
         );
     }, [undoState]);
@@ -453,6 +458,7 @@ export default function LeadsPage() {
                 onArchive={() => handleArchive()}
                 onConvert={() => { setConvertLeadObj(detailLead); setDetailLead(null); }}
                 onContactLogged={handleContactLogged}
+                contactsRefreshKey={contactsRefreshKey}
             />
 
             <ConvertLeadOverlay
