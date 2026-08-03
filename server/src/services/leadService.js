@@ -16,6 +16,16 @@ function columnToStatus(columnId) {
   return col ? col.primaryStatus : null;
 }
 
+// Channel a lead came in through. Keys are stored on Lead.leadSource; labels
+// are shown in the UI and the conversion Intake Summary.
+const LEAD_SOURCE_LABELS = {
+  referrer: 'Referrer',
+  call:     'Call',
+  website:  'Website',
+  fax:      'Fax',
+  other:    'Other',
+};
+
 const SERVICE_TO_BUCKET = [
   { bucket: 'Homemaker', match: ['housekeeping', 'meal', 'grocery', 'chore'] },
   { bucket: 'Companion', match: ['companion'] },
@@ -68,6 +78,7 @@ function buildIntakeSummary(lead) {
   if (lead.caseworkerName || lead.caseworkerPhone) {
     add('Case Manager', [lead.caseworkerName, lead.caseworkerPhone].filter(Boolean).join(' — '));
   }
+  add('Lead Source', LEAD_SOURCE_LABELS[lead.leadSource] || lead.leadSource);
   add('Referral Source', lead.referralSource);
   add('Insurance #', lead.insuranceNumber);
 
@@ -368,4 +379,4 @@ async function getReminders(prisma, user, now = new Date()) {
   return out;
 }
 
-module.exports = { LEAD_COLUMNS, statusToColumn, columnToStatus, mapLeadToClientData, servicesToEnabledServices, convertLead, revertConversion, computeStats, DORMANT_DAYS, sweepDormantLeads, reactivateLead, STALE_WARN_DAYS, STUCK_DAYS, TERMINAL_OUTCOMES, isTerminalOutcome, classifyLeadForReminders, matchesOwner, getReminders };
+module.exports = { LEAD_COLUMNS, LEAD_SOURCE_LABELS, statusToColumn, columnToStatus, mapLeadToClientData, servicesToEnabledServices, convertLead, revertConversion, computeStats, DORMANT_DAYS, sweepDormantLeads, reactivateLead, STALE_WARN_DAYS, STUCK_DAYS, TERMINAL_OUTCOMES, isTerminalOutcome, classifyLeadForReminders, matchesOwner, getReminders };

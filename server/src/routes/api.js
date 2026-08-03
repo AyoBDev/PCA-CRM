@@ -27,6 +27,7 @@ const {
     updateSandataClientId,
     updateAuthManualStatus,
     renewAuthorization,
+    inactivateAuthorization,
     dedupAuthorizations,
 } = require('../controllers/authorizationController');
 const {
@@ -164,6 +165,7 @@ const {
     deleteIncident,
 } = require('../controllers/carePlanController');
 const { uploadDocument, downloadDocument, deleteDocument } = require('../controllers/documentController');
+const { listLeadDocuments, uploadLeadDocument, downloadLeadDocument, deleteLeadDocument } = require('../controllers/leadDocumentController');
 const { uploadAuthDocument, downloadAuthDocument, deleteAuthDocument } = require('../controllers/authDocumentController');
 const {
     listFolders, getFolder, createFolder, updateFolder, deleteFolder, restoreFolder,
@@ -310,6 +312,11 @@ router.post('/leads/:id/reactivate', requireRole('admin', 'user'), requirePermis
 router.get('/leads/:id/contacts', requireRole('admin', 'user'), requirePermission('leads'), listLeadContacts);
 router.post('/leads/:id/contacts', requireRole('admin', 'user'), requirePermission('leads'), createLeadContact);
 router.delete('/leads/:id/contacts/:contactId', requireRole('admin', 'user'), requirePermission('leads'), deleteLeadContact);
+// Lead attachments (images / PDFs / docs)
+router.get('/leads/:leadId/documents', requireRole('admin', 'user'), requirePermission('leads'), listLeadDocuments);
+router.post('/leads/:leadId/documents', requireRole('admin', 'user'), requirePermission('leads'), upload.single('file'), uploadLeadDocument);
+router.get('/lead-documents/:id/download', requireRole('admin', 'user'), requirePermission('leads'), downloadLeadDocument);
+router.delete('/lead-documents/:id', requireRole('admin', 'user'), requirePermission('leads'), deleteLeadDocument);
 
 // Authorization routes
 router.post('/clients/:clientId/authorizations', requireRole('admin', 'user'), requirePermission('authorizations'), createAuthorization);
@@ -321,6 +328,7 @@ router.patch('/authorizations/:id/account-number', requireRole('admin', 'user'),
 router.patch('/authorizations/:id/sandata-client-id', requireRole('admin', 'user'), requirePermission('authorizations'), updateSandataClientId);
 router.patch('/authorizations/:id/status', requireRole('admin', 'user'), requirePermission('authorizations'), updateAuthManualStatus);
 router.post('/authorizations/:id/renew', requireRole('admin', 'user'), requirePermission('authorizations'), renewAuthorization);
+router.patch('/authorizations/:id/inactivate', requireRole('admin', 'user'), requirePermission('authorizations'), inactivateAuthorization);
 router.post('/authorizations/dedup', requireRole('admin'), requirePermission('authorizations'), dedupAuthorizations);
 
 // Care Team

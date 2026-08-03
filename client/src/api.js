@@ -204,6 +204,8 @@ export const updateAuthManualStatus = (id, manualStatus) =>
     request(`/authorizations/${id}/status`, { method: 'PATCH', body: JSON.stringify({ manualStatus }) });
 export const renewAuthorization = (oldAuthId, data) =>
     request(`/authorizations/${oldAuthId}/renew`, { method: 'POST', body: JSON.stringify(data) });
+export const inactivateAuthorization = (id, data) =>
+    request(`/authorizations/${id}/inactivate`, { method: 'PATCH', body: JSON.stringify(data) });
 
 // Care Team
 export const addCareTeamMember = (clientId, data) =>
@@ -251,6 +253,45 @@ export const downloadDocument = (id) => {
 };
 export const deleteDocument = (id) =>
     request(`/documents/${id}`, { method: 'DELETE' });
+
+// Lead Documents (intake attachments — images / PDFs / docs)
+export const listLeadDocuments = (leadId) =>
+    request(`/leads/${leadId}/documents`);
+export const uploadLeadDocument = (leadId, file) => {
+    const headers = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    const fd = new FormData();
+    fd.append('file', file);
+    return fetch(`${BASE}/leads/${leadId}/documents`, {
+        method: 'POST',
+        headers,
+        body: fd,
+    }).then(async (res) => {
+        if (res.status === 401) {
+            clearToken();
+            window.dispatchEvent(new Event('auth:logout'));
+            throw new Error('Session expired. Please log in again.');
+        }
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.error || `HTTP ${res.status}`);
+        }
+        return res.json();
+    });
+};
+export const downloadLeadDocument = (id) => {
+    const headers = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    return fetch(`${BASE}/lead-documents/${id}/download`, { headers })
+        .then(async res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const contentType = res.headers.get('Content-Type') || 'application/octet-stream';
+            const arrayBuffer = await res.arrayBuffer();
+            return new Blob([arrayBuffer], { type: contentType });
+        });
+};
+export const deleteLeadDocument = (id) =>
+    request(`/lead-documents/${id}`, { method: 'DELETE' });
 
 // Authorization Documents
 export const uploadAuthDocument = (authId, formData) => {

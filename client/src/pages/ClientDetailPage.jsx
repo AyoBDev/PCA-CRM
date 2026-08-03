@@ -524,6 +524,70 @@ export default function ClientDetailPage() {
         finally { setSaving(false); }
     };
 
+    const handleRenewAuth = async (payload) => {
+        setSaving(true);
+        try {
+            const { oldAuthId, files, ...data } = payload;
+            // Snapshot the old auth's pre-renew state so undo can restore it exactly —
+            // renewAuthorization truncates its end date and sets renewedToId/closedAt server-side.
+            const oldAuthSnapshot = (client.authorizations || []).find(a => a.id === oldAuthId) || editingAuth;
+            const newAuth = await api.renewAuthorization(oldAuthId, data);
+            if (files && files.length && newAuth?.id) {
+                for (const file of files) {
+                    const fd = new FormData();
+                    fd.append('file', file);
+                    await api.uploadAuthDocument(newAuth.id, fd);
+                }
+            }
+            showToast('Authorization renewed');
+            undoState.pushAction('Renewed authorization',
+                async () => {
+                    await api.archiveAuthorization(newAuth.id);
+                    await api.updateAuthorization(oldAuthId, {
+                        ...oldAuthSnapshot,
+                        manualStatus: 'active',
+                        authorizationEndDate: oldAuthSnapshot?.authorizationEndDate,
+                        renewedToId: null,
+                        closedAt: null,
+                        skipDeactivate: true,
+                    });
+                    await fetchClient();
+                },
+                async () => { await api.restoreAuthorization(newAuth.id); await api.updateAuthManualStatus(oldAuthId, 'inactive'); await fetchClient(); },
+            );
+            setShowAuthModal(false);
+            fetchClient();
+        } catch (err) { showToast(err.message, 'error'); }
+        finally { setSaving(false); }
+    };
+
+    const handleInactivateAuth = async (payload) => {
+        setSaving(true);
+        try {
+            const { id, ...data } = payload;
+            const prev = editingAuth;
+            await api.inactivateAuthorization(id, data);
+            showToast('Authorization marked inactive');
+            undoState.pushAction('Marked authorization inactive',
+                async () => {
+                    await api.updateAuthorization(id, {
+                        ...prev,
+                        manualStatus: 'active',
+                        inactiveReason: '',
+                        inactiveNote: '',
+                        closedAt: null,
+                        skipDeactivate: true,
+                    });
+                    await fetchClient();
+                },
+                async () => { await api.inactivateAuthorization(id, data); await fetchClient(); },
+            );
+            setShowAuthModal(false);
+            fetchClient();
+        } catch (err) { showToast(err.message, 'error'); }
+        finally { setSaving(false); }
+    };
+
     const handleArchiveAuth = async (authId) => {
         try {
             await api.archiveAuthorization(authId);
@@ -544,6 +608,37 @@ export default function ClientDetailPage() {
             undoState.pushAction('Restored authorization',
                 async () => { await api.archiveAuthorization(authId); fetchClient(); },
                 async () => { await api.restoreAuthorization(authId); fetchClient(); }
+            );
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleSaveAuthNote = async (authId, note) => {
+        // updateAuthorization is a full-record PUT (it does not merge with the existing
+        // row), so every write must resend the auth's other fields alongside the note.
+        try {
+            const auth = (client.authorizations || []).find(a => a.id === authId);
+            if (!auth) { showToast('Could not find authorization', 'error'); return; }
+            const prevNote = auth.notes || '';
+            const withNote = (n) => ({
+                serviceCategory: auth.serviceCategory,
+                serviceCode: auth.serviceCode,
+                serviceName: auth.serviceName,
+                authorizationNumber: auth.authorizationNumber,
+                authorizedUnits: auth.authorizedUnits,
+                authorizedHours: auth.authorizedHours,
+                authorizationStartDate: auth.authorizationStartDate,
+                authorizationEndDate: auth.authorizationEndDate,
+                accountNumber: auth.accountNumber,
+                sandataClientId: auth.sandataClientId,
+                manualStatus: auth.manualStatus,
+                notes: n,
+            });
+            await api.updateAuthorization(authId, withNote(note));
+            showToast('Note updated');
+            fetchClient();
+            undoState.pushAction('Updated authorization note',
+                async () => { await api.updateAuthorization(authId, withNote(prevNote)); fetchClient(); },
+                async () => { await api.updateAuthorization(authId, withNote(note)); fetchClient(); }
             );
         } catch (err) { showToast(err.message, 'error'); }
     };
@@ -979,6 +1074,7 @@ export default function ClientDetailPage() {
                             fetchClient={fetchClient}
                             showToast={showToast}
                             totalDocs={totalDocs}
+                            onSaveAuthNote={handleSaveAuthNote}
                         />
                     )}
                     {activeTab === 'documents' && (
@@ -1416,6 +1512,8 @@ export default function ClientDetailPage() {
                     auth={editingAuth ? { ...editingAuth } : (authPresetServiceCode ? { serviceCode: authPresetServiceCode } : null)}
                     clientId={client.id}
                     onSave={handleSaveAuth}
+                    onRenewal={handleRenewAuth}
+                    onInactivate={handleInactivateAuth}
                     onClose={() => setShowAuthModal(false)}
                 />
             )}

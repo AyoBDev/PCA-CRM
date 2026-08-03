@@ -227,13 +227,16 @@ export default function LeadsPage() {
 
     const handleSave = useCallback(async (payload) => {
         try {
+            let saved;
             if (editLead) {
                 const r = await api.updateLead(editLead.id, payload);
                 setActiveLeads((c) => c.map((x) => (x.id === r.id ? r : x)));
+                saved = r;
                 showToast('Lead updated', 'success');
             } else {
                 const created = await api.createLead(payload);
                 setActiveLeads((c) => [created, ...c]);
+                saved = created;
                 undoState.pushAction(
                     'Add lead',
                     async () => {
@@ -250,8 +253,11 @@ export default function LeadsPage() {
             setWizardOpen(false);
             setEditLead(null);
             loadActive();
+            // Return the saved lead so the wizard can upload any staged attachments.
+            return saved;
         } catch (err) {
             showToast(err.message, 'error');
+            throw err;
         }
     }, [editLead, undoState, showToast, loadActive]);
 
