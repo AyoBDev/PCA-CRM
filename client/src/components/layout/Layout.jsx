@@ -3,6 +3,7 @@ import Sidebar from './Sidebar';
 import Toast from './Toast';
 import Icons from '../common/Icons';
 import { MessagingProvider } from '../../contexts/MessagingContext';
+import LeadRemindersGate from '../leads/LeadRemindersGate';
 
 export default function Layout({ children }) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(
@@ -40,6 +41,7 @@ export default function Layout({ children }) {
                     {children}
                 </main>
                 <Toast />
+                <LeadRemindersGate />
             </div>
         </MessagingProvider>
     );

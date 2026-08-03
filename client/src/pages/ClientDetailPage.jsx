@@ -21,6 +21,7 @@ import ActivityLogTab from './client-tabs/ActivityLogTab';
 import IncidentReportsTab from './client-tabs/IncidentReportsTab';
 import TimesheetsTab from './client-tabs/TimesheetsTab';
 import NotesTab from './client-tabs/NotesTab';
+import FollowUpHistoryList from '../components/leads/FollowUpHistoryList';
 import { AUTH_COLORS, DEFAULT_AUTH_COLOR } from '../utils/constants';
 import { formatDate, formatDateTime } from '../utils/dates';
 import { unitsToHours } from '../utils/time';
@@ -81,6 +82,8 @@ export default function ClientDetailPage() {
     const [employees, setEmployees] = useState([]);
     const [activeTab, setActiveTab] = useState('profile');
     const [expandedFolders, setExpandedFolders] = useState({});
+    // Follow-up history carried over from the lead this client was converted from
+    const [leadContacts, setLeadContacts] = useState([]);
 
     // Modal states
     const [showCareTeamModal, setShowCareTeamModal] = useState(false);
@@ -149,6 +152,15 @@ export default function ClientDetailPage() {
     }, []);
 
     useEffect(() => { fetchClient(); fetchEmployees(); }, [fetchClient, fetchEmployees]);
+
+    useEffect(() => {
+        if (!clientId) return;
+        let alive = true;
+        api.listClientLeadContacts(Number(clientId))
+            .then((rows) => { if (alive) setLeadContacts(Array.isArray(rows) ? rows : []); })
+            .catch(() => { if (alive) setLeadContacts([]); });
+        return () => { alive = false; };
+    }, [clientId]);
 
     // Care Team handlers
     const handleAddCareTeam = async (e) => {
@@ -1028,6 +1040,15 @@ export default function ClientDetailPage() {
                             unitsToHours={unitsToHours}
                             totalDocs={totalDocs}
                         />
+                    )}
+                    {activeTab === 'profile' && leadContacts.length > 0 && (
+                        <section className="lead-history lead-history--client">
+                            <div className="lead-history__head">
+                                <h4>Follow-up history</h4>
+                                <span className="lead-history__origin-tag">From lead intake</span>
+                            </div>
+                            <FollowUpHistoryList contacts={leadContacts} />
+                        </section>
                     )}
                     {activeTab === 'programs' && (
                         <ProgramsAuthTab

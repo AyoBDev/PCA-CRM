@@ -248,6 +248,13 @@ async function revertConversion(prisma, id) {
 }
 
 const DORMANT_DAYS = 90;
+const STALE_WARN_DAYS = 7;
+const STUCK_DAYS = 7;
+const TERMINAL_OUTCOMES = ['reached_not_interested', 'wrong_number', 'went_elsewhere'];
+
+function isTerminalOutcome(outcome) {
+  return TERMINAL_OUTCOMES.includes(outcome);
+}
 
 async function sweepDormantLeads(prisma, now = new Date()) {
   const cutoff = new Date(now.getTime() - DORMANT_DAYS * 86400000);
@@ -274,6 +281,7 @@ async function reactivateLead(prisma, id, columnId) {
       status: columnToStatus(columnId),
       archivedAt: null,
       dormantAt: null,
+      stageEnteredAt: new Date(),
     },
   });
 }
@@ -290,4 +298,85 @@ function computeStats(leads, now = new Date()) {
   };
 }
 
-module.exports = { LEAD_COLUMNS, LEAD_SOURCE_LABELS, statusToColumn, columnToStatus, mapLeadToClientData, servicesToEnabledServices, convertLead, revertConversion, computeStats, DORMANT_DAYS, sweepDormantLeads, reactivateLead };
+function classifyLeadForReminders(lead, ctx) {
+  const now = ctx.now || new Date();
+  if (lead.convertedAt || lead.status === 'archived') return [];
+  const DAY = 86400000;
+  const buckets = [];
+
+  // Follow-ups due today or earlier
+  if (lead.followUpDate) {
+    const due = new Date(lead.followUpDate);
+    const endOfToday = new Date(now); endOfToday.setHours(23, 59, 59, 999);
+    if (due <= endOfToday) buckets.push('due');
+  }
+
+  // Going stale soon: inactive between (DORMANT_DAYS - STALE_WARN_DAYS) and DORMANT_DAYS
+  const daysInactive = Math.floor((now.getTime() - new Date(lead.updatedAt).getTime()) / DAY);
+  if (daysInactive >= DORMANT_DAYS - STALE_WARN_DAYS && daysInactive < DORMANT_DAYS) {
+    buckets.push('stale_soon');
+  }
+
+  // New & untouched: status 'new', created > 24h ago, zero contacts
+  const ageHours = (now.getTime() - new Date(lead.createdAt).getTime()) / 3600000;
+  if (lead.status === 'new' && ageHours > 24 && (lead.contactCount || 0) === 0) {
+    buckets.push('new_untouched');
+  }
+
+  // Stuck: any non-new stage the lead has sat in longer than STUCK_DAYS.
+  // Measured from stageEnteredAt (set on every status change) so unrelated edits
+  // — logging a contact, editing a field — don't reset the timer by bumping
+  // updatedAt. Falls back to updatedAt for pre-feature rows with no stageEnteredAt.
+  const stageSince = lead.stageEnteredAt || lead.updatedAt;
+  const daysInStage = Math.floor((now.getTime() - new Date(stageSince).getTime()) / DAY);
+  if (lead.status !== 'new' && daysInStage > STUCK_DAYS) {
+    buckets.push('stuck');
+  }
+
+  return buckets;
+}
+
+function matchesOwner(lead, user) {
+  const norm = (s) => (s || '').trim().toLowerCase();
+  const me = norm(user.name);
+  const assigned = norm(lead.assignedTo);
+  const creator = norm(lead.createdBy);
+  if (me && (assigned === me || creator === me)) return true;
+  if (user.role === 'admin' && !assigned && !creator) return true;
+  return false;
+}
+
+async function getReminders(prisma, user, now = new Date()) {
+  const DAY = 86400000;
+  const leads = await prisma.lead.findMany({
+    where: { status: { not: 'archived' }, convertedAt: null },
+    include: {
+      contacts: { orderBy: { createdAt: 'desc' }, take: 1 },
+      _count: { select: { contacts: true } },
+    },
+  });
+  const out = { due: [], stale_soon: [], new_untouched: [], stuck: [] };
+  for (const lead of leads) {
+    if (!matchesOwner(lead, user)) continue;
+    const buckets = classifyLeadForReminders(
+      { ...lead, contactCount: lead._count.contacts },
+      { now }
+    );
+    if (buckets.length === 0) continue;
+    const last = lead.contacts[0] || null;
+    const item = {
+      id: lead.id,
+      firstName: lead.firstName,
+      lastName: lead.lastName,
+      phone: lead.phone,
+      status: lead.status,
+      followUpDate: lead.followUpDate,
+      daysInactive: Math.floor((now.getTime() - new Date(lead.updatedAt).getTime()) / DAY),
+      lastContact: last ? { outcome: last.outcome, method: last.method, note: last.note, createdAt: last.createdAt } : null,
+    };
+    for (const b of buckets) out[b].push(item);
+  }
+  return out;
+}
+
+module.exports = { LEAD_COLUMNS, LEAD_SOURCE_LABELS, statusToColumn, columnToStatus, mapLeadToClientData, servicesToEnabledServices, convertLead, revertConversion, computeStats, DORMANT_DAYS, sweepDormantLeads, reactivateLead, STALE_WARN_DAYS, STUCK_DAYS, TERMINAL_OUTCOMES, isTerminalOutcome, classifyLeadForReminders, matchesOwner, getReminders };
