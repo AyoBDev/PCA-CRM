@@ -270,6 +270,7 @@ async function reactivateLead(prisma, id, columnId) {
       status: columnToStatus(columnId),
       archivedAt: null,
       dormantAt: null,
+      stageEnteredAt: new Date(),
     },
   });
 }
@@ -311,8 +312,13 @@ function classifyLeadForReminders(lead, ctx) {
     buckets.push('new_untouched');
   }
 
-  // Stuck: any non-new, non-archived stage inactive longer than STUCK_DAYS
-  if (lead.status !== 'new' && daysInactive > STUCK_DAYS) {
+  // Stuck: any non-new stage the lead has sat in longer than STUCK_DAYS.
+  // Measured from stageEnteredAt (set on every status change) so unrelated edits
+  // — logging a contact, editing a field — don't reset the timer by bumping
+  // updatedAt. Falls back to updatedAt for pre-feature rows with no stageEnteredAt.
+  const stageSince = lead.stageEnteredAt || lead.updatedAt;
+  const daysInStage = Math.floor((now.getTime() - new Date(stageSince).getTime()) / DAY);
+  if (lead.status !== 'new' && daysInStage > STUCK_DAYS) {
     buckets.push('stuck');
   }
 

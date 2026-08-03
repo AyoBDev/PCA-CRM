@@ -91,6 +91,16 @@ describe('classifyLeadForReminders', () => {
     const l = lead({ status: 'review', updatedAt: new Date(now.getTime() - 8 * DAY) });
     expect(classifyLeadForReminders(l, { now })).toContain('stuck');
   });
+  test('stuck uses stageEnteredAt, not updatedAt: recent edit does NOT un-stick', () => {
+    // Entered the stage 30 days ago but was edited moments ago (updatedAt now).
+    const l = lead({ status: 'review', stageEnteredAt: new Date(now.getTime() - 30 * DAY), updatedAt: now });
+    expect(classifyLeadForReminders(l, { now })).toContain('stuck');
+  });
+  test('stuck uses stageEnteredAt: recently entered stage is NOT stuck even if old lead', () => {
+    // Old lead but just moved into this stage 2 days ago.
+    const l = lead({ status: 'review', stageEnteredAt: new Date(now.getTime() - 2 * DAY), updatedAt: new Date(now.getTime() - 2 * DAY) });
+    expect(classifyLeadForReminders(l, { now })).not.toContain('stuck');
+  });
 
   // Boundary tests for new_untouched: strict > 24 hours
   test('new_untouched boundary: 23 hours old, status new, zero contacts (exclusive)', () => {

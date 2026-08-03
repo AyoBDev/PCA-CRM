@@ -484,6 +484,10 @@ model Lead {
 
   archivedAt               DateTime? @map("archived_at")
   dormantAt                DateTime? @map("dormant_at")
+  // When the lead last entered its current pipeline stage (status). Used by the
+  // "stuck in a stage" reminder so unrelated edits (e.g. logging a contact,
+  // which bumps updatedAt) don't reset the stuck timer. Null = pre-feature rows.
+  stageEnteredAt           DateTime? @map("stage_entered_at")
   createdAt                DateTime  @default(now()) @map("created_at")
   updatedAt                DateTime  @updatedAt @map("updated_at")
   contacts                 LeadContact[]

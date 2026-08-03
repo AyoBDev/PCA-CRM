@@ -8,7 +8,7 @@ import GlobalToolbar from '../components/common/GlobalToolbar';
 import { openLeadReminders } from '../components/leads/LeadRemindersGate';
 
 export default function DashboardPage() {
-    const { isAdmin, hasPermission } = useAuth();
+    const { isAdmin, isOffice, hasPermission } = useAuth();
     const navigate = useNavigate();
     const [stats, setStats] = useState(null);
     const [taskSummary, setTaskSummary] = useState(null);
@@ -28,14 +28,15 @@ export default function DashboardPage() {
     }, []);
 
     useEffect(() => {
-        if (!hasPermission || !hasPermission('leads')) return;
+        // Leads are office-only; pca users would 403 on /leads/reminders.
+        if (!isOffice || !hasPermission || !hasPermission('leads')) return;
         api.getLeadReminders()
             .then((buckets) => setLeadReminderCounts({
                 due: buckets.due?.length || 0,
                 total: Object.values(buckets).reduce((n, arr) => n + (arr?.length || 0), 0),
             }))
             .catch(() => {});
-    }, [hasPermission]);
+    }, [isOffice, hasPermission]);
 
     useEffect(() => {
         if (drawerOpen) {

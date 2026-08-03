@@ -3,6 +3,7 @@ import Modal from '../common/Modal';
 import LogContactForm from './LogContactForm';
 import * as api from '../../api';
 import { LEAD_CONTACT_OUTCOMES } from '../../utils/leadConstants';
+import { useToast } from '../../hooks/useToast';
 
 // tone drives the accent color per bucket (see .lead-reminders__bucket--<tone> in index.css)
 const BUCKETS = [
@@ -23,6 +24,7 @@ export default function LeadRemindersModal({ open, onClose, onOpenLead, onContac
   const [loading, setLoading] = useState(true);
   const [activeLog, setActiveLog] = useState(null); // leadId currently logging
   const [busy, setBusy] = useState(false);
+  const { showUndoToast, showToast } = useToast();
 
   useEffect(() => {
     if (!open) return;
@@ -138,9 +140,20 @@ export default function LeadRemindersModal({ open, onClose, onOpenLead, onContac
                                 setBusy(true);
                                 try {
                                   const contact = await api.createLeadContact(l.id, values);
+                                  const name = `${l.firstName} ${l.lastName}`.trim();
                                   removeLead(l.id);
                                   setActiveLog(null);
                                   onContactLogged?.(l.id, contact);
+                                  // Undo affordance for the popup path (no page-level undo stack here):
+                                  // deleting the contact server-side also reverts the lead's followUpDate.
+                                  showUndoToast(`Follow-up logged for ${name}`, async () => {
+                                    try {
+                                      await api.deleteLeadContact(l.id, contact.id);
+                                      showToast('Follow-up undone', 'success');
+                                    } catch {
+                                      showToast('Could not undo follow-up', 'error');
+                                    }
+                                  });
                                 } finally {
                                   setBusy(false);
                                 }

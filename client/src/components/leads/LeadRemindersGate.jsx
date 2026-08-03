@@ -21,25 +21,30 @@ export function openLeadReminders() {
  * and opens that lead's detail (with full undo wiring on that page).
  */
 export default function LeadRemindersGate() {
-    const { hasPermission } = useAuth();
+    const { isOffice, hasPermission } = useAuth();
     const navigate = useNavigate();
     const [open, setOpen] = useState(false);
 
+    // Leads are office-only (admin/user); the /leads/* API is requireRole('admin','user').
+    // pca users would 403, so never trigger the popup for them.
+    const canSeeLeads = isOffice && hasPermission && hasPermission('leads');
+
     useEffect(() => {
-        if (!hasPermission || !hasPermission('leads')) return;
+        if (!canSeeLeads) return;
         const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD, local
         if (localStorage.getItem('leadRemindersShown') === today) return;
         setOpen(true);
         localStorage.setItem('leadRemindersShown', today);
-    }, [hasPermission]);
+    }, [canSeeLeads]);
 
     useEffect(() => {
+        if (!canSeeLeads) return;
         const handler = () => setOpen(true);
         window.addEventListener(OPEN_LEAD_REMINDERS_EVENT, handler);
         return () => window.removeEventListener(OPEN_LEAD_REMINDERS_EVENT, handler);
-    }, []);
+    }, [canSeeLeads]);
 
-    if (!hasPermission || !hasPermission('leads')) return null;
+    if (!canSeeLeads) return null;
 
     return (
         <LeadRemindersModal

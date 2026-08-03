@@ -60,6 +60,7 @@ async function createLead(req, res, next) {
     }
     const data = sanitizeLeadBody(req.body);
     if (!data.createdBy) data.createdBy = req.user.name;
+    data.stageEnteredAt = new Date();
     const lead = await prisma.lead.create({ data });
     audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Lead', entityId: lead.id, entityName: leadName(lead) });
     res.status(201).json(lead);
@@ -84,6 +85,8 @@ async function setLeadStatus(req, res, next) {
     const existing = await prisma.lead.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Lead not found' });
     const data = { status, archivedAt: status === 'archived' ? new Date() : null };
+    // Reset the stuck-in-stage timer only when the stage actually changes.
+    if (existing.status !== status) data.stageEnteredAt = new Date();
     const lead = await prisma.lead.update({ where: { id }, data });
     audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Lead', entityId: id, entityName: leadName(lead), changes: [{ field: 'status', oldValue: existing.status, newValue: status }] });
     res.json(lead);
