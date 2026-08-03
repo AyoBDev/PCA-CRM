@@ -228,4 +228,22 @@ async function getLeadReminders(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats, createLeadContact, listLeadContacts, deleteLeadContact, getLeadReminders };
+// Follow-up history for a CLIENT that originated from a converted lead.
+// Finds the lead whose convertedClientId matches, then returns its contacts.
+async function getClientLeadContacts(req, res, next) {
+  try {
+    const clientId = Number(req.params.id);
+    const lead = await prisma.lead.findFirst({
+      where: { convertedClientId: clientId },
+      select: { id: true },
+    });
+    if (!lead) return res.json([]);
+    const contacts = await prisma.leadContact.findMany({
+      where: { leadId: lead.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(contacts);
+  } catch (err) { next(err); }
+}
+
+module.exports = { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats, createLeadContact, listLeadContacts, deleteLeadContact, getLeadReminders, getClientLeadContacts };

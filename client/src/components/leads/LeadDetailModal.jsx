@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import Modal from '../common/Modal';
 import LogContactForm from './LogContactForm';
-import { LEAD_CASE_TYPES, LEAD_STATUSES, LEAD_CONTACT_OUTCOMES } from '../../utils/leadConstants';
+import FollowUpHistoryList from './FollowUpHistoryList';
+import { LEAD_CASE_TYPES, LEAD_STATUSES } from '../../utils/leadConstants';
 import { formatDate } from '../../utils/dates';
 import * as api from '../../api';
-
-const OUTCOME_BY_ID = Object.fromEntries(LEAD_CONTACT_OUTCOMES.map((o) => [o.id, o]));
 
 function safeArr(v) {
     try {
@@ -155,31 +154,7 @@ export default function LeadDetailModal({ lead, onClose, onEdit, onArchive, onCo
                         />
                     )}
 
-                    {lead.callNotes ? (
-                        <p className="lead-history__intake"><strong>Intake note:</strong> {lead.callNotes}</p>
-                    ) : null}
-
-                    {contacts.length === 0 ? (
-                        <p className="lead-history__empty">No follow-ups logged yet.</p>
-                    ) : (
-                        <ul className="lead-history__list">
-                            {contacts.map((c) => {
-                                const meta = OUTCOME_BY_ID[c.outcome] || { label: c.outcome || 'Unknown', color: '#94a3b8' };
-                                return (
-                                    <li key={c.id} className="lead-history__item">
-                                        <span className="lead-history__badge" style={{ background: meta.color }}>{meta.label}</span>
-                                        <span className="lead-history__method">{c.method}</span>
-                                        {c.note && <p className="lead-history__note">{c.note}</p>}
-                                        <div className="lead-history__foot">
-                                            <span>{c.createdBy}</span>
-                                            <span>{new Date(c.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</span>
-                                            {c.followUpDate && <span>next: {formatDate(c.followUpDate)}</span>}
-                                        </div>
-                                    </li>
-                                );
-                            })}
-                        </ul>
-                    )}
+                    <FollowUpHistoryList contacts={contacts} intakeNote={lead.callNotes} />
                 </section>
             </div>
 

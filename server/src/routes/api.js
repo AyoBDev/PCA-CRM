@@ -179,7 +179,7 @@ const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalize
 const { previewSandata, applySandata, undoSandata } = require('../controllers/sandataController');
 const { listConversations, getConversationMessages, adminSendMessage, markConversationRead, getUnreadSummary } = require('../controllers/employeePortal/adminChatController');
 const { getOnboardingInfo, completeOnboarding, resendInvite, approveOnboarding, getOnboardingLink } = require('../controllers/onboardingController');
-const { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats, createLeadContact, listLeadContacts, deleteLeadContact, getLeadReminders } = require('../controllers/leadController');
+const { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats, createLeadContact, listLeadContacts, deleteLeadContact, getLeadReminders, getClientLeadContacts } = require('../controllers/leadController');
 const {
     listPermissionGroups,
     getPermissionGroup,
@@ -283,6 +283,7 @@ router.get('/clients/archived', requireRole('admin', 'user'), requirePermission(
 router.post('/clients/restore', requireRole('admin', 'user'), requirePermission('clients'), restoreClients);
 router.delete('/clients/bulk-permanent', requireRole('admin'), requirePermission('clients'), bulkPermanentlyDeleteClients);
 router.get('/clients/:id', requireRole('admin', 'user'), requirePermission('clients'), getClient);
+router.get('/clients/:id/lead-contacts', requireRole('admin', 'user'), requirePermission('clients'), getClientLeadContacts);
 router.post('/clients', requireRole('admin', 'user'), requirePermission('clients'), createClient);
 router.post('/clients/bulk-import', requireRole('admin'), requirePermission('clients'), upload.single('file'), bulkImport);
 router.post('/clients/bulk-delete', requireRole('admin', 'user'), requirePermission('clients'), bulkDelete);

@@ -15591,6 +15591,28 @@ tr:hover .auth-note-icon--empty {
     gap: 12px;
 }
 
+/* Top-level labels (Note, Next follow-up date) stack their control below the label */
+.log-contact-form > label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+}
+
+.log-contact-form__row label {
+    font-size: 13px;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+}
+
+@media (max-width: 560px) {
+    .log-contact-form__row {
+        grid-template-columns: 1fr;
+    }
+}
+
 .log-contact-form__row label {
     display: flex;
     flex-direction: column;
@@ -15665,6 +15687,23 @@ tr:hover .auth-note-icon--empty {
     margin: 0;
 }
 
+/* When shown on the client page (converted lead), give it card framing */
+.lead-history--client {
+    margin-top: 24px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 12px;
+    padding: 16px 18px;
+}
+
+.lead-history__origin-tag {
+    font-size: 11px;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    background: hsl(var(--muted) / 0.5);
+    padding: 3px 10px;
+    border-radius: 999px;
+}
+
 .lead-history__intake {
     font-size: 13px;
     color: hsl(var(--foreground));
@@ -15688,95 +15727,161 @@ tr:hover .auth-note-icon--empty {
 
 .lead-history__list {
     list-style: none;
+    margin: 0;
+    padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
 }
 
+/* Each entry is a card with a full border; the outcome color lives in the badge */
 .lead-history__item {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 10px 12px;
+    gap: 8px;
+    padding: 12px 14px;
     border: 1px solid hsl(var(--border));
-    border-radius: 6px;
-    background: hsl(var(--background));
-    font-size: 13px;
+    border-radius: 8px;
+    background: hsl(var(--card));
+}
+
+.lead-history__item-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
 }
 
 .lead-history__badge {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    padding: 4px 10px;
+    padding: 3px 10px;
     border-radius: 999px;
     font-size: 11px;
-    font-weight: 600;
-    color: white;
-    width: fit-content;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: #fff;
 }
 
 .lead-history__method {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     font-size: 12px;
-    color: hsl(var(--foreground));
     font-weight: 500;
+    color: hsl(var(--muted-foreground));
+}
+
+.lead-history__method-icon {
+    font-size: 13px;
+    line-height: 1;
+}
+
+/* Timestamp pushed to the far right of the header row */
+.lead-history__time {
+    margin-left: auto;
+    font-size: 11.5px;
+    color: hsl(var(--muted-foreground));
+    white-space: nowrap;
 }
 
 .lead-history__note {
-    font-size: 12px;
-    color: hsl(var(--muted-foreground));
-    margin: 2px 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: hsl(var(--foreground));
+    margin: 0;
     white-space: pre-wrap;
     word-break: break-word;
 }
 
 .lead-history__foot {
     display: flex;
+    justify-content: space-between;
+    align-items: center;
     gap: 12px;
-    font-size: 11px;
-    color: hsl(var(--muted-foreground));
-    margin-top: 4px;
-    padding-top: 4px;
-    border-top: 1px solid hsl(var(--border) / 0.3);
     flex-wrap: wrap;
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+    padding-top: 8px;
+    border-top: 1px solid hsl(var(--border) / 0.6);
 }
 
-.lead-history__foot span {
-    flex-shrink: 0;
+.lead-history__by-label {
+    color: hsl(var(--muted-foreground) / 0.75);
+}
+
+.lead-history__next {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: hsl(var(--primary) / 0.08);
+    color: hsl(var(--primary));
+    font-size: 12px;
+}
+
+.lead-history__next strong {
+    font-weight: 700;
 }
 
 /* ── Lead Reminders Modal (Task 11) ── */
+/* ── Lead reminders (morning briefing) modal ── */
+.lead-reminders__header {
+    margin-bottom: 20px;
+}
+
+.lead-reminders__subtitle {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: hsl(var(--muted-foreground));
+}
+
+.lead-reminders__loading {
+    padding: 32px 16px;
+    text-align: center;
+    color: hsl(var(--muted-foreground));
+}
+
 .lead-reminders {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 18px;
 }
 
 .lead-reminders__empty {
-    font-size: 14px;
-    color: hsl(var(--muted-foreground));
     text-align: center;
-    padding: 32px 16px;
+    padding: 40px 16px;
+    color: hsl(var(--muted-foreground));
     font-weight: 500;
 }
 
+.lead-reminders__empty-emoji {
+    display: block;
+    font-size: 40px;
+    margin-bottom: 12px;
+}
+
+/* Bucket card — full border; the count badge carries the urgency color */
 .lead-reminders__bucket {
     border: 1px solid hsl(var(--border));
-    border-radius: 8px;
+    border-radius: 10px;
     overflow: hidden;
+    background: hsl(var(--card));
+}
+
+.lead-reminders__bucket-head {
+    padding: 14px 16px 10px;
 }
 
 .lead-reminders__bucket-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: hsl(var(--foreground));
-    padding: 12px 14px;
-    background: hsl(var(--primary) / 0.06);
-    border-bottom: 1px solid hsl(var(--border));
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: hsl(var(--foreground));
 }
 
 .lead-reminders__count {
@@ -15785,81 +15890,127 @@ tr:hover .auth-note-icon--empty {
     justify-content: center;
     min-width: 24px;
     height: 24px;
-    padding: 0 6px;
+    padding: 0 8px;
     border-radius: 999px;
-    background: hsl(var(--primary));
-    color: hsl(var(--primary-foreground));
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
+    color: #fff;
+    background: hsl(var(--muted-foreground));
 }
 
 .lead-reminders__hint {
-    font-size: 12px;
+    margin: 4px 0 0;
+    font-size: 12.5px;
     color: hsl(var(--muted-foreground));
-    padding: 8px 14px 0;
-    margin: 0;
 }
+
+/* Tone accents: header wash + matching count badge (no left rail) */
+.lead-reminders__bucket--danger  .lead-reminders__bucket-head { background: hsl(var(--destructive) / 0.06); }
+.lead-reminders__bucket--danger  .lead-reminders__count { background: hsl(var(--destructive)); }
+
+.lead-reminders__bucket--warning .lead-reminders__bucket-head { background: hsl(var(--warning) / 0.08); }
+.lead-reminders__bucket--warning .lead-reminders__count { background: hsl(var(--warning)); color: #1f1300; }
+
+.lead-reminders__bucket--info    .lead-reminders__bucket-head { background: hsl(217 91% 60% / 0.07); }
+.lead-reminders__bucket--info    .lead-reminders__count { background: hsl(217 91% 60%); }
+
+.lead-reminders__bucket--neutral .lead-reminders__bucket-head { background: hsl(262 60% 60% / 0.07); }
+.lead-reminders__bucket--neutral .lead-reminders__count { background: hsl(262 60% 60%); }
 
 .lead-reminders__list {
     list-style: none;
+    margin: 0;
+    padding: 0;
     display: flex;
     flex-direction: column;
     border-top: 1px solid hsl(var(--border));
 }
 
+/* Row is a vertical stack: header line, then the full-width form below it */
 .lead-reminders__row {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px 14px;
+    flex-direction: column;
+    padding: 0;
     border-bottom: 1px solid hsl(var(--border));
-    transition: background 0.15s ease;
 }
 
 .lead-reminders__row:last-child {
     border-bottom: none;
 }
 
-.lead-reminders__row:hover {
-    background: hsl(var(--primary) / 0.02);
+.lead-reminders__row-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 16px;
+    transition: background 0.15s ease;
+}
+
+.lead-reminders__row-main:hover {
+    background: hsl(var(--primary) / 0.03);
 }
 
 .lead-reminders__who {
     flex: 1;
     min-width: 0;
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 12px;
 }
 
-.lead-reminders__who strong {
-    font-size: 13px;
+.lead-reminders__name {
+    font-size: 14px;
     font-weight: 600;
     color: hsl(var(--foreground));
 }
 
-.lead-reminders__who span {
-    font-size: 12px;
-    color: hsl(var(--muted-foreground));
+.lead-reminders__phone {
+    font-size: 13px;
+    color: hsl(var(--primary));
+    text-decoration: none;
 }
 
-.lead-reminders__last-contact {
+.lead-reminders__phone:hover {
+    text-decoration: underline;
+}
+
+.lead-reminders__last-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
     font-size: 11px;
-    color: hsl(var(--primary));
-    font-style: italic;
+    font-weight: 600;
+    color: #fff;
+    background: hsl(var(--muted-foreground));
+    white-space: nowrap;
 }
 
 .lead-reminders__actions {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     flex-shrink: 0;
 }
 
+/* Inline form drops full-width beneath the row, clearly separated */
 .lead-reminders__inline-form {
-    grid-column: 1 / -1;
-    padding: 12px 14px;
-    background: hsl(var(--muted) / 0.2);
-    border-top: 1px solid hsl(var(--border));
-    margin: 0 -14px -12px;
+    padding: 16px;
+    background: hsl(var(--muted) / 0.35);
+    border-top: 1px dashed hsl(var(--border));
+}
+
+@media (max-width: 640px) {
+    .lead-reminders__row-main {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    .lead-reminders__actions {
+        width: 100%;
+    }
+    .lead-reminders__actions .btn {
+        flex: 1;
+    }
 }

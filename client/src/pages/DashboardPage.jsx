@@ -5,12 +5,14 @@ import * as api from '../api';
 import { useAuth } from '../hooks/useAuth';
 import { useEmployeeAttention } from '../hooks/useEmployeeAttention';
 import GlobalToolbar from '../components/common/GlobalToolbar';
+import { openLeadReminders } from '../components/leads/LeadRemindersGate';
 
 export default function DashboardPage() {
-    const { isAdmin } = useAuth();
+    const { isAdmin, hasPermission } = useAuth();
     const navigate = useNavigate();
     const [stats, setStats] = useState(null);
     const [taskSummary, setTaskSummary] = useState(null);
+    const [leadReminderCounts, setLeadReminderCounts] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [backingUp, setBackingUp] = useState(false);
@@ -24,6 +26,16 @@ export default function DashboardPage() {
             .finally(() => setLoading(false));
         api.getTaskSummary().then(setTaskSummary).catch(() => {});
     }, []);
+
+    useEffect(() => {
+        if (!hasPermission || !hasPermission('leads')) return;
+        api.getLeadReminders()
+            .then((buckets) => setLeadReminderCounts({
+                due: buckets.due?.length || 0,
+                total: Object.values(buckets).reduce((n, arr) => n + (arr?.length || 0), 0),
+            }))
+            .catch(() => {});
+    }, [hasPermission]);
 
     useEffect(() => {
         if (drawerOpen) {
@@ -49,6 +61,11 @@ export default function DashboardPage() {
     const renewalCount = stats.renewalClientCount || 0;
 
     const attentionItems = [];
+    if (leadReminderCounts?.due > 0) attentionItems.push({ icon: Icons.alertTriangle, label: `${leadReminderCounts.due} lead${leadReminderCounts.due > 1 ? 's' : ''} with follow-up due`, severity: 'destructive', action: () => openLeadReminders() });
+    if (leadReminderCounts && leadReminderCounts.total - (leadReminderCounts.due || 0) > 0) {
+        const other = leadReminderCounts.total - leadReminderCounts.due;
+        attentionItems.push({ icon: Icons.user, label: `${other} lead${other > 1 ? 's' : ''} needing attention`, severity: 'warning', action: () => openLeadReminders() });
+    }
     if (expiredCount > 0) attentionItems.push({ icon: Icons.alertTriangle, label: `${expiredCount} client${expiredCount > 1 ? 's' : ''} with expired authorization`, severity: 'destructive', action: () => navigate('/authorizations') });
     if (stats.unconfirmedCount > 0) attentionItems.push({ icon: Icons.alertTriangle, label: `${stats.unconfirmedCount} unconfirmed schedule${stats.unconfirmedCount > 1 ? 's' : ''}`, severity: 'warning', action: () => navigate('/scheduling') });
     if (renewalCount > 0) attentionItems.push({ icon: Icons.clock, label: `${renewalCount} client${renewalCount > 1 ? 's' : ''} with authorization renewal due`, severity: 'warning', action: () => navigate('/authorizations') });

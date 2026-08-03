@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import * as api from '../api';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
@@ -17,8 +17,6 @@ import LeadConvertedView from '../components/leads/LeadConvertedView';
 import LeadViewSwitcher from '../components/leads/LeadViewSwitcher';
 import ReactivateLeadModal from '../components/leads/ReactivateLeadModal';
 import ConfirmModal from '../components/common/ConfirmModal';
-import LeadRemindersModal from '../components/leads/LeadRemindersModal';
-import { useAuth } from '../hooks/useAuth';
 import { statusToColumn, columnToStatus } from '../utils/leadConstants';
 
 const CASE_TYPE_OPTIONS = [
@@ -67,8 +65,7 @@ export default function LeadsPage() {
     const undoState = useUndoStack();
     const { showToast } = useToast();
     const navigate = useNavigate();
-    const { hasPermission } = useAuth();
-    const [remindersOpen, setRemindersOpen] = useState(false);
+    const [searchParams, setSearchParams] = useSearchParams();
 
     // View + per-view fetch caches. Board and List share the "active" fetch;
     // Dormant is fetched separately since it's a different dataset.
@@ -145,13 +142,6 @@ export default function LeadsPage() {
     );
 
     // ── Follow-up reminders modal: show once per calendar day ──────────────────
-    useEffect(() => {
-        if (!hasPermission('leads')) return;
-        const today = new Date().toLocaleDateString('en-CA');
-        if (localStorage.getItem('leadRemindersShown') === today) return;
-        setRemindersOpen(true);
-        localStorage.setItem('leadRemindersShown', today);
-    }, [hasPermission]);
 
     const handleContactLogged = useCallback((leadId, contact) => {
         // Hold the live contact id in a mutable ref so redo can update what the
@@ -186,6 +176,16 @@ export default function LeadsPage() {
         }
         if (lead) setDetailLead(lead);
     }, [activeLeads, dormantLeads]);
+
+    // Open a specific lead when arriving with ?lead=<id> (e.g. from the global
+    // reminders popup's "Open lead" action). The once-per-day reminders trigger
+    // itself lives in the app-wide LeadRemindersGate (mounted in Layout).
+    useEffect(() => {
+        const leadId = Number(searchParams.get('lead'));
+        if (!leadId) return;
+        openLeadById(leadId);
+        setSearchParams((prev) => { const p = new URLSearchParams(prev); p.delete('lead'); return p; }, { replace: true });
+    }, [searchParams, openLeadById, setSearchParams]);
 
     // ── Handlers ──────────────────────────────────────────────────────────────
     const handleFilterChange = useCallback((patch) => {
@@ -452,13 +452,6 @@ export default function LeadsPage() {
                 onEdit={() => { setEditLead(detailLead); setDetailLead(null); setWizardOpen(true); }}
                 onArchive={() => handleArchive()}
                 onConvert={() => { setConvertLeadObj(detailLead); setDetailLead(null); }}
-                onContactLogged={handleContactLogged}
-            />
-
-            <LeadRemindersModal
-                open={remindersOpen}
-                onClose={() => setRemindersOpen(false)}
-                onOpenLead={(id) => { setRemindersOpen(false); openLeadById(id); }}
                 onContactLogged={handleContactLogged}
             />
 

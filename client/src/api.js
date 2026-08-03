@@ -168,6 +168,7 @@ export const reactivateLead = (id, columnId) =>
 export const getLeadStats = () => request('/leads/stats');
 export const getLeadReminders = () => request('/leads/reminders');
 export const listLeadContacts = (leadId) => request(`/leads/${leadId}/contacts`);
+export const listClientLeadContacts = (clientId) => request(`/clients/${clientId}/lead-contacts`);
 export const createLeadContact = (leadId, body) =>
     request(`/leads/${leadId}/contacts`, { method: 'POST', body: JSON.stringify(body) });
 export const deleteLeadContact = (leadId, contactId) =>
