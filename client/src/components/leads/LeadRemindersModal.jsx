@@ -19,7 +19,7 @@ function outcomeMeta(outcomeId) {
   return LEAD_CONTACT_OUTCOMES.find((o) => o.id === outcomeId) || null;
 }
 
-export default function LeadRemindersModal({ open, onClose, onOpenLead, onContactLogged }) {
+export default function LeadRemindersModal({ open, onClose, onSnooze, onOpenLead, onContactLogged }) {
   const [buckets, setBuckets] = useState(EMPTY_BUCKETS);
   const [loading, setLoading] = useState(true);
   const [activeLog, setActiveLog] = useState(null); // leadId currently logging
@@ -168,6 +168,24 @@ export default function LeadRemindersModal({ open, onClose, onOpenLead, onContac
               </section>
             );
           })}
+        </div>
+      )}
+
+      {!loading && total > 0 && (
+        <div className="lead-reminders__footer">
+          <p className="lead-reminders__footer-hint">
+            Busy right now? Snooze and it'll pop back in 30 minutes.
+          </p>
+          <div className="lead-reminders__footer-actions">
+            {onSnooze && (
+              <button type="button" className="btn btn--outline" onClick={onSnooze}>
+                Snooze 30 min
+              </button>
+            )}
+            <button type="button" className="btn btn--ghost" onClick={onClose}>
+              Dismiss for today
+            </button>
+          </div>
         </div>
       )}
     </Modal>
