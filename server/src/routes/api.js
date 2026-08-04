@@ -446,13 +446,13 @@ router.delete('/certifications/:id', requireRole('admin', 'user'), requirePermis
 router.get('/certifications/:id/download', requireRole('admin', 'user'), requirePermission('employees'), downloadCertification);
 router.get('/certification-uploads/:id/download', requireRole('admin', 'user'), requirePermission('employees'), downloadCertificationUpload);
 
-// Onboarding Catalogs (documents / cert types / policies)
-router.get('/catalogs/documents', requireRole('admin', 'user'), catalog.listDocuments);
-router.post('/catalogs/documents', requireRole('admin'), catalog.createDocument);
-router.get('/catalogs/cert-types', requireRole('admin', 'user'), catalog.listCertTypes);
-router.post('/catalogs/cert-types', requireRole('admin'), catalog.createCertType);
-router.get('/catalogs/policies', requireRole('admin', 'user'), catalog.listPolicies);
-router.post('/catalogs/policies', requireRole('admin'), catalog.createPolicy);
+// Onboarding Catalogs (documents / cert types / policies) — gated under the employees permission
+router.get('/catalogs/documents', requireRole('admin', 'user'), requirePermission('employees'), catalog.listDocuments);
+router.post('/catalogs/documents', requireRole('admin'), requirePermission('employees'), catalog.createDocument);
+router.get('/catalogs/cert-types', requireRole('admin', 'user'), requirePermission('employees'), catalog.listCertTypes);
+router.post('/catalogs/cert-types', requireRole('admin'), requirePermission('employees'), catalog.createCertType);
+router.get('/catalogs/policies', requireRole('admin', 'user'), requirePermission('employees'), catalog.listPolicies);
+router.post('/catalogs/policies', requireRole('admin'), requirePermission('employees'), catalog.createPolicy);
 
 // Employee Attention
 router.get('/admin/employee-attention', requireRole('admin', 'user'), requirePermission('employees'), getEmployeeAttention);
