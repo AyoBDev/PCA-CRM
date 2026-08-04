@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+const onbUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const {
     listClients,
     getClient,
@@ -178,8 +179,8 @@ const { getPayrollProfile, upsertPayrollProfile, revealSensitiveField } = requir
 const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalizeReceipts, sendReceipts, downloadReceiptPdf } = require('../controllers/receiptController');
 const { previewSandata, applySandata, undoSandata } = require('../controllers/sandataController');
 const { listConversations, getConversationMessages, adminSendMessage, markConversationRead, getUnreadSummary } = require('../controllers/employeePortal/adminChatController');
-const { getOnboardingInfo, completeOnboarding, resendInvite, approveOnboarding, getOnboardingLink } = require('../controllers/onboardingController');
-const { savePersonal, saveEmergency } = require('../controllers/employeePortal/onboardingRequirementsController');
+const { getOnboardingInfo, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, getOnboardingLink } = require('../controllers/onboardingController');
+const { savePersonal, saveEmergency, uploadDocument: uploadOnboardingDocument, ackPolicy } = require('../controllers/employeePortal/onboardingRequirementsController');
 const catalog = require('../controllers/catalogController');
 const { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats } = require('../controllers/leadController');
 const {
@@ -234,6 +235,9 @@ router.get('/onboarding/:token', getOnboardingInfo);
 router.post('/onboarding/:token/complete', completeOnboarding);
 router.patch('/onboarding/:token/personal', savePersonal);
 router.patch('/onboarding/:token/emergency', saveEmergency);
+router.post('/onboarding/:token/documents/:reqId', onbUpload.single('file'), uploadOnboardingDocument);
+router.post('/onboarding/:token/policies/:reqId/ack', ackPolicy);
+router.post('/onboarding/:token/submit', submitOnboarding);
 
 // Backup (admin JWT or dedicated API key — must be above authenticate middleware)
 function backupAuth(req, res, next) {

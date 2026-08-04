@@ -2,6 +2,7 @@ const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 const onboarding = require('../services/onboardingService');
 const { buildLedgerView } = require('./employeePortal/onboardingRequirementsController');
+const { isOnboardingComplete } = require('../services/requirementService');
 
 async function getOnboardingInfo(req, res, next) {
     try {
@@ -53,6 +54,18 @@ async function completeOnboarding(req, res, next) {
     }
 }
 
+async function submitOnboarding(req, res, next) {
+    try {
+        const { valid, employee } = await onboarding.validateToken(req.params.token);
+        if (!valid) return res.status(400).json({ error: 'This onboarding link is no longer valid.' });
+        const reqs = await prisma.employeeRequirement.findMany({ where: { employeeId: employee.id } });
+        if (!isOnboardingComplete(reqs)) return res.status(400).json({ error: 'Please complete all required items before submitting.' });
+        await prisma.employee.update({ where: { id: employee.id }, data: { onboardingStatus: 'submitted' } });
+        audit.logAction({ userId: 0, userName: employee.name, userRole: 'pca', action: 'SUBMIT', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'onboarding_submitted' } });
+        res.json({ success: true });
+    } catch (err) { next(err); }
+}
+
 async function resendInvite(req, res, next) {
     try {
         const id = Number(req.params.id);
@@ -99,4 +112,4 @@ async function getOnboardingLink(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { getOnboardingInfo, completeOnboarding, resendInvite, approveOnboarding, getOnboardingLink };
+module.exports = { getOnboardingInfo, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, getOnboardingLink };
