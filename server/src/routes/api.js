@@ -179,6 +179,7 @@ const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalize
 const { previewSandata, applySandata, undoSandata } = require('../controllers/sandataController');
 const { listConversations, getConversationMessages, adminSendMessage, markConversationRead, getUnreadSummary } = require('../controllers/employeePortal/adminChatController');
 const { getOnboardingInfo, completeOnboarding, resendInvite, approveOnboarding, getOnboardingLink } = require('../controllers/onboardingController');
+const { savePersonal, saveEmergency } = require('../controllers/employeePortal/onboardingRequirementsController');
 const catalog = require('../controllers/catalogController');
 const { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats } = require('../controllers/leadController');
 const {
@@ -231,6 +232,8 @@ router.get('/shift-offers/:token', getOffer);
 router.post('/shift-offers/:token/respond', respondToOffer);
 router.get('/onboarding/:token', getOnboardingInfo);
 router.post('/onboarding/:token/complete', completeOnboarding);
+router.patch('/onboarding/:token/personal', savePersonal);
+router.patch('/onboarding/:token/emergency', saveEmergency);
 
 // Backup (admin JWT or dedicated API key — must be above authenticate middleware)
 function backupAuth(req, res, next) {
