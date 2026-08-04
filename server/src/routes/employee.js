@@ -13,8 +13,11 @@ const { getMessages, sendMessage, markRead, getUnreadCount } = require('../contr
 const { getNotifications, markNotificationsRead } = require('../controllers/employeePortal/notificationController');
 const { getTimesheet } = require('../controllers/employeePortal/timesheetController');
 const { getMyOffers, respondToMyOffer } = require('../controllers/employeePortal/offersController');
+const { getRequirements, getDocuments, uploadDocument } = require('../controllers/employeePortal/documentsController');
+const { ackPolicy } = require('../controllers/employeePortal/policiesController');
 
 const certUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const portalUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 const router = express.Router();
 
@@ -70,5 +73,11 @@ router.get('/timesheet', getTimesheet);
 // Replacement offers
 router.get('/offers', getMyOffers);
 router.post('/offers/:id/respond', respondToMyOffer);
+
+// Requirements / documents / policies (same capabilities as onboarding, JWT-auth)
+router.get('/requirements', getRequirements);
+router.get('/documents', getDocuments);
+router.post('/documents/:reqId', portalUpload.single('file'), uploadDocument);
+router.post('/policies/:reqId/ack', ackPolicy);
 
 module.exports = router;

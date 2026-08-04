@@ -1,8 +1,7 @@
 const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 const onboarding = require('../services/onboardingService');
-const { buildLedgerView } = require('./employeePortal/onboardingRequirementsController');
-const { isOnboardingComplete } = require('../services/requirementService');
+const { isOnboardingComplete, projectLedger } = require('../services/requirementService');
 
 async function getOnboardingInfo(req, res, next) {
     try {
@@ -15,7 +14,7 @@ async function getOnboardingInfo(req, res, next) {
             };
             return res.status(400).json({ error: messages[reason] || 'Invalid link' });
         }
-        const requirements = await buildLedgerView(employee.id);
+        const requirements = await projectLedger(employee.id);
         res.json({ employeeName: employee.name, employeeEmail: employee.email, requirements, progress: {
             personal: Boolean(employee.dob && employee.address),
             emergency: Boolean(employee.emergencyContactName),

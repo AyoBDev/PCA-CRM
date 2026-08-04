@@ -1,20 +1,11 @@
-const path = require('path');
 const prisma = require('../../lib/prisma');
 const onboarding = require('../../services/onboardingService');
 const audit = require('../../services/auditService');
 const { uploadFile } = require('../../lib/storage');
-const { markSubmitted, markPolicyAck } = require('../../services/requirementService');
+const { markSubmitted, markPolicyAck, projectLedger } = require('../../services/requirementService');
+const { safeFileName } = require('../../lib/fileNameUtils');
 
 const ALLOWED = ['image/jpeg', 'image/png', 'image/heic', 'image/webp', 'application/pdf'];
-
-// Strip any directory components and unsafe characters from a client-supplied
-// filename before it becomes part of a storage key. On the local-filesystem
-// storage backend an un-sanitized name (e.g. "../../etc/evil") would let this
-// PUBLIC endpoint write outside the uploads dir via path.join.
-function safeFileName(name) {
-    const base = path.basename(String(name || '')).replace(/[^A-Za-z0-9._-]/g, '_');
-    return base && base !== '.' && base !== '..' ? base : 'file';
-}
 
 async function resolveEmployee(token) {
     const { valid, employee } = await onboarding.validateToken(token);
@@ -22,17 +13,11 @@ async function resolveEmployee(token) {
     return employee;
 }
 
+// Thin wrapper kept for backward compatibility — the projection itself now
+// lives in requirementService.projectLedger() so the onboarding (token-auth)
+// and portal (JWT-auth) code paths share one implementation.
 async function buildLedgerView(employeeId) {
-    const reqs = await prisma.employeeRequirement.findMany({ where: { employeeId } });
-    const [docs, certs, policies] = await Promise.all([
-        prisma.documentType.findMany(), prisma.certType.findMany(), prisma.policyDocument.findMany(),
-    ]);
-    const byId = (arr) => Object.fromEntries(arr.map(x => [x.id, x]));
-    const dMap = byId(docs), cMap = byId(certs), pMap = byId(policies);
-    return reqs.map(r => {
-        const cat = r.kind === 'document' ? dMap[r.catalogTypeId] : r.kind === 'certification' ? cMap[r.catalogTypeId] : pMap[r.catalogTypeId];
-        return { id: r.id, kind: r.kind, catalogTypeId: r.catalogTypeId, status: r.status, label: cat ? (cat.label || cat.title) : '', requiresExpiry: cat ? Boolean(cat.requiresExpiry) : false };
-    });
+    return projectLedger(employeeId);
 }
 
 async function savePersonal(req, res, next) {

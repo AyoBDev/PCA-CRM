@@ -1,4 +1,31 @@
+const prisma = require('../lib/prisma');
+
 const KINDS = { DOCUMENT: 'document', CERTIFICATION: 'certification', POLICY: 'policy' };
+
+// Single shared projection of an employee's requirement ledger, joined against
+// the relevant catalog table (document/cert/policy) per requirement kind.
+// Used by BOTH the token-authenticated onboarding flow and the JWT-authenticated
+// employee portal, so there is exactly one place this shape is computed.
+async function projectLedger(employeeId) {
+  const reqs = await prisma.employeeRequirement.findMany({ where: { employeeId } });
+  const [docs, certs, policies] = await Promise.all([
+    prisma.documentType.findMany(), prisma.certType.findMany(), prisma.policyDocument.findMany(),
+  ]);
+  const byId = (a) => Object.fromEntries(a.map(x => [x.id, x]));
+  const d = byId(docs), c = byId(certs), p = byId(policies);
+  return reqs.map(r => {
+    const cat = r.kind === 'document' ? d[r.catalogTypeId] : r.kind === 'certification' ? c[r.catalogTypeId] : p[r.catalogTypeId];
+    return {
+      id: r.id,
+      kind: r.kind,
+      catalogTypeId: r.catalogTypeId,
+      status: r.status,
+      rejectionReason: r.rejectionReason,
+      label: cat ? (cat.label || cat.title) : '',
+      requiresExpiry: cat ? Boolean(cat.requiresExpiry) : false,
+    };
+  });
+}
 
 async function assignRequirements(tx, employeeId, selections = {}) {
   const { documentTypeIds = [], certTypeIds = [], policyDocumentIds = [] } = selections;
@@ -50,4 +77,4 @@ function isOnboardingComplete(requirements) {
   });
 }
 
-module.exports = { assignRequirements, markSubmitted, markPolicyAck, isOnboardingComplete, KINDS };
+module.exports = { assignRequirements, markSubmitted, markPolicyAck, isOnboardingComplete, projectLedger, KINDS };
