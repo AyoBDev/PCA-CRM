@@ -29,4 +29,25 @@ async function assignRequirements(tx, employeeId, selections = {}) {
   return rows;
 }
 
-module.exports = { assignRequirements, KINDS };
+async function markSubmitted(tx, requirementId, fulfillment = {}) {
+  const data = { status: 'submitted' };
+  if (fulfillment.documentId) data.documentId = fulfillment.documentId;
+  if (fulfillment.certificationId) data.certificationId = fulfillment.certificationId;
+  return tx.employeeRequirement.update({ where: { id: requirementId }, data });
+}
+
+async function markPolicyAck(tx, requirementId, policyAckId) {
+  return tx.employeeRequirement.update({
+    where: { id: requirementId },
+    data: { status: 'approved', policyAckId },
+  });
+}
+
+function isOnboardingComplete(requirements) {
+  return requirements.every(r => {
+    if (r.kind === 'policy') return r.status === 'approved';
+    return r.status === 'submitted' || r.status === 'approved';
+  });
+}
+
+module.exports = { assignRequirements, markSubmitted, markPolicyAck, isOnboardingComplete, KINDS };
