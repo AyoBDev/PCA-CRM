@@ -934,3 +934,8 @@ export const markAttentionSeen = (keys) => {
     const body = Array.isArray(keys) ? { eventKeys: keys } : { eventKey: keys };
     return request('/admin/employee-attention/mark-seen', { method: 'POST', body: JSON.stringify(body) });
 };
+
+// ── Onboarding Catalogs ──
+export const getCatalogDocuments = () => request('/catalogs/documents');
+export const getCatalogCertTypes = () => request('/catalogs/cert-types');
+export const getCatalogPolicies = () => request('/catalogs/policies');
