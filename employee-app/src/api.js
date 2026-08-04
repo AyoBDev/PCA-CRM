@@ -78,6 +78,21 @@ export const api = {
   completeTask: (id) => request(`/tasks/${id}/complete`, { method: 'PATCH' }),
   getProfile: () => request('/profile'),
   updateProfile: (data) => request('/profile', { method: 'PATCH', body: JSON.stringify(data) }),
+  getRequirements: () => request('/requirements'),
+  uploadRequirementDocument: (reqId, formData) => {
+    const token = localStorage.getItem('token');
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return fetch(`${BASE}/api/employee/documents/${reqId}`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    }).then(async r => {
+      if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.error || 'Upload failed'); }
+      return r.json();
+    });
+  },
+  ackRequirementPolicy: (reqId) => request(`/policies/${reqId}/ack`, { method: 'POST', body: '{}' }),
   subscribePush: (subscription) => request('/push/subscribe', { method: 'POST', body: JSON.stringify(subscription) }),
   unsubscribePush: () => request('/push/subscribe', { method: 'DELETE' }),
   getTimesheet: (weekStart) => request(`/timesheet${weekStart ? `?weekStart=${weekStart}` : ''}`),
