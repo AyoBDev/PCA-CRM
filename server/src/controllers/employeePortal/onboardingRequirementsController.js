@@ -1,3 +1,4 @@
+const path = require('path');
 const prisma = require('../../lib/prisma');
 const onboarding = require('../../services/onboardingService');
 const audit = require('../../services/auditService');
@@ -5,6 +6,15 @@ const { uploadFile } = require('../../lib/storage');
 const { markSubmitted, markPolicyAck } = require('../../services/requirementService');
 
 const ALLOWED = ['image/jpeg', 'image/png', 'image/heic', 'image/webp', 'application/pdf'];
+
+// Strip any directory components and unsafe characters from a client-supplied
+// filename before it becomes part of a storage key. On the local-filesystem
+// storage backend an un-sanitized name (e.g. "../../etc/evil") would let this
+// PUBLIC endpoint write outside the uploads dir via path.join.
+function safeFileName(name) {
+    const base = path.basename(String(name || '')).replace(/[^A-Za-z0-9._-]/g, '_');
+    return base && base !== '.' && base !== '..' ? base : 'file';
+}
 
 async function resolveEmployee(token) {
     const { valid, employee } = await onboarding.validateToken(token);
@@ -59,7 +69,7 @@ async function uploadDocument(req, res, next) {
         const reqId = parseInt(req.params.reqId);
         const requirement = await prisma.employeeRequirement.findFirst({ where: { id: reqId, employeeId: employee.id, kind: 'document' } });
         if (!requirement) return res.status(404).json({ error: 'Requirement not found' });
-        const key = `employee-docs/${employee.id}/${requirement.catalogTypeId}/${Date.now()}-${req.file.originalname}`;
+        const key = `employee-docs/${employee.id}/${requirement.catalogTypeId}/${Date.now()}-${safeFileName(req.file.originalname)}`;
         await uploadFile(key, req.file.buffer, req.file.mimetype);
         await prisma.$transaction(async (tx) => {
             const doc = await tx.employeeDocument.create({ data: {
