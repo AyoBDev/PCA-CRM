@@ -10,6 +10,7 @@
     "db:migrate": "npx prisma migrate dev",
     "db:generate": "npx prisma generate",
     "db:seed": "node prisma/seed.js",
+    "db:seed-requirements": "node prisma/seed-requirements.js",
     "db:migrate-employees": "node prisma/migrate-employees.js",
     "db:migrate-data": "node prisma/migrate-data.js",
     "db:backfill-auth-required": "node prisma/backfill-authorization-required.js",
