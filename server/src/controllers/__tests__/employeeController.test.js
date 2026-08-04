@@ -1,12 +1,20 @@
-jest.mock('../../lib/prisma', () => ({
-    employee: {
+jest.mock('../../lib/prisma', () => {
+    const employee = {
         findMany: jest.fn(),
         findUnique: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
-    },
-}));
+    };
+    return {
+        employee,
+        // createEmployee wraps its create in a transaction; the mock tx just
+        // proxies to the same jest.fn()s so existing per-test mockResolvedValue
+        // calls on prisma.employee.create continue to work unchanged.
+        $transaction: jest.fn((cb) => cb({ employee })),
+    };
+});
+jest.mock('../../services/requirementService', () => ({ assignRequirements: jest.fn().mockResolvedValue([]) }));
 jest.mock('../../services/auditService', () => ({ logAction: jest.fn() }));
 jest.mock('../../services/onboardingService', () => ({
     createOnboardingToken: jest.fn().mockResolvedValue({ token: 'test-token' }),
