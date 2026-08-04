@@ -36,6 +36,12 @@ export function submitOnboarding(token, data) {
     }).then(r => { if (!r.ok) return r.json().then(e => { throw new Error(e.error); }); return r.json(); });
 }
 
+export function saveOnboardingPersonal(token, data) { return fetch(`${BASE}/api/onboarding/${token}/personal`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()); }
+export function saveOnboardingEmergency(token, data) { return fetch(`${BASE}/api/onboarding/${token}/emergency`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()); }
+export function uploadOnboardingDocument(token, reqId, formData) { return fetch(`${BASE}/api/onboarding/${token}/documents/${reqId}`, { method: 'POST', body: formData }).then(r => r.json()); }
+export function ackOnboardingPolicy(token, reqId) { return fetch(`${BASE}/api/onboarding/${token}/policies/${reqId}/ack`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(r => r.json()); }
+export function submitOnboardingV2(token) { return fetch(`${BASE}/api/onboarding/${token}/submit`, { method: 'POST' }).then(r => r.json()); }
+
 export const api = {
   login: (email, password) =>
     fetch(`${BASE}/api/auth/employee-login`, {

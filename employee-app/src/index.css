@@ -879,6 +879,27 @@ body {
     font-weight: 500;
 }
 
+/* Requirement status variants (Documents/Certifications/Policies/Review steps) */
+.onboard-chip--required {
+    background: hsl(240 4.8% 95.9%);
+    color: hsl(240 3.8% 46.1%);
+}
+
+.onboard-chip--submitted {
+    background: hsl(213 94% 95%);
+    color: hsl(217 91% 40%);
+}
+
+.onboard-chip--approved {
+    background: hsl(142 76% 92%);
+    color: hsl(160 84% 30%);
+}
+
+.onboard-chip--rejected {
+    background: hsl(0 93% 97%);
+    color: hsl(0 84% 40%);
+}
+
 .onboard-chip button {
     background: none;
     border: none;
