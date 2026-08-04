@@ -55,14 +55,25 @@ async function completeOnboarding(req, res, next) {
 
 async function submitOnboarding(req, res, next) {
     try {
+        const { password, availability } = req.body || {};
         const { valid, employee } = await onboarding.validateToken(req.params.token);
         if (!valid) return res.status(400).json({ error: 'This onboarding link is no longer valid.' });
+        // v3 gate: every required document/cert/policy must be satisfied before the account is created.
         const reqs = await prisma.employeeRequirement.findMany({ where: { employeeId: employee.id } });
         if (!isOnboardingComplete(reqs)) return res.status(400).json({ error: 'Please complete all required items before submitting.' });
-        await prisma.employee.update({ where: { id: employee.id }, data: { onboardingStatus: 'submitted' } });
-        audit.logAction({ userId: 0, userName: employee.name, userRole: 'pca', action: 'SUBMIT', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'onboarding_submitted' } });
-        res.json({ success: true });
-    } catch (err) { next(err); }
+        if (!password) return res.status(400).json({ error: 'A password is required to finish onboarding.' });
+        if (!availability) return res.status(400).json({ error: 'Availability details are required to finish onboarding.' });
+        // Reuse the proven account-creation path: hashes the password, creates/links the User,
+        // stores availability, and marks the token completed (all transactional).
+        const { skipApproval } = await onboarding.completeOnboarding(req.params.token, { password, availability });
+        audit.logAction({ userId: 0, userName: employee.name, userRole: 'pca', action: 'SUBMIT', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'onboarding_submitted', skipApproval } });
+        res.json({ success: true, skipApproval });
+    } catch (err) {
+        if (err.message === 'not_found' || err.message === 'completed' || err.message === 'expired') {
+            return res.status(400).json({ error: 'This onboarding link is no longer valid.' });
+        }
+        next(err);
+    }
 }
 
 async function resendInvite(req, res, next) {

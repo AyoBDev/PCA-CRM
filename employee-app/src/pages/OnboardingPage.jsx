@@ -39,30 +39,18 @@ const HOLIDAYS = [
 
 const TRANSPORTATION_OPTIONS = ['Own car', 'Public transit', 'Rideshare', 'Walk', 'Other'];
 
-// Resumability heuristic: land on the first stage that isn't yet complete, using
-// server `progress` for personal/emergency/availability and requirement statuses
-// (submitted/approved) for documents/certifications/policies. Falls back to
-// Password (step 0) on a fresh load, and to Review once everything is done.
-function computeInitialStep(info) {
-    const progress = info?.progress || {};
-    const requirements = info?.requirements || [];
-
-    if (!progress.personal) return 0; // Password + Personal Info share the same landing (step 0)
-    if (!progress.emergency) return 2;
-    if (!progress.availability) return 3;
-
-    const isDocSatisfied = r => r.status === 'submitted' || r.status === 'approved';
-    const isPolicySatisfied = r => r.status === 'approved';
-
-    const docs = requirements.filter(r => r.kind === 'document');
-    const certs = requirements.filter(r => r.kind === 'certification');
-    const policies = requirements.filter(r => r.kind === 'policy');
-
-    if (docs.some(r => !isDocSatisfied(r))) return 6;
-    if (certs.some(r => !isDocSatisfied(r))) return 7;
-    if (policies.some(r => !isPolicySatisfied(r))) return 8;
-
-    return 9; // Review
+// Resumability: onboarding always begins at the Password step (step 0).
+//
+// The password and availability are NOT persisted server-side until the very
+// last step (final submit creates the login account + availability atomically).
+// So even a returning employee who has already saved Personal/Emergency info and
+// uploaded documents must re-enter their password and availability in the session
+// that actually submits — landing them mid-flow would leave those fields empty and
+// the submit would be rejected. Starting at step 0 every time is therefore the
+// correct behavior, not just the safe one. `info` is accepted for API symmetry and
+// so this can grow real forward-resume once password/availability are persisted.
+function computeInitialStep(/* info */) {
+    return 0;
 }
 
 export default function OnboardingPage() {
@@ -229,7 +217,16 @@ export default function OnboardingPage() {
         setError('');
         setSubmitting(true);
         try {
-            await submitOnboardingV2(token);
+            // Availability is not persisted incrementally, so send it (plus the password) with the
+            // final submit — the server creates the login account + availability once the ledger is complete.
+            const availability = {
+                availableFrom, availableUntil: availableUntil || null,
+                weeklySchedule, maxHoursPerWeek, maxConcurrentClients,
+                maxTravelTime, transportation, notes,
+                holidayAvailability, blackoutDates, initialTimeOff,
+            };
+            const res = await submitOnboardingV2(token, { password, availability });
+            if (res && res.error) { setError(res.error); return; }
             setDone(true);
         } catch (err) {
             setError(err.message);

@@ -17,16 +17,34 @@ describe('onboarding submit gating', () => {
   });
   afterAll(async () => { await prisma.employee.delete({ where: { id: employeeId } }); });
 
+  const availability = {
+    availableFrom: '2026-08-01', availableUntil: null,
+    weeklySchedule: {}, maxHoursPerWeek: 40, maxConcurrentClients: 1,
+    maxTravelTime: 30, transportation: 'Own car',
+    holidayAvailability: {}, blackoutDates: [], initialTimeOff: [], notes: '',
+  };
+
   it('rejects submit while a policy is unacknowledged', async () => {
-    const res = await request(app).post(`/api/onboarding/${token}/submit`);
+    const res = await request(app).post(`/api/onboarding/${token}/submit`).send({ password: 'Secret123!', availability });
     expect(res.status).toBe(400);
   });
 
-  it('accepts submit after the policy is acknowledged', async () => {
+  it('rejects submit without a password even when the ledger is complete', async () => {
     await request(app).post(`/api/onboarding/${token}/policies/${policyReqId}/ack`).send({});
-    const res = await request(app).post(`/api/onboarding/${token}/submit`);
+    const res = await request(app).post(`/api/onboarding/${token}/submit`).send({ availability });
+    expect(res.status).toBe(400);
+  });
+
+  it('creates the account + availability on submit after the policy is acknowledged', async () => {
+    // policy already acked in the previous test
+    const res = await request(app).post(`/api/onboarding/${token}/submit`).send({ password: 'Secret123!', availability });
     expect(res.status).toBe(200);
     const ee = await prisma.employee.findUnique({ where: { id: employeeId } });
-    expect(ee.onboardingStatus).toBe('submitted');
+    // A pending User must now be linked so the employee can eventually log in.
+    expect(ee.userId).not.toBeNull();
+    expect(['submitted', 'active']).toContain(ee.onboardingStatus);
+    const avail = await prisma.employeeAvailability.findFirst({ where: { employeeId } });
+    expect(avail).not.toBeNull();
+    expect(avail.transportation).toBe('Own car');
   });
 });
