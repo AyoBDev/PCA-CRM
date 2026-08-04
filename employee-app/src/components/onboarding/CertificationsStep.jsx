@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 const STATUS_LABELS = {
     required: 'Required',
     submitted: 'Submitted',
@@ -7,12 +9,12 @@ const STATUS_LABELS = {
 
 export default function CertificationsStep({ requirements = [], onUpload }) {
     const certs = requirements.filter(r => r.kind === 'certification');
+    const [expiryByReqId, setExpiryByReqId] = useState({});
 
     function handleFileChange(reqId, e) {
         const file = e.target.files && e.target.files[0];
         if (!file) return;
-        const expiryInput = e.target.parentElement.querySelector('input[type="date"]');
-        const expirationDate = expiryInput ? expiryInput.value : undefined;
+        const expirationDate = expiryByReqId[reqId] || undefined;
         onUpload(reqId, file, expirationDate);
     }
 
@@ -46,7 +48,13 @@ export default function CertificationsStep({ requirements = [], onUpload }) {
                         onChange={e => handleFileChange(req.id, e)}
                     />
                     {req.requiresExpiry && (
-                        <input type="date" placeholder="Expiration date" style={{ marginTop: 8 }} />
+                        <input
+                            type="date"
+                            placeholder="Expiration date"
+                            style={{ marginTop: 8 }}
+                            value={expiryByReqId[req.id] || ''}
+                            onChange={e => setExpiryByReqId(prev => ({ ...prev, [req.id]: e.target.value }))}
+                        />
                     )}
                     {req.rejectionReason && (
                         <p className="onboard-error">{req.rejectionReason}</p>
