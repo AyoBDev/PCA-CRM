@@ -1,5 +1,6 @@
 const prisma = require('../../lib/prisma');
 const onboarding = require('../../services/onboardingService');
+const audit = require('../../services/auditService');
 
 async function resolveEmployee(token) {
     const { valid, employee } = await onboarding.validateToken(token);
@@ -26,6 +27,9 @@ async function savePersonal(req, res, next) {
         if (!employee) return res.status(400).json({ error: 'Invalid link' });
         const { address, dob, gender, preferredLanguage, ssn } = req.body;
         await prisma.employee.update({ where: { id: employee.id }, data: { address, dob, gender, preferredLanguage, ssn } });
+        // Public (token-auth) mutation → userId 0. Log only which fields were touched, never PHI values (dob/ssn).
+        const fields = Object.keys({ address, dob, gender, preferredLanguage, ssn }).filter((k) => req.body[k] !== undefined);
+        audit.logAction({ userId: 0, userName: employee.name, userRole: 'pca', action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'onboarding_personal_saved', fields } });
         res.json({ success: true });
     } catch (err) { next(err); }
 }
@@ -36,6 +40,7 @@ async function saveEmergency(req, res, next) {
         if (!employee) return res.status(400).json({ error: 'Invalid link' });
         const { emergencyContactName, emergencyContactRelationship, emergencyContactPhone, emergencyContactEmail } = req.body;
         await prisma.employee.update({ where: { id: employee.id }, data: { emergencyContactName, emergencyContactRelationship, emergencyContactPhone, emergencyContactEmail } });
+        audit.logAction({ userId: 0, userName: employee.name, userRole: 'pca', action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'onboarding_emergency_saved' } });
         res.json({ success: true });
     } catch (err) { next(err); }
 }
