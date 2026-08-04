@@ -179,6 +179,7 @@ const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalize
 const { previewSandata, applySandata, undoSandata } = require('../controllers/sandataController');
 const { listConversations, getConversationMessages, adminSendMessage, markConversationRead, getUnreadSummary } = require('../controllers/employeePortal/adminChatController');
 const { getOnboardingInfo, completeOnboarding, resendInvite, approveOnboarding, getOnboardingLink } = require('../controllers/onboardingController');
+const catalog = require('../controllers/catalogController');
 const { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats } = require('../controllers/leadController');
 const {
     listPermissionGroups,
@@ -444,6 +445,14 @@ router.put('/certifications/:id', requireRole('admin', 'user'), requirePermissio
 router.delete('/certifications/:id', requireRole('admin', 'user'), requirePermission('employees'), deleteCertification);
 router.get('/certifications/:id/download', requireRole('admin', 'user'), requirePermission('employees'), downloadCertification);
 router.get('/certification-uploads/:id/download', requireRole('admin', 'user'), requirePermission('employees'), downloadCertificationUpload);
+
+// Onboarding Catalogs (documents / cert types / policies)
+router.get('/catalogs/documents', requireRole('admin', 'user'), catalog.listDocuments);
+router.post('/catalogs/documents', requireRole('admin'), catalog.createDocument);
+router.get('/catalogs/cert-types', requireRole('admin', 'user'), catalog.listCertTypes);
+router.post('/catalogs/cert-types', requireRole('admin'), catalog.createCertType);
+router.get('/catalogs/policies', requireRole('admin', 'user'), catalog.listPolicies);
+router.post('/catalogs/policies', requireRole('admin'), catalog.createPolicy);
 
 // Employee Attention
 router.get('/admin/employee-attention', requireRole('admin', 'user'), requirePermission('employees'), getEmployeeAttention);
