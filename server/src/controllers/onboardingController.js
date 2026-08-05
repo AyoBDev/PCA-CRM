@@ -19,6 +19,8 @@ async function getOnboardingInfo(req, res, next) {
         res.json({
             employeeName: employee.name,
             employeeEmail: employee.email,
+            // If an admin sent them back, show the note explaining what to fix.
+            adminReviewNote: employee.adminReviewNote || '',
             requirements,
             // Already-saved values so a returning employee's form is pre-filled on reload.
             // (Password is never returned — it isn't stored until final submit.)
@@ -147,6 +149,34 @@ async function approveOnboarding(req, res, next) {
     }
 }
 
+async function rejectOnboarding(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const note = (req.body && req.body.note) || '';
+        const employee = await onboarding.reviewOnboarding(id, { status: 'changes_requested', note });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'reject_onboarding', note } });
+        res.json({ success: true });
+    } catch (err) {
+        if (err.message === 'Employee not found') return res.status(404).json({ error: err.message });
+        if (err.message === 'Employee is not pending approval') return res.status(400).json({ error: err.message });
+        next(err);
+    }
+}
+
+async function requestOnboardingChange(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const note = (req.body && req.body.note) || '';
+        const employee = await onboarding.reviewOnboarding(id, { status: 'changes_requested', note });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'request_onboarding_change', note } });
+        res.json({ success: true });
+    } catch (err) {
+        if (err.message === 'Employee not found') return res.status(404).json({ error: err.message });
+        if (err.message === 'Employee is not pending approval') return res.status(400).json({ error: err.message });
+        next(err);
+    }
+}
+
 async function getOnboardingLink(req, res, next) {
     try {
         const id = Number(req.params.id);
@@ -156,6 +186,28 @@ async function getOnboardingLink(req, res, next) {
         }
         const link = `${onboarding.EMPLOYEE_APP_URL}/onboard/${token.token}`;
         res.json({ link });
+    } catch (err) { next(err); }
+}
+
+// Full onboarding detail for ONE employee, for the admin review modal. Admin-only.
+async function getOnboardingReviewDetail(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const employee = await prisma.employee.findUnique({
+            where: { id },
+            select: {
+                id: true, name: true, email: true, phone: true, address: true, dob: true,
+                gender: true, preferredLanguage: true, onboardingStatus: true, adminReviewNote: true,
+                emergencyContactName: true, emergencyContactRelationship: true,
+                emergencyContactPhone: true, emergencyContactEmail: true,
+            },
+        });
+        if (!employee) return res.status(404).json({ error: 'Employee not found' });
+        const [requirements, availability] = await Promise.all([
+            projectLedger(id),
+            prisma.employeeAvailability.findUnique({ where: { employeeId: id } }),
+        ]);
+        res.json({ employee, requirements, availability });
     } catch (err) { next(err); }
 }
 
@@ -180,4 +232,4 @@ async function getOnboardingReviews(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, getOnboardingLink, getOnboardingReviews };
+module.exports = { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, rejectOnboarding, requestOnboardingChange, getOnboardingLink, getOnboardingReviews, getOnboardingReviewDetail };

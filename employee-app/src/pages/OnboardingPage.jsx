@@ -258,17 +258,18 @@ export default function OnboardingPage() {
         };
     }
 
-    // Whether a given step's data is complete, based on server-known state in `data`
-    // (used for resume + the progress dots). Password (0) can never be "known
-    // complete" from the server, so it's treated as complete once passed.
+    // Whether a given step's data is complete. Prefers LOCAL form state (what the
+    // user has actually entered this session) so a dot turns green the moment they
+    // fill a step, then falls back to server-known `data` for a resumed session.
+    // Requirement steps read live status from `data.requirements`.
     function stepDone(i, data) {
         const prog = (data && data.progress) || {};
         const reqs = (data && data.requirements) || [];
         switch (i) {
-            case 0: return step > 0; // password: only "done" once the user has moved past it this session
-            case 1: return Boolean(prog.personal);
-            case 2: return Boolean(prog.emergency);
-            case 3: case 4: case 5: return Boolean(prog.availability); // availability draft saved
+            case 0: return step > 0; // password: entered in-session; "done" once passed
+            case 1: return Boolean((personal.dob && personal.address) || prog.personal);
+            case 2: return Boolean(emergency.emergencyContactName || prog.emergency);
+            case 3: case 4: case 5: return Boolean(availableFrom || prog.availability);
             case 6: return reqs.filter(r => r.kind === 'document').every(reqSatisfied);
             case 7: return reqs.filter(r => r.kind === 'certification').every(reqSatisfied);
             case 8: return reqs.filter(r => r.kind === 'policy').every(reqSatisfied);
@@ -541,7 +542,15 @@ export default function OnboardingPage() {
                 )}
 
                 {step === 9 && (
-                    <ReviewStep requirements={requirements} personal={personal} emergency={emergency} onSubmit={handleSubmit} />
+                    <ReviewStep
+                        requirements={requirements}
+                        personal={personal}
+                        emergency={emergency}
+                        availability={buildAvailability()}
+                        hasPassword={Boolean(password)}
+                        onSubmit={handleSubmit}
+                        onEditStep={(s) => { setError(''); setStep(s); }}
+                    />
                 )}
 
                 {!isLastStep && (

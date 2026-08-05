@@ -119,7 +119,7 @@ async function approveOnboarding(employeeId) {
     await prisma.$transaction([
         prisma.employee.update({
             where: { id: employeeId },
-            data: { onboardingStatus: 'active' },
+            data: { onboardingStatus: 'active', adminReviewNote: '' },
         }),
         prisma.user.update({
             where: { id: employee.userId },
@@ -131,6 +131,34 @@ async function approveOnboarding(employeeId) {
     return employee;
 }
 
+// Send a submitted employee back to onboarding to fix things, with a note they'll
+// see. Used for both "reject" and "request change" (decision is recorded by the
+// caller in the audit log + status). Reopens the onboarding token so the employee's
+// existing link works again, and puts the account back to pending.
+async function reviewOnboarding(employeeId, { status, note }) {
+    const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+    if (!employee) throw new Error('Employee not found');
+    if (employee.onboardingStatus !== 'submitted') throw new Error('Employee is not pending approval');
+
+    const ops = [
+        prisma.employee.update({
+            where: { id: employeeId },
+            data: { onboardingStatus: status, adminReviewNote: note || '' },
+        }),
+        // Reopen the most recent onboarding token so the employee can return via their link.
+        prisma.onboardingToken.updateMany({
+            where: { employeeId },
+            data: { status: 'pending', completedAt: null, expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) },
+        }),
+    ];
+    // If a login account was already created at submit, hold it as pending again.
+    if (employee.userId) {
+        ops.push(prisma.user.update({ where: { id: employee.userId }, data: { status: 'pending' } }));
+    }
+    await prisma.$transaction(ops);
+    return employee;
+}
+
 module.exports = {
     createOnboardingToken,
     sendOnboardingEmail,
@@ -138,5 +166,6 @@ module.exports = {
     validateToken,
     completeOnboarding,
     approveOnboarding,
+    reviewOnboarding,
     EMPLOYEE_APP_URL,
 };

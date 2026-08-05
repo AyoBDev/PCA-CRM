@@ -32,7 +32,7 @@ export default function PersonalInfoStep({ value, onChange }) {
                     <input type="text" value={v.preferredLanguage || ''} onChange={e => set('preferredLanguage', e.target.value)} placeholder="English" />
                 </div>
                 <div className="form-group">
-                    <label>SSN</label>
+                    <label>SSN <span className="onboard-optional-inline">(optional)</span></label>
                     <input type="text" value={v.ssn || ''} onChange={e => set('ssn', e.target.value)} placeholder="XXX-XX-XXXX" autoComplete="off" />
                 </div>
             </div>

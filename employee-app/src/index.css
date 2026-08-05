@@ -786,6 +786,63 @@ body {
     white-space: nowrap;
 }
 
+/* Final Review summary — a read-back of everything entered. */
+.onboard-review__section {
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid hsl(240 5.9% 90%);
+}
+.onboard-review__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.onboard-review__edit {
+    background: none;
+    border: none;
+    color: hsl(217 91% 55%);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 2px 4px;
+}
+.onboard-review__grid {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 4px 12px;
+    margin: 6px 0 0;
+}
+.onboard-review__grid dt {
+    color: hsl(240 3.8% 46%);
+    font-size: 13px;
+}
+.onboard-review__grid dd {
+    margin: 0;
+    font-size: 14px;
+    color: hsl(240 10% 15%);
+    word-break: break-word;
+}
+.onboard-review__warn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+    border-radius: 8px;
+    color: #991b1b;
+    font-size: 14px;
+}
+
+/* Inline "(optional)" note next to a field label. */
+.onboard-optional-inline {
+    font-weight: 400;
+    font-size: 12px;
+    color: hsl(240 3.8% 55%);
+}
+
 /* "Optional" tag — a requirement the employee may skip now and finish later. */
 .onboard-optional-tag {
     margin-left: 8px;

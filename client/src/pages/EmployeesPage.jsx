@@ -138,6 +138,8 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
 
     const handleNext = () => {
         if (!name.trim()) { showToast('Name is required'); return; }
+        // Email is required for new hires — it's how the onboarding invite is sent.
+        if (!employee && !email.trim()) { showToast('Email is required'); return; }
         setStep(2);
     };
 
@@ -208,8 +210,8 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
                                 <input id="empPhone" value={phone} onChange={e => setPhone(e.target.value)} placeholder="(555) 123-4567" />
                             </div>
                             <div className="form-group">
-                                <label htmlFor="empEmail">Email</label>
-                                <input id="empEmail" type="email" value={email} onChange={e => setEmail(e.target.value)} />
+                                <label htmlFor="empEmail">Email {!employee && '*'}</label>
+                                <input id="empEmail" type="email" value={email} onChange={e => setEmail(e.target.value)} required={!employee} />
                             </div>
                         </div>
                         <div className="form-grid-2">
