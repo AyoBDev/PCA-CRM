@@ -10,7 +10,7 @@ const ALL_ACTIONS = Object.keys(ACTION_COLORS);
 
 const ENTITY_TYPES = [
     'Client', 'Employee', 'User', 'Shift', 'Timesheet',
-    'Authorization', 'PayrollRun', 'PayrollProfile', 'PermanentLink', 'PermissionGroup', 'InsuranceType', 'Service', 'Task', 'Receipt', 'AdminFile', 'Message', 'CertificationUpload', 'Lead',
+    'Authorization', 'PayrollRun', 'PayrollProfile', 'PermanentLink', 'PermissionGroup', 'InsuranceType', 'Service', 'Task', 'Receipt', 'AdminFile', 'Message', 'CertificationUpload', 'Lead', 'LeadContact',
     'ShiftOffer', 'ShiftCallout', 'EmployeeRequirement', 'EmployeeDocument', 'EmployeePolicyAck',
 ];
 

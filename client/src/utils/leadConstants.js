@@ -77,3 +77,27 @@ export function deriveDateFilterOptions(leads) {
   const years = [...monthsByYear.keys()].sort((a, b) => b - a);
   return { years, monthsByYear };
 }
+
+export const LEAD_CONTACT_METHODS = [
+  { id: 'call',      label: 'Phone call' },
+  { id: 'text',      label: 'Text message' },
+  { id: 'email',     label: 'Email' },
+  { id: 'in_person', label: 'In person' },
+];
+
+export const LEAD_CONTACT_OUTCOMES = [
+  { id: 'no_answer',               label: 'No answer',            terminal: false, color: '#94a3b8' },
+  { id: 'left_voicemail',          label: 'Left voicemail',       terminal: false, color: '#93c5fd' },
+  { id: 'reached_interested',      label: 'Reached — interested', terminal: false, color: '#4ade80' },
+  { id: 'callback_requested',      label: 'Callback requested',   terminal: false, color: '#fcd34d' },
+  { id: 'reached_not_interested',  label: 'Not interested',       terminal: true,  color: '#f87171' },
+  { id: 'wrong_number',            label: 'Wrong number',         terminal: true,  color: '#f87171' },
+  { id: 'went_elsewhere',          label: 'Went elsewhere',       terminal: true,  color: '#f87171' },
+  { id: 'other',                   label: 'Other',                terminal: false, color: '#a78bfa' },
+];
+
+export const TERMINAL_OUTCOMES = LEAD_CONTACT_OUTCOMES.filter(o => o.terminal).map(o => o.id);
+
+export function isTerminalOutcome(outcome) {
+  return TERMINAL_OUTCOMES.includes(outcome);
+}

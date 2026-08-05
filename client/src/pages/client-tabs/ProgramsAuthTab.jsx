@@ -24,6 +24,30 @@ const STATUS_STYLES = {
     inactive: { color: '#dc2626', bg: 'hsl(0 84% 96%)', border: '#fca5a5', label: 'Inactive' },
 };
 
+function AuthNoteInline({ auth, onSave }) {
+    const [editing, setEditing] = useState(false);
+    const [text, setText] = useState(auth.notes || '');
+    useEffect(() => { setText(auth.notes || ''); }, [auth.id, auth.notes]);
+    if (!editing) {
+        return (
+            <div className="pa-auth-note">
+                <span className="pa-auth-note__label">Authorization Note</span>
+                <span className="pa-auth-note__text">{auth.notes || <em style={{ opacity: .6 }}>No note</em>}</span>
+                <button className="btn btn--ghost btn--xs" onClick={() => setEditing(true)}>{Icons.edit} Edit</button>
+            </div>
+        );
+    }
+    return (
+        <div className="pa-auth-note pa-auth-note--editing">
+            <textarea className="pa-auth-note__input" value={text} onChange={(e) => setText(e.target.value)} />
+            <div className="pa-auth-note__actions">
+                <button className="btn btn--primary btn--xs" onClick={() => { onSave(auth.id, text); setEditing(false); }}>Save</button>
+                <button className="btn btn--outline btn--xs" onClick={() => { setText(auth.notes || ''); setEditing(false); }}>Cancel</button>
+            </div>
+        </div>
+    );
+}
+
 function ThreeDotMenu({ onEdit, onDelete }) {
     const [open, setOpen] = useState(false);
     const ref = useRef(null);
@@ -77,10 +101,12 @@ export default function ProgramsAuthTab({
     fetchClient,
     showToast,
     totalDocs,
+    onSaveAuthNote,
 }) {
     const { serviceColor } = useServices();
     const [expandedAuthIds, setExpandedAuthIds] = useState({});
     const [confirmDeleteDoc, setConfirmDeleteDoc] = useState(null);
+    const [expandedHistory, setExpandedHistory] = useState({});
 
     const toggleAuthExpanded = (authId) => {
         setExpandedAuthIds(prev => ({ ...prev, [authId]: !prev[authId] }));
@@ -89,7 +115,6 @@ export default function ProgramsAuthTab({
     const filterAuths = (auths) => {
         if (authFilterStatus === 'all') return auths;
         if (authFilterStatus === 'active') return auths.filter(a => !a.archivedAt && (a.manualStatus || 'active') === 'active' && a.status !== 'Expired');
-        if (authFilterStatus === 'pending') return auths.filter(a => (a.manualStatus || 'active') === 'pending');
         if (authFilterStatus === 'inactive') return auths.filter(a => (a.manualStatus || 'active') === 'inactive' || a.status === 'Expired');
         return auths;
     };
@@ -148,16 +173,6 @@ export default function ProgramsAuthTab({
             if (fetchClient) fetchClient();
         } catch (err) {
             if (showToast) showToast('Failed to update Client ID', 'error');
-        }
-    }
-
-    async function handleStatusChange(authId, newStatus) {
-        try {
-            await api.updateAuthManualStatus(authId, newStatus);
-            if (fetchClient) fetchClient();
-            if (showToast) showToast(`Status updated to ${newStatus}`);
-        } catch (err) {
-            if (showToast) showToast(err.message || 'Failed to update status', 'error');
         }
     }
 
@@ -226,11 +241,18 @@ export default function ProgramsAuthTab({
                             <div className="pa-service-card__detail">
                                 {Icons.paperclip} <span>{attachCount} ATTACHMENT{attachCount !== 1 ? 'S' : ''}</span>
                             </div>
+                            {(latestAuth.manualStatus === 'inactive') && !latestAuth.renewedToId && latestAuth.inactiveReason && (
+                                <div className="pa-auth-inactive-reason">🛑 <span><b>{latestAuth.inactiveReason}.</b> {latestAuth.inactiveNote}</span></div>
+                            )}
                         </>
                     ) : (
                         <div className="pa-service-card__detail" style={{ color: 'hsl(var(--muted-foreground))' }}>No authorizations</div>
                     )}
                 </div>
+
+                {latestAuth && (
+                    <AuthNoteInline auth={latestAuth} onSave={onSaveAuthNote} />
+                )}
 
                 <div className="pa-service-card__footer">
                     <button className="btn btn--outline btn--sm" onClick={() => navigate(`/clients/${clientId}/service/${encodeURIComponent(code)}`)}>{Icons.externalLink} Open</button>
@@ -243,6 +265,34 @@ export default function ProgramsAuthTab({
                     </button>
                 </div>
 
+                {(() => {
+                    const history = allAuths.filter(a => a.renewedToId); // superseded-by-renewal auths
+                    if (!history.length) return null;
+                    const isHistoryOpen = expandedHistory[code];
+                    return (
+                        <div className="pa-history">
+                            <button className="pa-history__toggle" onClick={() => setExpandedHistory(prev => ({ ...prev, [code]: !prev[code] }))}>
+                                {isHistoryOpen ? Icons.chevronDown : Icons.chevronRight} View authorization history ({history.length})
+                            </button>
+                            {isHistoryOpen && (
+                                <div className="pa-history__thread">
+                                    {history.sort((a, b) => new Date(b.authorizationEndDate || 0) - new Date(a.authorizationEndDate || 0)).map(h => (
+                                        <div key={h.id} className="pa-history__item">
+                                            <div className="pa-history__fields">
+                                                <span><b>#{h.authorizationNumber || '—'}</b></span>
+                                                <span>{h.authorizedUnits} units</span>
+                                                <span>{formatDate(h.authorizationStartDate)} – {formatDate(h.authorizationEndDate)}</span>
+                                                <span className="pa-badge">Superseded</span>
+                                            </div>
+                                            {h.notes && <div className="pa-history__note"><b>Note:</b> {h.notes}</div>}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
+
                 {isExpanded && (
                     <div className="pa-service-card__expanded">
                         {filteredAuths.length === 0 ? (
@@ -251,7 +301,6 @@ export default function ProgramsAuthTab({
                             <div className="pa-auth-list">
                                 {filteredAuths.map(a => {
                                     const authStatus = a.manualStatus || 'active';
-                                    const statusStyle = STATUS_STYLES[authStatus] || STATUS_STYLES.active;
                                     const isAuthExpanded = expandedAuthIds[a.id];
 
                                     return (
@@ -273,16 +322,6 @@ export default function ProgramsAuthTab({
                                                     )}
                                                 </div>
                                                 <div className="pa-auth-item__right" onClick={e => e.stopPropagation()}>
-                                                    <select
-                                                        className="pa-auth-item__status-select"
-                                                        value={authStatus}
-                                                        onChange={(e) => handleStatusChange(a.id, e.target.value)}
-                                                        style={{ color: statusStyle.color, background: statusStyle.bg, borderColor: statusStyle.border }}
-                                                    >
-                                                        <option value="active">Active</option>
-                                                        <option value="pending">Pending</option>
-                                                        <option value="inactive">Inactive</option>
-                                                    </select>
                                                     {a.daysToExpire !== null && !a.archivedAt && (
                                                         <span className={`ts-badge ts-badge--${a.status === 'Expired' ? 'critical' : a.status === 'Renewal Reminder' ? 'draft' : 'submitted'}`}>
                                                             {a.status} {a.daysToExpire >= 0 ? `(${a.daysToExpire}d)` : `(${Math.abs(a.daysToExpire)}d ago)`}
@@ -365,7 +404,6 @@ export default function ProgramsAuthTab({
                             {[
                                 { value: 'all', label: 'All' },
                                 { value: 'active', label: 'Active' },
-                                { value: 'pending', label: 'Pending' },
                                 { value: 'inactive', label: 'Inactive' },
                             ].map(opt => (
                                 <button
