@@ -86,6 +86,10 @@ export default function LeadRemindersGate() {
                 setOpen(false);
                 navigate(`/leads?lead=${id}`);
             }}
+            onOpenEmployeeReview={(id) => {
+                setOpen(false);
+                navigate(`/employees/${id}`);
+            }}
         />
     );
 }

@@ -181,7 +181,7 @@ const { getPayrollProfile, upsertPayrollProfile, revealSensitiveField } = requir
 const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalizeReceipts, sendReceipts, downloadReceiptPdf } = require('../controllers/receiptController');
 const { previewSandata, applySandata, undoSandata } = require('../controllers/sandataController');
 const { listConversations, getConversationMessages, adminSendMessage, markConversationRead, getUnreadSummary } = require('../controllers/employeePortal/adminChatController');
-const { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, getOnboardingLink } = require('../controllers/onboardingController');
+const { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, getOnboardingLink, getOnboardingReviews } = require('../controllers/onboardingController');
 const { savePersonal, saveEmergency, uploadDocument: uploadOnboardingDocument, ackPolicy } = require('../controllers/employeePortal/onboardingRequirementsController');
 const catalog = require('../controllers/catalogController');
 const { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats, createLeadContact, listLeadContacts, deleteLeadContact, getLeadReminders, getClientLeadContacts } = require('../controllers/leadController');
@@ -233,6 +233,10 @@ router.get('/pca-form/:token', getPcaForm);
 router.put('/pca-form/:token', updatePcaForm);
 router.get('/shift-offers/:token', getOffer);
 router.post('/shift-offers/:token/respond', respondToOffer);
+// Admin-only onboarding review list. Registered BEFORE the public '/onboarding/:token'
+// route so 'reviews' isn't swallowed as a token, and gated inline (authenticate +
+// admin) since it sits above the global authenticate middleware. Not visible to other roles.
+router.get('/onboarding/reviews', authenticate, requireRole('admin'), getOnboardingReviews);
 router.get('/onboarding/:token', getOnboardingInfo);
 router.post('/onboarding/:token/complete', completeOnboarding);
 router.patch('/onboarding/:token/personal', savePersonal);

@@ -167,6 +167,8 @@ export const reactivateLead = (id, columnId) =>
   request(`/leads/${id}/reactivate`, { method: 'POST', body: JSON.stringify({ status: columnId }) });
 export const getLeadStats = () => request('/leads/stats');
 export const getLeadReminders = () => request('/leads/reminders');
+// Admin-only: employees who submitted onboarding and await review.
+export const getOnboardingReviews = () => request('/onboarding/reviews');
 export const listLeadContacts = (leadId) => request(`/leads/${leadId}/contacts`);
 export const listClientLeadContacts = (clientId) => request(`/clients/${clientId}/lead-contacts`);
 export const createLeadContact = (leadId, body) =>

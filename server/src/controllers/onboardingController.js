@@ -159,4 +159,25 @@ async function getOnboardingLink(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, getOnboardingLink };
+// Employees who have finished onboarding and are awaiting admin approval.
+// Admin-only (gated at the route) — this list is not visible to other roles.
+async function getOnboardingReviews(req, res, next) {
+    try {
+        const employees = await prisma.employee.findMany({
+            where: { onboardingStatus: 'submitted' },
+            select: { id: true, name: true, email: true, phone: true, updatedAt: true },
+            orderBy: { updatedAt: 'asc' }, // oldest submissions first
+        });
+        const reviews = await Promise.all(employees.map(async (e) => {
+            const [required, satisfied, optionalPending] = await Promise.all([
+                prisma.employeeRequirement.count({ where: { employeeId: e.id, optional: false } }),
+                prisma.employeeRequirement.count({ where: { employeeId: e.id, optional: false, status: { in: ['submitted', 'approved'] } } }),
+                prisma.employeeRequirement.count({ where: { employeeId: e.id, optional: true, status: 'required' } }),
+            ]);
+            return { id: e.id, name: e.name, email: e.email, phone: e.phone, submittedAt: e.updatedAt, requiredTotal: required, requiredDone: satisfied, optionalPending };
+        }));
+        res.json({ reviews });
+    } catch (err) { next(err); }
+}
+
+module.exports = { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, getOnboardingLink, getOnboardingReviews };
