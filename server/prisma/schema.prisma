@@ -1141,6 +1141,9 @@ model EmployeeRequirement {
   kind            String
   catalogTypeId   Int       @map("catalog_type_id")
   status          String    @default("required")
+  // Optional requirements are shown to the employee but do NOT gate onboarding
+  // submission — they can be uploaded later from the app/Profile.
+  optional        Boolean   @default(false)
   rejectionReason String    @default("") @map("rejection_reason")
   dueDate         DateTime? @map("due_date")
   documentId      Int?      @map("document_id")

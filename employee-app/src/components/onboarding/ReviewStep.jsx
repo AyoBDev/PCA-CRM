@@ -6,15 +6,21 @@ const STATUS_LABELS = {
 };
 
 // Mirrors server isOnboardingComplete() in server/src/services/requirementService.js exactly:
-// a policy is satisfied only when approved; a document/certification is satisfied when
-// submitted OR approved.
+// optional items never gate; a policy is satisfied only when approved; a
+// document/certification is satisfied when submitted OR approved.
 function isRequirementSatisfied(r) {
     if (r.kind === 'policy') return r.status === 'approved';
     return r.status === 'submitted' || r.status === 'approved';
 }
 
+// Whether a requirement blocks submission. Optional items never do — the
+// employee can upload them later from their Profile.
+function blocksSubmit(r) {
+    return !r.optional && !isRequirementSatisfied(r);
+}
+
 export default function ReviewStep({ requirements = [], personal, emergency, onSubmit }) {
-    const complete = requirements.every(isRequirementSatisfied);
+    const complete = !requirements.some(blocksSubmit);
 
     return (
         <div className="onboard-step">
@@ -43,11 +49,15 @@ export default function ReviewStep({ requirements = [], personal, emergency, onS
                             title={req.label}
                         >
                             {req.label}: {STATUS_LABELS[req.status] || req.status}
-                            {!satisfied && ' ⚠'}
+                            {req.optional && !satisfied && ' (optional)'}
+                            {blocksSubmit(req) && ' ⚠'}
                         </span>
                     );
                 })}
             </div>
+            {requirements.some(r => r.optional && !isRequirementSatisfied(r)) && (
+                <p className="onboard-hint">Optional items can be completed later from your profile.</p>
+            )}
 
             {!complete && (
                 <p className="onboard-error">Please complete all required items before submitting.</p>

@@ -4,7 +4,6 @@ import { useToast } from '../hooks/useToast';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
-import RequirementSelectionStep from '../components/employees/RequirementSelectionStep';
 import * as api from '../api';
 import { useAuth } from '../hooks/useAuth';
 import GlobalToolbar from '../components/common/GlobalToolbar';
@@ -132,7 +131,6 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
     const [certDates, setCertDates] = useState(initCertDates);
     const [certFiles, setCertFiles] = useState({});
     const fileRefs = useRef({});
-    const [reqSelections, setReqSelections] = useState({ documentTypeIds: [], certTypeIds: [], policyDocumentIds: [] });
 
     const setCertDate = (type, field, value) => {
         setCertDates(prev => ({ ...prev, [type]: { ...prev[type], [field]: value } }));
@@ -154,12 +152,22 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
         data._certDates = certDates;
         data._certFiles = certFiles;
         if (!employee) {
-            data.requirementSelections = reqSelections;
+            // Certifications the admin did NOT provide (no expiration date and no
+            // attachment) become OPTIONAL onboarding requirements — the new hire can
+            // upload them later from the app. Ones the admin filled are already on file.
+            const certTypeKeys = FORM_CERT_TYPES
+                .filter(c => {
+                    const hasDate = Boolean(certDates[c.type]?.expiration);
+                    const hasFile = Boolean(certFiles[c.type]);
+                    return !hasDate && !hasFile;
+                })
+                .map(c => c.type);
+            data.requirementSelections = { certTypeKeys, optional: true };
         }
         onSave(data);
     };
 
-    const steps = employee ? ['Employee Info', 'Certifications'] : ['Employee Info', 'Certifications', 'Requirements'];
+    const steps = ['Employee Info', 'Certifications'];
 
     return (
         <Modal onClose={onClose} wide>
@@ -266,10 +274,6 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
                         ))}
                     </div>
                 )}
-
-                {step === 3 && !employee && (
-                    <RequirementSelectionStep value={reqSelections} onChange={setReqSelections} />
-                )}
             </div>
 
             <div className="wizard-nav">
@@ -282,9 +286,6 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
                     <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
                     {step === 1 && (
                         <button type="button" className="btn btn--primary" onClick={handleNext}>Next</button>
-                    )}
-                    {step === 2 && !employee && (
-                        <button type="button" className="btn btn--primary" onClick={() => setStep(3)}>Next</button>
                     )}
                     {(step === steps.length) && (
                         <button type="button" className="btn btn--primary" onClick={handleSubmit}>

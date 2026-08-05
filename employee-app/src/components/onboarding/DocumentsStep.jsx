@@ -42,6 +42,7 @@ export default function DocumentsStep({ requirements = [], onUpload }) {
                     <div key={req.id} className="form-group">
                         <label>
                             {req.label}
+                            {req.optional && <span className="onboard-optional-tag">Optional</span>}
                             {req.status && (
                                 <span className={`onboard-chip onboard-chip--${req.status}`} style={{ marginLeft: 8 }}>
                                     {STATUS_LABELS[req.status] || req.status}
