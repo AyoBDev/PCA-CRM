@@ -153,6 +153,7 @@ model Employee {
   emergencyContactRelationship String   @default("") @map("emergency_contact_relationship")
   emergencyContactPhone        String   @default("") @map("emergency_contact_phone")
   emergencyContactEmail        String   @default("") @map("emergency_contact_email")
+  onboardingDraft              Json?    @map("onboarding_draft")
   requirements                 EmployeeRequirement[]
   documents                    EmployeeDocument[]
   policyAcks                   EmployeePolicyAck[]

@@ -179,7 +179,7 @@ const { getPayrollProfile, upsertPayrollProfile, revealSensitiveField } = requir
 const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalizeReceipts, sendReceipts, downloadReceiptPdf } = require('../controllers/receiptController');
 const { previewSandata, applySandata, undoSandata } = require('../controllers/sandataController');
 const { listConversations, getConversationMessages, adminSendMessage, markConversationRead, getUnreadSummary } = require('../controllers/employeePortal/adminChatController');
-const { getOnboardingInfo, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, getOnboardingLink } = require('../controllers/onboardingController');
+const { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, getOnboardingLink } = require('../controllers/onboardingController');
 const { savePersonal, saveEmergency, uploadDocument: uploadOnboardingDocument, ackPolicy } = require('../controllers/employeePortal/onboardingRequirementsController');
 const catalog = require('../controllers/catalogController');
 const { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats } = require('../controllers/leadController');
@@ -235,6 +235,7 @@ router.get('/onboarding/:token', getOnboardingInfo);
 router.post('/onboarding/:token/complete', completeOnboarding);
 router.patch('/onboarding/:token/personal', savePersonal);
 router.patch('/onboarding/:token/emergency', saveEmergency);
+router.patch('/onboarding/:token/availability-draft', saveAvailabilityDraft);
 router.post('/onboarding/:token/documents/:reqId', onbUpload.single('file'), uploadOnboardingDocument);
 router.post('/onboarding/:token/policies/:reqId/ack', ackPolicy);
 router.post('/onboarding/:token/submit', submitOnboarding);

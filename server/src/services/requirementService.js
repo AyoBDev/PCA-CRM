@@ -8,13 +8,15 @@ const KINDS = { DOCUMENT: 'document', CERTIFICATION: 'certification', POLICY: 'p
 // employee portal, so there is exactly one place this shape is computed.
 async function projectLedger(employeeId) {
   const reqs = await prisma.employeeRequirement.findMany({ where: { employeeId } });
-  const [docs, certs, policies] = await Promise.all([
+  const [docs, certs, policies, uploaded] = await Promise.all([
     prisma.documentType.findMany(), prisma.certType.findMany(), prisma.policyDocument.findMany(),
+    prisma.employeeDocument.findMany({ where: { employeeId }, select: { id: true, fileName: true } }),
   ]);
   const byId = (a) => Object.fromEntries(a.map(x => [x.id, x]));
-  const d = byId(docs), c = byId(certs), p = byId(policies);
+  const d = byId(docs), c = byId(certs), p = byId(policies), fileById = byId(uploaded);
   return reqs.map(r => {
     const cat = r.kind === 'document' ? d[r.catalogTypeId] : r.kind === 'certification' ? c[r.catalogTypeId] : p[r.catalogTypeId];
+    const file = r.documentId ? fileById[r.documentId] : null;
     return {
       id: r.id,
       kind: r.kind,
@@ -23,6 +25,7 @@ async function projectLedger(employeeId) {
       rejectionReason: r.rejectionReason,
       label: cat ? (cat.label || cat.title) : '',
       requiresExpiry: cat ? Boolean(cat.requiresExpiry) : false,
+      fileName: file ? file.fileName : null,
     };
   });
 }

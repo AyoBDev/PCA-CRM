@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { getOnboardingInfo, saveOnboardingPersonal, saveOnboardingEmergency, uploadOnboardingDocument, ackOnboardingPolicy, submitOnboardingV2 } from '../api';
+import { getOnboardingInfo, saveOnboardingPersonal, saveOnboardingEmergency, saveOnboardingAvailabilityDraft, uploadOnboardingDocument, ackOnboardingPolicy, submitOnboardingV2 } from '../api';
 import PersonalInfoStep from '../components/onboarding/PersonalInfoStep';
 import EmergencyContactStep from '../components/onboarding/EmergencyContactStep';
 import DocumentsStep from '../components/onboarding/DocumentsStep';
@@ -39,18 +39,12 @@ const HOLIDAYS = [
 
 const TRANSPORTATION_OPTIONS = ['Own car', 'Public transit', 'Rideshare', 'Walk', 'Other'];
 
-// Resumability: onboarding always begins at the Password step (step 0).
-//
-// The password and availability are NOT persisted server-side until the very
-// last step (final submit creates the login account + availability atomically).
-// So even a returning employee who has already saved Personal/Emergency info and
-// uploaded documents must re-enter their password and availability in the session
-// that actually submits — landing them mid-flow would leave those fields empty and
-// the submit would be rejected. Starting at step 0 every time is therefore the
-// correct behavior, not just the safe one. `info` is accepted for API symmetry and
-// so this can grow real forward-resume once password/availability are persisted.
-function computeInitialStep(/* info */) {
-    return 0;
+const AVAILABILITY_STEPS = [3, 4, 5];
+
+// A document/certification requirement is satisfied once submitted or approved;
+// a policy only once approved. Mirrors the server's isOnboardingComplete rule.
+function reqSatisfied(r) {
+    return r.kind === 'policy' ? r.status === 'approved' : (r.status === 'submitted' || r.status === 'approved');
 }
 
 export default function OnboardingPage() {
@@ -87,9 +81,10 @@ export default function OnboardingPage() {
     const [transportation, setTransportation] = useState('Own car');
     const [notes, setNotes] = useState('');
 
-    // Availability: Time Off
+    // Availability: Time Off. Each holiday mirrors a weekly day-row: a toggle,
+    // and when ON, the hours the caregiver is available that day.
     const [holidayAvailability, setHolidayAvailability] = useState(
-        Object.fromEntries(HOLIDAYS.map(h => [h.key, false]))
+        Object.fromEntries(HOLIDAYS.map(h => [h.key, { available: false, start: '08:00', end: '17:00' }]))
     );
     const [blackoutDates, setBlackoutDates] = useState([]);
     const [newBlackout, setNewBlackout] = useState('');
@@ -102,17 +97,44 @@ export default function OnboardingPage() {
 
     useEffect(() => {
         getOnboardingInfo(token)
-            .then(setInfo)
+            .then(data => {
+                setInfo(data);
+                if (!initialStepApplied) {
+                    rehydrate(data);
+                    setInitialStepApplied(true);
+                }
+            })
             .catch(err => setError(err.message))
             .finally(() => setLoading(false));
+        // rehydrate is stable for the life of the component; intentionally omitted.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [token]);
 
-    useEffect(() => {
-        if (info && !initialStepApplied) {
-            setStep(computeInitialStep(info));
-            setInitialStepApplied(true);
+    // Refill everything the server has saved so a returning employee resumes where
+    // they left off. Password is never restored (it isn't stored until submit).
+    function rehydrate(data) {
+        const saved = data && data.saved ? data.saved : {};
+        if (saved.personal) setPersonal(p => ({ ...p, ...saved.personal }));
+        if (saved.emergency) setEmergency(e => ({ ...e, ...saved.emergency }));
+        const a = saved.availability;
+        if (a) {
+            if (a.availableFrom) setAvailableFrom(a.availableFrom);
+            if (a.availableUntil) setAvailableUntil(a.availableUntil);
+            if (a.weeklySchedule) setWeeklySchedule(prev => ({ ...prev, ...a.weeklySchedule }));
+            if (a.maxHoursPerWeek != null) setMaxHoursPerWeek(a.maxHoursPerWeek);
+            if (a.maxConcurrentClients != null) setMaxConcurrentClients(a.maxConcurrentClients);
+            if (a.maxTravelTime != null) setMaxTravelTime(a.maxTravelTime);
+            if (a.transportation) setTransportation(a.transportation);
+            if (a.notes) setNotes(a.notes);
+            if (a.holidayAvailability) setHolidayAvailability(prev => ({ ...prev, ...a.holidayAvailability }));
+            if (Array.isArray(a.blackoutDates)) setBlackoutDates(a.blackoutDates);
+            if (Array.isArray(a.initialTimeOff)) setInitialTimeOff(a.initialTimeOff);
         }
-    }, [info, initialStepApplied]);
+        // Jump to the first step that still needs attention. Password (0) is always
+        // required in the submitting session, so a returning user with saved progress
+        // resumes at the first UNSAVED data step instead.
+        setStep(firstIncompleteStep(data));
+    }
 
     function toggleDay(day) {
         setWeeklySchedule(prev => ({
@@ -125,6 +147,20 @@ export default function OnboardingPage() {
         setWeeklySchedule(prev => ({
             ...prev,
             [day]: { ...prev[day], [field]: value },
+        }));
+    }
+
+    function toggleHoliday(key) {
+        setHolidayAvailability(prev => ({
+            ...prev,
+            [key]: { ...prev[key], available: !prev[key].available },
+        }));
+    }
+
+    function updateHolidayTime(key, field, value) {
+        setHolidayAvailability(prev => ({
+            ...prev,
+            [key]: { ...prev[key], [field]: value },
         }));
     }
 
@@ -180,9 +216,9 @@ export default function OnboardingPage() {
                 // Emergency Contact step -> save
                 await saveOnboardingEmergency(token, emergency);
             } else if (step === 5) {
-                // Last availability screen (Time Off) -> persist availability as personal info's
-                // sibling record. Availability has no dedicated save-on-advance endpoint yet;
-                // it is included in the final submit payload, matching prior behavior.
+                // Last availability screen (Time Off) -> persist the whole availability form
+                // as a draft so it survives a page reload. (Final submit re-sends it too.)
+                await saveOnboardingAvailabilityDraft(token, buildAvailability());
             }
         } catch (err) {
             setError(err.message);
@@ -213,19 +249,59 @@ export default function OnboardingPage() {
         }
     }
 
+    function buildAvailability() {
+        return {
+            availableFrom, availableUntil: availableUntil || null,
+            weeklySchedule, maxHoursPerWeek, maxConcurrentClients,
+            maxTravelTime, transportation, notes,
+            holidayAvailability, blackoutDates, initialTimeOff,
+        };
+    }
+
+    // Whether a given step's data is complete, based on server-known state in `data`
+    // (used for resume + the progress dots). Password (0) can never be "known
+    // complete" from the server, so it's treated as complete once passed.
+    function stepDone(i, data) {
+        const prog = (data && data.progress) || {};
+        const reqs = (data && data.requirements) || [];
+        switch (i) {
+            case 0: return step > 0; // password: only "done" once the user has moved past it this session
+            case 1: return Boolean(prog.personal);
+            case 2: return Boolean(prog.emergency);
+            case 3: case 4: case 5: return Boolean(prog.availability); // availability draft saved
+            case 6: return reqs.filter(r => r.kind === 'document').every(reqSatisfied);
+            case 7: return reqs.filter(r => r.kind === 'certification').every(reqSatisfied);
+            case 8: return reqs.filter(r => r.kind === 'policy').every(reqSatisfied);
+            case 9: return false; // review is the terminal action, never "done" until submit
+            default: return false;
+        }
+    }
+
+    // Where a returning user should resume. A brand-new employee (no saved progress
+    // at all) starts at Password (step 0). Once ANY progress exists, we skip password
+    // (it can't be restored) and land on the first data step that isn't saved yet.
+    function firstIncompleteStep(data) {
+        const prog = (data && data.progress) || {};
+        const anyProgress = prog.personal || prog.emergency || prog.availability
+            || ((data && data.requirements) || []).some(reqSatisfied);
+        if (!anyProgress) return 0;
+        for (let i = 1; i < STEPS.length; i++) {
+            // availability spans 3 screens; if the draft is missing, resume at the first one
+            if (AVAILABILITY_STEPS.includes(i)) {
+                if (!prog.availability) return 3;
+                i = 5; // skip the other availability screens
+                continue;
+            }
+            if (!stepDone(i, data)) return i;
+        }
+        return STEPS.length - 1; // Review
+    }
+
     async function handleSubmit() {
         setError('');
         setSubmitting(true);
         try {
-            // Availability is not persisted incrementally, so send it (plus the password) with the
-            // final submit — the server creates the login account + availability once the ledger is complete.
-            const availability = {
-                availableFrom, availableUntil: availableUntil || null,
-                weeklySchedule, maxHoursPerWeek, maxConcurrentClients,
-                maxTravelTime, transportation, notes,
-                holidayAvailability, blackoutDates, initialTimeOff,
-            };
-            const res = await submitOnboardingV2(token, { password, availability });
+            const res = await submitOnboardingV2(token, { password, availability: buildAvailability() });
             if (res && res.error) { setError(res.error); return; }
             setDone(true);
         } catch (err) {
@@ -263,14 +339,24 @@ export default function OnboardingPage() {
                 <h1 className="onboard-title">Welcome, {info.employeeName}!</h1>
                 <p className="onboard-subtitle">Complete your setup to get started.</p>
 
-                <div className="wizard-steps">
-                    {STEPS.map((s, i) => (
-                        <div key={s.key} className={`wizard-step ${i === step ? 'wizard-step--active' : ''} ${i < step ? 'wizard-step--completed' : ''}`}>
-                            {i > 0 && <div className={`wizard-step-connector ${i <= step ? 'wizard-step-connector--completed' : ''}`} />}
-                            <div className="wizard-step__circle">{i < step ? '✓' : i + 1}</div>
-                            <span className="wizard-step__label">{s.label}</span>
-                        </div>
-                    ))}
+                <div className="wizard-dots">
+                    {STEPS.map((s, i) => {
+                        let mod = '';
+                        let mark = '';
+                        if (i === step) {
+                            mod = 'wizard-dot--active';
+                        } else if (i < step) {
+                            // A step already passed: green if its data is saved, red if it was
+                            // required but skipped/left incomplete.
+                            if (stepDone(i, info)) { mod = 'wizard-dot--done'; mark = '✓'; }
+                            else { mod = 'wizard-dot--incomplete'; mark = '!'; }
+                        }
+                        const title = (i < step && !stepDone(i, info)) ? `${s.label} — needs attention` : s.label;
+                        return <span key={s.key} className={`wizard-dot ${mod}`} title={title} aria-label={title}>{mark}</span>;
+                    })}
+                </div>
+                <div className="wizard-dots__label">
+                    {STEPS[step].label} <span>· Step {step + 1} of {STEPS.length}</span>
                 </div>
 
                 {error && <div className="onboard-error">{error}</div>}
@@ -384,13 +470,22 @@ export default function OnboardingPage() {
                     <div className="onboard-step">
                         <h2 className="onboard-step-title">Time Off & Holidays</h2>
                         <h3 className="onboard-section-label">Holiday Availability</h3>
-                        <p className="onboard-hint">Toggle ON the holidays you are willing to work.</p>
-                        <div className="onboard-holiday-grid">
+                        <p className="onboard-hint">Toggle ON the holidays you are willing to work, then set the hours you're available that day.</p>
+                        <div className="onboard-schedule-grid">
                             {HOLIDAYS.map(h => (
-                                <label key={h.key} className="onboard-holiday-item">
-                                    <input type="checkbox" checked={holidayAvailability[h.key]} onChange={() => setHolidayAvailability(prev => ({ ...prev, [h.key]: !prev[h.key] }))} />
-                                    <span>{h.label}</span>
-                                </label>
+                                <div key={h.key} className={`onboard-day-row ${holidayAvailability[h.key].available ? '' : 'onboard-day-row--off'}`}>
+                                    <label className="onboard-day-toggle">
+                                        <input type="checkbox" checked={holidayAvailability[h.key].available} onChange={() => toggleHoliday(h.key)} />
+                                        <span>{h.label}</span>
+                                    </label>
+                                    {holidayAvailability[h.key].available && (
+                                        <div className="onboard-day-times">
+                                            <input type="time" value={holidayAvailability[h.key].start} onChange={e => updateHolidayTime(h.key, 'start', e.target.value)} step="900" />
+                                            <span>to</span>
+                                            <input type="time" value={holidayAvailability[h.key].end} onChange={e => updateHolidayTime(h.key, 'end', e.target.value)} step="900" />
+                                        </div>
+                                    )}
+                                </div>
                             ))}
                         </div>
 

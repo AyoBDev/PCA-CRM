@@ -33,8 +33,9 @@ async function uploadDocument(req, res, next) {
         if (req.file.size > 10 * 1024 * 1024) return res.status(400).json({ error: 'File too large. Maximum 10 MB.' });
 
         const reqId = parseInt(req.params.reqId);
+        // Certifications are also fulfilled by uploading a file, so accept both kinds.
         const requirement = await prisma.employeeRequirement.findFirst({
-            where: { id: reqId, employeeId: req.employee.id, kind: 'document' },
+            where: { id: reqId, employeeId: req.employee.id, kind: { in: ['document', 'certification'] } },
         });
         if (!requirement) return res.status(404).json({ error: 'Requirement not found' });
 

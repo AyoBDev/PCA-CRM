@@ -52,7 +52,9 @@ async function uploadDocument(req, res, next) {
         if (!ALLOWED.includes(req.file.mimetype)) return res.status(400).json({ error: 'File type not allowed. Use image or PDF.' });
         if (req.file.size > 10 * 1024 * 1024) return res.status(400).json({ error: 'File too large. Maximum 10 MB.' });
         const reqId = parseInt(req.params.reqId);
-        const requirement = await prisma.employeeRequirement.findFirst({ where: { id: reqId, employeeId: employee.id, kind: 'document' } });
+        // Certifications are fulfilled by uploading a file too (CPR card, TB result, etc.),
+        // so this endpoint accepts both document- and certification-kind requirements.
+        const requirement = await prisma.employeeRequirement.findFirst({ where: { id: reqId, employeeId: employee.id, kind: { in: ['document', 'certification'] } } });
         if (!requirement) return res.status(404).json({ error: 'Requirement not found' });
         const key = `employee-docs/${employee.id}/${requirement.catalogTypeId}/${Date.now()}-${safeFileName(req.file.originalname)}`;
         await uploadFile(key, req.file.buffer, req.file.mimetype);

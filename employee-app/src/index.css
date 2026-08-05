@@ -686,74 +686,104 @@ body {
 }
 
 /* Wizard Steps */
-.wizard-steps {
+/* Compact dot progress indicator — no numbers, roomy spacing.
+   dot states: upcoming (hollow), active (large accent), done (green check),
+   incomplete (red ! — a required step that was passed without being filled). */
+.wizard-dots {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0;
-    margin-bottom: 24px;
-    padding: 16px 0;
+    gap: 6px;
+    margin-bottom: 8px;
+    padding: 12px 0 4px;
+    flex-wrap: wrap;
 }
 
-.wizard-step {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    position: relative;
-    flex: 1;
-}
-
-.wizard-step__circle {
-    width: 32px;
-    height: 32px;
+.wizard-dot {
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
+    border: 2px solid hsl(240 5.9% 82%);
+    background: white;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
-    font-weight: 600;
-    border: 2px solid hsl(240 5.9% 90%);
-    color: hsl(240 3.8% 46.1%);
-    background: white;
-    position: relative;
-    z-index: 1;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    color: white;
+    flex: 0 0 auto;
+    transition: all 0.15s ease;
 }
 
-.wizard-step--active .wizard-step__circle {
+.wizard-dot--active {
+    width: 16px;
+    height: 16px;
     border-color: hsl(217 91% 60%);
     background: hsl(217 91% 60%);
-    color: white;
+    box-shadow: 0 0 0 4px hsl(217 91% 60% / 0.15);
 }
 
-.wizard-step--completed .wizard-step__circle {
+.wizard-dot--done {
+    width: 16px;
+    height: 16px;
     border-color: #16a34a;
     background: #16a34a;
-    color: white;
 }
 
-.wizard-step__label {
-    font-size: 11px;
-    font-weight: 500;
-    margin-top: 6px;
-    color: hsl(240 3.8% 46.1%);
+.wizard-dot--incomplete {
+    width: 16px;
+    height: 16px;
+    border-color: #dc2626;
+    background: #dc2626;
 }
 
-.wizard-step--active .wizard-step__label {
-    color: hsl(217 91% 60%);
+.wizard-dots__label {
+    text-align: center;
+    font-size: 13px;
     font-weight: 600;
+    color: hsl(217 91% 55%);
+    margin-bottom: 20px;
 }
 
-.wizard-step-connector {
-    position: absolute;
-    top: 16px;
-    left: calc(-50% + 16px);
-    right: calc(50% + 16px);
-    height: 2px;
-    background: hsl(240 5.9% 90%);
+.wizard-dots__label span {
+    color: hsl(240 3.8% 46.1%);
+    font-weight: 500;
 }
 
-.wizard-step-connector--completed {
+/* Already-uploaded state for a document/certification requirement, so a returning
+   employee can see it's done rather than an empty file input that looks unstarted. */
+.onboard-upload-done {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid #bbf7d0;
+    background: #f0fdf4;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #166534;
+}
+
+.onboard-upload-done__check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
     background: #16a34a;
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    flex: 0 0 auto;
+}
+
+.onboard-upload-done > span:nth-child(2) {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Step Content */

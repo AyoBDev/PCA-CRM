@@ -15,11 +15,48 @@ async function getOnboardingInfo(req, res, next) {
             return res.status(400).json({ error: messages[reason] || 'Invalid link' });
         }
         const requirements = await projectLedger(employee.id);
-        res.json({ employeeName: employee.name, employeeEmail: employee.email, requirements, progress: {
-            personal: Boolean(employee.dob && employee.address),
-            emergency: Boolean(employee.emergencyContactName),
-            availability: Boolean(employee.availability),
-        } });
+        const draft = employee.onboardingDraft || null;
+        res.json({
+            employeeName: employee.name,
+            employeeEmail: employee.email,
+            requirements,
+            // Already-saved values so a returning employee's form is pre-filled on reload.
+            // (Password is never returned — it isn't stored until final submit.)
+            saved: {
+                personal: {
+                    address: employee.address || '',
+                    dob: employee.dob || '',
+                    gender: employee.gender || '',
+                    preferredLanguage: employee.preferredLanguage || '',
+                },
+                emergency: {
+                    emergencyContactName: employee.emergencyContactName || '',
+                    emergencyContactRelationship: employee.emergencyContactRelationship || '',
+                    emergencyContactPhone: employee.emergencyContactPhone || '',
+                    emergencyContactEmail: employee.emergencyContactEmail || '',
+                },
+                // Draft availability (persisted mid-flow so it survives a reload).
+                availability: draft && draft.availability ? draft.availability : null,
+            },
+            progress: {
+                personal: Boolean(employee.dob && employee.address),
+                emergency: Boolean(employee.emergencyContactName),
+                availability: Boolean(draft && draft.availability),
+            },
+        });
+    } catch (err) { next(err); }
+}
+
+// Persist the in-progress availability form as a JSON draft so it survives a
+// page reload. This is a token-auth public endpoint (userId 0 on the audit).
+async function saveAvailabilityDraft(req, res, next) {
+    try {
+        const { valid, employee } = await onboarding.validateToken(req.params.token);
+        if (!valid) return res.status(400).json({ error: 'This onboarding link is no longer valid.' });
+        const availability = req.body && req.body.availability ? req.body.availability : null;
+        const draft = { ...(employee.onboardingDraft || {}), availability };
+        await prisma.employee.update({ where: { id: employee.id }, data: { onboardingDraft: draft } });
+        res.json({ success: true });
     } catch (err) { next(err); }
 }
 
@@ -122,4 +159,4 @@ async function getOnboardingLink(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { getOnboardingInfo, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, getOnboardingLink };
+module.exports = { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, getOnboardingLink };
