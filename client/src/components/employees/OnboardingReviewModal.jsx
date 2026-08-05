@@ -111,18 +111,19 @@ export default function OnboardingReviewModal({ employeeId, onClose, onResolved 
                     </DetSection>
 
                     <DetSection title="Requirements">
-                        <div className="onboard-chip-list">
+                        <div className="orm-chip-list">
                             {(data.requirements || []).length === 0 && <span className="det-row__value">None assigned.</span>}
                             {(data.requirements || []).map(r => (
-                                <span key={r.id} className={`onboard-chip onboard-chip--${r.status}`} title={r.label}>
-                                    {r.label}: {STATUS_LABELS[r.status] || r.status}{r.optional ? ' (optional)' : ''}
+                                <span key={r.id} className={`orm-chip orm-chip--${r.status}`} title={r.label}>
+                                    {r.label}: {STATUS_LABELS[r.status] || r.status}
+                                    {r.optional && <span className="orm-chip__opt">(optional)</span>}
                                 </span>
                             ))}
                         </div>
                     </DetSection>
 
                     {mode && (
-                        <div className="form-group">
+                        <div className="form-group orm-note">
                             <label>{mode === 'reject' ? 'Reason for rejection' : 'What needs to change?'} (shown to the employee)</label>
                             <textarea rows={3} value={note} onChange={e => setNote(e.target.value)} autoFocus placeholder="Add a note the employee will see when they return to onboarding…" />
                         </div>
@@ -131,7 +132,7 @@ export default function OnboardingReviewModal({ employeeId, onClose, onResolved 
             )}
 
             {!loading && emp && (
-                <div className="tsv2-review-actions">
+                <div className="orm-actions">
                     {!mode ? (
                         <>
                             <button className="btn--reject" onClick={() => setMode('reject')} disabled={busy}>

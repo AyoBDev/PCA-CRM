@@ -45,6 +45,10 @@ export default function LeadRemindersModal({ open, onClose, onSnooze, onOpenLead
       .finally(() => setLoading(false));
   }, [open, isAdmin]);
 
+  function removeReview(employeeId) {
+    setReviews((prev) => prev.filter((e) => e.id !== employeeId));
+  }
+
   function removeLead(leadId) {
     setBuckets((prev) => {
       const next = {};
@@ -108,7 +112,7 @@ export default function LeadRemindersModal({ open, onClose, onSnooze, onOpenLead
                         <button
                           type="button"
                           className="btn btn--sm btn--primary"
-                          onClick={() => onOpenEmployeeReview?.(e.id)}
+                          onClick={() => onOpenEmployeeReview?.(e.id, () => removeReview(e.id))}
                         >
                           Review
                         </button>

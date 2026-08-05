@@ -58,6 +58,20 @@ describe('onboarding review decisions (admin)', () => {
     await prisma.employee.delete({ where: { id: emp.id } });
   });
 
+  it('mints a fresh onboarding link when the employee has no valid token', async () => {
+    const header = await adminHeader();
+    // A submitted employee with NO onboarding token at all.
+    const emp = await prisma.employee.create({ data: { name: 'No Token EE', email: `notok-${Date.now()}@t.co`, onboardingStatus: 'submitted' } });
+    const res = await request(app)
+      .patch(`/api/employees/${emp.id}/request-onboarding-change`)
+      .set(header)
+      .send({ note: 'Fix it.' });
+    expect(res.status).toBe(200);
+    const tok = await prisma.onboardingToken.findFirst({ where: { employeeId: emp.id, status: 'pending' } });
+    expect(tok).not.toBeNull(); // a usable link was created
+    await prisma.employee.delete({ where: { id: emp.id } });
+  });
+
   it('approve clears the review note and activates', async () => {
     const header = await adminHeader();
     const { emp } = await submittedEmployee();

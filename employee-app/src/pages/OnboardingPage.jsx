@@ -360,6 +360,13 @@ export default function OnboardingPage() {
                     {STEPS[step].label} <span>· Step {step + 1} of {STEPS.length}</span>
                 </div>
 
+                {info && info.adminReviewNote && (
+                    <div className="onboard-review-note">
+                        <strong>Your reviewer asked for changes:</strong>
+                        <p>{info.adminReviewNote}</p>
+                    </div>
+                )}
+
                 {error && <div className="onboard-error">{error}</div>}
 
                 {step === 0 && (

@@ -145,7 +145,7 @@ async function reviewOnboarding(employeeId, { status, note }) {
             where: { id: employeeId },
             data: { onboardingStatus: status, adminReviewNote: note || '' },
         }),
-        // Reopen the most recent onboarding token so the employee can return via their link.
+        // Reopen any existing onboarding tokens so the employee can return via their link.
         prisma.onboardingToken.updateMany({
             where: { employeeId },
             data: { status: 'pending', completedAt: null, expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) },
@@ -156,6 +156,16 @@ async function reviewOnboarding(employeeId, { status, note }) {
         ops.push(prisma.user.update({ where: { id: employee.userId }, data: { status: 'pending' } }));
     }
     await prisma.$transaction(ops);
+
+    // Guarantee the employee has a usable link back in — if none exists (or all are
+    // expired), mint a fresh one and email it.
+    const active = await prisma.onboardingToken.findFirst({
+        where: { employeeId, status: 'pending', expiresAt: { gt: new Date() } },
+    });
+    if (!active) {
+        const token = await createOnboardingToken(employeeId);
+        sendOnboardingEmail(employee, token).catch(err => console.error('Onboarding re-invite email failed:', err.message));
+    }
     return employee;
 }
 
