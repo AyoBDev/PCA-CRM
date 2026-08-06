@@ -135,21 +135,21 @@ export default function OnboardingReviewModal({ employeeId, onClose, onResolved 
                 <div className="orm-actions">
                     {!mode ? (
                         <>
-                            <button className="btn--reject" onClick={() => setMode('reject')} disabled={busy}>
-                                <span className="tsv2-btn-icon">{Icons.alertCircle}</span> Reject
+                            <button className="btn btn--danger" onClick={() => setMode('reject')} disabled={busy}>
+                                {Icons.alertCircle} Reject
                             </button>
-                            <button className="btn--sendback" onClick={() => setMode('request')} disabled={busy}>
-                                <span className="tsv2-btn-icon">{Icons.rotateCcw}</span> Request Change
+                            <button className="btn btn--warning" onClick={() => setMode('request')} disabled={busy}>
+                                {Icons.rotateCcw} Request Change
                             </button>
                             <button className="btn btn--success" onClick={doAccept} disabled={busy}>
-                                <span className="tsv2-btn-icon">{Icons.checkCircle}</span> Accept
+                                {Icons.checkCircle} Accept
                             </button>
                         </>
                     ) : (
                         <>
                             <button className="btn btn--outline" onClick={() => { setMode(null); setNote(''); }} disabled={busy}>Back</button>
                             <button
-                                className={mode === 'reject' ? 'btn--reject' : 'btn--sendback'}
+                                className={mode === 'reject' ? 'btn btn--danger' : 'btn btn--warning'}
                                 onClick={doDecision}
                                 disabled={busy || !note.trim()}
                             >

@@ -103,10 +103,6 @@ export default function LeadRemindersModal({ open, onClose, onSnooze, onOpenLead
                         {e.phone && (
                           <a href={`tel:${e.phone}`} className="lead-reminders__phone" onClick={(ev) => ev.stopPropagation()}>{e.phone}</a>
                         )}
-                        <span className="lead-reminders__last-badge">
-                          {e.requiredDone}/{e.requiredTotal} required done
-                          {e.optionalPending > 0 && ` · ${e.optionalPending} optional pending`}
-                        </span>
                       </div>
                       <div className="lead-reminders__actions">
                         <button
