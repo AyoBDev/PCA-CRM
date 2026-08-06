@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+const onbUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const {
     listClients,
     getClient,
@@ -180,7 +181,9 @@ const { getPayrollProfile, upsertPayrollProfile, revealSensitiveField } = requir
 const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalizeReceipts, sendReceipts, downloadReceiptPdf } = require('../controllers/receiptController');
 const { previewSandata, applySandata, undoSandata } = require('../controllers/sandataController');
 const { listConversations, getConversationMessages, adminSendMessage, markConversationRead, getUnreadSummary } = require('../controllers/employeePortal/adminChatController');
-const { getOnboardingInfo, completeOnboarding, resendInvite, approveOnboarding, getOnboardingLink } = require('../controllers/onboardingController');
+const { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, rejectOnboarding, requestOnboardingChange, getOnboardingLink, getOnboardingReviews, getOnboardingReviewDetail } = require('../controllers/onboardingController');
+const { savePersonal, saveEmergency, uploadDocument: uploadOnboardingDocument, ackPolicy } = require('../controllers/employeePortal/onboardingRequirementsController');
+const catalog = require('../controllers/catalogController');
 const { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats, createLeadContact, listLeadContacts, deleteLeadContact, getLeadReminders, getClientLeadContacts } = require('../controllers/leadController');
 const {
     listPermissionGroups,
@@ -230,8 +233,18 @@ router.get('/pca-form/:token', getPcaForm);
 router.put('/pca-form/:token', updatePcaForm);
 router.get('/shift-offers/:token', getOffer);
 router.post('/shift-offers/:token/respond', respondToOffer);
+// Admin-only onboarding review list. Registered BEFORE the public '/onboarding/:token'
+// route so 'reviews' isn't swallowed as a token, and gated inline (authenticate +
+// admin) since it sits above the global authenticate middleware. Not visible to other roles.
+router.get('/onboarding/reviews', authenticate, requireRole('admin'), getOnboardingReviews);
 router.get('/onboarding/:token', getOnboardingInfo);
 router.post('/onboarding/:token/complete', completeOnboarding);
+router.patch('/onboarding/:token/personal', savePersonal);
+router.patch('/onboarding/:token/emergency', saveEmergency);
+router.patch('/onboarding/:token/availability-draft', saveAvailabilityDraft);
+router.post('/onboarding/:token/documents/:reqId', onbUpload.single('file'), uploadOnboardingDocument);
+router.post('/onboarding/:token/policies/:reqId/ack', ackPolicy);
+router.post('/onboarding/:token/submit', submitOnboarding);
 
 // Backup (admin JWT or dedicated API key — must be above authenticate middleware)
 function backupAuth(req, res, next) {
@@ -444,6 +457,9 @@ router.delete('/employees/:id', requireRole('admin', 'user'), requirePermission(
 router.delete('/employees/:id/permanent', requireRole('admin'), requirePermission('employees'), permanentlyDeleteEmployee);
 router.post('/employees/:id/resend-invite', requireRole('admin'), requirePermission('employees'), resendInvite);
 router.patch('/employees/:id/approve-onboarding', requireRole('admin'), requirePermission('employees'), approveOnboarding);
+router.patch('/employees/:id/reject-onboarding', requireRole('admin'), requirePermission('employees'), rejectOnboarding);
+router.patch('/employees/:id/request-onboarding-change', requireRole('admin'), requirePermission('employees'), requestOnboardingChange);
+router.get('/employees/:id/onboarding-review', requireRole('admin'), requirePermission('employees'), getOnboardingReviewDetail);
 router.get('/employees/:id/onboarding-link', requireRole('admin'), requirePermission('employees'), getOnboardingLink);
 router.get('/employees/:id/availability', requireRole('admin', 'user'), requirePermission('employees'), getEmployeeAvailability);
 
@@ -457,6 +473,14 @@ router.put('/certifications/:id', requireRole('admin', 'user'), requirePermissio
 router.delete('/certifications/:id', requireRole('admin', 'user'), requirePermission('employees'), deleteCertification);
 router.get('/certifications/:id/download', requireRole('admin', 'user'), requirePermission('employees'), downloadCertification);
 router.get('/certification-uploads/:id/download', requireRole('admin', 'user'), requirePermission('employees'), downloadCertificationUpload);
+
+// Onboarding Catalogs (documents / cert types / policies) — gated under the employees permission
+router.get('/catalogs/documents', requireRole('admin', 'user'), requirePermission('employees'), catalog.listDocuments);
+router.post('/catalogs/documents', requireRole('admin'), requirePermission('employees'), catalog.createDocument);
+router.get('/catalogs/cert-types', requireRole('admin', 'user'), requirePermission('employees'), catalog.listCertTypes);
+router.post('/catalogs/cert-types', requireRole('admin'), requirePermission('employees'), catalog.createCertType);
+router.get('/catalogs/policies', requireRole('admin', 'user'), requirePermission('employees'), catalog.listPolicies);
+router.post('/catalogs/policies', requireRole('admin'), requirePermission('employees'), catalog.createPolicy);
 
 // Employee Attention
 router.get('/admin/employee-attention', requireRole('admin', 'user'), requirePermission('employees'), getEmployeeAttention);

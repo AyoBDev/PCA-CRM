@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import LeadRemindersModal from './LeadRemindersModal';
+import OnboardingReviewModal from '../employees/OnboardingReviewModal';
 
 // Event name other parts of the app dispatch to open the reminders briefing
 // on demand (e.g. the dashboard notification click).
@@ -35,6 +36,8 @@ export default function LeadRemindersGate() {
     const { isOffice, hasPermission } = useAuth();
     const navigate = useNavigate();
     const [open, setOpen] = useState(false);
+    const [reviewEmployeeId, setReviewEmployeeId] = useState(null); // onboarding review modal
+    const removeReviewRef = useRef(null); // drops the resolved employee from the popup list
 
     // Leads are office-only (admin/user); the /leads/* API is requireRole('admin','user').
     // pca users would 403, so never trigger the popup for them.
@@ -78,14 +81,33 @@ export default function LeadRemindersGate() {
     if (!canSeeLeads) return null;
 
     return (
-        <LeadRemindersModal
-            open={open}
-            onClose={() => setOpen(false)}
-            onSnooze={handleSnooze}
-            onOpenLead={(id) => {
-                setOpen(false);
-                navigate(`/leads?lead=${id}`);
-            }}
-        />
+        <>
+            <LeadRemindersModal
+                open={open}
+                onClose={() => setOpen(false)}
+                onSnooze={handleSnooze}
+                onOpenLead={(id) => {
+                    setOpen(false);
+                    navigate(`/leads?lead=${id}`);
+                }}
+                onOpenEmployeeReview={(id, remove) => {
+                    // Open the review modal over the popup; keep the popup mounted so
+                    // resolving one review just drops that row from the remaining list.
+                    removeReviewRef.current = remove;
+                    setReviewEmployeeId(id);
+                }}
+            />
+            {reviewEmployeeId != null && (
+                <OnboardingReviewModal
+                    employeeId={reviewEmployeeId}
+                    onClose={() => setReviewEmployeeId(null)}
+                    onResolved={() => {
+                        // Accepted/rejected/change-requested → remove from the popup list.
+                        removeReviewRef.current?.();
+                        setReviewEmployeeId(null);
+                    }}
+                />
+            )}
+        </>
     );
 }

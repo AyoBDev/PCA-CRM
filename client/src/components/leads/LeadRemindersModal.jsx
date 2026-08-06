@@ -4,6 +4,7 @@ import LogContactForm from './LogContactForm';
 import * as api from '../../api';
 import { LEAD_CONTACT_OUTCOMES } from '../../utils/leadConstants';
 import { useToast } from '../../hooks/useToast';
+import { useAuth } from '../../hooks/useAuth';
 
 // tone drives the accent color per bucket (see .lead-reminders__bucket--<tone> in index.css)
 const BUCKETS = [
@@ -19,22 +20,34 @@ function outcomeMeta(outcomeId) {
   return LEAD_CONTACT_OUTCOMES.find((o) => o.id === outcomeId) || null;
 }
 
-export default function LeadRemindersModal({ open, onClose, onSnooze, onOpenLead, onContactLogged }) {
+export default function LeadRemindersModal({ open, onClose, onSnooze, onOpenLead, onOpenEmployeeReview, onContactLogged }) {
   const [buckets, setBuckets] = useState(EMPTY_BUCKETS);
+  const [reviews, setReviews] = useState([]); // employees awaiting onboarding review (admin only)
   const [loading, setLoading] = useState(true);
   const [activeLog, setActiveLog] = useState(null); // leadId currently logging
   const [busy, setBusy] = useState(false);
   const { showUndoToast, showToast } = useToast();
+  const { isAdmin } = useAuth();
 
   useEffect(() => {
     if (!open) return;
     setLoading(true);
     setActiveLog(null);
-    api.getLeadReminders()
-      .then((data) => setBuckets({ ...EMPTY_BUCKETS, ...data }))
-      .catch(() => setBuckets(EMPTY_BUCKETS))
+    // Onboarding reviews are admin-only; other roles get a 403, so don't even ask.
+    const reviewsPromise = isAdmin
+      ? api.getOnboardingReviews().then((d) => d.reviews || []).catch(() => [])
+      : Promise.resolve([]);
+    Promise.all([
+      api.getLeadReminders().then((d) => ({ ...EMPTY_BUCKETS, ...d })).catch(() => EMPTY_BUCKETS),
+      reviewsPromise,
+    ])
+      .then(([b, r]) => { setBuckets(b); setReviews(r); })
       .finally(() => setLoading(false));
-  }, [open]);
+  }, [open, isAdmin]);
+
+  function removeReview(employeeId) {
+    setReviews((prev) => prev.filter((e) => e.id !== employeeId));
+  }
 
   function removeLead(leadId) {
     setBuckets((prev) => {
@@ -44,17 +57,20 @@ export default function LeadRemindersModal({ open, onClose, onSnooze, onOpenLead
     });
   }
 
-  const total = Object.values(buckets).reduce((n, arr) => n + arr.length, 0);
+  const leadTotal = Object.values(buckets).reduce((n, arr) => n + arr.length, 0);
+  const total = leadTotal + reviews.length;
 
   if (!open) return null;
 
   return (
     <Modal onClose={onClose} wide>
       <div className="lead-reminders__header">
-        <h2 className="modal__title">Good morning — leads needing attention</h2>
+        <h2 className="modal__title">Good morning — items needing attention</h2>
         {!loading && total > 0 && (
           <p className="lead-reminders__subtitle">
-            {total} {total === 1 ? 'lead needs' : 'leads need'} a follow-up today
+            {leadTotal > 0 && `${leadTotal} ${leadTotal === 1 ? 'lead needs' : 'leads need'} a follow-up`}
+            {leadTotal > 0 && reviews.length > 0 && ' · '}
+            {reviews.length > 0 && `${reviews.length} new ${reviews.length === 1 ? 'employee' : 'employees'} to review`}
           </p>
         )}
       </div>
@@ -64,10 +80,45 @@ export default function LeadRemindersModal({ open, onClose, onSnooze, onOpenLead
       ) : total === 0 ? (
         <div className="lead-reminders__empty">
           <span className="lead-reminders__empty-emoji">🎉</span>
-          <p>You're all caught up. No leads need attention right now.</p>
+          <p>You're all caught up. Nothing needs attention right now.</p>
         </div>
       ) : (
         <div className="lead-reminders">
+          {/* Admin-only: new employees who finished onboarding and need approval. */}
+          {reviews.length > 0 && (
+            <section className="lead-reminders__bucket lead-reminders__bucket--info">
+              <div className="lead-reminders__bucket-head">
+                <h3 className="lead-reminders__bucket-title">
+                  New employees to review
+                  <span className="lead-reminders__count">{reviews.length}</span>
+                </h3>
+                <p className="lead-reminders__hint">Finished onboarding — review and activate their account</p>
+              </div>
+              <ul className="lead-reminders__list">
+                {reviews.map((e) => (
+                  <li key={`emp-${e.id}`} className="lead-reminders__row">
+                    <div className="lead-reminders__row-main">
+                      <div className="lead-reminders__who">
+                        <strong className="lead-reminders__name">{e.name}</strong>
+                        {e.phone && (
+                          <a href={`tel:${e.phone}`} className="lead-reminders__phone" onClick={(ev) => ev.stopPropagation()}>{e.phone}</a>
+                        )}
+                      </div>
+                      <div className="lead-reminders__actions">
+                        <button
+                          type="button"
+                          className="btn btn--sm btn--primary"
+                          onClick={() => onOpenEmployeeReview?.(e.id, () => removeReview(e.id))}
+                        >
+                          Review
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           {BUCKETS.map(({ key, title, tone, hint }) => {
             const rows = buckets[key];
             if (!rows.length) return null;

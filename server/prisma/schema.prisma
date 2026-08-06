@@ -147,6 +147,18 @@ model Employee {
   portalNotifications     Notification[]
   shiftOffers             ShiftOffer[]
   shiftCallouts           ShiftCallout[]         @relation("CalloutEmployee")
+  gender                       String   @default("") @map("gender")
+  preferredLanguage            String   @default("") @map("preferred_language")
+  ssn                          String   @default("") @map("ssn")
+  emergencyContactName         String   @default("") @map("emergency_contact_name")
+  emergencyContactRelationship String   @default("") @map("emergency_contact_relationship")
+  emergencyContactPhone        String   @default("") @map("emergency_contact_phone")
+  emergencyContactEmail        String   @default("") @map("emergency_contact_email")
+  onboardingDraft              Json?    @map("onboarding_draft")
+  adminReviewNote              String   @default("") @map("admin_review_note")
+  requirements                 EmployeeRequirement[]
+  documents                    EmployeeDocument[]
+  policyAcks                   EmployeePolicyAck[]
 
   @@map("employees")
 }
@@ -1136,4 +1148,88 @@ model PermissionGroup {
   users        User[]
 
   @@map("permission_groups")
+}
+
+model DocumentType {
+  id             Int      @id @default(autoincrement())
+  key            String   @unique
+  label          String
+  requiresExpiry Boolean  @default(false) @map("requires_expiry")
+  active         Boolean  @default(true)
+  sortOrder      Int      @default(0) @map("sort_order")
+  @@map("document_types")
+}
+
+model CertType {
+  id             Int      @id @default(autoincrement())
+  key            String   @unique
+  label          String
+  renewalYears   Int?     @map("renewal_years")
+  requiresExpiry Boolean  @default(true) @map("requires_expiry")
+  active         Boolean  @default(true)
+  sortOrder      Int      @default(0) @map("sort_order")
+  @@map("cert_types")
+}
+
+model PolicyDocument {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  title     String
+  body      String?
+  fileKey   String?  @map("file_key")
+  version   Int      @default(1)
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0) @map("sort_order")
+  acks      EmployeePolicyAck[]
+  @@map("policy_documents")
+}
+
+model EmployeeRequirement {
+  id              Int       @id @default(autoincrement())
+  employeeId      Int       @map("employee_id")
+  kind            String
+  catalogTypeId   Int       @map("catalog_type_id")
+  status          String    @default("required")
+  // Optional requirements are shown to the employee but do NOT gate onboarding
+  // submission — they can be uploaded later from the app/Profile.
+  optional        Boolean   @default(false)
+  rejectionReason String    @default("") @map("rejection_reason")
+  dueDate         DateTime? @map("due_date")
+  documentId      Int?      @map("document_id")
+  certificationId Int?      @map("certification_id")
+  policyAckId     Int?      @map("policy_ack_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  employee        Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  @@index([employeeId, kind])
+  @@map("employee_requirements")
+}
+
+model EmployeeDocument {
+  id             Int       @id @default(autoincrement())
+  employeeId     Int       @map("employee_id")
+  documentTypeId Int       @map("document_type_id")
+  storageKey     String    @map("storage_key")
+  fileName       String    @map("file_name")
+  fileType       String    @map("file_type")
+  fileSize       Int       @map("file_size")
+  expirationDate DateTime? @map("expiration_date")
+  status         String    @default("submitted")
+  uploadedAt     DateTime  @default(now()) @map("uploaded_at")
+  employee       Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  @@index([employeeId])
+  @@map("employee_documents")
+}
+
+model EmployeePolicyAck {
+  id               Int            @id @default(autoincrement())
+  employeeId       Int            @map("employee_id")
+  policyDocumentId Int            @map("policy_document_id")
+  policyVersion    Int            @map("policy_version")
+  acknowledgedAt   DateTime       @default(now()) @map("acknowledged_at")
+  ipAddress        String?        @map("ip_address")
+  employee         Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  policyDocument   PolicyDocument @relation(fields: [policyDocumentId], references: [id], onDelete: Cascade)
+  @@index([employeeId])
+  @@map("employee_policy_acks")
 }

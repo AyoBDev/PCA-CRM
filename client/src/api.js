@@ -167,6 +167,9 @@ export const reactivateLead = (id, columnId) =>
   request(`/leads/${id}/reactivate`, { method: 'POST', body: JSON.stringify({ status: columnId }) });
 export const getLeadStats = () => request('/leads/stats');
 export const getLeadReminders = () => request('/leads/reminders');
+// Admin-only: employees who submitted onboarding and await review.
+export const getOnboardingReviews = () => request('/onboarding/reviews');
+export const getOnboardingReviewDetail = (employeeId) => request(`/employees/${employeeId}/onboarding-review`);
 export const listLeadContacts = (leadId) => request(`/leads/${leadId}/contacts`);
 export const listClientLeadContacts = (clientId) => request(`/clients/${clientId}/lead-contacts`);
 export const createLeadContact = (leadId, body) =>
@@ -943,6 +946,14 @@ export async function approveOnboarding(employeeId) {
     return request(`/employees/${employeeId}/approve-onboarding`, { method: 'PATCH' });
 }
 
+export async function rejectOnboarding(employeeId, note) {
+    return request(`/employees/${employeeId}/reject-onboarding`, { method: 'PATCH', body: JSON.stringify({ note }) });
+}
+
+export async function requestOnboardingChange(employeeId, note) {
+    return request(`/employees/${employeeId}/request-onboarding-change`, { method: 'PATCH', body: JSON.stringify({ note }) });
+}
+
 export async function getEmployeeAvailability(employeeId) {
     return request(`/employees/${employeeId}/availability`);
 }
@@ -982,3 +993,8 @@ export const markAttentionSeen = (keys) => {
     const body = Array.isArray(keys) ? { eventKeys: keys } : { eventKey: keys };
     return request('/admin/employee-attention/mark-seen', { method: 'POST', body: JSON.stringify(body) });
 };
+
+// ── Onboarding Catalogs ──
+export const getCatalogDocuments = () => request('/catalogs/documents');
+export const getCatalogCertTypes = () => request('/catalogs/cert-types');
+export const getCatalogPolicies = () => request('/catalogs/policies');

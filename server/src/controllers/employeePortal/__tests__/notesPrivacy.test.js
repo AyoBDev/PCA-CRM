@@ -30,9 +30,14 @@ describe('employee portal does not expose internal notes', () => {
         );
 
         // An allowlist is what keeps this safe: a bare findUnique would return
-        // every column, including notes, the moment a field is added.
-        expect(src).toMatch(/select:\s*\{/);
+        // every column, including notes, the moment a field is added. Accept
+        // either an inline `select: { ... }` or an extracted allowlist constant
+        // referenced as `select: SOME_CONST` — both are explicit allowlists.
+        expect(src).toMatch(/select:\s*(\{|[A-Z][A-Z0-9_]*)/);
         expect(src).not.toMatch(/notes:\s*true/);
+        // And every findUnique/findMany on this route must go through a select
+        // (never a bare query that would return all columns, incl. notes).
+        expect(src).not.toMatch(/find(?:Unique|Many|First)\(\{\s*where:[^}]*\}\s*\)/);
     });
 
     test('the portal offers endpoint does not return callout reasons', () => {
