@@ -26,3 +26,11 @@ regression tests in `server/__tests__/getScheduleView.test.js`.
 
 **Why:** Aligns the shared view with the app's stated single-source-of-truth rule
 (Client + Authorization), so the shared PDF can never disagree with the profile again.
+
+**Follow-up (same PR):** Extracted the live-resolution logic into a shared pure
+helper (`server/src/lib/sandataResolver.js`) so the view and the cleanup can't
+drift, and added a one-time cleanup script `npm run db:fix-shift-sandata-ids`
+(dry-run by default, `-- --apply` to persist) that re-syncs the stale
+`Shift.sandataClientId` copies from the authorization. The cleanup only rewrites
+a shift when a matching authorization has a non-empty, differing ID — it never
+blanks a shift — and is idempotent.

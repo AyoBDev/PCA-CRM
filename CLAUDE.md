@@ -300,6 +300,7 @@ The **Client** and **Authorization** tables are the single source of truth for t
 
 **Key rules:**
 - When `accountNumber` or `sandataClientId` changes on an Authorization, it propagates to all active Shifts for that client + serviceCode
+- `Shift.sandataClientId` is a copy made at shift-creation time and can drift from the Authorization. **Any surface that displays a shift's Sandata Client ID must resolve it live** via `server/src/lib/sandataResolver.js` (`buildLiveSandataMap` / `resolveShiftSandataId`), keyed by client + serviceCode, falling back to the shift's stored value only when no matching authorization carries an ID. The shared schedule view (`getScheduleView`) uses this; never render the raw `shift.sandataClientId`. A one-time cleanup to re-sync the stored copies is `npm run db:fix-shift-sandata-ids` (dry-run by default; `-- --apply` to persist)
 - The admin timesheet form auto-expands `enabledServices` from active authorizations (not just the stored client field)
 - The PCA form PUT handler also auto-expands `enabledServices` from authorizations (prevents Respite/Companion data from being zeroed on save)
 - Archiving an authorization logs the count of affected shifts in the audit trail
