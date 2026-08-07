@@ -33,3 +33,13 @@ Build-vs-adopt reasoning, one entry per feature.
 **Choice:** Build in-house.
 
 **Why:** Onboarding here is inseparable from the existing domain — it creates the login `User`, writes `Employee`/cert records, stores PHI under our encryption key, and must appear in our audit/History. An external tool would fragment identity and compliance across two systems and couldn't honor PHI-at-rest or our role model. Every building block already existed (bucket storage, cert records, audit/undo, the employee-app design system, the lead-reminders popup, the detail-modal pattern), so building reused them instead of importing a parallel stack. The one genuinely new concept — a requirement ledger with optional (non-gating) items — is a small model + pure `isOnboardingComplete` function, not something a library provides. No new dependency; one source of truth.
+
+## 2026-08-07 — Scheduling bulk-edit fixes (future propagation + add-shift on empty day)
+
+**Options considered:**
+- Adopt a third-party scheduling/calendar component (e.g. FullCalendar, react-big-calendar) or a generic recurring-event library. Signals: mature and popular, but none of them model our domain — per-client authorization gating, `recurringGroupId` propagation, overlap blocking, audit logging, and undo/redo are all coupled to our data model. Swapping in a library would be a disproportionate rewrite of working UI and wouldn't address the actual bugs.
+- Build in-house: fix the two defects in place inside our own `BulkEditModal` (`SchedulingPage.jsx`) and `bulkUpdateShiftsPerShift` (`schedulingController.js`).
+
+**Choice:** Build in-house — fix in place, minimal change.
+
+**Why:** The bugs are in our own logic, not a missing capability. (1) "Apply to all future recurring weeks" only propagated to shifts sharing a `recurringGroupId`, silently skipping week-by-week shifts; fixed by adding a fallback that matches future shifts by client + employee + weekday + service code (the existing day-of-week matcher already leaves non-matching shifts untouched). (2) A shift couldn't be added to a day with no existing shifts because the grid only rendered days that already had shifts; fixed by iterating all seven weekdays (mirroring the Create Shift modal), so every day shows "+ Add shift". A library swap would fragment our auth/overlap/audit/undo integration for no benefit. Server change built test-first (new failing test → fix); both fixes verified in the running app.
