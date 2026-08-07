@@ -53,4 +53,95 @@ function resolveShiftSandataId(shift, liveMap) {
     return live != null ? live : (shift.sandataClientId || '');
 }
 
-module.exports = { buildLiveSandataMap, resolveShiftSandataId };
+/**
+ * Build a map of `sandataClientId value` -> Set of clientIds that own it, from a
+ * list of authorizations. Used to tell whether a value stored on one client's
+ * shift actually belongs to a DIFFERENT client (the dangerous cross-contamination
+ * case) versus a same-client typo/format difference.
+ *
+ * @param {Array<{clientId:number, sandataClientId?:string}>} auths
+ * @returns {Map<string, Set<number>>}
+ */
+function buildSandataOwnerMap(auths) {
+    const owners = new Map();
+    for (const a of auths || []) {
+        const sid = (a.sandataClientId || '').trim();
+        if (!sid) continue;
+        if (!owners.has(sid)) owners.set(sid, new Set());
+        owners.get(sid).add(a.clientId);
+    }
+    return owners;
+}
+
+// Drift categories used by the one-time cleanup's `--only` filter.
+const DRIFT_CATEGORIES = ['blank_fill_in', 'cross_client', 'value_review'];
+
+/**
+ * Classify a single drifted shift into one of DRIFT_CATEGORIES.
+ *   - blank_fill_in: the shift has no stored id (auth supplies one) — benign.
+ *   - cross_client:  the shift's non-blank id provably belongs to a DIFFERENT
+ *                    client's authorization — the wrong-client-ID bug class.
+ *   - value_review:  the shift has a different non-blank id not owned by another
+ *                    client (typo, leading zero, per-code tangle) — needs review.
+ *
+ * @param {{clientId:number, storedValue:string}} shift  storedValue already trimmed
+ * @param {Map<string,Set<number>>} ownerMap from buildSandataOwnerMap
+ * @returns {'blank_fill_in'|'cross_client'|'value_review'}
+ */
+function classifyDrift(shift, ownerMap) {
+    const stored = (shift.storedValue || '').trim();
+    if (stored === '') return 'blank_fill_in';
+    const owners = ownerMap.get(stored);
+    if (owners) {
+        for (const cid of owners) {
+            if (cid !== shift.clientId) return 'cross_client';
+        }
+    }
+    return 'value_review';
+}
+
+/**
+ * Collapse per-shift drift records into one decision row per
+ * clientId|serviceCode|oldValue|newValue group. See the owner-review plan.
+ */
+function groupDrift(changes) {
+    const byKey = new Map();
+    for (const c of changes || []) {
+        const key = `${c.clientId}|${c.serviceCode}|${c.oldValue}|${c.newValue}`;
+        let g = byKey.get(key);
+        if (!g) {
+            g = {
+                groupKey: key,
+                clientId: c.clientId,
+                clientName: c.clientName,
+                serviceCode: c.serviceCode,
+                oldValue: c.oldValue,
+                newValue: c.newValue,
+                category: c.category,
+                shiftCount: 0,
+                firstDate: '',
+                lastDate: '',
+                shiftIds: [],
+            };
+            byKey.set(key, g);
+        }
+        g.shiftCount++;
+        g.shiftIds.push(c.shiftId);
+        const d = c.shiftDate || '';
+        if (d) {
+            if (!g.firstDate || d < g.firstDate) g.firstDate = d;
+            if (!g.lastDate || d > g.lastDate) g.lastDate = d;
+        }
+    }
+    return [...byKey.values()].sort((a, b) =>
+        a.clientName.localeCompare(b.clientName) || a.serviceCode.localeCompare(b.serviceCode));
+}
+
+module.exports = {
+    buildLiveSandataMap,
+    resolveShiftSandataId,
+    buildSandataOwnerMap,
+    classifyDrift,
+    groupDrift,
+    DRIFT_CATEGORIES,
+};
