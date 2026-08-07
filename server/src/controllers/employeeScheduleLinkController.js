@@ -89,10 +89,41 @@ async function getScheduleView(req, res) {
         orderBy: [{ shiftDate: 'asc' }, { startTime: 'asc' }],
     });
 
-    const enrichedShifts = shifts.map(s => ({
-        ...s,
-        serviceLabel: (SERVICE_COLOR_MAP[s.serviceCode] || {}).label || s.serviceCode,
-    }));
+    // Resolve the Sandata Client ID LIVE from each client's authorization for the
+    // shift's service code — never trust the copy stored on the shift row, which
+    // can drift from the source of truth (Authorization). A wrong value typed onto
+    // one shift must not leak into the shared PDF while the profile stays correct.
+    const clientIds = [...new Set(shifts.map(s => s.clientId).filter(Boolean))];
+    const auths = clientIds.length
+        ? await prisma.authorization.findMany({
+            where: { clientId: { in: clientIds }, archivedAt: null },
+        })
+        : [];
+
+    // Build clientId|serviceCode -> live Sandata Client ID, preferring an active
+    // authorization that actually has a non-empty ID.
+    const liveSandataByKey = {};
+    for (const a of auths) {
+        const sid = (a.sandataClientId || '').trim();
+        if (!sid) continue;
+        const key = `${a.clientId}|${a.serviceCode}`;
+        const isActive = (a.manualStatus || 'active') === 'active';
+        const existing = liveSandataByKey[key];
+        if (!existing || (isActive && !existing.active)) {
+            liveSandataByKey[key] = { value: sid, active: isActive };
+        }
+    }
+
+    const enrichedShifts = shifts.map(s => {
+        const live = liveSandataByKey[`${s.clientId}|${s.serviceCode}`];
+        return {
+            ...s,
+            // Live authorization value wins; fall back to the shift's stored copy
+            // only when no matching authorization carries a Sandata ID.
+            sandataClientId: live ? live.value : s.sandataClientId,
+            serviceLabel: (SERVICE_COLOR_MAP[s.serviceCode] || {}).label || s.serviceCode,
+        };
+    });
 
     // Fetch submitted timesheet hours for this PCA + week
     const wsDate = new Date(weekStart + 'T00:00:00.000Z');
