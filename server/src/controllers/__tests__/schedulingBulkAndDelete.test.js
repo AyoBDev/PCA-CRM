@@ -203,4 +203,52 @@ describe('bulkUpdateShiftsPerShift — overlap blocks, never auto-edits (Bug 3)'
         expect(updatedIds).toContain(10);  // future respite updated
         expect(updatedIds).not.toContain(11); // future homemaker left alone
     });
+
+    test('applyToFuture with NON-grouped shifts propagates to future shifts matched by client+employee+weekday+serviceCode', async () => {
+        // Shifts created week-by-week (no shared recurringGroupId). Editing this
+        // week's Monday PCS shift with "apply to all future recurring weeks" must
+        // still update the same client's PCS shift on future Mondays for the same
+        // employee — the feature can't rely on a recurring group existing.
+        const editedMon = {
+            id: 1, clientId: 3, employeeId: 7, serviceCode: 'PCS',
+            shiftDate: new Date('2026-08-10T00:00:00.000Z'), // Monday
+            startTime: '09:00', endTime: '13:00', recurringGroupId: '',
+            employee: { id: 7, name: 'Jane' }, client: { id: 3, clientName: 'Bob' },
+        };
+        const futureMonWk2 = { ...editedMon, id: 10, shiftDate: new Date('2026-08-17T00:00:00.000Z') };
+        const futureMonWk3 = { ...editedMon, id: 11, shiftDate: new Date('2026-08-24T00:00:00.000Z') };
+        // A future TUESDAY shift (wrong weekday) must be left untouched.
+        const futureTue = { ...editedMon, id: 12, shiftDate: new Date('2026-08-18T00:00:00.000Z') };
+        // A future Monday shift with a DIFFERENT service code must be left untouched.
+        const futureMonOtherSvc = { ...editedMon, id: 13, serviceCode: 'S5130', shiftDate: new Date('2026-08-17T00:00:00.000Z') };
+
+        prisma.shift.findMany.mockImplementation(({ where }) => {
+            // 1) load the edited shifts by id
+            if (where.id && where.id.in && !where.recurringGroupId && !where.OR) {
+                return Promise.resolve([editedMon]);
+            }
+            // 2) recurring-group future lookup — none exist here
+            if (where.recurringGroupId) return Promise.resolve([]);
+            // 3) fallback future lookup by client+employee (server filters weekday/service in JS)
+            if (where.OR) {
+                return Promise.resolve([futureMonWk2, futureMonWk3, futureTue, futureMonOtherSvc]);
+            }
+            // overlap sibling lookups: return only the shift itself (no conflict)
+            if (where.employeeId) return Promise.resolve([editedMon]);
+            return Promise.resolve([]);
+        });
+        prisma.shift.update.mockImplementation(({ where }) => Promise.resolve({ id: where.id, employee: { id: 7, name: 'Jane' } }));
+
+        const { req, res } = mockReqRes({
+            body: { perShiftUpdates: { 1: { startTime: '08:00' } }, applyToFuture: true },
+        });
+        await bulkUpdateShiftsPerShift(req, res);
+
+        const updatedIds = prisma.shift.update.mock.calls.map(c => c[0].where.id);
+        expect(updatedIds).toContain(1);   // current week edited
+        expect(updatedIds).toContain(10);  // future Monday, same service → updated
+        expect(updatedIds).toContain(11);  // future Monday, same service → updated
+        expect(updatedIds).not.toContain(12); // future Tuesday → untouched
+        expect(updatedIds).not.toContain(13); // future Monday, different service → untouched
+    });
 });

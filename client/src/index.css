@@ -8813,6 +8813,13 @@ button.sdr-section-tag:hover:not(:disabled) {
 .sched-day-row--active {
     background: hsl(217 91% 97%);
 }
+.sched-day-row--empty {
+    background: hsl(var(--muted) / 0.35);
+}
+.sched-day-row--empty .sched-day-row__day,
+.sched-day-row--empty .sched-day-row__date {
+    color: hsl(var(--muted-foreground));
+}
 .sched-day-row__header {
     display: flex;
     align-items: center;
