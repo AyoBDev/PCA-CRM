@@ -15,7 +15,8 @@
     "db:backfill-auth-required": "node prisma/backfill-authorization-required.js",
     "db:backfill-geocodes": "node prisma/backfill-geocodes.js",
     "db:encrypt-phi": "node prisma/encrypt-phi.js",
-    "db:fix-shift-sandata-ids": "node prisma/fix-shift-sandata-ids.js"
+    "db:fix-shift-sandata-ids": "node prisma/fix-shift-sandata-ids.js",
+    "db:export-sandata-review": "node prisma/export-sandata-review.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1068.0",
