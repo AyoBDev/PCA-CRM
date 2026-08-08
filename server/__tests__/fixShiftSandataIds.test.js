@@ -1,5 +1,6 @@
-// Tests the one-time shift Sandata-ID cleanup script's selection + write logic.
-// prisma and fs are mocked so no DB or disk is touched.
+// Tests the one-time shift Sandata-ID cleanup script's selection, classification,
+// --only filtering and write logic. prisma and fs are mocked so no DB or disk is
+// touched. `only` is passed explicitly (never left to read jest's process.argv).
 
 jest.mock('../src/lib/prisma', () => ({
   shift: { findMany: jest.fn(), update: jest.fn() },
@@ -35,9 +36,11 @@ test('dry run reports drift but writes nothing', async () => {
     { clientId: 42, serviceCode: 'PCS', sandataClientId: 'HEIDI-123', manualStatus: 'active' },
   ]);
 
-  const summary = await main(false);
+  const summary = await main(false, null);
 
-  expect(summary).toEqual({ scanned: 2, corrected: 0, pending: 1 });
+  expect(summary.scanned).toBe(2);
+  expect(summary.corrected).toBe(0);
+  expect(summary.pending).toBe(1);
   expect(prisma.shift.update).not.toHaveBeenCalled();
 });
 
@@ -50,9 +53,9 @@ test('apply corrects only the drifted shift, to the live authorization value', a
     { clientId: 42, serviceCode: 'PCS', sandataClientId: 'HEIDI-123', manualStatus: 'active' },
   ]);
 
-  const summary = await main(true);
+  const summary = await main(true, null);
 
-  expect(summary).toEqual({ scanned: 2, corrected: 1 });
+  expect(summary.corrected).toBe(1);
   expect(prisma.shift.update).toHaveBeenCalledTimes(1);
   expect(prisma.shift.update).toHaveBeenCalledWith({
     where: { id: 1 },
@@ -68,14 +71,13 @@ test('never touches a shift when its client+code has no authorization id', async
     { clientId: 42, serviceCode: 'S5150', sandataClientId: '', manualStatus: 'active' }, // blank id
   ]);
 
-  const summary = await main(true);
+  const summary = await main(true, null);
 
-  expect(summary).toEqual({ scanned: 1, corrected: 0 });
+  expect(summary.corrected).toBe(0);
   expect(prisma.shift.update).not.toHaveBeenCalled();
 });
 
 test('is idempotent: a second apply run changes nothing', async () => {
-  // After a prior apply, all shifts already match the live value.
   prisma.shift.findMany.mockResolvedValue([
     shift(1, 42, 'PCS', 'HEIDI-123'),
   ]);
@@ -83,8 +85,63 @@ test('is idempotent: a second apply run changes nothing', async () => {
     { clientId: 42, serviceCode: 'PCS', sandataClientId: 'HEIDI-123', manualStatus: 'active' },
   ]);
 
-  const summary = await main(true);
+  const summary = await main(true, null);
 
-  expect(summary).toEqual({ scanned: 1, corrected: 0 });
+  expect(summary.corrected).toBe(0);
   expect(prisma.shift.update).not.toHaveBeenCalled();
+});
+
+describe('classification + --only filter', () => {
+  // Fixture with one of each category:
+  //   shift 1 (client 42): stored JAVIER (owned by client 99) -> cross_client
+  //   shift 2 (client 42): stored ''                          -> blank_fill_in
+  //   shift 3 (client 42): stored 0123456 (owned by nobody)   -> value_review
+  // Client 42's PCS auth id is HEIDI-123 (the correct value for all three).
+  function fixture() {
+    prisma.shift.findMany.mockResolvedValue([
+      shift(1, 42, 'PCS', 'JAVIER'),
+      shift(2, 42, 'PCS', ''),
+      shift(3, 42, 'PCS', '0123456'),
+    ]);
+    prisma.authorization.findMany.mockResolvedValue([
+      { clientId: 42, serviceCode: 'PCS', sandataClientId: 'HEIDI-123', manualStatus: 'active' },
+      { clientId: 99, serviceCode: 'PCS', sandataClientId: 'JAVIER', manualStatus: 'active' },
+    ]);
+  }
+
+  test('counts each category', async () => {
+    fixture();
+    const summary = await main(false, null);
+    expect(summary.counts).toEqual({ blank_fill_in: 1, cross_client: 1, value_review: 1 });
+    expect(summary.pending).toBe(3); // no filter -> all selected
+  });
+
+  test('--only=cross_client applies ONLY the cross-client shift', async () => {
+    fixture();
+    const summary = await main(true, ['cross_client']);
+    expect(summary.corrected).toBe(1);
+    expect(prisma.shift.update).toHaveBeenCalledTimes(1);
+    expect(prisma.shift.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: { sandataClientId: 'HEIDI-123' },
+    });
+  });
+
+  test('--only=blank_fill_in,cross_client applies both, leaves value_review untouched', async () => {
+    fixture();
+    const summary = await main(true, ['blank_fill_in', 'cross_client']);
+    expect(summary.corrected).toBe(2);
+    const updatedIds = prisma.shift.update.mock.calls.map(c => c[0].where.id).sort();
+    expect(updatedIds).toEqual([1, 2]);
+  });
+
+  test('--only=value_review applies only the review shift', async () => {
+    fixture();
+    const summary = await main(true, ['value_review']);
+    expect(summary.corrected).toBe(1);
+    expect(prisma.shift.update).toHaveBeenCalledWith({
+      where: { id: 3 },
+      data: { sandataClientId: 'HEIDI-123' },
+    });
+  });
 });
