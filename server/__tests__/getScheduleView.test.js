@@ -91,7 +91,7 @@ describe('getScheduleView — Sandata Client ID resolution', () => {
     expect(res.body.shifts[0].sandataClientId).toBe('HM-ID');
   });
 
-  test('falls back to the stored shift value when no matching authorization has an ID', async () => {
+  test('returns empty string (no stored-value fallback) when no authorization carries an ID', async () => {
     prisma.employeeScheduleLink.findUnique.mockResolvedValue({
       token: 'tok', active: true, employeeId: 7,
       employee: { id: 7, name: 'Maria PCA' },
@@ -114,6 +114,6 @@ describe('getScheduleView — Sandata Client ID resolution', () => {
     const res = mockRes();
     await controller.getScheduleView({ params: { token: 'tok' }, query: { weekStart: '2026-08-10' } }, res);
 
-    expect(res.body.shifts[0].sandataClientId).toBe('ONLY-ON-SHIFT');
+    expect(res.body.shifts[0].sandataClientId).toBe('');
   });
 });
