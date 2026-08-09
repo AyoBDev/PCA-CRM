@@ -9003,6 +9003,7 @@ button.sdr-section-tag:hover:not(:disabled) {
     align-items: center;
     color: hsl(var(--muted-foreground) / 0.6);
     flex-shrink: 0;
+    cursor: help;
 }
 .resolved-id__info svg {
     width: 13px;

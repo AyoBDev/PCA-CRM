@@ -36,6 +36,7 @@ function buildClientColorMap(shifts) {
 function ResolvedIdField({ value, label }) {
     const [copied, setCopied] = React.useState(false);
     const display = value || '—';
+    const tip = `To change the ${label}, edit it on the client's authorization (client-details page).`;
     const copy = async () => {
         if (!value) return;
         try {
@@ -45,14 +46,14 @@ function ResolvedIdField({ value, label }) {
         } catch { /* clipboard unavailable */ }
     };
     return (
-        <span className="resolved-id" title={`To change the ${label}, edit it on the client's authorization (client-details page).`}>
+        <span className="resolved-id">
             <span className="resolved-id__value">{display}</span>
             {value ? (
-                <button type="button" className="resolved-id__copy" onClick={copy} aria-label={`Copy ${label}`}>
+                <button type="button" className="resolved-id__copy" onClick={copy} aria-label={`Copy ${label}`} title={`Copy ${label}`}>
                     {copied ? '✓' : Icons.clipboard}
                 </button>
             ) : null}
-            <span className="resolved-id__info" aria-hidden="true">{Icons.helpCircle}</span>
+            <span className="resolved-id__info" role="img" tabIndex={0} aria-label={tip} title={tip}>{Icons.helpCircle}</span>
         </span>
     );
 }
@@ -167,7 +168,10 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
         weekDates.push(toLocalDateStr(d));
     }
 
-    const defaultShift = () => ({ serviceCode: 'PCS', startTime: defaultStartTime || '09:00', endTime: '13:00', accountNumber: accountNumber || '', sandataClientId: '' });
+    const defaultShift = () => {
+        const info = authorizedServiceMap['PCS'] || {};
+        return { serviceCode: 'PCS', startTime: defaultStartTime || '09:00', endTime: '13:00', accountNumber: info.accountNumber || accountNumber || '', sandataClientId: info.sandataClientId || '' };
+    };
     const [dayEntries, setDayEntries] = useState(() =>
         d?.dayEntries || DAY_NAMES.map((_, i) => ({
             enabled: defaultDate ? weekDates[i] === defaultDate : false,
@@ -190,7 +194,16 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
     const updateDayShift = (dayIdx, shiftIdx, field, value) => {
         setDayEntries(prev => prev.map((day, i) => {
             if (i !== dayIdx) return day;
-            const newShifts = day.shifts.map((s, si) => si === shiftIdx ? { ...s, [field]: value } : s);
+            const newShifts = day.shifts.map((s, si) => {
+                if (si !== shiftIdx) return s;
+                const updated = { ...s, [field]: value };
+                if (field === 'serviceCode') {
+                    const info = authorizedServiceMap[value] || {};
+                    updated.accountNumber = info.accountNumber || '';
+                    updated.sandataClientId = info.sandataClientId || '';
+                }
+                return updated;
+            });
             return { ...day, shifts: newShifts };
         }));
     };
@@ -1481,10 +1494,26 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
         setNewRows(prev => ({ ...prev, [dateStr]: [...(prev[dateStr] || []), seedRowForDay(dateStr)] }));
     };
     const updateNewRow = (dateStr, key, field, value) => {
-        setNewRows(prev => ({
-            ...prev,
-            [dateStr]: (prev[dateStr] || []).map(r => r._key === key ? { ...r, [field]: value } : r),
-        }));
+        setNewRows(prev => {
+            const updated = (prev[dateStr] || []).map(r => {
+                if (r._key !== key) return r;
+                const next = { ...r, [field]: value };
+                if (field === 'serviceCode' && filterClientId) {
+                    const client = clients.find(c => String(c.id) === String(filterClientId));
+                    const now = new Date();
+                    const auth = client?.authorizations?.find(a =>
+                        a.serviceCode === value &&
+                        (a.manualStatus || 'active') === 'active' &&
+                        !a.archivedAt &&
+                        (!a.authorizationEndDate || new Date(a.authorizationEndDate) >= now)
+                    );
+                    next.accountNumber = auth?.accountNumber || '';
+                    next.sandataClientId = auth?.sandataClientId || '';
+                }
+                return next;
+            });
+            return { ...prev, [dateStr]: updated };
+        });
     };
     const removeNewRow = (dateStr, key) => {
         setNewRows(prev => ({ ...prev, [dateStr]: (prev[dateStr] || []).filter(r => r._key !== key) }));
