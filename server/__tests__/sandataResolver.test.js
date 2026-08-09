@@ -1,5 +1,6 @@
 const {
   buildLiveSandataMap,
+  resolveShiftAccountNumber,
   resolveShiftSandataId,
   buildSandataOwnerMap,
   classifyDrift,
@@ -7,63 +8,120 @@ const {
 } = require('../src/lib/sandataResolver');
 
 describe('buildLiveSandataMap', () => {
-  test('keys by clientId|serviceCode and trims the id', () => {
-    const map = buildLiveSandataMap([
-      { clientId: 42, serviceCode: 'PCS', sandataClientId: '  HEIDI-123 ', manualStatus: 'active' },
-    ]);
-    expect(map['42|PCS']).toBe('HEIDI-123');
+  const auths = [
+    { clientId: 42, serviceCode: 'PCS',   accountNumber: '71040', sandataClientId: '955054', manualStatus: 'active' },
+    { clientId: 42, serviceCode: 'S5130', accountNumber: '71120', sandataClientId: '155788', manualStatus: 'active' },
+  ];
+
+  test('accountByClientService keys clientId|serviceCode -> accountNumber', () => {
+    const m = buildLiveSandataMap(auths);
+    expect(m.accountByClientService['42|PCS']).toBe('71040');
+    expect(m.accountByClientService['42|S5130']).toBe('71120');
   });
 
-  test('ignores authorizations with a blank Sandata id', () => {
-    const map = buildLiveSandataMap([
-      { clientId: 42, serviceCode: 'S5150', sandataClientId: '', manualStatus: 'active' },
-      { clientId: 42, serviceCode: 'S5150', sandataClientId: '   ', manualStatus: 'active' },
-    ]);
-    expect(map['42|S5150']).toBeUndefined();
+  test('sandataByClientAccount keys clientId|accountNumber -> id', () => {
+    const m = buildLiveSandataMap(auths);
+    expect(m.sandataByClientAccount['42|71040']).toBe('955054');
+    expect(m.sandataByClientAccount['42|71120']).toBe('155788');
   });
 
-  test('an active authorization wins over an inactive one for the same key', () => {
-    const map = buildLiveSandataMap([
-      { clientId: 42, serviceCode: 'PCS', sandataClientId: 'OLD', manualStatus: 'inactive' },
-      { clientId: 42, serviceCode: 'PCS', sandataClientId: 'NEW', manualStatus: 'active' },
+  test('sandataByClientService keys clientId|serviceCode -> id', () => {
+    const m = buildLiveSandataMap(auths);
+    expect(m.sandataByClientService['42|PCS']).toBe('955054');
+  });
+
+  test('name maps use normalizeName (sorted tokens) from payrollService', () => {
+    const m = buildLiveSandataMap([
+      { clientId: 42, serviceCode: 'PCS', accountNumber: '71040', sandataClientId: '955054', clientName: 'Smith, John', manualStatus: 'active' },
     ]);
-    expect(map['42|PCS']).toBe('NEW');
+    expect(m.accountByNameService['john smith|PCS']).toBe('71040');
+    expect(m.sandataByNameService['john smith|PCS']).toBe('955054');
+  });
+
+  test('reads clientName from shift.client.clientName when present', () => {
+    const m = buildLiveSandataMap([
+      { clientId: 42, serviceCode: 'PCS', accountNumber: '71040', sandataClientId: '955054', client: { clientName: 'John Smith' }, manualStatus: 'active' },
+    ]);
+    expect(m.sandataByNameService['john smith|PCS']).toBe('955054');
+  });
+
+  test('trims values and ignores blank targets', () => {
+    const m = buildLiveSandataMap([
+      { clientId: 1, serviceCode: 'PCS', accountNumber: '  71040 ', sandataClientId: '  X ', manualStatus: 'active' },
+      { clientId: 2, serviceCode: 'PCS', accountNumber: '', sandataClientId: '', manualStatus: 'active' },
+    ]);
+    expect(m.accountByClientService['1|PCS']).toBe('71040');
+    expect(m.sandataByClientAccount['1|71040']).toBe('X');
+    expect(m.accountByClientService['2|PCS']).toBeUndefined();
+    expect(m.sandataByClientService['2|PCS']).toBeUndefined();
+  });
+
+  test('active auth wins over inactive for the same key (both dimensions)', () => {
+    const m = buildLiveSandataMap([
+      { clientId: 7, serviceCode: 'PCS', accountNumber: '111', sandataClientId: 'OLD', manualStatus: 'inactive' },
+      { clientId: 7, serviceCode: 'PCS', accountNumber: '222', sandataClientId: 'NEW', manualStatus: 'active' },
+    ]);
+    expect(m.accountByClientService['7|PCS']).toBe('222');
+    expect(m.sandataByClientService['7|PCS']).toBe('NEW');
   });
 
   test('treats null manualStatus as active', () => {
-    const map = buildLiveSandataMap([
-      { clientId: 7, serviceCode: 'PCS', sandataClientId: 'X', manualStatus: null },
+    const m = buildLiveSandataMap([
+      { clientId: 7, serviceCode: 'PCS', accountNumber: '111', sandataClientId: 'X', manualStatus: null },
     ]);
-    expect(map['7|PCS']).toBe('X');
+    expect(m.accountByClientService['7|PCS']).toBe('111');
+  });
+});
+
+describe('resolveShiftAccountNumber', () => {
+  const maps = buildLiveSandataMap([
+    { clientId: 42, serviceCode: 'PCS', accountNumber: '71040', sandataClientId: '955054', clientName: 'John Smith', manualStatus: 'active' },
+  ]);
+
+  test('resolves by clientId|serviceCode', () => {
+    expect(resolveShiftAccountNumber({ clientId: 42, serviceCode: 'PCS' }, maps)).toBe('71040');
   });
 
-  test('does not cross-match different clients or codes', () => {
-    const map = buildLiveSandataMap([
-      { clientId: 42, serviceCode: 'PCS', sandataClientId: 'HEIDI', manualStatus: 'active' },
-      { clientId: 99, serviceCode: 'PCS', sandataClientId: 'JAVIER', manualStatus: 'active' },
-    ]);
-    expect(map['42|PCS']).toBe('HEIDI');
-    expect(map['99|PCS']).toBe('JAVIER');
-    expect(map['42|S5130']).toBeUndefined();
+  test('falls back to name|serviceCode when clientId does not match', () => {
+    const shift = { clientId: 999, serviceCode: 'PCS', client: { clientName: 'Smith, John' } };
+    expect(resolveShiftAccountNumber(shift, maps)).toBe('71040');
+  });
+
+  test('returns empty string when nothing matches (never the stored value)', () => {
+    const shift = { clientId: 999, serviceCode: 'S5150', accountNumber: 'STORED', client: { clientName: 'Nobody' } };
+    expect(resolveShiftAccountNumber(shift, maps)).toBe('');
   });
 });
 
 describe('resolveShiftSandataId', () => {
-  const liveMap = { '42|PCS': 'HEIDI-123' };
+  const maps = buildLiveSandataMap([
+    { clientId: 42, serviceCode: 'PCS',   accountNumber: '71040', sandataClientId: '955054', clientName: 'John Smith', manualStatus: 'active' },
+    { clientId: 42, serviceCode: 'S5130', accountNumber: '71120', sandataClientId: '155788', clientName: 'John Smith', manualStatus: 'active' },
+  ]);
 
-  test('returns the live authorization id, overriding a stale shift copy', () => {
-    const shift = { clientId: 42, serviceCode: 'PCS', sandataClientId: 'JAVIER-999' };
-    expect(resolveShiftSandataId(shift, liveMap)).toBe('HEIDI-123');
+  test('primary: clientId|derivedAccount wins', () => {
+    const shift = { clientId: 42, serviceCode: 'PCS', sandataClientId: 'STALE' };
+    expect(resolveShiftSandataId(shift, '71040', maps)).toBe('955054');
   });
 
-  test('falls back to the stored shift value when there is no live match', () => {
-    const shift = { clientId: 42, serviceCode: 'S5150', sandataClientId: 'ONLY-ON-SHIFT' };
-    expect(resolveShiftSandataId(shift, liveMap)).toBe('ONLY-ON-SHIFT');
+  test('two accounts: derived account selects the matching Sandata id', () => {
+    const shift = { clientId: 42, serviceCode: 'S5130' };
+    expect(resolveShiftSandataId(shift, '71120', maps)).toBe('155788');
   });
 
-  test('returns empty string when neither source has a value', () => {
-    const shift = { clientId: 42, serviceCode: 'S5150', sandataClientId: '' };
-    expect(resolveShiftSandataId(shift, liveMap)).toBe('');
+  test('blank derived account skips primary, falls to clientId|serviceCode', () => {
+    const shift = { clientId: 42, serviceCode: 'PCS' };
+    expect(resolveShiftSandataId(shift, '', maps)).toBe('955054');
+  });
+
+  test('falls to name|serviceCode when clientId does not match', () => {
+    const shift = { clientId: 999, serviceCode: 'PCS', client: { clientName: 'Smith, John' } };
+    expect(resolveShiftSandataId(shift, '', maps)).toBe('955054');
+  });
+
+  test('returns empty string when nothing matches (never the stored value)', () => {
+    const shift = { clientId: 999, serviceCode: 'S5150', sandataClientId: 'STORED', client: { clientName: 'Nobody' } };
+    expect(resolveShiftSandataId(shift, '', maps)).toBe('');
   });
 });
 

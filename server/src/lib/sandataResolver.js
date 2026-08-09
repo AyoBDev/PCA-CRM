@@ -13,44 +13,76 @@
  * one implementation and cannot drift.
  */
 
-/**
- * Build a `clientId|serviceCode` -> live Sandata Client ID lookup from a list of
- * authorizations. Only authorizations with a non-empty `sandataClientId` are
- * considered; an active authorization always wins over an inactive one for the
- * same key.
- *
- * @param {Array<{clientId:number, serviceCode:string, sandataClientId?:string, manualStatus?:string}>} auths
- * @returns {Object<string, string>} map of `${clientId}|${serviceCode}` -> id
- */
-function buildLiveSandataMap(auths) {
-    const byKey = {};
-    for (const a of auths || []) {
-        const sid = (a.sandataClientId || '').trim();
-        if (!sid) continue;
-        const key = `${a.clientId}|${a.serviceCode}`;
-        const isActive = (a.manualStatus || 'active') === 'active';
-        const existing = byKey[key];
-        if (!existing || (isActive && !existing.active)) {
-            byKey[key] = { value: sid, active: isActive };
-        }
+const { normalizeName } = require('../services/payrollService');
+
+function clientNameOf(row) {
+    return (row.client && row.client.clientName) || row.clientName || '';
+}
+
+// active-wins setter into a `{ value, active }` staging object
+function setPreferActive(staging, key, value, isActive) {
+    if (!key || !value) return;
+    const existing = staging[key];
+    if (!existing || (isActive && !existing.active)) {
+        staging[key] = { value, active: isActive };
     }
-    // Flatten to plain string values.
+}
+
+function flatten(staging) {
     const out = {};
-    for (const key of Object.keys(byKey)) out[key] = byKey[key].value;
+    for (const k of Object.keys(staging)) out[k] = staging[k].value;
     return out;
 }
 
 /**
- * Resolve the live Sandata Client ID for one shift, falling back to the shift's
- * stored value when no matching authorization carries an ID.
- *
- * @param {{clientId:number, serviceCode:string, sandataClientId?:string}} shift
- * @param {Object<string,string>} liveMap from buildLiveSandataMap
- * @returns {string} the id the shift SHOULD show
+ * Build the live lookup bundle from a client's authorizations. Both account
+ * number and Sandata id are indexed; active auth wins over inactive per key.
  */
-function resolveShiftSandataId(shift, liveMap) {
-    const live = liveMap[`${shift.clientId}|${shift.serviceCode}`];
-    return live != null ? live : (shift.sandataClientId || '');
+function buildLiveSandataMap(auths) {
+    const accByCS = {}, accByNS = {};
+    const sidByCA = {}, sidByCS = {}, sidByNS = {};
+    for (const a of auths || []) {
+        const isActive = (a.manualStatus || 'active') === 'active';
+        const acct = (a.accountNumber || '').trim();
+        const sid = (a.sandataClientId || '').trim();
+        const nkey = normalizeName(clientNameOf(a));
+        // account maps
+        setPreferActive(accByCS, `${a.clientId}|${a.serviceCode}`, acct, isActive);
+        setPreferActive(accByNS, `${nkey}|${a.serviceCode}`, acct, isActive);
+        // sandata maps
+        setPreferActive(sidByCA, `${a.clientId}|${acct}`, sid, isActive);
+        setPreferActive(sidByCS, `${a.clientId}|${a.serviceCode}`, sid, isActive);
+        setPreferActive(sidByNS, `${nkey}|${a.serviceCode}`, sid, isActive);
+    }
+    return {
+        accountByClientService: flatten(accByCS),
+        accountByNameService: flatten(accByNS),
+        sandataByClientAccount: flatten(sidByCA),
+        sandataByClientService: flatten(sidByCS),
+        sandataByNameService: flatten(sidByNS),
+    };
+}
+
+/** Derive the account number for a shift from the authorization (never the stored copy). */
+function resolveShiftAccountNumber(shift, maps) {
+    const cs = maps.accountByClientService[`${shift.clientId}|${shift.serviceCode}`];
+    if (cs != null) return cs;
+    const ns = maps.accountByNameService[`${normalizeName(clientNameOf(shift))}|${shift.serviceCode}`];
+    if (ns != null) return ns;
+    return '';
+}
+
+/** Derive the Sandata id, keyed primarily off the already-derived account number. */
+function resolveShiftSandataId(shift, derivedAccount, maps) {
+    if (derivedAccount) {
+        const ca = maps.sandataByClientAccount[`${shift.clientId}|${derivedAccount}`];
+        if (ca != null) return ca;
+    }
+    const cs = maps.sandataByClientService[`${shift.clientId}|${shift.serviceCode}`];
+    if (cs != null) return cs;
+    const ns = maps.sandataByNameService[`${normalizeName(clientNameOf(shift))}|${shift.serviceCode}`];
+    if (ns != null) return ns;
+    return '';
 }
 
 /**
@@ -139,6 +171,7 @@ function groupDrift(changes) {
 
 module.exports = {
     buildLiveSandataMap,
+    resolveShiftAccountNumber,
     resolveShiftSandataId,
     buildSandataOwnerMap,
     classifyDrift,
