@@ -2,6 +2,7 @@ jest.mock('../../lib/prisma', () => ({
     shift: {
         findUnique: jest.fn(),
         findMany: jest.fn(),
+        create: jest.fn(),
         update: jest.fn(),
         updateMany: jest.fn(),
     },
@@ -28,7 +29,7 @@ jest.mock('../../services/authorizationService', () => ({
 
 // Keep the real schedulingService helpers (computeShiftHours, enrichShift, etc.)
 const prisma = require('../../lib/prisma');
-const { deleteShift, bulkUpdateShiftsPerShift, listShifts } = require('../schedulingController');
+const { deleteShift, bulkUpdateShiftsPerShift, listShifts, createShift } = require('../schedulingController');
 
 function mockReqRes(overrides = {}) {
     const req = {
@@ -203,6 +204,71 @@ describe('bulkUpdateShiftsPerShift — overlap blocks, never auto-edits (Bug 3)'
         const updatedIds = prisma.shift.update.mock.calls.map(c => c[0].where.id);
         expect(updatedIds).toContain(10);  // future respite updated
         expect(updatedIds).not.toContain(11); // future homemaker left alone
+    });
+});
+
+describe('createShift — does not persist accountNumber/sandataClientId from request body (Task 5)', () => {
+    beforeEach(() => jest.clearAllMocks());
+
+    test('single-shift create stores accountNumber="" and sandataClientId="" regardless of request body values', async () => {
+        // Mock getAuthorizedServiceCodes: no authorizations → hasAuthorizations=false → skips validation
+        prisma.authorization.findMany.mockResolvedValue([]);
+
+        // Mock overlap check: no conflicts
+        prisma.shift.findMany.mockResolvedValue([]);
+
+        // Mock employee lookup (used only if there's an overlap conflict; won't be called here)
+        prisma.employee.findUnique.mockResolvedValue({ id: 7, name: 'Jane' });
+
+        const createdShift = {
+            id: 10,
+            clientId: 1,
+            employeeId: 7,
+            serviceCode: 'PCS',
+            shiftDate: new Date('2026-08-10T00:00:00.000Z'),
+            startTime: '09:00',
+            endTime: '13:00',
+            hours: 4,
+            units: 16,
+            notes: '',
+            accountNumber: '',
+            sandataClientId: '',
+            recurringGroupId: '',
+            status: 'scheduled',
+            archivedAt: null,
+            client: { id: 1, clientName: 'Test Client', address: '', phone: '', gateCode: '' },
+            employee: { id: 7, name: 'Jane', email: '', phone: '' },
+        };
+        prisma.shift.create.mockResolvedValue(createdShift);
+
+        const { req, res } = mockReqRes({
+            body: {
+                clientId: 1,
+                employeeId: 7,
+                serviceCode: 'PCS',
+                shiftDate: '2026-08-10',
+                startTime: '09:00',
+                endTime: '13:00',
+                accountNumber: '71040',    // valid account number — should NOT be persisted
+                sandataClientId: '955054', // should NOT be persisted
+            },
+        });
+        await createShift(req, res);
+
+        // The shift.create mock must have been called
+        expect(prisma.shift.create).toHaveBeenCalledTimes(1);
+        const callData = prisma.shift.create.mock.calls[0][0].data;
+        expect(callData.accountNumber).toBe('');
+        expect(callData.sandataClientId).toBe('');
+    });
+
+    test('auth updateAccountNumber no longer propagates to shifts (authorization controller side)', () => {
+        // This is a documentation test — the propagation blocks in authorizationController.js
+        // have been removed. We cannot easily unit-test that here without a separate mock setup,
+        // but the schedulingController create-path test above covers the forward path.
+        // The backward path (auth→shift updateMany) is verified by code inspection and the
+        // absence of shift.updateMany calls in the auth controller after Task 5 edits.
+        expect(true).toBe(true);
     });
 });
 

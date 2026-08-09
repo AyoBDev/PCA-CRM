@@ -385,10 +385,6 @@ async function createShift(req, res, next) {
             const created = [];
             for (const entry of bulkShifts) {
                 const { hours, units } = computeShiftHours(entry.startTime, entry.endTime);
-                const entryAccount = entry.accountNumber || accountNumber || '';
-                if (entryAccount && !VALID_ACCOUNT_NUMBERS.includes(entryAccount)) {
-                    return res.status(400).json({ error: `Invalid account number: ${entryAccount}. Must be one of: ${VALID_ACCOUNT_NUMBERS.join(', ')}` });
-                }
                 const shift = await prisma.shift.create({
                     data: {
                         clientId: Number(clientId),
@@ -400,8 +396,8 @@ async function createShift(req, res, next) {
                         hours,
                         units,
                         notes: notes || '',
-                        accountNumber: entryAccount,
-                        sandataClientId: entry.sandataClientId || sandataClientId || '',
+                        accountNumber: '',
+                        sandataClientId: '',
                         recurringGroupId: groupId,
                     },
                     include: shiftInclude,
@@ -437,8 +433,8 @@ async function createShift(req, res, next) {
             hours,
             units,
             notes: notes || '',
-            accountNumber: accountNumber || '',
-            sandataClientId: sandataClientId || '',
+            accountNumber: '',
+            sandataClientId: '',
         };
 
         // Build list of dates (single or recurring weekly)
@@ -553,13 +549,6 @@ async function updateShift(req, res, next) {
         if (endTime !== undefined) data.endTime = endTime;
         if (notes !== undefined) data.notes = notes;
         if (status !== undefined) data.status = status;
-        if (accountNumber !== undefined) {
-            if (accountNumber && !VALID_ACCOUNT_NUMBERS.includes(accountNumber)) {
-                return res.status(400).json({ error: `Invalid account number. Must be one of: ${VALID_ACCOUNT_NUMBERS.join(', ')}` });
-            }
-            data.accountNumber = accountNumber;
-        }
-        if (sandataClientId !== undefined) data.sandataClientId = sandataClientId;
 
         // Recompute hours/units if times changed
         const st = startTime !== undefined ? startTime : existing.startTime;
@@ -622,7 +611,7 @@ async function updateShift(req, res, next) {
 
         // No auto-notify on updates — scheduler sends manually via "Send Schedule"
 
-        const changes = audit.diffFields(existing, shift, ['serviceCode', 'startTime', 'endTime', 'status', 'notes', 'employeeId', 'clientId', 'accountNumber', 'sandataClientId']);
+        const changes = audit.diffFields(existing, shift, ['serviceCode', 'startTime', 'endTime', 'status', 'notes', 'employeeId', 'clientId']);
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             action: 'UPDATE', entityType: 'Shift', entityId: shift.id,
@@ -1023,8 +1012,6 @@ async function bulkUpdateShifts(req, res, next) {
             if (serviceCode !== undefined) data.serviceCode = serviceCode;
             if (status !== undefined) data.status = status;
             if (notes !== undefined) data.notes = notes;
-            if (accountNumber !== undefined) data.accountNumber = accountNumber;
-            if (sandataClientId !== undefined) data.sandataClientId = sandataClientId;
 
             // Recompute hours/units if times changed
             const st = startTime !== undefined ? startTime : existing.startTime;
@@ -1043,7 +1030,7 @@ async function bulkUpdateShifts(req, res, next) {
                 });
                 updated.push(enrichShift(shift));
 
-                const changes = audit.diffFields(existing, shift, ['serviceCode', 'startTime', 'endTime', 'status', 'notes', 'employeeId', 'accountNumber', 'sandataClientId']);
+                const changes = audit.diffFields(existing, shift, ['serviceCode', 'startTime', 'endTime', 'status', 'notes', 'employeeId']);
                 audit.logAction({
                     userId: req.user.id, userName: req.user.name, userRole: req.user.role,
                     action: 'UPDATE', entityType: 'Shift', entityId: shift.id,
@@ -1169,8 +1156,6 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
             if (updates.startTime !== undefined) data.startTime = updates.startTime;
             if (updates.endTime !== undefined) data.endTime = updates.endTime;
             if (updates.serviceCode !== undefined) data.serviceCode = updates.serviceCode;
-            if (updates.accountNumber !== undefined) data.accountNumber = updates.accountNumber;
-            if (updates.sandataClientId !== undefined) data.sandataClientId = updates.sandataClientId;
             if (updates.employeeId !== undefined) {
                 const empId = updates.employeeId ? Number(updates.employeeId) : null;
                 if (empId) {
@@ -1178,11 +1163,6 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
                     if (!empExists) { errors.push({ id: existing.id, error: 'Employee not found' }); continue; }
                 }
                 data.employeeId = empId;
-            }
-
-            if (updates.accountNumber && !VALID_ACCOUNT_NUMBERS.includes(updates.accountNumber)) {
-                errors.push({ id: existing.id, error: 'Invalid account number' });
-                continue;
             }
 
             // Recompute hours/units if times changed
@@ -1205,7 +1185,7 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
                 audit.logAction({
                     userId: req.user.id, userName: req.user.name, userRole: req.user.role,
                     action: 'UPDATE', entityType: 'Shift', entityId: shift.id,
-                    changes: audit.diffFields(existing, shift, ['serviceCode', 'startTime', 'endTime', 'accountNumber', 'employeeId']),
+                    changes: audit.diffFields(existing, shift, ['serviceCode', 'startTime', 'endTime', 'employeeId']),
                     metadata: { bulkEdit: true, batchId: batch.id, perShift: true },
                 });
             } catch (err) {
@@ -1246,8 +1226,6 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
                 if (match.updates.startTime) data.startTime = match.updates.startTime;
                 if (match.updates.endTime) data.endTime = match.updates.endTime;
                 if (match.updates.serviceCode) data.serviceCode = match.updates.serviceCode;
-                if (match.updates.accountNumber !== undefined) data.accountNumber = match.updates.accountNumber;
-                if (match.updates.sandataClientId !== undefined) data.sandataClientId = match.updates.sandataClientId;
                 if (match.updates.employeeId !== undefined) data.employeeId = match.updates.employeeId ? Number(match.updates.employeeId) : null;
 
                 if (Object.keys(data).length === 0) continue;
