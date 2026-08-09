@@ -1,6 +1,6 @@
 const prisma = require('../lib/prisma');
 const { getWeekRange, SERVICE_COLOR_MAP } = require('../services/schedulingService');
-const { buildLiveSandataMap, resolveShiftSandataId } = require('../lib/sandataResolver');
+const { buildLiveSandataMap, resolveShiftAccountNumber, resolveShiftSandataId } = require('../lib/sandataResolver');
 
 // POST /api/employee-schedule-links
 async function createLink(req, res, next) {
@@ -101,17 +101,19 @@ async function getScheduleView(req, res) {
         })
         : [];
 
-    // Build clientId|serviceCode -> live Sandata Client ID (shared with the
-    // one-time shift-cleanup script so the two can never drift).
-    const liveSandataByKey = buildLiveSandataMap(auths);
+    // Build live resolver bundle (clientId|serviceCode keyed maps) shared with
+    // the one-time shift-cleanup script so the two can never drift.
+    const liveMaps = buildLiveSandataMap(auths);
 
-    const enrichedShifts = shifts.map(s => ({
-        ...s,
-        // Live authorization value wins; fall back to the shift's stored copy
-        // only when no matching authorization carries a Sandata ID.
-        sandataClientId: resolveShiftSandataId(s, liveSandataByKey),
-        serviceLabel: (SERVICE_COLOR_MAP[s.serviceCode] || {}).label || s.serviceCode,
-    }));
+    const enrichedShifts = shifts.map(s => {
+        const accountNumber = resolveShiftAccountNumber(s, liveMaps);
+        return {
+            ...s,
+            accountNumber,
+            sandataClientId: resolveShiftSandataId(s, accountNumber, liveMaps),
+            serviceLabel: (SERVICE_COLOR_MAP[s.serviceCode] || {}).label || s.serviceCode,
+        };
+    });
 
     // Fetch submitted timesheet hours for this PCA + week
     const wsDate = new Date(weekStart + 'T00:00:00.000Z');
