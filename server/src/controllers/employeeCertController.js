@@ -1,6 +1,25 @@
 const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
-const { downloadFile } = require('../lib/storage');
+const { uploadFile, downloadFile } = require('../lib/storage');
+
+async function snapshotUpload(cert, file, user) {
+    const timestamp = Date.now();
+    const bucketKey = `certs/${cert.employeeId}/${cert.certType}/${timestamp}-${file.originalname}`;
+    await uploadFile(bucketKey, file.buffer, file.mimetype || 'application/octet-stream');
+    await prisma.certificationUpload.create({
+        data: {
+            certificationId: cert.id,
+            bucketKey,
+            fileName: file.originalname,
+            fileSize: file.size,
+            fileType: file.mimetype || 'application/octet-stream',
+            uploadedById: user?.id ?? null,
+            uploadedByName: user?.name || '',
+            effectiveDate: new Date(),
+            expirationDate: cert.expirationDate || null,
+        },
+    });
+}
 
 async function listCertifications(req, res, next) {
     try {
@@ -53,6 +72,8 @@ async function createCertification(req, res, next) {
 
         const cert = await prisma.employeeCertification.create({ data });
 
+        if (file) await snapshotUpload(cert, file, req.user);
+
         const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
         audit.logAction(
             req.user.id, req.user.name, req.user.role,
@@ -87,6 +108,8 @@ async function updateCertification(req, res, next) {
         }
 
         const cert = await prisma.employeeCertification.update({ where: { id }, data });
+
+        if (file) await snapshotUpload(cert, file, req.user);
 
         const changes = audit.diffFields(old, cert, ['expirationDate', 'status', 'notes', 'fileName']);
         audit.logAction(
