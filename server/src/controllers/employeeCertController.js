@@ -2,10 +2,16 @@ const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 const { uploadFile, downloadFile } = require('../lib/storage');
 
-async function snapshotUpload(cert, file, user) {
+// Upload the file to the bucket BEFORE any cert record is written, so a bucket
+// failure aborts the request without persisting a partial/orphaned cert row.
+async function uploadFileToBucket(employeeId, certType, file) {
     const timestamp = Date.now();
-    const bucketKey = `certs/${cert.employeeId}/${cert.certType}/${timestamp}-${file.originalname}`;
+    const bucketKey = `certs/${employeeId}/${certType}/${timestamp}-${file.originalname}`;
     await uploadFile(bucketKey, file.buffer, file.mimetype || 'application/octet-stream');
+    return bucketKey;
+}
+
+async function writeUploadRow(cert, file, user, bucketKey) {
     await prisma.certificationUpload.create({
         data: {
             certificationId: cert.id,
@@ -63,16 +69,18 @@ async function createCertification(req, res, next) {
             notes: notes || '',
         };
 
+        let bucketKey = null;
         if (file) {
             data.fileName = file.originalname;
             data.fileSize = file.size;
             data.fileType = file.mimetype;
             data.fileData = file.buffer;
+            bucketKey = await uploadFileToBucket(employeeId, certType, file);
         }
 
         const cert = await prisma.employeeCertification.create({ data });
 
-        if (file) await snapshotUpload(cert, file, req.user);
+        if (file) await writeUploadRow(cert, file, req.user, bucketKey);
 
         const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
         audit.logAction(
@@ -100,16 +108,18 @@ async function updateCertification(req, res, next) {
         if (status !== undefined) data.status = status;
         if (notes !== undefined) data.notes = notes;
 
+        let bucketKey = null;
         if (file) {
             data.fileName = file.originalname;
             data.fileSize = file.size;
             data.fileType = file.mimetype;
             data.fileData = file.buffer;
+            bucketKey = await uploadFileToBucket(old.employeeId, old.certType, file);
         }
 
         const cert = await prisma.employeeCertification.update({ where: { id }, data });
 
-        if (file) await snapshotUpload(cert, file, req.user);
+        if (file) await writeUploadRow(cert, file, req.user, bucketKey);
 
         const changes = audit.diffFields(old, cert, ['expirationDate', 'status', 'notes', 'fileName']);
         audit.logAction(
