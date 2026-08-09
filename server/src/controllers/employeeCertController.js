@@ -46,7 +46,7 @@ async function listCertifications(req, res, next) {
                 createdAt: true,
                 updatedAt: true,
                 uploads: {
-                    select: { id: true, fileName: true, fileSize: true, fileType: true, note: true, submittedAt: true },
+                    select: { id: true, fileName: true, fileSize: true, fileType: true, note: true, submittedAt: true, uploadedByName: true, effectiveDate: true, expirationDate: true },
                     orderBy: { submittedAt: 'desc' },
                 },
             },

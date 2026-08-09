@@ -1,6 +1,6 @@
 // server/src/controllers/__tests__/employeeCertUpload.test.js
 jest.mock('../../lib/prisma', () => ({
-  employeeCertification: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
+  employeeCertification: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
   certificationUpload: { create: jest.fn() },
   employee: { findUnique: jest.fn() },
 }));
@@ -68,5 +68,20 @@ describe('createCertification with a file', () => {
 
     expect(uploadFile).not.toHaveBeenCalled();
     expect(prisma.certificationUpload.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('listCertifications select', () => {
+  test('includes attribution + renewal fields in the uploads select', async () => {
+    prisma.employeeCertification.findMany = jest.fn().mockResolvedValue([]);
+    const { listCertifications } = require('../employeeCertController');
+    const req = { params: { employeeId: '7' } };
+    const r = res();
+    await listCertifications(req, r, jest.fn());
+    const arg = prisma.employeeCertification.findMany.mock.calls[0][0];
+    const uploadSelect = arg.select.uploads.select;
+    expect(uploadSelect).toMatchObject({
+      uploadedByName: true, effectiveDate: true, expirationDate: true, submittedAt: true,
+    });
   });
 });
