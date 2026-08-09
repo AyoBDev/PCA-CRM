@@ -7,6 +7,7 @@ jest.mock('../../lib/prisma', () => ({
     },
     employee: { findUnique: jest.fn() },
     bulkEditBatch: { create: jest.fn() },
+    authorization: { findMany: jest.fn() },
 }));
 
 jest.mock('../../services/auditService', () => ({
@@ -27,7 +28,7 @@ jest.mock('../../services/authorizationService', () => ({
 
 // Keep the real schedulingService helpers (computeShiftHours, enrichShift, etc.)
 const prisma = require('../../lib/prisma');
-const { deleteShift, bulkUpdateShiftsPerShift } = require('../schedulingController');
+const { deleteShift, bulkUpdateShiftsPerShift, listShifts } = require('../schedulingController');
 
 function mockReqRes(overrides = {}) {
     const req = {
@@ -202,5 +203,50 @@ describe('bulkUpdateShiftsPerShift — overlap blocks, never auto-edits (Bug 3)'
         const updatedIds = prisma.shift.update.mock.calls.map(c => c[0].where.id);
         expect(updatedIds).toContain(10);  // future respite updated
         expect(updatedIds).not.toContain(11); // future homemaker left alone
+    });
+});
+
+describe('listShifts — live account/Sandata resolution (Task 3)', () => {
+    beforeEach(() => jest.clearAllMocks());
+
+    test('returns resolved accountNumber and sandataClientId from authorization, not stale stored values', async () => {
+        const clientId = 99;
+
+        // Shift has STALE stored values that differ from the live authorization
+        prisma.shift.findMany.mockResolvedValue([{
+            id: 1,
+            clientId,
+            employeeId: 7,
+            serviceCode: 'PCS',
+            shiftDate: new Date('2026-08-10T00:00:00.000Z'),
+            startTime: '09:00',
+            endTime: '13:00',
+            status: 'scheduled',
+            archivedAt: null,
+            recurringGroupId: null,
+            notes: '',
+            accountNumber: 'STALE',
+            sandataClientId: 'STALE',
+            client: { id: clientId, clientName: 'John Smith', address: '', phone: '', gateCode: '' },
+            employee: { id: 7, name: 'Jane Doe', email: '', phone: '' },
+        }]);
+
+        // Live authorization has the correct values
+        prisma.authorization.findMany.mockResolvedValue([{
+            clientId,
+            serviceCode: 'PCS',
+            accountNumber: '71040',
+            sandataClientId: '955054',
+            manualStatus: 'active',
+        }]);
+
+        const { req, res } = mockReqRes({ query: { weekStart: '2026-08-09' } });
+        await listShifts(req, res);
+
+        expect(res.json).toHaveBeenCalledTimes(1);
+        const body = res.json.mock.calls[0][0];
+        expect(body.shifts).toHaveLength(1);
+        expect(body.shifts[0].accountNumber).toBe('71040');
+        expect(body.shifts[0].sandataClientId).toBe('955054');
     });
 });

@@ -5,6 +5,8 @@ const {
     computeUnitSummary,
     getWeekRange,
     enrichShift,
+    enrichShiftLive,
+    buildLiveSandataMap,
     getEmployeeDisplayName,
 } = require('../services/schedulingService');
 // Imported as a namespace rather than destructured: destructuring binds the
@@ -277,13 +279,19 @@ async function listShifts(req, res, next) {
             orderBy: [{ shiftDate: 'asc' }, { startTime: 'asc' }],
         });
 
-        const enriched = shifts.map(enrichShift);
+        // Fetch live authorizations for all clients in this result set and resolve
+        // account number + Sandata Client ID from the authorization (never stored shift copies).
+        const clientIds = [...new Set(shifts.map(s => s.clientId).filter(Boolean))];
+        const liveAuths = clientIds.length
+            ? await prisma.authorization.findMany({ where: { clientId: { in: clientIds }, archivedAt: null } })
+            : [];
+        const liveMaps = buildLiveSandataMap(liveAuths);
+        const enriched = shifts.map(s => enrichShiftLive(s, liveMaps));
         const overlaps = detectOverlaps(shifts);
 
         // Unit summaries per client — skip for custom date ranges (non-weekly)
         let unitSummaries = {};
         if (!skipUnitSummaries) {
-            const clientIds = [...new Set(shifts.map(s => s.clientId))];
             const auths = await prisma.authorization.findMany({
                 where: { clientId: { in: clientIds } },
             });
