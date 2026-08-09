@@ -101,7 +101,8 @@ async function main(apply = process.argv.includes('--apply'), only = parseOnly(p
         })
         : [];
 
-    const liveMap = buildLiveSandataMap(auths);
+    const liveBundle = buildLiveSandataMap(auths);
+    const liveMap = liveBundle.sandataByClientService;
     const ownerMap = buildSandataOwnerMap(auths);
 
     const allChanges = [];
