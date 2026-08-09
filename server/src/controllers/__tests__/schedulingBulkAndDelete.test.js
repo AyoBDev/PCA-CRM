@@ -262,14 +262,7 @@ describe('createShift — does not persist accountNumber/sandataClientId from re
         expect(callData.sandataClientId).toBe('');
     });
 
-    test('auth updateAccountNumber no longer propagates to shifts (authorization controller side)', () => {
-        // This is a documentation test — the propagation blocks in authorizationController.js
-        // have been removed. We cannot easily unit-test that here without a separate mock setup,
-        // but the schedulingController create-path test above covers the forward path.
-        // The backward path (auth→shift updateMany) is verified by code inspection and the
-        // absence of shift.updateMany calls in the auth controller after Task 5 edits.
-        expect(true).toBe(true);
-    });
+
 });
 
 describe('listShifts — live account/Sandata resolution (Task 3)', () => {
