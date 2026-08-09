@@ -13,7 +13,8 @@ import EmployeeNotesTab from './employee-tabs/NotesTab';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import { TIMESHEET_STATUS_STYLES, TIMESHEET_SERVICE_COLORS } from '../utils/constants';
-import { formatDate } from '../utils/dates';
+import { formatDate, formatTimestamp } from '../utils/dates';
+import PreviewModal from '../components/common/PreviewModal';
 import { hhmm12 } from '../utils/time';
 
 const TABS = [
@@ -802,6 +803,7 @@ function CertificationsTab({ employee, onEdit }) {
     const [expandedType, setExpandedType] = useState(null);
     const [showUploadModal, setShowUploadModal] = useState(null);
     const [certFilter, setCertFilter] = useState('All');
+    const [previewUpload, setPreviewUpload] = useState(null);
 
     const fetchCerts = useCallback(async () => {
         try {
@@ -983,6 +985,14 @@ function CertificationsTab({ employee, onEdit }) {
                     onClose={() => setShowUploadModal(null)}
                 />
             )}
+            {previewUpload && (
+                <PreviewModal
+                    open
+                    fileName={previewUpload.fileName}
+                    onClose={() => setPreviewUpload(null)}
+                    fetchBlob={() => api.downloadCertificationUpload(previewUpload.id)}
+                />
+            )}
         </div>
     );
 
@@ -1095,17 +1105,29 @@ function CertificationsTab({ employee, onEdit }) {
                                                 <div className="pa-auth-item__body">
                                                     <div style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '4px 0' }}>History</div>
                                                     {history.map(upload => (
-                                                        <div key={upload.id} style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '4px 0 4px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                            <span style={{ display: 'inline-flex', width: 14, height: 14, flexShrink: 0 }}>{Icons.paperclip}</span>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleDownloadUpload(upload)}
-                                                                title="View file"
-                                                                style={{ background: 'none', border: 'none', padding: 0, color: 'hsl(var(--primary))', cursor: 'pointer', textDecoration: 'underline', fontSize: 12 }}
-                                                            >
-                                                                {upload.fileName}
-                                                            </button>
-                                                            <span>({(upload.fileSize / 1024).toFixed(0)} KB)</span>
+                                                        <div key={upload.id} style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '4px 0 4px 16px' }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                <span style={{ display: 'inline-flex', width: 14, height: 14, flexShrink: 0 }}>{Icons.paperclip}</span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleDownloadUpload(upload)}
+                                                                    title="View file"
+                                                                    style={{ background: 'none', border: 'none', padding: 0, color: 'hsl(var(--primary))', cursor: 'pointer', textDecoration: 'underline', fontSize: 12 }}
+                                                                >
+                                                                    {upload.fileName}
+                                                                </button>
+                                                                <span>({(upload.fileSize / 1024).toFixed(0)} KB)</span>
+                                                                <button className="btn btn--ghost btn--xs" onClick={() => setPreviewUpload(upload)} title="Preview">{Icons.eye}</button>
+                                                                {upload.submittedAt && <span style={{ marginLeft: 'auto' }}>{formatTimestamp(upload.submittedAt)}</span>}
+                                                            </div>
+                                                            {(upload.effectiveDate || upload.expirationDate) && (
+                                                                <div style={{ paddingLeft: 22, marginTop: 2 }}>
+                                                                    {upload.effectiveDate ? `Effective ${formatDate(upload.effectiveDate)}` : ''}
+                                                                    {upload.effectiveDate && upload.expirationDate ? ' · ' : ''}
+                                                                    {upload.expirationDate ? `Expires ${formatDate(upload.expirationDate)}` : ''}
+                                                                </div>
+                                                            )}
+                                                            <div style={{ paddingLeft: 22, marginTop: 2 }}>Uploaded by {upload.uploadedByName || '—'}</div>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -1133,18 +1155,23 @@ function CertificationsTab({ employee, onEdit }) {
                                                     </div>
                                                 </div>
                                                 {(rec.uploads || []).map(upload => (
-                                                    <div key={upload.id} style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '4px 0 4px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        <span style={{ display: 'inline-flex', width: 14, height: 14, flexShrink: 0 }}>{Icons.paperclip}</span>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleDownloadUpload(upload)}
-                                                            title="View file"
-                                                            style={{ background: 'none', border: 'none', padding: 0, color: 'hsl(var(--primary))', cursor: 'pointer', textDecoration: 'underline', fontSize: 12 }}
-                                                        >
-                                                            {upload.fileName}
-                                                        </button>
-                                                        <span>({(upload.fileSize / 1024).toFixed(0)} KB)</span>
-                                                        {upload.note && <span style={{ fontStyle: 'italic' }}>— {upload.note}</span>}
+                                                    <div key={upload.id} style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '4px 0 4px 16px' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                            <span style={{ display: 'inline-flex', width: 14, height: 14, flexShrink: 0 }}>{Icons.paperclip}</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDownloadUpload(upload)}
+                                                                title="View file"
+                                                                style={{ background: 'none', border: 'none', padding: 0, color: 'hsl(var(--primary))', cursor: 'pointer', textDecoration: 'underline', fontSize: 12 }}
+                                                            >
+                                                                {upload.fileName}
+                                                            </button>
+                                                            <span>({(upload.fileSize / 1024).toFixed(0)} KB)</span>
+                                                            {upload.note && <span style={{ fontStyle: 'italic' }}>— {upload.note}</span>}
+                                                            <button className="btn btn--ghost btn--xs" onClick={() => setPreviewUpload(upload)} title="Preview">{Icons.eye}</button>
+                                                        </div>
+                                                        {upload.submittedAt && <div style={{ paddingLeft: 22, marginTop: 2 }}>{formatTimestamp(upload.submittedAt)}</div>}
+                                                        <div style={{ paddingLeft: 22, marginTop: 2 }}>Uploaded by {upload.uploadedByName || '—'}</div>
                                                     </div>
                                                 ))}
                                             </div>
