@@ -31,6 +31,31 @@ function buildClientColorMap(shifts) {
     return map;
 }
 
+/** Read-only field displaying a value resolved from the client's authorization,
+ *  with a one-click copy button and an info tooltip explaining where to edit it. */
+function ResolvedIdField({ value, label }) {
+    const [copied, setCopied] = React.useState(false);
+    const display = value || '—';
+    const copy = async () => {
+        if (!value) return;
+        try {
+            await navigator.clipboard.writeText(value);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1200);
+        } catch { /* clipboard unavailable */ }
+    };
+    return (
+        <span className="resolved-id" title={`To change the ${label}, edit it on the client's authorization (client-details page).`}>
+            <span className="resolved-id__value">{display}</span>
+            {value ? (
+                <button type="button" className="resolved-id__copy" onClick={copy} aria-label={`Copy ${label}`}>
+                    {copied ? '✓' : Icons.clipboard}
+                </button>
+            ) : null}
+            <span className="resolved-id__info" aria-hidden="true">{Icons.helpCircle}</span>
+        </span>
+    );
+}
 
 // Reusable searchable dropdown for Client/Employee selection
 import SearchableSelect from '../components/common/SearchableSelect';
@@ -617,19 +642,16 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                     </table>
                 )}
 
-                {/* Account + Sandata row */}
+                {/* Account + Sandata row — read-only, resolved live from authorization */}
                 {isEdit ? (
                     <div className="form-grid-2">
                         <div className="form-group">
-                            <label htmlFor="shiftAccountNumber">Account Number</label>
-                            <select id="shiftAccountNumber" value={accountNumber} onChange={e => setAccountNumber(e.target.value)}>
-                                <option value="">Select account…</option>
-                                {ACCOUNT_NUMBER_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
-                            </select>
+                            <label>Account Number</label>
+                            <ResolvedIdField value={accountNumber} label="account number" />
                         </div>
                         <div className="form-group">
-                            <label htmlFor="shiftSandataId">Sandata Client ID</label>
-                            <input id="shiftSandataId" value={sandataClientId} onChange={e => setSandataClientId(e.target.value)} placeholder="Optional…" />
+                            <label>Sandata Client ID</label>
+                            <ResolvedIdField value={sandataClientId} label="Sandata Client ID" />
                         </div>
                     </div>
                 ) : null}
@@ -789,14 +811,11 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                                                     </div>
                                                     <div className="sched-day-row__field">
                                                         <label className="sched-day-row__field-label">Account</label>
-                                                        <select value={sh.accountNumber} onChange={e => updateDayShift(i, si, 'accountNumber', e.target.value)} className="sched-day-row__input">
-                                                            <option value="">—</option>
-                                                            {ACCOUNT_NUMBER_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
-                                                        </select>
+                                                        <ResolvedIdField value={sh.accountNumber} label="account number" />
                                                     </div>
                                                     <div className="sched-day-row__field">
                                                         <label className="sched-day-row__field-label">Sandata Client ID</label>
-                                                        <input value={sh.sandataClientId} onChange={e => updateDayShift(i, si, 'sandataClientId', e.target.value)} className="sched-day-row__input" placeholder="—" />
+                                                        <ResolvedIdField value={sh.sandataClientId} label="Sandata Client ID" />
                                                     </div>
                                                     {si === 0 && enabledCount > 1 && (
                                                         <button type="button" className="sched-day-row__apply" title="Apply this day's shifts to all selected days" onClick={() => applyToAll(i)}>
@@ -1830,10 +1849,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                     <div className="sched-day-row__row">
                                                         <div className="sched-day-row__field">
                                                             <label className="sched-day-row__field-label">Account</label>
-                                                            <select value={edit.accountNumber} onChange={e => updateShiftField(shift.id, 'accountNumber', e.target.value)} className="sched-day-row__input">
-                                                                <option value="">—</option>
-                                                                {ACCOUNT_NUMBER_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
-                                                            </select>
+                                                            <ResolvedIdField value={edit.accountNumber} label="account number" />
                                                         </div>
                                                         <div className="sched-day-row__field">
                                                             <label className="sched-day-row__field-label">Employee</label>
@@ -1847,7 +1863,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                         </div>
                                                         <div className="sched-day-row__field">
                                                             <label className="sched-day-row__field-label">Client ID</label>
-                                                            <input value={edit.sandataClientId} onChange={e => updateShiftField(shift.id, 'sandataClientId', e.target.value)} className="sched-day-row__input" placeholder="—" />
+                                                            <ResolvedIdField value={edit.sandataClientId} label="Sandata Client ID" />
                                                         </div>
                                                     </div>
                                                     {si === 0 && shiftsByDay.length > 1 && (
@@ -1891,10 +1907,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                     <div className="sched-day-row__row">
                                                         <div className="sched-day-row__field">
                                                             <label className="sched-day-row__field-label">Account</label>
-                                                            <select value={r.accountNumber} onChange={e => updateNewRow(dateStr, r._key, 'accountNumber', e.target.value)} className="sched-day-row__input">
-                                                                <option value="">—</option>
-                                                                {ACCOUNT_NUMBER_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
-                                                            </select>
+                                                            <ResolvedIdField value={r.accountNumber} label="account number" />
                                                         </div>
                                                         <div className="sched-day-row__field">
                                                             <label className="sched-day-row__field-label">Employee</label>
@@ -1908,7 +1921,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                         </div>
                                                         <div className="sched-day-row__field">
                                                             <label className="sched-day-row__field-label">Client ID</label>
-                                                            <input value={r.sandataClientId} onChange={e => updateNewRow(dateStr, r._key, 'sandataClientId', e.target.value)} className="sched-day-row__input" placeholder="—" />
+                                                            <ResolvedIdField value={r.sandataClientId} label="Sandata Client ID" />
                                                         </div>
                                                     </div>
                                                     {err && <div className="sched-day-row__error">{err}</div>}
