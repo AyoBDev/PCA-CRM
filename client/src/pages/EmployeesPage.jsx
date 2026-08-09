@@ -447,11 +447,20 @@ export default function EmployeesPage() {
     };
 
     const handleToggleActive = async (emp) => {
+        const prev = emp.active;
+        const next = !prev;
+        const apply = (val) => setEmployees(list => list.map(e => e.id === emp.id ? { ...e, active: val } : e));
+        apply(next);
         try {
-            await api.updateEmployee(emp.id, { active: !emp.active });
-            showToast(emp.active ? 'Employee deactivated' : 'Employee activated');
-            fetchData();
+            await api.updateEmployee(emp.id, { active: next });
+            undoState.pushAction(
+                `${next ? 'Activated' : 'Deactivated'} ${emp.name}`,
+                async () => { await api.updateEmployee(emp.id, { active: prev }); apply(prev); },
+                async () => { await api.updateEmployee(emp.id, { active: next }); apply(next); },
+            );
+            showToast(next ? 'Employee activated' : 'Employee deactivated');
         } catch (err) {
+            apply(prev);
             showToast(err.message, 'error');
         }
     };
@@ -777,6 +786,9 @@ export default function EmployeesPage() {
                                                                 </button>
                                                                 <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'form', employee: emp })} title="Edit">
                                                                     {Icons.edit}
+                                                                </button>
+                                                                <button className="btn btn--ghost btn--sm" onClick={() => handleToggleActive(emp)} title={emp.active ? 'Set Inactive' : 'Set Active'}>
+                                                                    {emp.active ? 'Deactivate' : 'Activate'}
                                                                 </button>
                                                                 <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDelete', employee: emp })} title="Delete">
                                                                     {Icons.trash}
