@@ -444,6 +444,24 @@ export default function EmployeeDetailPage() {
         }
     };
 
+    const handleToggleActive = async () => {
+        const prev = employee.active;
+        const next = !prev;
+        setEmployee(e => ({ ...e, active: next }));
+        try {
+            await api.updateEmployee(Number(employeeId), { active: next });
+            undoState.pushAction(
+                `${next ? 'Activated' : 'Deactivated'} ${employee.name}`,
+                async () => { await api.updateEmployee(Number(employeeId), { active: prev }); setEmployee(e => ({ ...e, active: prev })); },
+                async () => { await api.updateEmployee(Number(employeeId), { active: next }); setEmployee(e => ({ ...e, active: next })); },
+            );
+            showToast(next ? 'Employee activated' : 'Employee deactivated');
+        } catch (err) {
+            setEmployee(e => ({ ...e, active: prev }));
+            showToast(err.message, 'error');
+        }
+    };
+
     if (loading) {
         return (
             <div className="page-content" style={{ padding: 48, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>
@@ -520,6 +538,13 @@ export default function EmployeeDetailPage() {
                                 <span className={`ts-badge ts-badge--${employee.active ? 'success' : 'draft'}`}>
                                     {employee.active ? 'Active' : 'Inactive'}
                                 </span>
+                                <button
+                                    className="btn btn--outline btn--sm"
+                                    onClick={handleToggleActive}
+                                    title="Marks the employee not currently working. Does not archive or hide them."
+                                >
+                                    {employee.active ? 'Set Inactive' : 'Set Active'}
+                                </button>
                                 {employee.onboardingStatus === 'invited' && (
                                     <span className="ts-badge ts-badge--draft">Invited</span>
                                 )}
