@@ -16,8 +16,6 @@ const notifications = require('../services/notificationService');
 const audit = require('../services/auditService');
 const { filterAuthsByWeek } = require('../services/authorizationService');
 
-const VALID_ACCOUNT_NUMBERS = ['71040', '71119', '71120', '71635'];
-
 // Derive a scheduling service code from a service name (handles TIMESHEETS rows)
 function deriveCodeFromName(name) {
     if (!name) return null;
@@ -320,15 +318,12 @@ async function listShifts(req, res, next) {
 // POST /api/shifts
 async function createShift(req, res, next) {
     try {
-        const { clientId, employeeId, serviceCode, shiftDate, startTime, endTime, notes, repeatUntil, accountNumber, sandataClientId, shifts: bulkShifts } = req.body;
+        const { clientId, employeeId, serviceCode, shiftDate, startTime, endTime, notes, repeatUntil, shifts: bulkShifts } = req.body;
 
         // Bulk mode: array of { serviceCode, shiftDate, startTime, endTime } entries
         if (Array.isArray(bulkShifts) && bulkShifts.length > 0) {
             if (!clientId || !employeeId) {
                 return res.status(400).json({ error: 'clientId and employeeId are required' });
-            }
-            if (accountNumber && !VALID_ACCOUNT_NUMBERS.includes(accountNumber)) {
-                return res.status(400).json({ error: `Invalid account number. Must be one of: ${VALID_ACCOUNT_NUMBERS.join(', ')}` });
             }
 
             // Validate all service codes are authorized for this client (check each shift's date)
@@ -418,9 +413,6 @@ async function createShift(req, res, next) {
         // Single-shift mode (original flow)
         if (!clientId || !employeeId || !serviceCode || !shiftDate || !startTime || !endTime) {
             return res.status(400).json({ error: 'clientId, employeeId, serviceCode, shiftDate, startTime, and endTime are required' });
-        }
-        if (accountNumber && !VALID_ACCOUNT_NUMBERS.includes(accountNumber)) {
-            return res.status(400).json({ error: `Invalid account number. Must be one of: ${VALID_ACCOUNT_NUMBERS.join(', ')}` });
         }
 
         const { hours, units } = computeShiftHours(startTime, endTime);
@@ -535,7 +527,7 @@ async function createShift(req, res, next) {
 async function updateShift(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const { clientId, employeeId, serviceCode, shiftDate, startTime, endTime, notes, status, accountNumber, sandataClientId } = req.body;
+        const { clientId, employeeId, serviceCode, shiftDate, startTime, endTime, notes, status } = req.body;
 
         const existing = await prisma.shift.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Shift not found' });
@@ -967,11 +959,7 @@ async function bulkUpdateShifts(req, res, next) {
             return res.status(400).json({ error: 'updates object is required' });
         }
 
-        const { startTime, endTime, employeeId, serviceCode, status, notes, accountNumber, sandataClientId } = updates;
-
-        if (accountNumber && !VALID_ACCOUNT_NUMBERS.includes(accountNumber)) {
-            return res.status(400).json({ error: `Invalid account number. Must be one of: ${VALID_ACCOUNT_NUMBERS.join(', ')}` });
-        }
+        const { startTime, endTime, employeeId, serviceCode, status, notes } = updates;
 
         const shifts = await prisma.shift.findMany({
             where: { id: { in: shiftIds.map(Number) }, archivedAt: null },
