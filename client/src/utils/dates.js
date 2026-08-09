@@ -59,3 +59,16 @@ export function toLocalDateStr(d) {
     const da = String(d.getDate()).padStart(2, '0');
     return `${yr}-${mo}-${da}`;
 }
+
+export function formatTimestamp(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    // Format date in local timezone (not UTC like formatDate)
+    const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const hr = d.getHours();
+    const min = String(d.getMinutes()).padStart(2, '0');
+    const ampm = hr >= 12 ? 'PM' : 'AM';
+    const hr12 = hr % 12 || 12;
+    return `${dateStr} at ${hr12}:${min} ${ampm}`;
+}
