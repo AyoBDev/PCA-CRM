@@ -16398,3 +16398,33 @@ tr:hover .auth-note-icon--empty {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
+/* Thumbnail strip + overflow badge + gallery */
+.file-thumb-strip { display: inline-flex; align-items: center; gap: 6px; }
+.file-thumb__more {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 50%;
+    background: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.file-thumb__more:hover { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
+.file-thumb__more:focus-visible { outline: none; box-shadow: 0 0 0 2px hsl(var(--ring) / 0.1); }
+.file-thumb-gallery { display: flex; flex-wrap: wrap; gap: 12px; }
+.file-thumb-gallery__tile { display: flex; flex-direction: column; align-items: center; width: 88px; }
+.file-thumb-gallery__name {
+    margin-top: 4px;
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+    text-align: center;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
