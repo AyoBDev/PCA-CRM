@@ -252,29 +252,20 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
         }
     }, [clientId, clients]);
 
+    // When the selected client's authorizations become available (or change), do a
+    // single atomic pass over the create-mode day rows: (1) normalize each shift's
+    // serviceCode to an authorized one, then (2) derive accountNumber/sandataClientId
+    // from the authorization for that (possibly-normalized) code. Doing both in one
+    // updater avoids a race between two effects both writing dayEntries — the reason a
+    // client picked AFTER a day was chosen previously left account/Sandata blank.
     useEffect(() => {
-        if (authorizedServices.length > 0 && !authorizedServices.includes(serviceCode)) {
+        if (authorizedServices.length === 0) return;
+        if (!authorizedServices.includes(serviceCode)) {
             setServiceCode(authorizedServices[0]);
         }
-        if (authorizedServices.length > 0) {
-            setDayEntries(prev => prev.map(day => ({
-                ...day,
-                shifts: day.shifts.map(s => ({
-                    ...s,
-                    serviceCode: authorizedServices.includes(s.serviceCode) ? s.serviceCode : authorizedServices[0],
-                })),
-            })));
-        }
-    }, [authorizedServices]);
-
-    // Bug fix: when a client is selected AFTER days are already chosen, the initial
-    // dayEntries were seeded from an empty authorizedServiceMap (no client yet) and
-    // have blank accountNumber/sandataClientId.  Re-derive them whenever the map
-    // changes (i.e. whenever the selected client's authorizations become available).
-    useEffect(() => {
+        // Edit mode: fill the top-level fields (day rows are create-mode only).
         if (isEdit) {
-            // Edit mode: fill top-level fields if still blank
-            const info = authorizedServiceMap[serviceCode];
+            const info = authorizedServiceMap[authorizedServices.includes(serviceCode) ? serviceCode : authorizedServices[0]];
             if (info) {
                 setAccountNumber(prev => prev || info.accountNumber || '');
                 setSandataClientId(prev => prev || info.sandataClientId || '');
@@ -285,13 +276,13 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
             let changed = false;
             const nextDays = prev.map(day => {
                 const nextShifts = day.shifts.map(sh => {
-                    const info = authorizedServiceMap[sh.serviceCode];
-                    if (!info) return sh;
+                    const code = authorizedServices.includes(sh.serviceCode) ? sh.serviceCode : authorizedServices[0];
+                    const info = authorizedServiceMap[code] || {};
                     const nextAcct = sh.accountNumber || info.accountNumber || '';
                     const nextSid = sh.sandataClientId || info.sandataClientId || '';
-                    if (nextAcct !== sh.accountNumber || nextSid !== sh.sandataClientId) {
+                    if (code !== sh.serviceCode || nextAcct !== sh.accountNumber || nextSid !== sh.sandataClientId) {
                         changed = true;
-                        return { ...sh, accountNumber: nextAcct, sandataClientId: nextSid };
+                        return { ...sh, serviceCode: code, accountNumber: nextAcct, sandataClientId: nextSid };
                     }
                     return sh;
                 });
@@ -299,7 +290,7 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
             });
             return changed ? nextDays : prev;
         });
-    }, [authorizedServiceMap]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [authorizedServices, authorizedServiceMap]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         const handleClickOutside = (e) => {
