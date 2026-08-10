@@ -1,5 +1,7 @@
 import Icons from '../common/Icons';
-import { FileTypeIcon, getFileTypeInfo, formatFileSize, formatUploadDate } from './fileTypeUtils';
+import { getFileTypeInfo, formatFileSize, formatUploadDate } from './fileTypeUtils';
+import FileThumbnail from '../common/FileThumbnail';
+import * as api from '../../api';
 
 export default function FileRow({
     file,
@@ -25,7 +27,13 @@ export default function FileRow({
                 />
             </label>
             <div className="file-row__icon">
-                <FileTypeIcon fileName={file.name} size={28} />
+                <FileThumbnail
+                    file={{ fileName: file.name, mimeType: file.mimeType }}
+                    cacheKey={`file:${file.id}`}
+                    fetchBlob={() => fetch(`/api/files/${file.id}/download`, { headers: { Authorization: `Bearer ${api.getToken()}` } })}
+                    onClick={() => onPreview(file)}
+                    size={28}
+                />
             </div>
             <div className="file-row__name" title={file.name}>
                 {file.name}
