@@ -15,6 +15,7 @@ import ContextBar from '../components/common/ContextBar';
 import { TIMESHEET_STATUS_STYLES, TIMESHEET_SERVICE_COLORS } from '../utils/constants';
 import { formatDate, formatTimestamp } from '../utils/dates';
 import PreviewModal from '../components/common/PreviewModal';
+import FileThumbnailStrip from '../components/common/FileThumbnailStrip';
 import { hhmm12 } from '../utils/time';
 
 const TABS = [
@@ -1104,6 +1105,13 @@ function CertificationsTab({ employee, onEdit }) {
                                             return (
                                                 <div className="pa-auth-item__body">
                                                     <div style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '4px 0' }}>History</div>
+                                                    <FileThumbnailStrip
+                                                        files={history.map(u => ({ id: u.id, fileName: u.fileName, mimeType: u.fileType }))}
+                                                        makeCacheKey={(f) => `cert-upload:${f.id}`}
+                                                        makeFetchBlob={(f) => () => api.downloadCertificationUpload(f.id)}
+                                                        onPreview={(f) => setPreviewUpload(f)}
+                                                        max={1}
+                                                    />
                                                     {history.map(upload => (
                                                         <div key={upload.id} style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '4px 0 4px 16px' }}>
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1154,6 +1162,13 @@ function CertificationsTab({ employee, onEdit }) {
                                                         )}
                                                     </div>
                                                 </div>
+                                                <FileThumbnailStrip
+                                                    files={(rec.uploads || []).map(u => ({ id: u.id, fileName: u.fileName, mimeType: u.fileType }))}
+                                                    makeCacheKey={(f) => `cert-upload:${f.id}`}
+                                                    makeFetchBlob={(f) => () => api.downloadCertificationUpload(f.id)}
+                                                    onPreview={(f) => setPreviewUpload(f)}
+                                                    max={1}
+                                                />
                                                 {(rec.uploads || []).map(upload => (
                                                     <div key={upload.id} style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '4px 0 4px 16px' }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
