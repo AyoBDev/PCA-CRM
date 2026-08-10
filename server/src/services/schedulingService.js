@@ -1,3 +1,9 @@
+const {
+    buildLiveSandataMap,
+    resolveShiftAccountNumber,
+    resolveShiftSandataId,
+} = require('../lib/sandataResolver');
+
 // Service color map for shift display
 const SERVICE_COLOR_MAP = {
     PCS:   { color: '#3B82F6', label: 'PCA',             bg: '#EFF6FF' },
@@ -158,6 +164,17 @@ function enrichShift(shift) {
     };
 }
 
+/**
+ * Enrich a shift with display fields AND resolved account/Sandata values.
+ * Calls enrichShift first, then overwrites accountNumber and sandataClientId with live-resolved values.
+ */
+function enrichShiftLive(shift, maps) {
+    const base = enrichShift(shift);
+    const accountNumber = resolveShiftAccountNumber(base, maps);
+    const sandataClientId = resolveShiftSandataId(base, accountNumber, maps);
+    return { ...base, accountNumber, sandataClientId };
+}
+
 module.exports = {
     SERVICE_COLOR_MAP,
     computeShiftHours,
@@ -166,4 +183,6 @@ module.exports = {
     computeUnitSummary,
     getWeekRange,
     enrichShift,
+    enrichShiftLive,
+    buildLiveSandataMap,
 };

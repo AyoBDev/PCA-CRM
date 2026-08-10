@@ -2,11 +2,13 @@ jest.mock('../../lib/prisma', () => ({
     shift: {
         findUnique: jest.fn(),
         findMany: jest.fn(),
+        create: jest.fn(),
         update: jest.fn(),
         updateMany: jest.fn(),
     },
     employee: { findUnique: jest.fn() },
     bulkEditBatch: { create: jest.fn() },
+    authorization: { findMany: jest.fn() },
 }));
 
 jest.mock('../../services/auditService', () => ({
@@ -27,7 +29,7 @@ jest.mock('../../services/authorizationService', () => ({
 
 // Keep the real schedulingService helpers (computeShiftHours, enrichShift, etc.)
 const prisma = require('../../lib/prisma');
-const { deleteShift, bulkUpdateShiftsPerShift } = require('../schedulingController');
+const { deleteShift, bulkUpdateShiftsPerShift, listShifts, createShift } = require('../schedulingController');
 
 function mockReqRes(overrides = {}) {
     const req = {
@@ -250,5 +252,108 @@ describe('bulkUpdateShiftsPerShift — overlap blocks, never auto-edits (Bug 3)'
         expect(updatedIds).toContain(11);  // future Monday, same service → updated
         expect(updatedIds).not.toContain(12); // future Tuesday → untouched
         expect(updatedIds).not.toContain(13); // future Monday, different service → untouched
+    });
+});
+
+describe('createShift — does not persist accountNumber/sandataClientId from request body (Task 5)', () => {
+    beforeEach(() => jest.clearAllMocks());
+
+    test('single-shift create stores accountNumber="" and sandataClientId="" regardless of request body values', async () => {
+        // Mock getAuthorizedServiceCodes: no authorizations → hasAuthorizations=false → skips validation
+        prisma.authorization.findMany.mockResolvedValue([]);
+
+        // Mock overlap check: no conflicts
+        prisma.shift.findMany.mockResolvedValue([]);
+
+        // Mock employee lookup (used only if there's an overlap conflict; won't be called here)
+        prisma.employee.findUnique.mockResolvedValue({ id: 7, name: 'Jane' });
+
+        const createdShift = {
+            id: 10,
+            clientId: 1,
+            employeeId: 7,
+            serviceCode: 'PCS',
+            shiftDate: new Date('2026-08-10T00:00:00.000Z'),
+            startTime: '09:00',
+            endTime: '13:00',
+            hours: 4,
+            units: 16,
+            notes: '',
+            accountNumber: '',
+            sandataClientId: '',
+            recurringGroupId: '',
+            status: 'scheduled',
+            archivedAt: null,
+            client: { id: 1, clientName: 'Test Client', address: '', phone: '', gateCode: '' },
+            employee: { id: 7, name: 'Jane', email: '', phone: '' },
+        };
+        prisma.shift.create.mockResolvedValue(createdShift);
+
+        const { req, res } = mockReqRes({
+            body: {
+                clientId: 1,
+                employeeId: 7,
+                serviceCode: 'PCS',
+                shiftDate: '2026-08-10',
+                startTime: '09:00',
+                endTime: '13:00',
+                accountNumber: '71040',    // valid account number — should NOT be persisted
+                sandataClientId: '955054', // should NOT be persisted
+            },
+        });
+        await createShift(req, res);
+
+        // The shift.create mock must have been called
+        expect(prisma.shift.create).toHaveBeenCalledTimes(1);
+        const callData = prisma.shift.create.mock.calls[0][0].data;
+        expect(callData.accountNumber).toBe('');
+        expect(callData.sandataClientId).toBe('');
+    });
+
+
+});
+
+describe('listShifts — live account/Sandata resolution (Task 3)', () => {
+    beforeEach(() => jest.clearAllMocks());
+
+    test('returns resolved accountNumber and sandataClientId from authorization, not stale stored values', async () => {
+        const clientId = 99;
+
+        // Shift has STALE stored values that differ from the live authorization
+        prisma.shift.findMany.mockResolvedValue([{
+            id: 1,
+            clientId,
+            employeeId: 7,
+            serviceCode: 'PCS',
+            shiftDate: new Date('2026-08-10T00:00:00.000Z'),
+            startTime: '09:00',
+            endTime: '13:00',
+            status: 'scheduled',
+            archivedAt: null,
+            recurringGroupId: null,
+            notes: '',
+            accountNumber: 'STALE',
+            sandataClientId: 'STALE',
+            client: { id: clientId, clientName: 'John Smith', address: '', phone: '', gateCode: '' },
+            employee: { id: 7, name: 'Jane Doe', email: '', phone: '' },
+        }]);
+
+        // Live authorization has the correct values
+        prisma.authorization.findMany.mockResolvedValue([{
+            clientId,
+            serviceCode: 'PCS',
+            accountNumber: '71040',
+            sandataClientId: '955054',
+            manualStatus: 'active',
+        }]);
+
+        const { req, res } = mockReqRes({ query: { weekStart: '2026-08-09' } });
+        await listShifts(req, res);
+
+        expect(res.json).toHaveBeenCalledTimes(1);
+        const body = res.json.mock.calls[0][0];
+        expect(body.shifts).toHaveLength(1);
+        expect(body.shifts[0].accountNumber).toBe('71040');
+        expect(body.shifts[0].sandataClientId).toBe('955054');
     });
 });
