@@ -20,6 +20,30 @@
 - pdfjs is loaded via dynamic `import()` inside the hook so it forms its own lazy chunk. Worker configured with Vite `?url` import.
 - After frontend changes, gate each UI task on a successful `cd client && npm run build` (exit 0). Client `dist/` is gitignored — never commit built assets; if a build dirties `client/dist`, run `git checkout -- client/dist` before committing.
 
+## Design System — MANDATORY for every UI task
+
+Read `docs/superpowers/specs/2026-06-01-design-system-design.md` before writing any component. These are hard requirements — a senior UI/UX designer would reject inline-hardcoded colors/radii/shadows. All visual styling MUST go through the app's tokens and live in **CSS classes in `client/src/index.css`**, NOT as hardcoded inline `style={{…}}` values. Inline `style` is allowed ONLY for genuinely dynamic values (e.g. a computed `size` px passed as a prop, or a CSS variable set from a prop like `style={{ '--thumb-size': size + 'px' }}`).
+
+Use these exact tokens/values (from the design system spec + `index.css`):
+- **Radius:** `var(--radius)` (8px) for thumbnails, popover, gallery tiles. Circular `+N` badge uses `border-radius: 50%`.
+- **Borders:** `1px solid hsl(var(--border))`.
+- **Surfaces:** thumbnail placeholder `hsl(var(--muted))`; popover/gallery surface `hsl(var(--popover))` with text `hsl(var(--popover-foreground))`; `+N` badge `hsl(var(--muted))` / `hsl(var(--muted-foreground))` text, hover → `hsl(var(--accent))`.
+- **Shadows:** popover uses the "Strong" card-lift shadow `0 4px 12px hsl(0 0% 0% / 0.06)`; the gallery modal inherits `Modal`'s own shadow (don't re-add).
+- **Transitions:** hover/interaction `0.15s ease` (opacity, transform, box-shadow, border-color). Never animate `all`.
+- **Focus:** interactive thumbnails/badges are `<button>`s and MUST show a visible focus ring `box-shadow: 0 0 0 2px hsl(var(--ring) / 0.1)` on `:focus-visible` (keyboard), matching the app.
+- **Spacing:** 8px base scale — gaps between thumbnails `6px`, gallery tile gap `12px`, gallery tile padding to fit modal's `24px` padding.
+- **Typography:** filename captions `11px` `hsl(var(--muted-foreground))`; `+N` badge `13px` weight `600`. Use `text-overflow: ellipsis` (single line) for filenames in the strip/gallery caption — never raw `word-break` walls of text.
+
+UX craft requirements (a senior designer's checklist), verified in the running app on the UI tasks:
+- **No layout shift:** the thumbnail slot reserves its box (fixed `size`) before the image loads, so rows don't jump when thumbnails resolve. Placeholder and final image occupy identical dimensions.
+- **Hover popover polish:** fades/scales in over `0.15s` (subtle `opacity` + `translateY(2px)→0`), never abrupt. It must not overflow the viewport top — anchor above by default but the popover stays within the row's container; `pointer-events: none` so it never traps the cursor. Appears only after the thumbnail is hovered (small intent), and only shows the enlarged image when one is available (icon files show the icon at a comfortable size + filename, not an empty box).
+- **Loading state is calm:** a quiet shimmer/neutral placeholder (`hsl(var(--muted))`), not a spinner that flickers for fast local loads. Image fades in (`opacity 0→1`, `0.15s`) when ready.
+- **`+N` badge reads as interactive:** circular, `hsl(var(--muted))`, hover lightens to `hsl(var(--accent))` + cursor pointer + focus ring; clearly a control, aligned/sized to match the 40px thumbnail so the row stays on one baseline.
+- **Gallery modal:** a tidy wrapping grid of uniform tiles (thumbnail + single-line ellipsized filename), comfortable `12px` gaps, using the existing `Modal` chrome (title, close, backdrop) — not a bespoke overlay.
+- **Accessibility:** every thumbnail/badge is a real `<button>` with a meaningful `title`/`aria-label` (the filename, and "Show N more files" for the badge); keyboard-operable (Enter/Space) with the visible focus ring; images have `alt={fileName}`.
+
+Each component gets a small dedicated block in `index.css` (e.g. `.file-thumb`, `.file-thumb__img`, `.file-thumb__popover`, `.file-thumb__more`, `.file-thumb-gallery`). Dynamic size is passed via a `--thumb-size` CSS variable set inline; everything else is class-driven.
+
 ---
 
 ### Task 1: Add pdfjs-dist dependency + a thin render helper
@@ -316,7 +340,10 @@ git commit -m "feat(files): useFileThumbnail hook with lazy render + LRU cache"
 
 **Files:**
 - Create: `client/src/components/common/FileThumbnail.jsx`
+- Modify: `client/src/index.css` (add the `.file-thumb*` block)
 - Test: `client/src/__tests__/FileThumbnail.test.jsx`
+
+**Design note:** Read `docs/superpowers/specs/2026-06-01-design-system-design.md` first and follow the Global Constraints "Design System" section exactly. All styling is class-driven in `index.css` using tokens; the only inline style is the dynamic size via a `--thumb-size` CSS variable.
 
 **Interfaces:**
 - Consumes: `useFileThumbnail` (Task 2); `FileTypeIcon` from `../files/fileTypeUtils` (typed-icon fallback).
@@ -377,7 +404,85 @@ describe('FileThumbnail', () => {
 Run: `cd client && npx vitest run src/__tests__/FileThumbnail.test.jsx`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement the component**
+- [ ] **Step 3: Add the design-system CSS block to `index.css`**
+
+Append to `client/src/index.css` (all values from the design system spec / tokens; `--thumb-size` is set inline by the component):
+
+```css
+/* Inline file thumbnails (Monday.com-style) */
+.file-thumb {
+    position: relative;
+    width: var(--thumb-size, 40px);
+    height: var(--thumb-size, 40px);
+    flex-shrink: 0;
+    padding: 0;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    background: hsl(var(--muted));
+    overflow: visible;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.file-thumb:hover { border-color: hsl(var(--ring) / 0.4); }
+.file-thumb:focus-visible { outline: none; box-shadow: 0 0 0 2px hsl(var(--ring) / 0.1); }
+.file-thumb__img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: calc(var(--radius) - 1px);
+    display: block;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+.file-thumb__img--loaded { opacity: 1; }
+.file-thumb__fallback {
+    width: 100%;
+    height: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.file-thumb__placeholder {
+    width: 100%;
+    height: 100%;
+    border-radius: calc(var(--radius) - 1px);
+    background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--accent)) 50%, hsl(var(--muted)) 75%);
+    background-size: 200% 100%;
+    animation: file-thumb-shimmer 1.2s ease-in-out infinite;
+}
+@keyframes file-thumb-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.file-thumb__popover {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%) translateY(2px);
+    z-index: 50;
+    width: 240px;
+    padding: 8px;
+    background: hsl(var(--popover));
+    color: hsl(var(--popover-foreground));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    box-shadow: 0 4px 12px hsl(0 0% 0% / 0.06);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.file-thumb__popover--open { opacity: 1; transform: translateX(-50%) translateY(0); }
+.file-thumb__popover-img { width: 100%; max-height: 240px; object-fit: contain; display: block; border-radius: calc(var(--radius) - 2px); }
+.file-thumb__popover-icon { display: flex; align-items: center; justify-content: center; height: 120px; }
+.file-thumb__popover-name {
+    margin-top: 6px;
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+```
+
+- [ ] **Step 4: Implement the component (class-driven)**
 
 ```jsx
 // client/src/components/common/FileThumbnail.jsx
@@ -389,6 +494,7 @@ export default function FileThumbnail({ file, cacheKey, fetchBlob, onClick, size
     const ref = useRef(null);
     const [visible, setVisible] = useState(false);
     const [hover, setHover] = useState(false);
+    const [imgLoaded, setImgLoaded] = useState(false);
 
     useEffect(() => {
         if (visible || !ref.current) return;
@@ -407,51 +513,54 @@ export default function FileThumbnail({ file, cacheKey, fetchBlob, onClick, size
             ref={ref}
             type="button"
             className="file-thumb"
+            style={{ '--thumb-size': `${size}px` }}
+            aria-label={`Preview ${file.fileName}`}
             title={file.fileName}
             onClick={() => onClick(file)}
             onMouseEnter={() => setHover(true)}
             onMouseLeave={() => setHover(false)}
-            style={{ width: size, height: size, position: 'relative', padding: 0, border: '1px solid hsl(var(--border))', borderRadius: 6, overflow: 'visible', background: 'hsl(var(--muted))', cursor: 'pointer', flexShrink: 0 }}
         >
             {showImg ? (
-                <img src={thumbUrl} alt={file.fileName} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6, display: 'block' }} />
+                <img
+                    className={`file-thumb__img${imgLoaded ? ' file-thumb__img--loaded' : ''}`}
+                    src={thumbUrl}
+                    alt={file.fileName}
+                    onLoad={() => setImgLoaded(true)}
+                />
             ) : status === 'loading' ? (
-                <span style={{ display: 'inline-flex', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>…</span>
+                <span className="file-thumb__placeholder" aria-hidden="true" />
             ) : (
-                <span style={{ display: 'inline-flex', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
+                <span className="file-thumb__fallback">
                     <FileTypeIcon fileName={file.fileName} size={Math.round(size * 0.6)} />
                 </span>
             )}
-            {hover && (
-                <span
-                    className="file-thumb__popover"
-                    style={{ position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', zIndex: 50, width: 240, padding: 8, background: 'hsl(var(--popover, var(--background)))', border: '1px solid hsl(var(--border))', borderRadius: 8, boxShadow: '0 8px 24px hsl(0 0% 0% / 0.18)', pointerEvents: 'none' }}
-                >
-                    {showImg ? (
-                        <img src={thumbUrl} alt={file.fileName} style={{ width: '100%', maxHeight: 240, objectFit: 'contain', display: 'block' }} />
-                    ) : (
-                        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 120 }}>
-                            <FileTypeIcon fileName={file.fileName} size={48} />
-                        </span>
-                    )}
-                    <div style={{ marginTop: 6, fontSize: 11, color: 'hsl(var(--muted-foreground))', wordBreak: 'break-all', textAlign: 'center' }}>{file.fileName}</div>
-                </span>
-            )}
+            <span className={`file-thumb__popover${hover ? ' file-thumb__popover--open' : ''}`} role="tooltip">
+                {showImg ? (
+                    <img className="file-thumb__popover-img" src={thumbUrl} alt={file.fileName} />
+                ) : (
+                    <span className="file-thumb__popover-icon"><FileTypeIcon fileName={file.fileName} size={48} /></span>
+                )}
+                <div className="file-thumb__popover-name">{file.fileName}</div>
+            </span>
         </button>
     );
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+> Note: the popover is always rendered (so the fade transition works) and toggled via the `--open` class; `pointer-events: none` keeps it from trapping the cursor. The image fades in via `--loaded` on `onLoad` (no layout shift — the box is reserved by `--thumb-size`).
+
+- [ ] **Step 5: Run test to verify it passes**
 
 Run: `cd client && npx vitest run src/__tests__/FileThumbnail.test.jsx`
-Expected: PASS (all 3).
+Expected: PASS (all 3). (The test triggers intersection via the mocked IntersectionObserver and asserts the `<img>` appears + click fires; the always-rendered popover span does not break `queryByRole('img')` before ready because no img renders until `ready`.)
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Build + commit**
 
 ```bash
-git add client/src/components/common/FileThumbnail.jsx client/src/__tests__/FileThumbnail.test.jsx
-git commit -m "feat(files): FileThumbnail component (lazy IO + hover popover)"
+cd client && npm run build   # exit 0
+git checkout -- client/dist 2>/dev/null || true
+git add client/src/components/common/FileThumbnail.jsx client/src/index.css client/src/__tests__/FileThumbnail.test.jsx
+git commit -m "feat(files): FileThumbnail component (lazy IO + hover popover, design-system styled)"
 ```
 
 ---
@@ -460,7 +569,10 @@ git commit -m "feat(files): FileThumbnail component (lazy IO + hover popover)"
 
 **Files:**
 - Create: `client/src/components/common/FileThumbnailStrip.jsx`
+- Modify: `client/src/index.css` (add the `.file-thumb-strip` / `.file-thumb__more` / `.file-thumb-gallery` block)
 - Test: `client/src/__tests__/FileThumbnailStrip.test.jsx`
+
+**Design note:** class-driven styling in `index.css` using tokens (see Global Constraints "Design System"). The `+N` badge must read as an interactive control (hover lighten, focus ring) and align to the 40px thumbnail baseline; the gallery uses the existing `Modal` chrome with a tidy uniform-tile grid.
 
 **Interfaces:**
 - Consumes: `FileThumbnail` (Task 3); `Modal` from `./Modal` (gallery).
@@ -531,7 +643,45 @@ describe('FileThumbnailStrip', () => {
 Run: `cd client && npx vitest run src/__tests__/FileThumbnailStrip.test.jsx`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement the component**
+- [ ] **Step 3: Add the design-system CSS block to `index.css`**
+
+Append to `client/src/index.css`:
+
+```css
+/* Thumbnail strip + overflow badge + gallery */
+.file-thumb-strip { display: inline-flex; align-items: center; gap: 6px; }
+.file-thumb__more {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 50%;
+    background: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.file-thumb__more:hover { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
+.file-thumb__more:focus-visible { outline: none; box-shadow: 0 0 0 2px hsl(var(--ring) / 0.1); }
+.file-thumb-gallery { display: flex; flex-wrap: wrap; gap: 12px; }
+.file-thumb-gallery__tile { display: flex; flex-direction: column; align-items: center; width: 88px; }
+.file-thumb-gallery__name {
+    margin-top: 4px;
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+    text-align: center;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+```
+
+> Note: tokens `--accent`, `--accent-foreground`, `--ring`, `--popover`, `--popover-foreground`, `--muted`, `--muted-foreground`, `--border` are all defined in `index.css` `:root` — the class block above is safe to use as written.
+
+- [ ] **Step 4: Implement the component (class-driven)**
 
 ```jsx
 // client/src/components/common/FileThumbnailStrip.jsx
@@ -558,14 +708,15 @@ export default function FileThumbnailStrip({ files, makeCacheKey, makeFetchBlob,
     );
 
     return (
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <div className="file-thumb-strip">
             {shown.map((f) => thumb(f, 40))}
             {extra > 0 && (
                 <button
                     type="button"
                     className="file-thumb__more"
+                    aria-label={`Show ${extra} more file${extra !== 1 ? 's' : ''}`}
+                    title={`Show ${extra} more`}
                     onClick={() => setGalleryOpen(true)}
-                    style={{ width: 40, height: 40, borderRadius: 20, border: 'none', background: 'hsl(var(--muted))', color: 'hsl(var(--foreground))', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
                 >
                     +{extra}
                 </button>
@@ -573,11 +724,11 @@ export default function FileThumbnailStrip({ files, makeCacheKey, makeFetchBlob,
             {galleryOpen && (
                 <Modal onClose={() => setGalleryOpen(false)}>
                     <h2 className="modal__title" style={{ marginBottom: 12 }}>{files.length} file{files.length !== 1 ? 's' : ''}</h2>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                    <div className="file-thumb-gallery">
                         {files.map((f) => (
-                            <div key={f.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 88 }}>
+                            <div key={f.id} className="file-thumb-gallery__tile">
                                 {thumb(f, 72)}
-                                <div style={{ marginTop: 4, fontSize: 10, color: 'hsl(var(--muted-foreground))', wordBreak: 'break-all', textAlign: 'center' }}>{f.fileName}</div>
+                                <div className="file-thumb-gallery__name" title={f.fileName}>{f.fileName}</div>
                             </div>
                         ))}
                     </div>
@@ -588,16 +739,18 @@ export default function FileThumbnailStrip({ files, makeCacheKey, makeFetchBlob,
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 5: Run test to verify it passes**
 
 Run: `cd client && npx vitest run src/__tests__/FileThumbnailStrip.test.jsx`
 Expected: PASS (all 5).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Build + commit**
 
 ```bash
-git add client/src/components/common/FileThumbnailStrip.jsx client/src/__tests__/FileThumbnailStrip.test.jsx
-git commit -m "feat(files): FileThumbnailStrip with +N overflow gallery"
+cd client && npm run build   # exit 0
+git checkout -- client/dist 2>/dev/null || true
+git add client/src/components/common/FileThumbnailStrip.jsx client/src/index.css client/src/__tests__/FileThumbnailStrip.test.jsx
+git commit -m "feat(files): FileThumbnailStrip with +N overflow gallery (design-system styled)"
 ```
 
 ---
@@ -735,6 +888,17 @@ Expected: exit 0. Confirm a pdfjs chunk is emitted lazily (a separate `pdf.worke
 
 Run: `git checkout -- client/dist 2>/dev/null || true`
 Hard-refresh `localhost:4000`. Verify end-to-end on both surfaces: `/files` row thumbnails (image real, PDF real, docx icon), hover popover, click→PreviewModal; cert history strip + `+N` gallery.
+
+- [ ] **Step 4: Design/UX craft review (senior-designer checklist)**
+
+Verify in the running app, at real data density, that the UX-craft requirements from the Global Constraints "Design System" section hold:
+- No layout shift as thumbnails resolve (rows don't jump); image fades in, no flicker.
+- Hover popover fades/scales in smoothly (0.15s), stays within view, never traps the cursor, shows the icon+name for non-previewable files (no empty box).
+- `+N` badge reads as a control (hover lighten, pointer, keyboard focus ring) and sits on the row baseline.
+- Gallery is a tidy uniform grid using `Modal` chrome; filenames ellipsize on one line (no text walls).
+- Colors/radii/shadows visibly match the rest of the app (no off-palette or hardcoded values); dark/light consistency with neighboring rows.
+- Keyboard: Tab reaches thumbnails and the badge; Enter/Space open preview/gallery; focus ring visible.
+Fix any visual issue found before completing (styling stays in `index.css` classes, not inline).
 
 - [ ] **Step 4: Commit any fixups**
 
