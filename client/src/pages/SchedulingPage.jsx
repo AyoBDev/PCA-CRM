@@ -267,6 +267,40 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
         }
     }, [authorizedServices]);
 
+    // Bug fix: when a client is selected AFTER days are already chosen, the initial
+    // dayEntries were seeded from an empty authorizedServiceMap (no client yet) and
+    // have blank accountNumber/sandataClientId.  Re-derive them whenever the map
+    // changes (i.e. whenever the selected client's authorizations become available).
+    useEffect(() => {
+        if (isEdit) {
+            // Edit mode: fill top-level fields if still blank
+            const info = authorizedServiceMap[serviceCode];
+            if (info) {
+                setAccountNumber(prev => prev || info.accountNumber || '');
+                setSandataClientId(prev => prev || info.sandataClientId || '');
+            }
+            return;
+        }
+        setDayEntries(prev => {
+            let changed = false;
+            const nextDays = prev.map(day => {
+                const nextShifts = day.shifts.map(sh => {
+                    const info = authorizedServiceMap[sh.serviceCode];
+                    if (!info) return sh;
+                    const nextAcct = sh.accountNumber || info.accountNumber || '';
+                    const nextSid = sh.sandataClientId || info.sandataClientId || '';
+                    if (nextAcct !== sh.accountNumber || nextSid !== sh.sandataClientId) {
+                        changed = true;
+                        return { ...sh, accountNumber: nextAcct, sandataClientId: nextSid };
+                    }
+                    return sh;
+                });
+                return { ...day, shifts: nextShifts };
+            });
+            return changed ? nextDays : prev;
+        });
+    }, [authorizedServiceMap]); // eslint-disable-line react-hooks/exhaustive-deps
+
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (empRef.current && !empRef.current.contains(e.target)) setEmpDropdownOpen(false);
@@ -1478,19 +1512,43 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
         const end = (h + 1) % 24;
         return `${String(end).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     };
+
+    // Shared helper: look up accountNumber + sandataClientId from the selected
+    // client's active authorization for a given serviceCode.  Used by both
+    // seedRowForDay (new-day case) and updateNewRow (service-code change).
+    const deriveAcctSandata = (svcCode) => {
+        if (!filterClientId) return { accountNumber: '', sandataClientId: '' };
+        const client = clients.find(c => String(c.id) === String(filterClientId));
+        const now = new Date();
+        const auth = client?.authorizations?.find(a =>
+            a.serviceCode === svcCode &&
+            (a.manualStatus || 'active') === 'active' &&
+            !a.archivedAt &&
+            (!a.authorizationEndDate || new Date(a.authorizationEndDate) >= now)
+        );
+        return { accountNumber: auth?.accountNumber || '', sandataClientId: auth?.sandataClientId || '' };
+    };
+
     const seedRowForDay = (dateStr) => {
         // Seed from the last existing/new row on that day for convenience.
         const existing = (shiftsByDay.find(([d]) => d === dateStr)?.[1] || []).filter(s => !removedIds.has(s.id));
         const days = newRows[dateStr] || [];
         const last = days.length ? days[days.length - 1] : (existing.length ? edits[existing[existing.length - 1].id] : null);
         const startTime = last?.endTime || '09:00';
+        const seededServiceCode = last?.serviceCode || 'PCS';
+        // For a brand-new day (last === null), derive account/Sandata from the client's
+        // active authorization for the seeded service code.  When last exists, copy its
+        // values so the existing-day case is unchanged.
+        const derived = (last?.accountNumber || last?.sandataClientId)
+            ? { accountNumber: last.accountNumber || '', sandataClientId: last.sandataClientId || '' }
+            : deriveAcctSandata(seededServiceCode);
         return {
             _key: `new_${++newRowSeq.current}`,
-            serviceCode: last?.serviceCode || 'PCS',
+            serviceCode: seededServiceCode,
             startTime,
             endTime: addHour(startTime),
-            accountNumber: last?.accountNumber || '',
-            sandataClientId: last?.sandataClientId || '',
+            accountNumber: derived.accountNumber,
+            sandataClientId: derived.sandataClientId,
             employeeId: last?.employeeId || (filterEmployeeId ? String(filterEmployeeId) : ''),
         };
     };
@@ -1503,17 +1561,10 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
             const updated = (prev[dateStr] || []).map(r => {
                 if (r._key !== key) return r;
                 const next = { ...r, [field]: value };
-                if (field === 'serviceCode' && filterClientId) {
-                    const client = clients.find(c => String(c.id) === String(filterClientId));
-                    const now = new Date();
-                    const auth = client?.authorizations?.find(a =>
-                        a.serviceCode === value &&
-                        (a.manualStatus || 'active') === 'active' &&
-                        !a.archivedAt &&
-                        (!a.authorizationEndDate || new Date(a.authorizationEndDate) >= now)
-                    );
-                    next.accountNumber = auth?.accountNumber || '';
-                    next.sandataClientId = auth?.sandataClientId || '';
+                if (field === 'serviceCode') {
+                    const derived = deriveAcctSandata(value);
+                    next.accountNumber = derived.accountNumber;
+                    next.sandataClientId = derived.sandataClientId;
                 }
                 return next;
             });
