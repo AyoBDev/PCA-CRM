@@ -3,6 +3,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useFileThumbnail } from '../../hooks/useFileThumbnail';
 import { FileTypeIcon } from '../files/fileTypeUtils';
 
+// Popover geometry: 240px image max + padding + caption ≈ 260px tall (see .file-thumb__popover in index.css).
+const POPOVER_HEIGHT = 260;
+
 export default function FileThumbnail({ file, cacheKey, fetchBlob, onClick, size = 40 }) {
     const ref = useRef(null);
     const [visible, setVisible] = useState(false);
@@ -34,7 +37,13 @@ export default function FileThumbnail({ file, cacheKey, fetchBlob, onClick, size
             onMouseEnter={() => {
                 if (ref.current) {
                     const rect = ref.current.getBoundingClientRect();
-                    setPlacement(rect.top < 280 ? 'below' : 'above');
+                    // Measure available room ABOVE the thumbnail against the top of its
+                    // list/card container (not the viewport) — a popover anchored above
+                    // overflows once it would rise past that boundary.
+                    const container = ref.current.closest('.file-list, .cp-card, main');
+                    const boundaryTop = container ? container.getBoundingClientRect().top : 0;
+                    const spaceAbove = rect.top - boundaryTop;
+                    setPlacement(spaceAbove < POPOVER_HEIGHT + 16 ? 'below' : 'above');
                 }
                 setHover(true);
             }}
