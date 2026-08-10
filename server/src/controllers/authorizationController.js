@@ -2,6 +2,7 @@ const prisma = require('../lib/prisma');
 const { enrichAuthorization, enrichClient } = require('../services/authorizationService');
 const audit = require('../services/auditService');
 const serviceRegistry = require('../services/serviceRegistry');
+const { dayBefore } = require('../lib/authDates');
 
 async function validateBody(body) {
     const { serviceCode } = body;
@@ -129,19 +130,32 @@ async function updateAuthorization(req, res, next) {
                 accountNumber: (req.body.accountNumber || '').trim(),
                 sandataClientId: (req.body.sandataClientId || '').trim(),
                 ...(req.body.manualStatus && { manualStatus: req.body.manualStatus }),
+                // Lifecycle fields (renewedToId/closedAt/inactiveReason/inactiveNote) are only
+                // written when explicitly present in the body — this lets undo handlers for
+                // renew/inactivate restore a prior auth's full state, including clearing them
+                // back to null/'' , without every regular save having to carry them.
+                ...('renewedToId' in req.body && { renewedToId: req.body.renewedToId ?? null }),
+                ...('closedAt' in req.body && { closedAt: req.body.closedAt ?? null }),
+                ...('inactiveReason' in req.body && { inactiveReason: (req.body.inactiveReason || '').trim() }),
+                ...('inactiveNote' in req.body && { inactiveNote: (req.body.inactiveNote || '').trim() }),
                 ...buildAuthTypeFields(req.body),
             },
         });
 
         const serviceNameChanged = MULTI_AUTH_CODES.includes(auth.serviceCode) &&
             (auth.serviceName || '') !== (oldAuth.serviceName || '');
-        if (req.body.serviceCode !== oldAuth.serviceCode || serviceNameChanged || (auth.manualStatus === 'active' && (oldAuth.manualStatus || 'active') !== 'active')) {
+        const isReactivating = auth.manualStatus === 'active' && (oldAuth.manualStatus || 'active') !== 'active';
+        // skipDeactivate: true is passed by undo handlers that flip manualStatus back to
+        // 'active' while reversing a renew/inactivate action — that reversal must not
+        // trigger the "new auth supersedes siblings" side effect (see deactivatePreviousAuths).
+        if (!req.body.skipDeactivate &&
+            (req.body.serviceCode !== oldAuth.serviceCode || serviceNameChanged || isReactivating)) {
             await deactivatePreviousAuths(auth.clientId, auth.serviceCode, auth.serviceName || '', auth.id, {
                 userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             });
         }
 
-        const changes = audit.diffFields(oldAuth, auth, ['serviceCode', 'serviceName', 'authorizationNumber', 'authorizedUnits', 'authorizedHours', 'authorizationStartDate', 'authorizationEndDate', 'notes', 'accountNumber', 'sandataClientId', 'manualStatus']);
+        const changes = audit.diffFields(oldAuth, auth, ['serviceCode', 'serviceName', 'authorizationNumber', 'authorizedUnits', 'authorizedHours', 'authorizationStartDate', 'authorizationEndDate', 'notes', 'accountNumber', 'sandataClientId', 'manualStatus', 'renewedToId', 'closedAt', 'inactiveReason', 'inactiveNote']);
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: auth.id, entityName: auth.serviceCode, changes });
         res.json(enrichAuthorization(auth));
     } catch (err) {
@@ -256,8 +270,8 @@ async function updateAuthManualStatus(req, res, next) {
     try {
         const id = Number(req.params.id);
         const { manualStatus } = req.body;
-        if (!['active', 'pending', 'inactive'].includes(manualStatus)) {
-            return res.status(400).json({ error: 'Invalid status. Must be active, pending, or inactive.' });
+        if (!['active', 'inactive'].includes(manualStatus)) {
+            return res.status(400).json({ error: 'Invalid status. Must be active or inactive.' });
         }
         const oldAuth = await prisma.authorization.findUnique({ where: { id } });
         if (!oldAuth) return res.status(404).json({ error: 'Authorization not found' });
@@ -289,36 +303,44 @@ async function renewAuthorization(req, res, next) {
         if (errors.length) return res.status(400).json({ errors });
 
         const clientId = oldAuth.clientId;
-        const [newAuth] = await prisma.$transaction([
-            prisma.authorization.create({
-                data: {
-                    clientId,
-                    serviceCategory: (req.body.serviceCategory || '').trim(),
-                    serviceCode: req.body.serviceCode,
-                    serviceName: (req.body.serviceName || '').trim(),
-                    authorizationNumber: (req.body.authorizationNumber || '').trim(),
-                    authorizedUnits: parseInt(req.body.authorizedUnits) || 0,
-                    authorizedHours: parseFloat(req.body.authorizedHours) || 0,
-                    authorizationStartDate: req.body.authorizationStartDate
-                        ? new Date(req.body.authorizationStartDate)
-                        : null,
-                    authorizationEndDate: req.body.authorizationEndDate
-                        ? new Date(req.body.authorizationEndDate)
-                        : null,
-                    notes: (req.body.notes || '').trim(),
-                    accountNumber: (req.body.accountNumber || '').trim(),
-                    sandataClientId: (req.body.sandataClientId || '').trim(),
-                    manualStatus: 'active',
-                },
-            }),
-            prisma.authorization.update({
-                where: { id: oldId },
-                data: { manualStatus: 'inactive' },
-            }),
-        ]);
+        const newStart = req.body.authorizationStartDate;
+        // Server-authoritative close date: the day before the new auth starts.
+        const closeDateStr = newStart ? dayBefore(newStart) : null;
+
+        const newAuth = await prisma.authorization.create({
+            data: {
+                clientId,
+                serviceCategory: (req.body.serviceCategory || '').trim(),
+                serviceCode: req.body.serviceCode,
+                serviceName: (req.body.serviceName || '').trim(),
+                authorizationNumber: (req.body.authorizationNumber || '').trim(),
+                authorizedUnits: parseInt(req.body.authorizedUnits) || 0,
+                authorizedHours: parseFloat(req.body.authorizedHours) || 0,
+                authorizationStartDate: newStart ? new Date(newStart) : null,
+                authorizationEndDate: req.body.authorizationEndDate ? new Date(req.body.authorizationEndDate) : null,
+                notes: (req.body.notes || '').trim(),
+                // Renewals must not lose these — inherit from the old auth when omitted.
+                accountNumber: (req.body.accountNumber || oldAuth.accountNumber || '').trim(),
+                sandataClientId: (req.body.sandataClientId || oldAuth.sandataClientId || '').trim(),
+                manualStatus: 'active',
+                renewedFromId: oldId,
+                ...buildAuthTypeFields(req.body),
+            },
+        });
+
+        await prisma.authorization.update({
+            where: { id: oldId },
+            data: {
+                manualStatus: 'inactive',
+                closedAt: new Date(),
+                renewedToId: newAuth.id,
+                // Parses at local midnight by convention, matching the note in server/src/lib/authDates.js.
+                ...(closeDateStr ? { authorizationEndDate: new Date(closeDateStr + 'T00:00:00') } : {}),
+            },
+        });
 
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Authorization', entityId: newAuth.id, entityName: `${req.body.serviceCode} (renewal)`, metadata: { renewedFromId: oldId } });
-        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: oldId, entityName: oldAuth.serviceCode, changes: [{ field: 'manualStatus', oldValue: oldAuth.manualStatus, newValue: 'inactive' }], metadata: { reason: 'renewed' } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: oldId, entityName: oldAuth.serviceCode, changes: [{ field: 'manualStatus', oldValue: oldAuth.manualStatus, newValue: 'inactive' }], metadata: { reason: 'renewed', renewedToId: newAuth.id } });
 
         await deactivatePreviousAuths(clientId, newAuth.serviceCode, (req.body.serviceName || '').trim(), newAuth.id, {
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
@@ -328,6 +350,41 @@ async function renewAuthorization(req, res, next) {
     } catch (err) {
         next(err);
     }
+}
+
+// PATCH /api/authorizations/:id/inactivate
+async function inactivateAuthorization(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+
+        const inactiveReason = (req.body.inactiveReason || '').trim();
+        if (!inactiveReason) return res.status(400).json({ error: 'Reason is required' });
+
+        const rawEndDate = req.body.authorizationEndDate;
+        if (!rawEndDate) return res.status(400).json({ error: 'End date is required' });
+
+        const authorizationEndDate = new Date(rawEndDate + 'T00:00:00');
+        if (Number.isNaN(authorizationEndDate.getTime())) return res.status(400).json({ error: 'Invalid end date' });
+
+        const oldAuth = await prisma.authorization.findUnique({ where: { id } });
+        if (!oldAuth) return res.status(404).json({ error: 'Authorization not found' });
+
+        const auth = await prisma.authorization.update({
+            where: { id },
+            data: {
+                manualStatus: 'inactive',
+                inactiveReason,
+                inactiveNote: (req.body.inactiveNote || '').trim(),
+                closedAt: new Date(),
+                authorizationEndDate,
+            },
+        });
+
+        const changes = audit.diffFields(oldAuth, auth, ['manualStatus', 'authorizationEndDate', 'inactiveReason', 'inactiveNote', 'closedAt']);
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: id, entityName: auth.serviceCode, changes, metadata: { reason: auth.inactiveReason } });
+        res.json(enrichAuthorization(auth));
+    } catch (err) { next(err); }
 }
 
 // POST /api/authorizations/dedup — one-time cleanup of duplicate authorizations
@@ -408,4 +465,4 @@ async function dedupAuthorizations(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { createAuthorization, updateAuthorization, archiveAuthorization, restoreAuthorization, deleteAuthorization, updateAccountNumber, updateSandataClientId, updateAuthManualStatus, renewAuthorization, dedupAuthorizations };
+module.exports = { createAuthorization, updateAuthorization, archiveAuthorization, restoreAuthorization, deleteAuthorization, updateAccountNumber, updateSandataClientId, updateAuthManualStatus, renewAuthorization, inactivateAuthorization, dedupAuthorizations };

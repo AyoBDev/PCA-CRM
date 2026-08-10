@@ -107,11 +107,17 @@ describe('mapLeadToClientData', () => {
     ...lead,
     caseworkerName: 'Carla Manager', caseworkerPhone: '7025551234',
     referralSource: 'Hospital discharge', insuranceNumber: 'INS-9988',
+    leadSource: 'fax',
     daysPerWeek: '5 days (M-F)', hoursPerDay: '6', startDateNeeded: 'ASAP',
     caseType: 'transfer', currentAgencyName: 'OldCo', authNumber: 'A-77', transferReason: 'Moving',
     servicesRequested: '["Light Housekeeping","Meal Preparation","Shower Assistance"]',
     agePreference: 'Older / more experienced',
   };
+
+  test('records the lead source channel (friendly label) in notes', () => {
+    const d = mapLeadToClientData(richLead);
+    expect(d.notes).toContain('Lead Source: Fax');
+  });
 
   test('puts the full services-requested list into mainServices', () => {
     const d = mapLeadToClientData(richLead);

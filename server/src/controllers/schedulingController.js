@@ -1095,15 +1095,25 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
             }
         }));
 
-        // Collect future shifts for recurring propagation
+        // Collect future shifts for recurring propagation.
+        // Two sources, deduped by id:
+        //  1. Shifts in the same recurringGroupId (shifts created via "repeat weekly").
+        //  2. Fallback for week-by-week shifts that share no group: future shifts for the
+        //     same client + employee. The propagation loop below then filters these down
+        //     to the matching weekday + old service code, so only the "same" recurring
+        //     slot is touched. Without this, "apply to all future recurring weeks" would
+        //     silently update only the current week whenever the shifts weren't created
+        //     as a linked series.
         let futureSnapshot = [];
         let futureShifts = [];
         if (applyToFuture) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const byId = new Map();
+
             const recurringGroupIds = [...new Set(shifts.map(s => s.recurringGroupId).filter(Boolean))];
             if (recurringGroupIds.length > 0) {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                futureShifts = await prisma.shift.findMany({
+                const grouped = await prisma.shift.findMany({
                     where: {
                         recurringGroupId: { in: recurringGroupIds },
                         archivedAt: null,
@@ -1112,16 +1122,39 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
                     },
                     include: shiftInclude,
                 });
-                futureSnapshot = futureShifts.map(s => ({
-                    shiftId: s.id,
-                    oldValues: {
-                        startTime: s.startTime, endTime: s.endTime,
-                        serviceCode: s.serviceCode, accountNumber: s.accountNumber,
-                        sandataClientId: s.sandataClientId, employeeId: s.employeeId,
-                        hours: s.hours, units: s.units,
-                    }
-                }));
+                for (const s of grouped) byId.set(s.id, s);
             }
+
+            // Fallback: for edited shifts with no recurring group, match future shifts by
+            // client + employee (weekday + service code are matched in the propagation loop).
+            const ungroupedPairs = [...new Map(
+                shifts
+                    .filter(s => !s.recurringGroupId && s.clientId && s.employeeId)
+                    .map(s => [`${s.clientId}:${s.employeeId}`, { clientId: s.clientId, employeeId: s.employeeId }])
+            ).values()];
+            if (ungroupedPairs.length > 0) {
+                const ungrouped = await prisma.shift.findMany({
+                    where: {
+                        OR: ungroupedPairs.map(p => ({ clientId: p.clientId, employeeId: p.employeeId })),
+                        archivedAt: null,
+                        shiftDate: { gt: today },
+                        id: { notIn: shiftIds },
+                    },
+                    include: shiftInclude,
+                });
+                for (const s of ungrouped) byId.set(s.id, s);
+            }
+
+            futureShifts = [...byId.values()];
+            futureSnapshot = futureShifts.map(s => ({
+                shiftId: s.id,
+                oldValues: {
+                    startTime: s.startTime, endTime: s.endTime,
+                    serviceCode: s.serviceCode, accountNumber: s.accountNumber,
+                    sandataClientId: s.sandataClientId, employeeId: s.employeeId,
+                    hours: s.hours, units: s.units,
+                }
+            }));
         }
 
         const batch = await prisma.bulkEditBatch.create({
@@ -1184,7 +1217,10 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
         // Propagate to future recurring shifts
         let futureUpdated = 0;
         if (applyToFuture && futureShifts.length > 0) {
-            // Build a day-of-week → updates mapping from the selected shifts
+            // Build a day-of-week → updates mapping from the selected shifts.
+            // Rules are scoped to the edited shift's client+employee so that when the
+            // future set is broadened for non-grouped shifts, one client's edit can
+            // never bleed onto a different client/employee sharing the same weekday.
             const dowUpdates = {};
             for (const existing of shifts) {
                 const updates = perShiftUpdates[String(existing.id)];
@@ -1192,6 +1228,8 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
                 const dow = new Date(existing.shiftDate).getDay();
                 if (!dowUpdates[dow]) dowUpdates[dow] = [];
                 dowUpdates[dow].push({
+                    clientId: existing.clientId,
+                    employeeId: existing.employeeId,
                     oldServiceCode: existing.serviceCode,
                     updates: { ...updates },
                 });
@@ -1202,12 +1240,16 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
                 const dayRules = dowUpdates[dow];
                 if (!dayRules) continue;
 
-                // Match by day-of-week AND old service code only. No fallback to
-                // dayRules[0] — a future shift that doesn't match a specific edited
-                // shift must be left untouched (Bug 3: never silently rewrite a
-                // shift the user didn't edit, e.g. propagating a Respite time change
-                // onto a Homemaker shift).
-                const match = dayRules.find(r => r.oldServiceCode === futureShift.serviceCode);
+                // Match by day-of-week AND old service code AND same client+employee.
+                // No fallback to dayRules[0] — a future shift that doesn't match a
+                // specific edited shift must be left untouched (Bug 3: never silently
+                // rewrite a shift the user didn't edit, e.g. propagating a Respite time
+                // change onto a Homemaker shift).
+                const match = dayRules.find(r =>
+                    r.oldServiceCode === futureShift.serviceCode &&
+                    r.clientId === futureShift.clientId &&
+                    r.employeeId === futureShift.employeeId
+                );
                 if (!match) continue;
 
                 const data = {};

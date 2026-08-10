@@ -1632,6 +1632,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
     // Incomplete new rows block the save (validation surfaced via rowErrors).
     const [rowErrors, setRowErrors] = useState({}); // { newRowKey: message }
     const validateNewRow = (r) => {
+        if (!filterClientId) return 'Select a client above to add a shift';
         if (!r.serviceCode) return 'Select a service';
         if (!r.startTime || !r.endTime) return 'Set start and end time';
         if (!r.employeeId) return 'Assign an employee';
@@ -1688,7 +1689,11 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
 
         const removeIds = [...removedIds];
         if (Object.keys(updates).length === 0 && creates.length === 0 && removeIds.length === 0) return;
-        onSave({ updates, creates, removeIds }, applyToFuture && hasRecurringShifts);
+        // Send applyToFuture whenever the user picked it. The server propagates to
+        // future weeks via the recurring group when one exists, and otherwise falls
+        // back to matching future shifts by client + employee + weekday + service code
+        // — so week-by-week shifts (no shared group) still get updated.
+        onSave({ updates, creates, removeIds }, applyToFuture);
     };
 
     // Client/employee options for SearchableSelect
@@ -1824,10 +1829,16 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                         </div>
 
                         <div className="sched-day-grid">
-                            {shiftsByDay.map(([dateStr, dayShifts]) => {
+                            {/* Render every weekday so a shift can be added to any day —
+                                including days that currently have no shifts. Days with
+                                existing shifts pull them from the selected-shift grouping;
+                                empty days still render with just an "+ Add shift" button. */}
+                            {weekDates.map((dateStr) => {
+                                const dayShifts = shiftsByDay.find(([d]) => d === dateStr)?.[1] || [];
                                 const liveDayShifts = dayShifts.filter(s => !removedIds.has(s.id));
                                 const dayNewRows = newRows[dateStr] || [];
                                 const rowCount = liveDayShifts.length + dayNewRows.length;
+                                const isEmpty = rowCount === 0;
                                 const dateObj = new Date(dateStr + 'T12:00:00');
                                 const dayName = DAY_NAMES[dateObj.getDay()];
                                 const dayTotalHrs = liveDayShifts.reduce((s, sh) => s + computeHrs(edits[sh.id]?.startTime, edits[sh.id]?.endTime).hours, 0)
@@ -1837,16 +1848,18 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                 const firstEdit = liveDayShifts.length ? edits[liveDayShifts[0].id] : dayNewRows[0];
                                 const firstColor = SERVICE_COLORS[firstEdit?.serviceCode] || { color: '#6B7280' };
                                 return (
-                                    <div key={dateStr} className="sched-day-row sched-day-row--active">
+                                    <div key={dateStr} className={`sched-day-row ${isEmpty ? 'sched-day-row--empty' : 'sched-day-row--active'}`}>
                                         <div className="sched-day-row__header">
                                             <label className="sched-day-row__toggle">
                                                 <span className="sched-day-row__day">{dayName}</span>
                                                 <span className="sched-day-row__date">{dateStr.slice(5)}</span>
                                             </label>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                <span className="sched-day-row__badge" style={{ background: `color-mix(in srgb, ${firstColor.color} 15%, white)`, color: firstColor.color }}>
-                                                    {dayTotalHrs}h / {dayTotalUnits}u
-                                                </span>
+                                                {!isEmpty && (
+                                                    <span className="sched-day-row__badge" style={{ background: `color-mix(in srgb, ${firstColor.color} 15%, white)`, color: firstColor.color }}>
+                                                        {dayTotalHrs}h / {dayTotalUnits}u
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                         {liveDayShifts.map((shift, si) => {
@@ -1915,7 +1928,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                 <div key={r._key} className="sched-day-row__fields sched-day-row__fields--new">
                                                     <div className="sched-day-row__shift-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                         <span>New shift</span>
-                                                        <button type="button" className="sched-day-row__remove" title="Remove this shift" onClick={() => removeNewRow(dateStr, r._key)}>{Icons.x}</button>
+                                                        <button type="button" className="sched-day-row__remove-shift" title="Remove this shift" onClick={() => removeNewRow(dateStr, r._key)}>&times;</button>
                                                     </div>
                                                     <div className="sched-day-row__row">
                                                         <div className="sched-day-row__field">
@@ -1996,8 +2009,8 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                 </div>
                             )}
                             {applyToFuture && !hasRecurringShifts && (
-                                <div className="sched-recurring__preview" style={{ color: '#f59e0b' }}>
-                                    No recurring group found — changes will apply to selected shifts only.
+                                <div className="sched-recurring__preview">
+                                    Changes will update matching future shifts — same client, employee, weekday and service — on upcoming weeks.
                                 </div>
                             )}
                             {showDateSelect && futureSeriesShifts.length > 0 && (

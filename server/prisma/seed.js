@@ -108,6 +108,15 @@ async function main() {
     }
 
     await seedPermissionGroups(prisma);
+
+    // Seed the onboarding requirement catalogs (documents / cert types / policies).
+    // Non-fatal: a hiccup here must never block the rest of the deploy/seed chain.
+    try {
+        await require('./seed-requirements').seedRequirements();
+        console.log('✅ Requirement catalogs seeded');
+    } catch (e) {
+        console.error('⚠️  Requirement seed skipped:', e.message);
+    }
 }
 
 main()

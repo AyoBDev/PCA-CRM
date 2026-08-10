@@ -138,6 +138,8 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
 
     const handleNext = () => {
         if (!name.trim()) { showToast('Name is required'); return; }
+        // Email is required for new hires — it's how the onboarding invite is sent.
+        if (!employee && !email.trim()) { showToast('Email is required'); return; }
         setStep(2);
     };
 
@@ -151,6 +153,19 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
         }
         data._certDates = certDates;
         data._certFiles = certFiles;
+        if (!employee) {
+            // Certifications the admin did NOT provide (no expiration date and no
+            // attachment) become OPTIONAL onboarding requirements — the new hire can
+            // upload them later from the app. Ones the admin filled are already on file.
+            const certTypeKeys = FORM_CERT_TYPES
+                .filter(c => {
+                    const hasDate = Boolean(certDates[c.type]?.expiration);
+                    const hasFile = Boolean(certFiles[c.type]);
+                    return !hasDate && !hasFile;
+                })
+                .map(c => c.type);
+            data.requirementSelections = { certTypeKeys, optional: true };
+        }
         onSave(data);
     };
 
@@ -195,8 +210,8 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
                                 <input id="empPhone" value={phone} onChange={e => setPhone(e.target.value)} placeholder="(555) 123-4567" />
                             </div>
                             <div className="form-group">
-                                <label htmlFor="empEmail">Email</label>
-                                <input id="empEmail" type="email" value={email} onChange={e => setEmail(e.target.value)} />
+                                <label htmlFor="empEmail">Email {!employee && '*'}</label>
+                                <input id="empEmail" type="email" value={email} onChange={e => setEmail(e.target.value)} required={!employee} />
                             </div>
                         </div>
                         <div className="form-grid-2">
@@ -266,14 +281,15 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
             <div className="wizard-nav">
                 <div>
                     {step > 1 && (
-                        <button type="button" className="btn btn--outline" onClick={() => setStep(1)}>Back</button>
+                        <button type="button" className="btn btn--outline" onClick={() => setStep(step - 1)}>Back</button>
                     )}
                 </div>
                 <div className="wizard-nav__right">
                     <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
-                    {step === 1 ? (
+                    {step === 1 && (
                         <button type="button" className="btn btn--primary" onClick={handleNext}>Next</button>
-                    ) : (
+                    )}
+                    {(step === steps.length) && (
                         <button type="button" className="btn btn--primary" onClick={handleSubmit}>
                             {employee ? 'Save Changes' : 'Add Employee'}
                         </button>

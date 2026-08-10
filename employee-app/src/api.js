@@ -36,6 +36,13 @@ export function submitOnboarding(token, data) {
     }).then(r => { if (!r.ok) return r.json().then(e => { throw new Error(e.error); }); return r.json(); });
 }
 
+export function saveOnboardingPersonal(token, data) { return fetch(`${BASE}/api/onboarding/${token}/personal`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()); }
+export function saveOnboardingEmergency(token, data) { return fetch(`${BASE}/api/onboarding/${token}/emergency`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()); }
+export function saveOnboardingAvailabilityDraft(token, availability) { return fetch(`${BASE}/api/onboarding/${token}/availability-draft`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ availability }) }).then(r => r.json()); }
+export function uploadOnboardingDocument(token, reqId, formData) { return fetch(`${BASE}/api/onboarding/${token}/documents/${reqId}`, { method: 'POST', body: formData }).then(r => r.json()); }
+export function ackOnboardingPolicy(token, reqId) { return fetch(`${BASE}/api/onboarding/${token}/policies/${reqId}/ack`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(r => r.json()); }
+export function submitOnboardingV2(token, data) { return fetch(`${BASE}/api/onboarding/${token}/submit`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data || {}) }).then(r => r.json()); }
+
 export const api = {
   login: (email, password) =>
     fetch(`${BASE}/api/auth/employee-login`, {
@@ -72,6 +79,21 @@ export const api = {
   completeTask: (id) => request(`/tasks/${id}/complete`, { method: 'PATCH' }),
   getProfile: () => request('/profile'),
   updateProfile: (data) => request('/profile', { method: 'PATCH', body: JSON.stringify(data) }),
+  getRequirements: () => request('/requirements'),
+  uploadRequirementDocument: (reqId, formData) => {
+    const token = localStorage.getItem('token');
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return fetch(`${BASE}/api/employee/documents/${reqId}`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    }).then(async r => {
+      if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.error || 'Upload failed'); }
+      return r.json();
+    });
+  },
+  ackRequirementPolicy: (reqId) => request(`/policies/${reqId}/ack`, { method: 'POST', body: '{}' }),
   subscribePush: (subscription) => request('/push/subscribe', { method: 'POST', body: JSON.stringify(subscription) }),
   unsubscribePush: () => request('/push/subscribe', { method: 'DELETE' }),
   getTimesheet: (weekStart) => request(`/timesheet${weekStart ? `?weekStart=${weekStart}` : ''}`),

@@ -686,74 +686,185 @@ body {
 }
 
 /* Wizard Steps */
-.wizard-steps {
+/* Compact dot progress indicator — no numbers, roomy spacing.
+   dot states: upcoming (hollow), active (large accent), done (green check),
+   incomplete (red ! — a required step that was passed without being filled). */
+.wizard-dots {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0;
-    margin-bottom: 24px;
-    padding: 16px 0;
+    gap: 6px;
+    margin-bottom: 8px;
+    padding: 12px 0 4px;
+    flex-wrap: wrap;
 }
 
-.wizard-step {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    position: relative;
-    flex: 1;
-}
-
-.wizard-step__circle {
-    width: 32px;
-    height: 32px;
+.wizard-dot {
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
+    border: 2px solid hsl(240 5.9% 82%);
+    background: white;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
-    font-weight: 600;
-    border: 2px solid hsl(240 5.9% 90%);
-    color: hsl(240 3.8% 46.1%);
-    background: white;
-    position: relative;
-    z-index: 1;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    color: white;
+    flex: 0 0 auto;
+    transition: all 0.15s ease;
 }
 
-.wizard-step--active .wizard-step__circle {
+.wizard-dot--active {
+    width: 16px;
+    height: 16px;
     border-color: hsl(217 91% 60%);
     background: hsl(217 91% 60%);
-    color: white;
+    box-shadow: 0 0 0 4px hsl(217 91% 60% / 0.15);
 }
 
-.wizard-step--completed .wizard-step__circle {
+.wizard-dot--done {
+    width: 16px;
+    height: 16px;
     border-color: #16a34a;
     background: #16a34a;
-    color: white;
 }
 
-.wizard-step__label {
-    font-size: 11px;
-    font-weight: 500;
-    margin-top: 6px;
-    color: hsl(240 3.8% 46.1%);
+.wizard-dot--incomplete {
+    width: 16px;
+    height: 16px;
+    border-color: #dc2626;
+    background: #dc2626;
 }
 
-.wizard-step--active .wizard-step__label {
-    color: hsl(217 91% 60%);
+.wizard-dots__label {
+    text-align: center;
+    font-size: 13px;
     font-weight: 600;
+    color: hsl(217 91% 55%);
+    margin-bottom: 20px;
 }
 
-.wizard-step-connector {
-    position: absolute;
-    top: 16px;
-    left: calc(-50% + 16px);
-    right: calc(50% + 16px);
-    height: 2px;
-    background: hsl(240 5.9% 90%);
+.wizard-dots__label span {
+    color: hsl(240 3.8% 46.1%);
+    font-weight: 500;
 }
 
-.wizard-step-connector--completed {
+/* Already-uploaded state for a document/certification requirement, so a returning
+   employee can see it's done rather than an empty file input that looks unstarted. */
+.onboard-upload-done {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid #bbf7d0;
+    background: #f0fdf4;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #166534;
+}
+
+.onboard-upload-done__check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
     background: #16a34a;
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    flex: 0 0 auto;
+}
+
+.onboard-upload-done > span:nth-child(2) {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Final Review summary — a read-back of everything entered. */
+.onboard-review__section {
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid hsl(240 5.9% 90%);
+}
+.onboard-review__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.onboard-review__edit {
+    background: none;
+    border: none;
+    color: hsl(217 91% 55%);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 2px 4px;
+}
+.onboard-review__grid {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 4px 12px;
+    margin: 6px 0 0;
+}
+.onboard-review__grid dt {
+    color: hsl(240 3.8% 46%);
+    font-size: 13px;
+}
+.onboard-review__grid dd {
+    margin: 0;
+    font-size: 14px;
+    color: hsl(240 10% 15%);
+    word-break: break-word;
+}
+.onboard-review__warn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+    border-radius: 8px;
+    color: #991b1b;
+    font-size: 14px;
+}
+
+/* Admin's note shown to an employee who was sent back to fix their onboarding. */
+.onboard-review-note {
+    margin: 12px 0 4px;
+    padding: 12px 14px;
+    border: 1px solid #fde68a;
+    background: #fffbeb;
+    border-radius: 8px;
+    color: #92400e;
+}
+.onboard-review-note strong { font-size: 13px; }
+.onboard-review-note p { margin: 4px 0 0; font-size: 14px; white-space: pre-wrap; }
+
+/* Inline "(optional)" note next to a field label. */
+.onboard-optional-inline {
+    font-weight: 400;
+    font-size: 12px;
+    color: hsl(240 3.8% 55%);
+}
+
+/* "Optional" tag — a requirement the employee may skip now and finish later. */
+.onboard-optional-tag {
+    margin-left: 8px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    background: hsl(240 5% 92%);
+    color: hsl(240 4% 40%);
+    vertical-align: middle;
 }
 
 /* Step Content */
@@ -877,6 +988,27 @@ body {
     border-radius: 14px;
     font-size: 12px;
     font-weight: 500;
+}
+
+/* Requirement status variants (Documents/Certifications/Policies/Review steps) */
+.onboard-chip--required {
+    background: hsl(240 4.8% 95.9%);
+    color: hsl(240 3.8% 46.1%);
+}
+
+.onboard-chip--submitted {
+    background: hsl(213 94% 95%);
+    color: hsl(217 91% 40%);
+}
+
+.onboard-chip--approved {
+    background: hsl(142 76% 92%);
+    color: hsl(160 84% 30%);
+}
+
+.onboard-chip--rejected {
+    background: hsl(0 93% 97%);
+    color: hsl(0 84% 40%);
 }
 
 .onboard-chip button {

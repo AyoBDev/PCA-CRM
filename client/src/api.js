@@ -166,6 +166,16 @@ export const revertLeadConversion = (id) => request(`/leads/${id}/revert-convers
 export const reactivateLead = (id, columnId) =>
   request(`/leads/${id}/reactivate`, { method: 'POST', body: JSON.stringify({ status: columnId }) });
 export const getLeadStats = () => request('/leads/stats');
+export const getLeadReminders = () => request('/leads/reminders');
+// Admin-only: employees who submitted onboarding and await review.
+export const getOnboardingReviews = () => request('/onboarding/reviews');
+export const getOnboardingReviewDetail = (employeeId) => request(`/employees/${employeeId}/onboarding-review`);
+export const listLeadContacts = (leadId) => request(`/leads/${leadId}/contacts`);
+export const listClientLeadContacts = (clientId) => request(`/clients/${clientId}/lead-contacts`);
+export const createLeadContact = (leadId, body) =>
+    request(`/leads/${leadId}/contacts`, { method: 'POST', body: JSON.stringify(body) });
+export const deleteLeadContact = (leadId, contactId) =>
+    request(`/leads/${leadId}/contacts/${contactId}`, { method: 'DELETE' });
 
 // Bulk Import
 export const bulkImport = (file) => {
@@ -197,6 +207,8 @@ export const updateAuthManualStatus = (id, manualStatus) =>
     request(`/authorizations/${id}/status`, { method: 'PATCH', body: JSON.stringify({ manualStatus }) });
 export const renewAuthorization = (oldAuthId, data) =>
     request(`/authorizations/${oldAuthId}/renew`, { method: 'POST', body: JSON.stringify(data) });
+export const inactivateAuthorization = (id, data) =>
+    request(`/authorizations/${id}/inactivate`, { method: 'PATCH', body: JSON.stringify(data) });
 
 // Care Team
 export const addCareTeamMember = (clientId, data) =>
@@ -244,6 +256,45 @@ export const downloadDocument = (id) => {
 };
 export const deleteDocument = (id) =>
     request(`/documents/${id}`, { method: 'DELETE' });
+
+// Lead Documents (intake attachments — images / PDFs / docs)
+export const listLeadDocuments = (leadId) =>
+    request(`/leads/${leadId}/documents`);
+export const uploadLeadDocument = (leadId, file) => {
+    const headers = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    const fd = new FormData();
+    fd.append('file', file);
+    return fetch(`${BASE}/leads/${leadId}/documents`, {
+        method: 'POST',
+        headers,
+        body: fd,
+    }).then(async (res) => {
+        if (res.status === 401) {
+            clearToken();
+            window.dispatchEvent(new Event('auth:logout'));
+            throw new Error('Session expired. Please log in again.');
+        }
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.error || `HTTP ${res.status}`);
+        }
+        return res.json();
+    });
+};
+export const downloadLeadDocument = (id) => {
+    const headers = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    return fetch(`${BASE}/lead-documents/${id}/download`, { headers })
+        .then(async res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const contentType = res.headers.get('Content-Type') || 'application/octet-stream';
+            const arrayBuffer = await res.arrayBuffer();
+            return new Blob([arrayBuffer], { type: contentType });
+        });
+};
+export const deleteLeadDocument = (id) =>
+    request(`/lead-documents/${id}`, { method: 'DELETE' });
 
 // Authorization Documents
 export const uploadAuthDocument = (authId, formData) => {
@@ -895,6 +946,14 @@ export async function approveOnboarding(employeeId) {
     return request(`/employees/${employeeId}/approve-onboarding`, { method: 'PATCH' });
 }
 
+export async function rejectOnboarding(employeeId, note) {
+    return request(`/employees/${employeeId}/reject-onboarding`, { method: 'PATCH', body: JSON.stringify({ note }) });
+}
+
+export async function requestOnboardingChange(employeeId, note) {
+    return request(`/employees/${employeeId}/request-onboarding-change`, { method: 'PATCH', body: JSON.stringify({ note }) });
+}
+
 export async function getEmployeeAvailability(employeeId) {
     return request(`/employees/${employeeId}/availability`);
 }
@@ -934,3 +993,8 @@ export const markAttentionSeen = (keys) => {
     const body = Array.isArray(keys) ? { eventKeys: keys } : { eventKey: keys };
     return request('/admin/employee-attention/mark-seen', { method: 'POST', body: JSON.stringify(body) });
 };
+
+// ── Onboarding Catalogs ──
+export const getCatalogDocuments = () => request('/catalogs/documents');
+export const getCatalogCertTypes = () => request('/catalogs/cert-types');
+export const getCatalogPolicies = () => request('/catalogs/policies');

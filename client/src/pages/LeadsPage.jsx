@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import * as api from '../api';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
@@ -65,6 +65,7 @@ export default function LeadsPage() {
     const undoState = useUndoStack();
     const { showToast } = useToast();
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
 
     // View + per-view fetch caches. Board and List share the "active" fetch;
     // Dormant is fetched separately since it's a different dataset.
@@ -81,6 +82,8 @@ export default function LeadsPage() {
     const [wizardOpen, setWizardOpen] = useState(false);
     const [editLead, setEditLead] = useState(null);
     const [detailLead, setDetailLead] = useState(null);
+    // Bumped when a follow-up undo/redo changes contacts, so an open detail modal reloads its timeline.
+    const [contactsRefreshKey, setContactsRefreshKey] = useState(0);
     const [convertLeadObj, setConvertLeadObj] = useState(null);
     const [reactivateLeadObj, setReactivateLeadObj] = useState(null);
     const [revertLeadObj, setRevertLeadObj] = useState(null);
@@ -140,6 +143,55 @@ export default function LeadsPage() {
         [convertedLeads, filters],
     );
 
+    // ── Follow-up reminders modal: show once per calendar day ──────────────────
+
+    const handleContactLogged = useCallback((leadId, contact) => {
+        // Hold the live contact id in a mutable ref so redo can update what the
+        // next undo will delete — createLeadContact returns a NEW id on redo, and
+        // the undo closure must always target the CURRENT row, not the original.
+        const ref = { current: contact };
+        undoState.pushAction(
+            `Logged follow-up for lead #${leadId}`,
+            async () => {
+                await api.deleteLeadContact(leadId, ref.current.id);
+                // Keep an open detail modal's timeline in sync with the DB.
+                setContactsRefreshKey((k) => k + 1);
+            },
+            async () => {
+                const recreated = await api.createLeadContact(leadId, {
+                    outcome: ref.current.outcome,
+                    method: ref.current.method,
+                    note: ref.current.note,
+                    followUpDate: ref.current.followUpDate ? String(ref.current.followUpDate).slice(0, 10) : '',
+                });
+                ref.current = recreated;
+                setContactsRefreshKey((k) => k + 1);
+            }
+        );
+    }, [undoState]);
+
+    const openLeadById = useCallback(async (leadId) => {
+        let lead = activeLeads.find((l) => l.id === leadId) || dormantLeads.find((l) => l.id === leadId);
+        if (!lead) {
+            try {
+                lead = await api.getLead(leadId);
+            } catch {
+                /* ignore */
+            }
+        }
+        if (lead) setDetailLead(lead);
+    }, [activeLeads, dormantLeads]);
+
+    // Open a specific lead when arriving with ?lead=<id> (e.g. from the global
+    // reminders popup's "Open lead" action). The once-per-day reminders trigger
+    // itself lives in the app-wide LeadRemindersGate (mounted in Layout).
+    useEffect(() => {
+        const leadId = Number(searchParams.get('lead'));
+        if (!leadId) return;
+        openLeadById(leadId);
+        setSearchParams((prev) => { const p = new URLSearchParams(prev); p.delete('lead'); return p; }, { replace: true });
+    }, [searchParams, openLeadById, setSearchParams]);
+
     // ── Handlers ──────────────────────────────────────────────────────────────
     const handleFilterChange = useCallback((patch) => {
         setFilters((f) => ({ ...f, ...patch }));
@@ -175,13 +227,16 @@ export default function LeadsPage() {
 
     const handleSave = useCallback(async (payload) => {
         try {
+            let saved;
             if (editLead) {
                 const r = await api.updateLead(editLead.id, payload);
                 setActiveLeads((c) => c.map((x) => (x.id === r.id ? r : x)));
+                saved = r;
                 showToast('Lead updated', 'success');
             } else {
                 const created = await api.createLead(payload);
                 setActiveLeads((c) => [created, ...c]);
+                saved = created;
                 undoState.pushAction(
                     'Add lead',
                     async () => {
@@ -198,8 +253,11 @@ export default function LeadsPage() {
             setWizardOpen(false);
             setEditLead(null);
             loadActive();
+            // Return the saved lead so the wizard can upload any staged attachments.
+            return saved;
         } catch (err) {
             showToast(err.message, 'error');
+            throw err;
         }
     }, [editLead, undoState, showToast, loadActive]);
 
@@ -405,6 +463,8 @@ export default function LeadsPage() {
                 onEdit={() => { setEditLead(detailLead); setDetailLead(null); setWizardOpen(true); }}
                 onArchive={() => handleArchive()}
                 onConvert={() => { setConvertLeadObj(detailLead); setDetailLead(null); }}
+                onContactLogged={handleContactLogged}
+                contactsRefreshKey={contactsRefreshKey}
             />
 
             <ConvertLeadOverlay

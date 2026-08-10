@@ -1,12 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { getOnboardingInfo, submitOnboarding } from '../api';
+import { getOnboardingInfo, saveOnboardingPersonal, saveOnboardingEmergency, saveOnboardingAvailabilityDraft, uploadOnboardingDocument, ackOnboardingPolicy, submitOnboardingV2 } from '../api';
+import PersonalInfoStep from '../components/onboarding/PersonalInfoStep';
+import EmergencyContactStep from '../components/onboarding/EmergencyContactStep';
+import DocumentsStep from '../components/onboarding/DocumentsStep';
+import CertificationsStep from '../components/onboarding/CertificationsStep';
+import PoliciesStep from '../components/onboarding/PoliciesStep';
+import ReviewStep from '../components/onboarding/ReviewStep';
 
+// Logical step sequence. "Availability" spans 3 screens internally (Schedule, Travel, Time Off)
+// but counts as ONE stage for progress/resumability purposes.
 const STEPS = [
-    { label: 'Password' },
-    { label: 'Schedule' },
-    { label: 'Travel' },
-    { label: 'Time Off' },
+    { key: 'password', label: 'Password' },
+    { key: 'personal', label: 'Personal Info' },
+    { key: 'emergency', label: 'Emergency Contact' },
+    { key: 'availability-schedule', label: 'Schedule' },
+    { key: 'availability-travel', label: 'Travel' },
+    { key: 'availability-timeoff', label: 'Time Off' },
+    { key: 'documents', label: 'Documents' },
+    { key: 'certifications', label: 'Certifications' },
+    { key: 'policies', label: 'Policies' },
+    { key: 'review', label: 'Review' },
 ];
 
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
@@ -25,6 +39,14 @@ const HOLIDAYS = [
 
 const TRANSPORTATION_OPTIONS = ['Own car', 'Public transit', 'Rideshare', 'Walk', 'Other'];
 
+const AVAILABILITY_STEPS = [3, 4, 5];
+
+// A document/certification requirement is satisfied once submitted or approved;
+// a policy only once approved. Mirrors the server's isOnboardingComplete rule.
+function reqSatisfied(r) {
+    return r.kind === 'policy' ? r.status === 'approved' : (r.status === 'submitted' || r.status === 'approved');
+}
+
 export default function OnboardingPage() {
     const { token } = useParams();
     const [step, setStep] = useState(0);
@@ -33,14 +55,19 @@ export default function OnboardingPage() {
     const [info, setInfo] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [done, setDone] = useState(false);
+    const [initialStepApplied, setInitialStepApplied] = useState(false);
 
-    // Step 1: Password
+    // Password
     const [password, setPassword] = useState('');
     const [passwordConfirm, setPasswordConfirm] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
 
-    // Step 2: Schedule
+    // Personal Info + Emergency Contact
+    const [personal, setPersonal] = useState({});
+    const [emergency, setEmergency] = useState({});
+
+    // Availability: Schedule
     const [availableFrom, setAvailableFrom] = useState('');
     const [availableUntil, setAvailableUntil] = useState('');
     const [weeklySchedule, setWeeklySchedule] = useState(
@@ -49,26 +76,65 @@ export default function OnboardingPage() {
     const [maxHoursPerWeek, setMaxHoursPerWeek] = useState(40);
     const [maxConcurrentClients, setMaxConcurrentClients] = useState(1);
 
-    // Step 3: Travel
+    // Availability: Travel
     const [maxTravelTime, setMaxTravelTime] = useState(30);
     const [transportation, setTransportation] = useState('Own car');
     const [notes, setNotes] = useState('');
 
-    // Step 4: Time Off
+    // Availability: Time Off. Each holiday mirrors a weekly day-row: a toggle,
+    // and when ON, the hours the caregiver is available that day.
     const [holidayAvailability, setHolidayAvailability] = useState(
-        Object.fromEntries(HOLIDAYS.map(h => [h.key, false]))
+        Object.fromEntries(HOLIDAYS.map(h => [h.key, { available: false, start: '08:00', end: '17:00' }]))
     );
     const [blackoutDates, setBlackoutDates] = useState([]);
     const [newBlackout, setNewBlackout] = useState('');
     const [initialTimeOff, setInitialTimeOff] = useState([]);
     const [newTimeOff, setNewTimeOff] = useState({ start: '', end: '', reason: '' });
 
+    const refetchInfo = useCallback(() => {
+        return getOnboardingInfo(token).then(setInfo).catch(err => setError(err.message));
+    }, [token]);
+
     useEffect(() => {
         getOnboardingInfo(token)
-            .then(setInfo)
+            .then(data => {
+                setInfo(data);
+                if (!initialStepApplied) {
+                    rehydrate(data);
+                    setInitialStepApplied(true);
+                }
+            })
             .catch(err => setError(err.message))
             .finally(() => setLoading(false));
+        // rehydrate is stable for the life of the component; intentionally omitted.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [token]);
+
+    // Refill everything the server has saved so a returning employee resumes where
+    // they left off. Password is never restored (it isn't stored until submit).
+    function rehydrate(data) {
+        const saved = data && data.saved ? data.saved : {};
+        if (saved.personal) setPersonal(p => ({ ...p, ...saved.personal }));
+        if (saved.emergency) setEmergency(e => ({ ...e, ...saved.emergency }));
+        const a = saved.availability;
+        if (a) {
+            if (a.availableFrom) setAvailableFrom(a.availableFrom);
+            if (a.availableUntil) setAvailableUntil(a.availableUntil);
+            if (a.weeklySchedule) setWeeklySchedule(prev => ({ ...prev, ...a.weeklySchedule }));
+            if (a.maxHoursPerWeek != null) setMaxHoursPerWeek(a.maxHoursPerWeek);
+            if (a.maxConcurrentClients != null) setMaxConcurrentClients(a.maxConcurrentClients);
+            if (a.maxTravelTime != null) setMaxTravelTime(a.maxTravelTime);
+            if (a.transportation) setTransportation(a.transportation);
+            if (a.notes) setNotes(a.notes);
+            if (a.holidayAvailability) setHolidayAvailability(prev => ({ ...prev, ...a.holidayAvailability }));
+            if (Array.isArray(a.blackoutDates)) setBlackoutDates(a.blackoutDates);
+            if (Array.isArray(a.initialTimeOff)) setInitialTimeOff(a.initialTimeOff);
+        }
+        // Jump to the first step that still needs attention. Password (0) is always
+        // required in the submitting session, so a returning user with saved progress
+        // resumes at the first UNSAVED data step instead.
+        setStep(firstIncompleteStep(data));
+    }
 
     function toggleDay(day) {
         setWeeklySchedule(prev => ({
@@ -81,6 +147,20 @@ export default function OnboardingPage() {
         setWeeklySchedule(prev => ({
             ...prev,
             [day]: { ...prev[day], [field]: value },
+        }));
+    }
+
+    function toggleHoliday(key) {
+        setHolidayAvailability(prev => ({
+            ...prev,
+            [key]: { ...prev[key], available: !prev[key].available },
+        }));
+    }
+
+    function updateHolidayTime(key, field, value) {
+        setHolidayAvailability(prev => ({
+            ...prev,
+            [key]: { ...prev[key], [field]: value },
         }));
     }
 
@@ -111,48 +191,119 @@ export default function OnboardingPage() {
             if (password.length < 8) return 'Password must be at least 8 characters';
             if (password !== passwordConfirm) return 'Passwords do not match';
         }
-        if (step === 1) {
+        if (step === 3) {
             if (!availableFrom) return 'Available from date is required';
             if (!maxHoursPerWeek || maxHoursPerWeek < 1) return 'Max hours per week is required';
             if (!maxConcurrentClients || maxConcurrentClients < 1) return 'Max clients is required';
         }
-        if (step === 2) {
+        if (step === 4) {
             if (!maxTravelTime || maxTravelTime < 1) return 'Max travel time is required';
             if (!transportation) return 'Transportation method is required';
         }
         return null;
     }
 
-    function handleNext() {
+    async function handleNext() {
         const err = validateStep();
         if (err) { setError(err); return; }
         setError('');
+
+        try {
+            if (step === 1) {
+                // Personal Info step -> save
+                await saveOnboardingPersonal(token, personal);
+            } else if (step === 2) {
+                // Emergency Contact step -> save
+                await saveOnboardingEmergency(token, emergency);
+            } else if (step === 5) {
+                // Last availability screen (Time Off) -> persist the whole availability form
+                // as a draft so it survives a page reload. (Final submit re-sends it too.)
+                await saveOnboardingAvailabilityDraft(token, buildAvailability());
+            }
+        } catch (err) {
+            setError(err.message);
+            return;
+        }
+
         setStep(s => s + 1);
     }
 
+    async function handleUploadDocument(reqId, file, expirationDate) {
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            if (expirationDate) formData.append('expirationDate', expirationDate);
+            await uploadOnboardingDocument(token, reqId, formData);
+            await refetchInfo();
+        } catch (err) {
+            setError(err.message);
+        }
+    }
+
+    async function handleAckPolicy(reqId) {
+        try {
+            await ackOnboardingPolicy(token, reqId);
+            await refetchInfo();
+        } catch (err) {
+            setError(err.message);
+        }
+    }
+
+    function buildAvailability() {
+        return {
+            availableFrom, availableUntil: availableUntil || null,
+            weeklySchedule, maxHoursPerWeek, maxConcurrentClients,
+            maxTravelTime, transportation, notes,
+            holidayAvailability, blackoutDates, initialTimeOff,
+        };
+    }
+
+    // Whether a given step's data is complete. Prefers LOCAL form state (what the
+    // user has actually entered this session) so a dot turns green the moment they
+    // fill a step, then falls back to server-known `data` for a resumed session.
+    // Requirement steps read live status from `data.requirements`.
+    function stepDone(i, data) {
+        const prog = (data && data.progress) || {};
+        const reqs = (data && data.requirements) || [];
+        switch (i) {
+            case 0: return step > 0; // password: entered in-session; "done" once passed
+            case 1: return Boolean((personal.dob && personal.address) || prog.personal);
+            case 2: return Boolean(emergency.emergencyContactName || prog.emergency);
+            case 3: case 4: case 5: return Boolean(availableFrom || prog.availability);
+            case 6: return reqs.filter(r => r.kind === 'document').every(reqSatisfied);
+            case 7: return reqs.filter(r => r.kind === 'certification').every(reqSatisfied);
+            case 8: return reqs.filter(r => r.kind === 'policy').every(reqSatisfied);
+            case 9: return false; // review is the terminal action, never "done" until submit
+            default: return false;
+        }
+    }
+
+    // Where a returning user should resume. A brand-new employee (no saved progress
+    // at all) starts at Password (step 0). Once ANY progress exists, we skip password
+    // (it can't be restored) and land on the first data step that isn't saved yet.
+    function firstIncompleteStep(data) {
+        const prog = (data && data.progress) || {};
+        const anyProgress = prog.personal || prog.emergency || prog.availability
+            || ((data && data.requirements) || []).some(reqSatisfied);
+        if (!anyProgress) return 0;
+        for (let i = 1; i < STEPS.length; i++) {
+            // availability spans 3 screens; if the draft is missing, resume at the first one
+            if (AVAILABILITY_STEPS.includes(i)) {
+                if (!prog.availability) return 3;
+                i = 5; // skip the other availability screens
+                continue;
+            }
+            if (!stepDone(i, data)) return i;
+        }
+        return STEPS.length - 1; // Review
+    }
+
     async function handleSubmit() {
-        const err = validateStep();
-        if (err) { setError(err); return; }
         setError('');
         setSubmitting(true);
         try {
-            await submitOnboarding(token, {
-                password,
-                passwordConfirm,
-                availability: {
-                    availableFrom,
-                    availableUntil: availableUntil || null,
-                    weeklySchedule,
-                    maxHoursPerWeek: Number(maxHoursPerWeek),
-                    maxConcurrentClients: Number(maxConcurrentClients),
-                    maxTravelTime: Number(maxTravelTime),
-                    transportation,
-                    holidayAvailability,
-                    blackoutDates,
-                    initialTimeOff,
-                    notes,
-                },
-            });
+            const res = await submitOnboardingV2(token, { password, availability: buildAvailability() });
+            if (res && res.error) { setError(res.error); return; }
             setDone(true);
         } catch (err) {
             setError(err.message);
@@ -180,21 +331,41 @@ export default function OnboardingPage() {
         </div>
     );
 
+    const requirements = info.requirements || [];
+    const isLastStep = step === STEPS.length - 1;
+
     return (
         <div className="onboard-page">
             <div className="onboard-card">
                 <h1 className="onboard-title">Welcome, {info.employeeName}!</h1>
                 <p className="onboard-subtitle">Complete your setup to get started.</p>
 
-                <div className="wizard-steps">
-                    {STEPS.map((s, i) => (
-                        <div key={i} className={`wizard-step ${i === step ? 'wizard-step--active' : ''} ${i < step ? 'wizard-step--completed' : ''}`}>
-                            {i > 0 && <div className={`wizard-step-connector ${i <= step ? 'wizard-step-connector--completed' : ''}`} />}
-                            <div className="wizard-step__circle">{i < step ? '✓' : i + 1}</div>
-                            <span className="wizard-step__label">{s.label}</span>
-                        </div>
-                    ))}
+                <div className="wizard-dots">
+                    {STEPS.map((s, i) => {
+                        let mod = '';
+                        let mark = '';
+                        if (i === step) {
+                            mod = 'wizard-dot--active';
+                        } else if (i < step) {
+                            // A step already passed: green if its data is saved, red if it was
+                            // required but skipped/left incomplete.
+                            if (stepDone(i, info)) { mod = 'wizard-dot--done'; mark = '✓'; }
+                            else { mod = 'wizard-dot--incomplete'; mark = '!'; }
+                        }
+                        const title = (i < step && !stepDone(i, info)) ? `${s.label} — needs attention` : s.label;
+                        return <span key={s.key} className={`wizard-dot ${mod}`} title={title} aria-label={title}>{mark}</span>;
+                    })}
                 </div>
+                <div className="wizard-dots__label">
+                    {STEPS[step].label} <span>· Step {step + 1} of {STEPS.length}</span>
+                </div>
+
+                {info && info.adminReviewNote && (
+                    <div className="onboard-review-note">
+                        <strong>Your reviewer asked for changes:</strong>
+                        <p>{info.adminReviewNote}</p>
+                    </div>
+                )}
 
                 {error && <div className="onboard-error">{error}</div>}
 
@@ -231,6 +402,14 @@ export default function OnboardingPage() {
                 )}
 
                 {step === 1 && (
+                    <PersonalInfoStep value={personal} onChange={setPersonal} />
+                )}
+
+                {step === 2 && (
+                    <EmergencyContactStep value={emergency} onChange={setEmergency} />
+                )}
+
+                {step === 3 && (
                     <div className="onboard-step">
                         <h2 className="onboard-step-title">Your Weekly Schedule</h2>
                         <div className="form-grid-2">
@@ -273,7 +452,7 @@ export default function OnboardingPage() {
                     </div>
                 )}
 
-                {step === 2 && (
+                {step === 4 && (
                     <div className="onboard-step">
                         <h2 className="onboard-step-title">Travel & Preferences</h2>
                         <div className="form-grid-2">
@@ -295,17 +474,26 @@ export default function OnboardingPage() {
                     </div>
                 )}
 
-                {step === 3 && (
+                {step === 5 && (
                     <div className="onboard-step">
                         <h2 className="onboard-step-title">Time Off & Holidays</h2>
                         <h3 className="onboard-section-label">Holiday Availability</h3>
-                        <p className="onboard-hint">Toggle ON the holidays you are willing to work.</p>
-                        <div className="onboard-holiday-grid">
+                        <p className="onboard-hint">Toggle ON the holidays you are willing to work, then set the hours you're available that day.</p>
+                        <div className="onboard-schedule-grid">
                             {HOLIDAYS.map(h => (
-                                <label key={h.key} className="onboard-holiday-item">
-                                    <input type="checkbox" checked={holidayAvailability[h.key]} onChange={() => setHolidayAvailability(prev => ({ ...prev, [h.key]: !prev[h.key] }))} />
-                                    <span>{h.label}</span>
-                                </label>
+                                <div key={h.key} className={`onboard-day-row ${holidayAvailability[h.key].available ? '' : 'onboard-day-row--off'}`}>
+                                    <label className="onboard-day-toggle">
+                                        <input type="checkbox" checked={holidayAvailability[h.key].available} onChange={() => toggleHoliday(h.key)} />
+                                        <span>{h.label}</span>
+                                    </label>
+                                    {holidayAvailability[h.key].available && (
+                                        <div className="onboard-day-times">
+                                            <input type="time" value={holidayAvailability[h.key].start} onChange={e => updateHolidayTime(h.key, 'start', e.target.value)} step="900" />
+                                            <span>to</span>
+                                            <input type="time" value={holidayAvailability[h.key].end} onChange={e => updateHolidayTime(h.key, 'end', e.target.value)} step="900" />
+                                        </div>
+                                    )}
+                                </div>
                             ))}
                         </div>
 
@@ -348,18 +536,43 @@ export default function OnboardingPage() {
                     </div>
                 )}
 
-                <div className="onboard-actions">
-                    {step > 0 && (
+                {step === 6 && (
+                    <DocumentsStep requirements={requirements} onUpload={handleUploadDocument} />
+                )}
+
+                {step === 7 && (
+                    <CertificationsStep requirements={requirements} onUpload={handleUploadDocument} />
+                )}
+
+                {step === 8 && (
+                    <PoliciesStep requirements={requirements} onAck={handleAckPolicy} />
+                )}
+
+                {step === 9 && (
+                    <ReviewStep
+                        requirements={requirements}
+                        personal={personal}
+                        emergency={emergency}
+                        availability={buildAvailability()}
+                        hasPassword={Boolean(password)}
+                        onSubmit={handleSubmit}
+                        onEditStep={(s) => { setError(''); setStep(s); }}
+                    />
+                )}
+
+                {!isLastStep && (
+                    <div className="onboard-actions">
+                        {step > 0 && (
+                            <button type="button" className="btn btn--outline" onClick={() => { setError(''); setStep(s => s - 1); }}>Back</button>
+                        )}
+                        <button type="button" className="btn btn--primary" onClick={handleNext} disabled={submitting}>Next</button>
+                    </div>
+                )}
+                {isLastStep && (
+                    <div className="onboard-actions">
                         <button type="button" className="btn btn--outline" onClick={() => { setError(''); setStep(s => s - 1); }}>Back</button>
-                    )}
-                    {step < STEPS.length - 1 ? (
-                        <button type="button" className="btn btn--primary" onClick={handleNext}>Next</button>
-                    ) : (
-                        <button type="button" className="btn btn--primary" onClick={handleSubmit} disabled={submitting}>
-                            {submitting ? 'Submitting...' : 'Submit'}
-                        </button>
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
         </div>
     );
