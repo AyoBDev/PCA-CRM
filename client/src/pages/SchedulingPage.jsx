@@ -21,6 +21,7 @@ import { SERVICE_COLORS, DAY_NAMES_SHORT } from '../utils/constants';
 import { CLIENT_COLORS } from '../utils/ui';
 import { deriveServiceCode } from '../utils/serviceCodes';
 import { toLocalDateStr } from '../utils/dates';
+import Tooltip from '../components/common/Tooltip';
 
 function buildClientColorMap(shifts) {
     const names = [...new Set(shifts.map(s => s.client?.clientName).filter(Boolean))].sort();
@@ -49,11 +50,15 @@ function ResolvedIdField({ value, label }) {
         <span className="resolved-id">
             <span className="resolved-id__value">{display}</span>
             {value ? (
-                <button type="button" className="resolved-id__copy" onClick={copy} aria-label={`Copy ${label}`} title={`Copy ${label}`}>
-                    {copied ? '✓' : Icons.clipboard}
-                </button>
+                <Tooltip content={`Copy ${label}`}>
+                    <button type="button" className="resolved-id__copy" onClick={copy} aria-label={`Copy ${label}`}>
+                        {copied ? '✓' : Icons.clipboard}
+                    </button>
+                </Tooltip>
             ) : null}
-            <span className="resolved-id__info" role="img" tabIndex={0} aria-label={tip} title={tip}>{Icons.helpCircle}</span>
+            <Tooltip content={tip}>
+                <span className="resolved-id__info" role="img" tabIndex={0} aria-label={tip}>{Icons.helpCircle}</span>
+            </Tooltip>
         </span>
     );
 }

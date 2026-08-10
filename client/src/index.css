@@ -9010,6 +9010,32 @@ button.sdr-section-tag:hover:not(:disabled) {
     height: 13px;
 }
 
+/* App-wide tooltip (Radix). Styling only — positioning/a11y handled by Radix.
+   See client/src/components/common/Tooltip.jsx. */
+.tooltip-content {
+    max-width: 260px;
+    padding: 6px 10px;
+    border-radius: calc(var(--radius) - 2px);
+    background: hsl(var(--popover));
+    color: hsl(var(--popover-foreground));
+    border: 1px solid hsl(var(--border));
+    box-shadow: 0 4px 12px hsl(240 10% 3.9% / 0.12);
+    font-size: 12px;
+    line-height: 1.4;
+    /* Tooltips are the topmost transient hint — must sit above modals
+       (.modal-backdrop z-index: 100) and every other overlay (max 1000). */
+    z-index: 2000;
+    user-select: none;
+    animation: tooltip-in 120ms ease-out;
+}
+.tooltip-arrow {
+    fill: hsl(var(--popover));
+}
+@keyframes tooltip-in {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+}
+
 .sched-day-row__apply {
     font-size: 11px;
     padding: 6px 12px;
