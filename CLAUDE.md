@@ -72,7 +72,26 @@ Shared components under `client/src/components/`:
 - `common/DropdownMenu.jsx` — Reusable dropdown (trigger + panel)
 - `common/ActivityDrawer.jsx` — `ActivityButton` (page-level) and `EntityActivityButton` (entity-level) audit log viewers
 - `common/Modal.jsx`, `common/ConfirmModal.jsx`, `common/SignaturePad.jsx`
+- `common/Tooltip.jsx` — **App-wide tooltip** (see below). Use this for all hover/focus hints; do not add new native `title=` attributes.
 - `layout/Layout.jsx`, `layout/Sidebar.jsx`, `layout/Toast.jsx`
+
+### Tooltip (`common/Tooltip.jsx`) — the standard hover/focus hint
+
+Reusable tooltip that wraps `@radix-ui/react-tooltip` behind our own interface (so the library stays swappable in one file). Radix gives collision-aware positioning (via Floating UI) and full WAI-ARIA a11y (`aria-describedby`, keyboard focus, Escape to dismiss); we only supply styling. **Prefer this over the native `title` attribute** — `title` has a browser-fixed ~1s delay, can't be styled, and doesn't work on keyboard focus.
+
+- **Provider is already mounted once** at the app root (`TooltipProvider` in `client/src/main.jsx`). Do not add another provider — just use `<Tooltip>` anywhere.
+- **Styling** lives in `index.css` (`.tooltip-content`, `.tooltip-arrow`), using the zinc tokens (`--popover`, `--border`, `--radius`). `z-index: 2000` so it renders above modals (`.modal-backdrop` is `z-index: 100`).
+- **Usage** — wrap any focusable/hoverable trigger (`asChild` passes the tooltip to your element, so it keeps its own styles):
+
+```jsx
+import Tooltip from '../components/common/Tooltip';
+
+<Tooltip content="Explains this control">
+  <button className="icon-btn" aria-label="Help">{Icons.helpCircle}</button>
+</Tooltip>
+```
+
+Props: `content` (string/node — if falsy, the trigger renders with no tooltip), `side` (`'top'` default), `align` (`'center'` default), `delayDuration` (ms, default 150), `sideOffset` (default 6). The trigger should be a single focusable element for a11y. Migrate existing native `title=` usages to `<Tooltip>` opportunistically when touching a component.
 
 Hooks under `client/src/hooks/`:
 - `useAuth.js` — auth context with `isAdmin`, `authUser`
