@@ -16387,6 +16387,8 @@ tr:hover .auth-note-icon--empty {
     transition: opacity 0.15s ease, transform 0.15s ease;
 }
 .file-thumb__popover--open { opacity: 1; transform: translateX(-50%) translateY(0); }
+.file-thumb__popover--below { bottom: unset; top: calc(100% + 6px); transform: translateX(-50%) translateY(-2px); }
+.file-thumb__popover--below.file-thumb__popover--open { transform: translateX(-50%) translateY(0); }
 .file-thumb__popover-img { width: 100%; max-height: 240px; object-fit: contain; display: block; border-radius: calc(var(--radius) - 2px); }
 .file-thumb__popover-icon { display: flex; align-items: center; justify-content: center; height: 120px; }
 .file-thumb__popover-name {

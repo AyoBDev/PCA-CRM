@@ -8,6 +8,7 @@ export default function FileThumbnail({ file, cacheKey, fetchBlob, onClick, size
     const [visible, setVisible] = useState(false);
     const [hover, setHover] = useState(false);
     const [imgLoaded, setImgLoaded] = useState(false);
+    const [placement, setPlacement] = useState('above');
 
     useEffect(() => {
         if (visible || !ref.current) return;
@@ -30,7 +31,13 @@ export default function FileThumbnail({ file, cacheKey, fetchBlob, onClick, size
             aria-label={`Preview ${file.fileName}`}
             title={file.fileName}
             onClick={() => onClick(file)}
-            onMouseEnter={() => setHover(true)}
+            onMouseEnter={() => {
+                if (ref.current) {
+                    const rect = ref.current.getBoundingClientRect();
+                    setPlacement(rect.top < 280 ? 'below' : 'above');
+                }
+                setHover(true);
+            }}
             onMouseLeave={() => setHover(false)}
         >
             {showImg ? (
@@ -47,7 +54,7 @@ export default function FileThumbnail({ file, cacheKey, fetchBlob, onClick, size
                     <FileTypeIcon fileName={file.fileName} size={Math.round(size * 0.6)} />
                 </span>
             )}
-            <span className={`file-thumb__popover${hover ? ' file-thumb__popover--open' : ''}`} role="tooltip" aria-hidden="true">
+            <span className={`file-thumb__popover${hover ? ' file-thumb__popover--open' : ''}${placement === 'below' ? ' file-thumb__popover--below' : ''}`} role="tooltip" aria-hidden="true">
                 {showImg ? (
                     <img className="file-thumb__popover-img" src={thumbUrl} alt="" aria-hidden="true" />
                 ) : (
