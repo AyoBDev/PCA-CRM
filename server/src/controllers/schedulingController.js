@@ -820,7 +820,11 @@ async function getClientSchedule(req, res, next) {
             orderBy: [{ shiftDate: 'asc' }, { startTime: 'asc' }],
         });
 
-        const enriched = shifts.map(enrichShift);
+        // Resolve account number + Sandata Client ID LIVE from the client's
+        // authorizations (never the dormant stored copy on the shift) — same
+        // contract as listShifts, so the Client-card schedule PDF is correct.
+        const liveMaps = buildLiveSandataMap((client.authorizations || []).filter(a => !a.archivedAt));
+        const enriched = shifts.map(s => enrichShiftLive(s, liveMaps));
         const activeAuths = filterAuthsByWeek(client.authorizations, range.weekStart, range.weekEnd);
         const unitSummary = computeUnitSummary(shifts, activeAuths);
 
@@ -878,7 +882,15 @@ async function getEmployeeSchedule(req, res, next) {
             orderBy: [{ shiftDate: 'asc' }, { startTime: 'asc' }],
         });
 
-        const enriched = shifts.map(enrichShift);
+        // Resolve account number + Sandata Client ID LIVE from each client's
+        // authorizations (never the dormant stored copy on the shift) — same
+        // contract as listShifts, so the Employee-card schedule PDF is correct.
+        const clientIds = [...new Set(shifts.map(s => s.clientId).filter(Boolean))];
+        const liveAuths = clientIds.length
+            ? await prisma.authorization.findMany({ where: { clientId: { in: clientIds }, archivedAt: null } })
+            : [];
+        const liveMaps = buildLiveSandataMap(liveAuths);
+        const enriched = shifts.map(s => enrichShiftLive(s, liveMaps));
         const overlaps = detectOverlaps(shifts);
 
         const response = {
