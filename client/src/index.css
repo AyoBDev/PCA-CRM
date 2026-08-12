@@ -7051,56 +7051,6 @@ button.sdr-section-tag:hover:not(:disabled) {
 .payroll-row--overlap       { font-weight: 700; }
 .payroll-row--merged-original { background: hsl(220 14% 96%); border-left: 3px solid hsl(240 3.8% 76%); }
 
-/* Payroll Note — truncated text with hover tooltip */
-.payroll-note-text {
-  position: relative;
-  display: inline-block;
-  max-width: 120px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  vertical-align: middle;
-  cursor: pointer;
-  font-size: 13px;
-  border-bottom: 1px dashed hsl(var(--border));
-  padding-bottom: 1px;
-}
-.payroll-note-text--has-note { color: hsl(var(--foreground)); }
-.payroll-note-text--empty { color: hsl(var(--muted-foreground)); font-style: italic; }
-.payroll-note-tooltip {
-  display: none;
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 6px);
-  transform: translateX(-50%);
-  background: hsl(var(--popover));
-  color: hsl(var(--popover-foreground));
-  border: 1px solid hsl(var(--border));
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 12px;
-  line-height: 1.4;
-  white-space: pre-wrap;
-  max-width: 240px;
-  width: max-content;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  z-index: 50;
-  pointer-events: none;
-}
-.payroll-note-text--has-note:hover .payroll-note-tooltip { display: block; }
-.payroll-note-edit__textarea {
-  width: 200px;
-  min-height: 48px;
-  padding: 6px 10px;
-  font-size: 12px;
-  border: 1px solid hsl(var(--primary));
-  border-radius: 6px;
-  background: hsl(var(--background));
-  resize: vertical;
-  outline: none;
-  font-family: inherit;
-}
-
 .payroll-client-group       { margin-bottom: 24px; }
 .payroll-client-banner      { display: flex; align-items: center; gap: 12px; padding: 8px 12px;
                                background: hsl(var(--muted));
@@ -16732,4 +16682,36 @@ tr:hover .auth-note-icon--empty {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* Inline editable — shared safe click-to-edit primitive */
+.inline-editable { display: inline-flex; align-items: center; gap: 4px; }
+.inline-editable--read .inline-editable__value {
+    border-bottom: 1px dashed hsl(var(--border));
+    padding-bottom: 1px;
+}
+.inline-editable--highlight .inline-editable__value { color: hsl(270 50% 40%); font-weight: 600; }
+.inline-editable__pencil {
+    opacity: 0; border: none; background: none; padding: 0 2px; cursor: pointer;
+    color: hsl(var(--muted-foreground)); display: inline-flex; transition: opacity .12s;
+}
+.inline-editable--read:hover .inline-editable__pencil,
+.inline-editable__pencil:focus-visible { opacity: 1; }
+.inline-editable__pencil svg { width: 14px; height: 14px; }
+.inline-editable__input { padding: 2px 6px; font-size: 13px; }
+.inline-editable__btn {
+    border: none; background: none; cursor: pointer; padding: 0 2px;
+    display: inline-flex; align-items: center;
+}
+.inline-editable__btn svg { width: 15px; height: 15px; }
+.inline-editable__btn--save { color: hsl(142 71% 40%); }
+.inline-editable__btn--save:disabled { opacity: .4; cursor: not-allowed; }
+.inline-editable__btn--cancel { color: hsl(var(--muted-foreground)); }
+.inline-editable__error { color: hsl(0 72% 50%); font-size: 11px; margin-left: 2px; white-space: nowrap; }
+.payroll-note-inline .inline-editable__value {
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
 }

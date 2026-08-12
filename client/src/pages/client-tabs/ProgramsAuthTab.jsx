@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import Icons from '../../components/common/Icons';
+import InlineEditable from '../../components/common/InlineEditable';
 import * as api from '../../api';
 import { ACCOUNT_NUMBER_OPTIONS } from '../../utils/accountMapping';
 import { AUTH_COLORS, DEFAULT_AUTH_COLOR, getAuthSortKey } from '../../utils/constants';
@@ -168,12 +169,8 @@ export default function ProgramsAuthTab({
     async function handleSandataClientIdChange(code, value) {
         const { current, archived } = authGroupsForInsurance[code];
         const allAuths = [...current, ...archived];
-        try {
-            await Promise.all(allAuths.map(a => api.updateAuthSandataClientId(a.id, value)));
-            if (fetchClient) fetchClient();
-        } catch (err) {
-            if (showToast) showToast('Failed to update Client ID', 'error');
-        }
+        await Promise.all(allAuths.map(a => api.updateAuthSandataClientId(a.id, value)));
+        if (fetchClient) fetchClient();
     }
 
     function renderServiceCard(code) {
@@ -204,16 +201,13 @@ export default function ProgramsAuthTab({
                     </div>
                     <div className="pa-service-card__account">
                         <span className="pa-service-card__account-label">Client ID</span>
-                        <input
-                            type="text"
-                            className="pa-service-card__account-input"
-                            defaultValue={currentSandataClientId}
+                        <InlineEditable
+                            value={currentSandataClientId}
                             placeholder="—"
-                            onBlur={(e) => {
-                                if (e.target.value !== currentSandataClientId) {
-                                    handleSandataClientIdChange(code, e.target.value);
-                                }
-                            }}
+                            allowEmpty
+                            width={110}
+                            undoLabel="client ID"
+                            onSave={async (v) => { await handleSandataClientIdChange(code, v); }}
                         />
                     </div>
                     <div className="pa-service-card__account">

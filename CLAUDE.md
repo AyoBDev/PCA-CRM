@@ -67,6 +67,7 @@ Shared components under `client/src/components/`:
 - `common/GlobalToolbar.jsx` — Tier 1 system toolbar (Back, Title, Undo/Redo/History/Activity, Trash, Archive, Overflow)
 - `common/ContextBar.jsx` — Tier 2 page-specific toolbar (compound: `ContextBar.Left` + `ContextBar.Right`)
 - `common/AutocompleteInput.jsx` — Reusable autocomplete text input (used for Service Category, Service Name)
+- `common/InlineEditable.jsx` — **Safe** click-to-edit primitive for inline cell/field editing (see "Inline Editing" section below)
 - `common/HistoryPanel.jsx` — Session history dropdown (shows undo stack)
 - `common/OverflowMenu.jsx` — Three-dot "⋯" overflow menu
 - `common/DropdownMenu.jsx` — Reusable dropdown (trigger + panel)
@@ -415,6 +416,43 @@ Client groups themselves are sorted alphabetically, with unknown/numeric names a
 
 ## Sidebar
 Collapsible: `256px` expanded → `52px` collapsed. State persisted in `localStorage('sidebarCollapsed')`. The `<aside>` element must **not** have an inline `style={{ position: 'relative' }}` — that overrides CSS `position: fixed` and breaks the layout gap. The collapse toggle button uses `position: fixed` tied to `--sidebar-width`/`--sidebar-collapsed-width` CSS variables.
+
+## Inline Editing — `InlineEditable` (safe click-to-edit)
+
+`client/src/components/common/InlineEditable.jsx` is the **single, mandatory primitive for all inline cell/field editing** (editing a value in place, without opening a modal or form). It exists to prevent accidental data loss: the old copy-pasted pattern let a single stray click open edit mode and a blur silently save. **Never hand-roll a click-to-edit `<input>`/`<textarea>` with `onBlur`-to-save — route it through `InlineEditable`.**
+
+### Guaranteed safe behavior
+- **Opens only via an explicit affordance** — read mode shows the value plus a pencil icon that appears on hover (and is keyboard-focusable). Clicking the value text does nothing; only the pencil opens edit mode.
+- **Explicit confirm, blur cancels** — edit mode shows the input with ✓ (save) and ✕ (cancel). **Enter / ✓ save; Escape / ✕ / clicking away (blur) CANCEL.** There is no silent auto-save. (The ✓/✕ buttons use `onMouseDown` + `preventDefault` so they win the race against the input's blur.)
+- **Empty-guard** — a blank value is blocked (✓ disabled + inline reason) unless `allowEmpty`. `type="number"` enforces `min`/`max`. Pass a custom `validate` to override.
+- **Notice + undo** — on a successful save it fires a success toast; if `undoState` + `buildUndo` are supplied it pushes an undo entry onto the page's undo stack.
+- **Re-entrancy guarded** — a rapid double-Enter can't fire two saves.
+
+### Error contract — CRITICAL
+`InlineEditable` detects a failed save by the **`onSave` promise rejecting**. Your `onSave` handler must let API errors **propagate** (throw / reject) — do **not** `try/catch` and swallow them. A handler that catches its own error and returns normally makes a *failed* save show a *success* toast and silently drop the change. If a handler needs its own error toast, it must **rethrow** after showing it (and drop any success toast of its own, since `InlineEditable` owns the success notification — otherwise you get a double toast).
+
+### Interface
+```jsx
+<InlineEditable
+  value={row.employeeName}          // current value (string)
+  displayValue={hhmm12(value)}      // optional formatted read-mode display; falls back to value
+  placeholder="Employee"
+  type="text"                        // 'text' | 'number'
+  multiline={false}                  // true → <textarea> (Shift+Enter = newline, Enter = save)
+  min={0} max={112}                  // number bounds (type='number')
+  allowEmpty={false}                 // true → blank is a valid save
+  validate={(v) => v ? null : 'Required'}  // return error string or null; overrides default guard
+  onSave={async (v) => { /* API call — MUST let errors reject */ }}
+  undoState={undoState}              // optional: from useUndoStack, wires undo
+  buildUndo={(prev, next, result) => ({ description, undo, redo })}  // optional undo entry
+  undoLabel="employee name"          // used in the success toast ("Updated employee name")
+  width={130}                        // read + edit width
+  highlight={false}                  // purple-accent styling for flagged values
+  readOnly={false}                   // render plain value, no affordance
+/>
+```
+
+**Canonical usages** (all migrated to this component): `PayrollEditableText` / `PayrollEditableUnits` / `PayrollEditableNotes` in `PayrollPage.jsx`, `EditableField` in `client-tabs/CarePlanTab.jsx`, and the Client-ID field in `client-tabs/ProgramsAuthTab.jsx`. Tests: `client/src/__tests__/InlineEditable.test.jsx`.
 
 ## UI Design System — Tables
 
