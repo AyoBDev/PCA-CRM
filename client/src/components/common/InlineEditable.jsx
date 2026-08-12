@@ -55,7 +55,8 @@ export default function InlineEditable({
     const cancel = () => { setDraft(value ?? ''); setEditing(false); };
 
     const commit = async () => {
-        const next = type === 'number' ? draft.trim() : draft.trim();
+        if (saving) return;
+        const next = draft.trim();
         if (runValidate(next) != null) return;                 // invalid → do nothing
         if (next === (value ?? '').trim()) { setEditing(false); return; }  // unchanged
         setSaving(true);
@@ -133,7 +134,11 @@ export default function InlineEditable({
             className={`inline-editable inline-editable--read ${highlight ? 'inline-editable--highlight' : ''} ${className}`}
             style={{ opacity: saving ? 0.5 : 1 }}
         >
-            <span className="inline-editable__value" style={{ fontStyle: isEmpty ? 'italic' : 'normal' }}>
+            <span
+                className="inline-editable__value"
+                style={{ fontStyle: isEmpty ? 'italic' : 'normal' }}
+                title={isEmpty ? undefined : (displayValue ?? value)}
+            >
                 {isEmpty ? placeholder : (displayValue ?? value)}
             </span>
             <button
