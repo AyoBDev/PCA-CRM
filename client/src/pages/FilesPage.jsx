@@ -518,6 +518,7 @@ export default function FilesPage() {
                     open
                     fileName={previewFile.name}
                     onClose={() => setPreviewFile(null)}
+                    onDelete={() => { const f = previewFile; setPreviewFile(null); handleDelete(f); }}
                     fetchBlob={() => fetch(`/api/files/${previewFile.id}/download`, {
                         headers: { Authorization: `Bearer ${api.getToken()}` },
                     })}
