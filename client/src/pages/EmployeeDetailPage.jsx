@@ -446,9 +446,9 @@ export default function EmployeeDetailPage() {
         }
     };
 
-    const handleToggleActive = async () => {
+    const handleToggleActive = async (next) => {
         const prev = employee.active;
-        const next = !prev;
+        if (next === prev) return;
         setEmployee(e => ({ ...e, active: next }));
         try {
             await api.updateEmployee(Number(employeeId), { active: next });
@@ -537,16 +537,15 @@ export default function EmployeeDetailPage() {
                             <div className="cp-bio__name-row">
                                 <h2 className="cp-bio__name">{employee.name}</h2>
                                 {employee.critical && <span className="ts-badge ts-badge--danger">Critical</span>}
-                                <span className={`ts-badge ts-badge--${employee.active ? 'success' : 'draft'}`}>
-                                    {employee.active ? 'Active' : 'Inactive'}
-                                </span>
-                                <button
-                                    className="btn btn--outline btn--sm"
-                                    onClick={handleToggleActive}
+                                <select
+                                    className={`cp-bio__status-select cp-bio__status-select--${employee.active ? 'active' : 'inactive'}`}
+                                    value={employee.active ? 'active' : 'inactive'}
+                                    onChange={(e) => handleToggleActive(e.target.value === 'active')}
                                     title="Marks the employee not currently working. Does not archive or hide them."
                                 >
-                                    {employee.active ? 'Set Inactive' : 'Set Active'}
-                                </button>
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
                                 {employee.onboardingStatus === 'invited' && (
                                     <span className="ts-badge ts-badge--draft">Invited</span>
                                 )}
