@@ -991,7 +991,7 @@ function CertificationsTab({ employee, onEdit }) {
                     open
                     fileName={previewUpload.fileName}
                     onClose={() => setPreviewUpload(null)}
-                    fetchBlob={() => api.downloadCertificationUpload(previewUpload.id)}
+                    fetchBlob={previewUpload.fetchBlob || (() => api.downloadCertificationUpload(previewUpload.id))}
                 />
             )}
         </div>
@@ -1072,25 +1072,39 @@ function CertificationsTab({ employee, onEdit }) {
                             <div className="pa-auth-list">
                                 {activeRecords.map(rec => (
                                     <div key={rec.id} className="pa-auth-item pa-auth-item--active">
-                                        <div className="pa-auth-item__header">
-                                            <div className="pa-auth-item__left">
-                                                <span className="pa-auth-item__name">
-                                                    {rec.fileName || 'Current Record'}
-                                                </span>
-                                                <span className="pa-auth-item__dates">
-                                                    {rec.expirationDate ? `Expires ${formatDate(rec.expirationDate)}` : 'No expiry'}
-                                                </span>
-                                            </div>
-                                            <div className="pa-auth-item__right">
-                                                <span className={`ts-badge ts-badge--${statusBadgeClass(status)}`}>
-                                                    {statusLabel(status)} {days !== null && `(${days >= 0 ? `${days}d` : `${Math.abs(days)}d ago`})`}
-                                                </span>
-                                                {rec.fileName && (
-                                                    <button className="btn btn--ghost btn--xs" onClick={() => handleDownload(rec)}>{Icons.download}</button>
-                                                )}
-                                            </div>
+                                        <div className="cert-history__label">Current File</div>
+                                        <div className="cert-history__list">
+                                            {rec.fileName ? (
+                                                <CertFileRow
+                                                    upload={{ id: rec.id, fileName: rec.fileName, fileType: rec.fileType, note: rec.notes }}
+                                                    cacheKey={`cert:${rec.id}`}
+                                                    fetchBlob={() => api.downloadEmployeeCertification(rec.id)}
+                                                    onPreview={setPreviewUpload}
+                                                    onDownload={() => handleDownload(rec)}
+                                                    expiresText={rec.expirationDate ? `Expires ${formatDate(rec.expirationDate)}` : 'No expiry'}
+                                                    badge={(
+                                                        <span className={`ts-badge ts-badge--${statusBadgeClass(status)}`}>
+                                                            {statusLabel(status)} {days !== null && `(${days >= 0 ? `${days}d` : `${Math.abs(days)}d ago`})`}
+                                                        </span>
+                                                    )}
+                                                />
+                                            ) : (
+                                                <div className="file-row file-row--cert">
+                                                    <div className="file-row__main">
+                                                        <div className="file-row__name">No file uploaded</div>
+                                                        <div className="file-row__submeta">
+                                                            {rec.expirationDate ? `Expires ${formatDate(rec.expirationDate)}` : 'No expiry'}
+                                                        </div>
+                                                    </div>
+                                                    <div className="file-row__badge">
+                                                        <span className={`ts-badge ts-badge--${statusBadgeClass(status)}`}>
+                                                            {statusLabel(status)} {days !== null && `(${days >= 0 ? `${days}d` : `${Math.abs(days)}d ago`})`}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                        {rec.notes && (
+                                        {rec.notes && !rec.fileName && (
                                             <div className="pa-auth-item__body">
                                                 <div className="pa-auth-item__notes">{rec.notes}</div>
                                             </div>

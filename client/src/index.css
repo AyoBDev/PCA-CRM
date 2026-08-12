@@ -13800,6 +13800,7 @@ tr:hover .auth-note-icon--empty {
     text-overflow: ellipsis;
 }
 .file-row__submeta em { font-style: italic; }
+.file-row__badge { flex-shrink: 0; display: flex; align-items: center; }
 
 /* Certification history list (reuses .file-row rows) */
 .cert-history__label {
