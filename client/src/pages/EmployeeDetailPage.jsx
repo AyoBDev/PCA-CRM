@@ -1117,7 +1117,7 @@ function CertificationsTab({ employee, onEdit }) {
                                             const history = (rec.uploads || []).filter(u => u.fileName !== rec.fileName);
                                             if (history.length === 0) return null;
                                             return (
-                                                <div className="pa-auth-item__body">
+                                                <div className="pa-auth-item__body cert-history__body">
                                                     <div className="cert-history__label">History</div>
                                                     <div className="cert-history__list">
                                                         {history.map(upload => (
