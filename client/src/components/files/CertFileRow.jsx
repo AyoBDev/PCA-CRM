@@ -1,18 +1,14 @@
 import Icons from '../common/Icons';
 import FileThumbnail from '../common/FileThumbnail';
-import { getFileTypeInfo, formatFileSize } from './fileTypeUtils';
 import { formatDate, formatTimestamp } from '../../utils/dates';
 import * as api from '../../api';
 
 // A certification-history file rendered with the same look as the File Manager
 // list rows (.file-row): thumbnail · name · meta line · preview/download actions.
-// `upload` carries: id, fileName, fileType, fileSize, submittedAt,
-// effectiveDate, expirationDate, uploadedByName, note.
+// `upload` carries: id, fileName, fileType, submittedAt, effectiveDate,
+// expirationDate, note.
 export default function CertFileRow({ upload, onPreview, onDownload }) {
-    const { label } = getFileTypeInfo(upload.fileName);
-
-    const metaParts = [label];
-    if (upload.fileSize) metaParts.push(formatFileSize(upload.fileSize));
+    const metaParts = [];
     if (upload.submittedAt) metaParts.push(`Uploaded ${formatTimestamp(upload.submittedAt)}`);
 
     const renewal = [
@@ -34,9 +30,7 @@ export default function CertFileRow({ upload, onPreview, onDownload }) {
             <div className="file-row__main">
                 <div className="file-row__name" title={upload.fileName}>{upload.fileName}</div>
                 <div className="file-row__submeta">
-                    {metaParts.join(' · ')}
-                    {renewal && <> · {renewal}</>}
-                    {' · '}by {upload.uploadedByName || '—'}
+                    {[metaParts.join(' · '), renewal].filter(Boolean).join(' · ')}
                     {upload.note && <> · <em>{upload.note}</em></>}
                 </div>
             </div>
