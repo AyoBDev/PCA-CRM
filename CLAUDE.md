@@ -72,6 +72,9 @@ Shared components under `client/src/components/`:
 - `common/DropdownMenu.jsx` — Reusable dropdown (trigger + panel)
 - `common/ActivityDrawer.jsx` — `ActivityButton` (page-level) and `EntityActivityButton` (entity-level) audit log viewers
 - `common/Modal.jsx`, `common/ConfirmModal.jsx`, `common/SignaturePad.jsx`
+- `common/PreviewModal.jsx` — **reusable in-app document viewer** (PDF via pdf.js canvas + images; zoom/fit/rotate/page-nav/download/print/optional delete). See "File Preview & Thumbnails".
+- `common/FileThumbnail.jsx` / `common/FileThumbnailStrip.jsx` — **reusable inline file thumbnails** with a portalled hover-preview popover. See "File Preview & Thumbnails".
+- `files/CertFileRow.jsx` — **reusable file row** (thumbnail · name · meta · preview/download) matching the File Manager list look.
 - `layout/Layout.jsx`, `layout/Sidebar.jsx`, `layout/Toast.jsx`
 
 Hooks under `client/src/hooks/`:
@@ -441,6 +444,60 @@ All tables use the `.data-table` class system. **Every new table MUST follow thi
 - **Main list pages** (Authorizations, Employees, Timesheets list): `data-table--sheet` or `data-table--dark-header`
 - **Drawer/modal content** (auth detail, employee certs): `data-table--compact`
 - **Settings pages** (Insurance Types, Services): `data-table` (default)
+
+## File Preview & Thumbnails — Reusable Components
+
+**Any feature that previews, thumbnails, or lists a file (PDF or image) MUST reuse these components. Do NOT re-implement `window.open`/`<iframe>` previews, ad-hoc download links, or bespoke thumbnail logic.** They are the single source of truth for the in-app document experience and are already used by the File Manager (`/files`) and employee certifications.
+
+All of them take a **`fetchBlob` function** (not a URL): `() => Promise<Response>` — a raw `fetch` Response the component reads `Content-Type` / `Content-Length` / `.blob()` from. This keeps them auth-agnostic and endpoint-agnostic; each caller passes its own authorized download call (e.g. `() => fetch(url, { headers: { Authorization: \`Bearer ${api.getToken()}\` } })` or an `api.downloadX(id)` helper that returns a `Response`).
+
+| Component / util | File | Purpose |
+|------------------|------|---------|
+| `PreviewModal` | `common/PreviewModal.jsx` | Full-screen in-app **document viewer**. Portals to `<body>`; PDFs render via **pdf.js multi-page canvas**, images via `<img>`. Toolbar: zoom −/reset/+, fit-to-width, page ‹ n/total ›, rotate, download, print, and an **optional** delete. Unpreviewable/oversized → download fallback. Keyboard: Esc closes, ←/→ page. |
+| `FileThumbnail` | `common/FileThumbnail.jsx` | Inline file thumbnail button (lazy via IntersectionObserver). Renders a first-page PDF / image thumbnail, or a type icon fallback. Hover shows an enlarged **popover portalled to `<body>`** (`position: fixed`, viewport-clamped) so no panel/overflow can clip it (`z-index: 2000`). |
+| `FileThumbnailStrip` | `common/FileThumbnailStrip.jsx` | A row of `FileThumbnail`s with a `+N` overflow gallery. |
+| `CertFileRow` | `files/CertFileRow.jsx` | A **file row** styled like the File Manager list (`.file-row`): thumbnail · name · meta line · Preview + Download. Used for both a current file and history items. Optional `fetchBlob`/`cacheKey`/`badge`/`expiresText`. |
+| `FileRow` | `files/FileRow.jsx` | The File Manager list row (checkbox · thumbnail · name · meta · actions). Reuse for file lists; use `CertFileRow` for lighter, badge-carrying rows. |
+| `useFileThumbnail` | `hooks/useFileThumbnail.js` | `(cacheKey, fetchBlob, mimeType, { enabled, maxPdfBytes })` → `{ status, thumbUrl }`. LRU-cached, lazy. Backs `FileThumbnail`. |
+| `renderPdfFirstPage` / `loadPdfDocument` / `getPdfjs` | `lib/pdfThumbnail.js` | pdf.js helpers: first-page thumbnail dataURL; open a doc for the viewer; shared worker setup. **Always** go through these so the pdf.js worker is configured once. |
+| `getFileTypeInfo` / `FileTypeIcon` / `formatFileSize` / `formatUploadDate` | `files/fileTypeUtils.jsx` | File-type label/icon and size/date formatters used by the rows. |
+
+### Usage
+
+```jsx
+import PreviewModal from '../components/common/PreviewModal';
+import * as api from '../api';
+
+const [preview, setPreview] = useState(null);
+// ...
+{preview && (
+  <PreviewModal
+    open
+    fileName={preview.name}
+    fetchBlob={() => fetch(`/api/files/${preview.id}/download`, { headers: { Authorization: `Bearer ${api.getToken()}` } })}
+    onClose={() => setPreview(null)}
+    onDelete={() => { const f = preview; setPreview(null); handleDelete(f); }}  // optional — shows the Delete tool
+  />
+)}
+```
+
+`CertFileRow` for a list of files:
+
+```jsx
+<div className="cert-history__list">
+  {files.map(f => (
+    <CertFileRow key={f.id} upload={f} onPreview={setPreview} onDownload={handleDownload}
+      fetchBlob={() => api.downloadX(f.id)} cacheKey={`x:${f.id}`} />
+  ))}
+</div>
+```
+
+### Rules
+- **`PreviewModal` is the only in-app document viewer.** Never open files in a new tab or embed a bare `<iframe>` for preview; route through it.
+- Pass `onDelete` only where deletion is supported (it renders the Delete tool and should trigger the caller's existing confirm flow).
+- Thumbnails/previews are **lazy** and **cached** (`useFileThumbnail`) — reuse a stable `cacheKey` per file (`file:{id}`, `cert-upload:{id}`, `cert:{id}`).
+- PDF rendering must go through `lib/pdfThumbnail.js` (shared worker). The pdf.js bundle is code-split (`pdf-*.js`) — don't import `pdfjs-dist` directly elsewhere.
+- Row/list markup reuses `.file-row` / `.file-row--cert` / `.cert-history__list` classes for a consistent look across the app.
 
 ## Conventions
 - All API routes under `/api`; admin-only routes use `requireRole('admin')` middleware
