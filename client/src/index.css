@@ -16576,26 +16576,22 @@ tr:hover .auth-note-icon--empty {
     animation: file-thumb-shimmer 1.2s ease-in-out infinite;
 }
 @keyframes file-thumb-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+/* Rendered in a portal to <body> with position:fixed + inline left/top/transform
+   (see FileThumbnail.jsx) so no ancestor overflow/stacking context can clip it. */
 .file-thumb__popover {
-    position: absolute;
-    bottom: calc(100% + 6px);
-    left: 50%;
-    transform: translateX(-50%) translateY(2px);
-    z-index: 1001;
+    z-index: 2000;
     width: 240px;
     padding: 8px;
     background: hsl(var(--popover));
     color: hsl(var(--popover-foreground));
     border: 1px solid hsl(var(--border));
     border-radius: var(--radius);
-    box-shadow: 0 4px 12px hsl(0 0% 0% / 0.06);
+    box-shadow: 0 8px 28px hsl(0 0% 0% / 0.18);
     pointer-events: none;
     opacity: 0;
-    transition: opacity 0.15s ease, transform 0.15s ease;
+    transition: opacity 0.12s ease;
 }
-.file-thumb__popover--open { opacity: 1; transform: translateX(-50%) translateY(0); }
-.file-thumb__popover--below { bottom: unset; top: calc(100% + 6px); transform: translateX(-50%) translateY(-2px); }
-.file-thumb__popover--below.file-thumb__popover--open { transform: translateX(-50%) translateY(0); }
+.file-thumb__popover--open { opacity: 1; }
 .file-thumb__popover-img { width: 100%; max-height: 240px; object-fit: contain; display: block; border-radius: calc(var(--radius) - 2px); }
 .file-thumb__popover-icon { display: flex; align-items: center; justify-content: center; height: 120px; }
 .file-thumb__popover-name {
