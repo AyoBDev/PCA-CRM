@@ -193,6 +193,10 @@ model CertificationUpload {
   fileType        String                @map("file_type")
   note            String                @default("") @map("note")
   submittedAt     DateTime              @default(now()) @map("submitted_at")
+  uploadedById    Int?                  @map("uploaded_by_id")
+  uploadedByName  String                @default("") @map("uploaded_by_name")
+  effectiveDate   DateTime?             @map("effective_date")
+  expirationDate  DateTime?             @map("expiration_date")
   certification   EmployeeCertification @relation(fields: [certificationId], references: [id], onDelete: Cascade)
 
   @@index([certificationId])

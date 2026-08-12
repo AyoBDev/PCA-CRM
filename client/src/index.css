@@ -1450,6 +1450,183 @@ body {
   color: hsl(var(--foreground));
 }
 
+/* ============================================================
+   Document Viewer (PreviewModal) — full-screen PDF/image viewer
+   ============================================================ */
+.doc-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  background: hsl(224 30% 12%);
+  color: hsl(0 0% 96%);
+  animation: fadeIn 0.15s ease;
+}
+
+.doc-viewer__header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  background: hsl(224 32% 15%);
+  border-bottom: 1px solid hsl(224 20% 22%);
+}
+.doc-viewer__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.doc-viewer__title-icon {
+  display: flex;
+  color: hsl(0 72% 62%);
+  flex: 0 0 auto;
+}
+.doc-viewer__title-icon svg { width: 20px; height: 20px; }
+.doc-viewer__title-text {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.doc-viewer__close {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: hsl(0 0% 80%);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.doc-viewer__close svg { width: 18px; height: 18px; }
+.doc-viewer__close:hover { background: hsl(224 20% 24%); color: #fff; }
+.doc-viewer__close:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+
+.doc-viewer__stage {
+  flex: 1 1 auto;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px;
+}
+.doc-viewer__page {
+  margin: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.doc-viewer__canvas,
+.doc-viewer__image {
+  display: block;
+  background: #fff;
+  box-shadow: 0 8px 40px hsl(0 0% 0% / 0.5);
+  border-radius: 2px;
+}
+.doc-viewer__image { transform-origin: center center; transition: transform 0.15s ease; }
+
+.doc-viewer__msg {
+  margin: auto;
+  font-size: 14px;
+  color: hsl(0 0% 70%);
+}
+.doc-viewer__msg--error { color: hsl(0 80% 70%); }
+
+.doc-viewer__fallback {
+  margin: auto;
+  text-align: center;
+  max-width: 360px;
+}
+.doc-viewer__fallback-icon { display: inline-flex; color: hsl(0 0% 55%); }
+.doc-viewer__fallback-icon svg { width: 48px; height: 48px; }
+.doc-viewer__fallback-name {
+  margin: 12px 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  word-break: break-word;
+}
+.doc-viewer__fallback-note {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: hsl(0 0% 65%);
+}
+.doc-viewer__fallback .btn { display: inline-flex; align-items: center; gap: 6px; }
+.doc-viewer__fallback .btn svg { width: 16px; height: 16px; }
+
+.doc-viewer__toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  background: hsl(224 32% 15%);
+  border-top: 1px solid hsl(224 20% 22%);
+}
+.doc-viewer__toolgroup {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: hsl(224 24% 10%);
+  border-radius: var(--radius);
+  padding: 2px;
+}
+.doc-viewer__tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border: none;
+  border-radius: calc(var(--radius) - 1px);
+  background: transparent;
+  color: hsl(0 0% 85%);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.doc-viewer__tool svg { width: 18px; height: 18px; }
+.doc-viewer__tool:hover:not(:disabled) { background: hsl(224 20% 26%); color: #fff; }
+.doc-viewer__tool:disabled { opacity: 0.35; cursor: default; }
+.doc-viewer__tool--text { font-size: 13px; min-width: 52px; }
+.doc-viewer__tool.is-active { background: hsl(var(--primary)); color: #fff; }
+.doc-viewer__tool--danger:hover:not(:disabled) { background: hsl(0 72% 45%); color: #fff; }
+.doc-viewer__tool:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 1px; }
+
+.doc-viewer__pageinfo {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: hsl(0 0% 88%);
+  white-space: nowrap;
+}
+.doc-viewer__sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 6px;
+  background: hsl(224 20% 26%);
+}
+.doc-viewer__spacer { flex: 1 1 auto; }
+
+@media (max-width: 640px) {
+  .doc-viewer__stage { padding: 12px; }
+  .doc-viewer__toolbar { flex-wrap: wrap; justify-content: center; }
+  .doc-viewer__spacer { display: none; }
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -13694,6 +13871,52 @@ tr:hover .auth-note-icon--empty {
 }
 .file-row__actions .btn--icon svg { width: 14px; height: 14px; }
 
+/* Certification-history variant: two-line row (name + meta) reusing .file-row */
+.file-row--cert { align-items: center; }
+.file-row__main { flex: 1; min-width: 0; }
+.file-row--cert .file-row__name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file-row__submeta {
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.file-row__submeta em { font-style: italic; }
+.file-row__badge { flex-shrink: 0; display: flex; align-items: center; }
+
+/* Certification history list (reuses .file-row rows) */
+.cert-history__label {
+    font-size: 11px;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 8px 0 4px;
+}
+.cert-history__list {
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.cert-history__list .file-row:last-child { border-bottom: none; }
+
+/* The active/current file sits inside the .pa-auth-item card, which already
+   frames it — so drop the inner list border and align its label/row to the
+   card edges instead of nesting a second box. */
+.pa-auth-item--active > .cert-history__label { padding: 10px 12px 2px; }
+.pa-auth-item--active > .cert-history__list {
+    border: none;
+    border-radius: 0;
+}
+.pa-auth-item--active > .cert-history__list .file-row { padding: 6px 12px 10px; }
+
+/* History block lives in a .pa-auth-item__body (indented 38px for legacy notes)
+   — reset that indent so its rows line up with the current-file row above. */
+.cert-history__body { padding: 4px 12px 10px; }
+.cert-history__body > .cert-history__label { padding: 6px 0 4px; }
+
 /* ===== PDF Editor ===== */
 .pdf-editor {
     display: flex;
@@ -16409,4 +16632,104 @@ tr:hover .auth-note-icon--empty {
     .lead-reminders__actions .btn {
         flex: 1;
     }
+}
+
+/* Inline file thumbnails (Monday.com-style) */
+.file-thumb {
+    position: relative;
+    width: var(--thumb-size, 40px);
+    height: var(--thumb-size, 40px);
+    flex-shrink: 0;
+    padding: 0;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    background: hsl(var(--muted));
+    overflow: visible;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.file-thumb:hover { border-color: hsl(var(--ring) / 0.4); }
+.file-thumb:focus-visible { outline: none; box-shadow: 0 0 0 2px hsl(var(--ring) / 0.1); }
+.file-thumb__img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: calc(var(--radius) - 1px);
+    display: block;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+.file-thumb__img--loaded { opacity: 1; }
+.file-thumb__fallback {
+    width: 100%;
+    height: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.file-thumb__placeholder {
+    width: 100%;
+    height: 100%;
+    border-radius: calc(var(--radius) - 1px);
+    background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--accent)) 50%, hsl(var(--muted)) 75%);
+    background-size: 200% 100%;
+    animation: file-thumb-shimmer 1.2s ease-in-out infinite;
+}
+@keyframes file-thumb-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+/* Rendered in a portal to <body> with position:fixed + inline left/top/transform
+   (see FileThumbnail.jsx) so no ancestor overflow/stacking context can clip it. */
+.file-thumb__popover {
+    z-index: 2000;
+    width: 240px;
+    padding: 8px;
+    background: hsl(var(--popover));
+    color: hsl(var(--popover-foreground));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    box-shadow: 0 8px 28px hsl(0 0% 0% / 0.18);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+}
+.file-thumb__popover--open { opacity: 1; }
+.file-thumb__popover-img { width: 100%; max-height: 240px; object-fit: contain; display: block; border-radius: calc(var(--radius) - 2px); }
+.file-thumb__popover-icon { display: flex; align-items: center; justify-content: center; height: 120px; }
+.file-thumb__popover-name {
+    margin-top: 6px;
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Thumbnail strip + overflow badge + gallery */
+.file-thumb-strip { display: inline-flex; align-items: center; gap: 6px; }
+.file-thumb__more {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 50%;
+    background: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.file-thumb__more:hover { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
+.file-thumb__more:focus-visible { outline: none; box-shadow: 0 0 0 2px hsl(var(--ring) / 0.1); }
+.file-thumb-gallery { display: flex; flex-wrap: wrap; gap: 12px; }
+.file-thumb-gallery__tile { display: flex; flex-direction: column; align-items: center; width: 88px; }
+.file-thumb-gallery__name {
+    margin-top: 4px;
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+    text-align: center;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }

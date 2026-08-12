@@ -14,6 +14,8 @@ import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import { TIMESHEET_STATUS_STYLES, TIMESHEET_SERVICE_COLORS } from '../utils/constants';
 import { formatDate } from '../utils/dates';
+import PreviewModal from '../components/common/PreviewModal';
+import CertFileRow from '../components/files/CertFileRow';
 import { hhmm12 } from '../utils/time';
 
 const TABS = [
@@ -444,6 +446,24 @@ export default function EmployeeDetailPage() {
         }
     };
 
+    const handleToggleActive = async (next) => {
+        const prev = employee.active;
+        if (next === prev) return;
+        setEmployee(e => ({ ...e, active: next }));
+        try {
+            await api.updateEmployee(Number(employeeId), { active: next });
+            undoState.pushAction(
+                `${next ? 'Activated' : 'Deactivated'} ${employee.name}`,
+                async () => { await api.updateEmployee(Number(employeeId), { active: prev }); setEmployee(e => ({ ...e, active: prev })); },
+                async () => { await api.updateEmployee(Number(employeeId), { active: next }); setEmployee(e => ({ ...e, active: next })); },
+            );
+            showToast(next ? 'Employee activated' : 'Employee deactivated');
+        } catch (err) {
+            setEmployee(e => ({ ...e, active: prev }));
+            showToast(err.message, 'error');
+        }
+    };
+
     if (loading) {
         return (
             <div className="page-content" style={{ padding: 48, textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>
@@ -517,9 +537,15 @@ export default function EmployeeDetailPage() {
                             <div className="cp-bio__name-row">
                                 <h2 className="cp-bio__name">{employee.name}</h2>
                                 {employee.critical && <span className="ts-badge ts-badge--danger">Critical</span>}
-                                <span className={`ts-badge ts-badge--${employee.active ? 'success' : 'draft'}`}>
-                                    {employee.active ? 'Active' : 'Inactive'}
-                                </span>
+                                <select
+                                    className={`cp-bio__status-select cp-bio__status-select--${employee.active ? 'active' : 'inactive'}`}
+                                    value={employee.active ? 'active' : 'inactive'}
+                                    onChange={(e) => handleToggleActive(e.target.value === 'active')}
+                                    title="Marks the employee not currently working. Does not archive or hide them."
+                                >
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
                                 {employee.onboardingStatus === 'invited' && (
                                     <span className="ts-badge ts-badge--draft">Invited</span>
                                 )}
@@ -777,6 +803,7 @@ function CertificationsTab({ employee, onEdit }) {
     const [expandedType, setExpandedType] = useState(null);
     const [showUploadModal, setShowUploadModal] = useState(null);
     const [certFilter, setCertFilter] = useState('All');
+    const [previewUpload, setPreviewUpload] = useState(null);
 
     const fetchCerts = useCallback(async () => {
         try {
@@ -958,6 +985,14 @@ function CertificationsTab({ employee, onEdit }) {
                     onClose={() => setShowUploadModal(null)}
                 />
             )}
+            {previewUpload && (
+                <PreviewModal
+                    open
+                    fileName={previewUpload.fileName}
+                    onClose={() => setPreviewUpload(null)}
+                    fetchBlob={previewUpload.fetchBlob || (() => api.downloadCertificationUpload(previewUpload.id))}
+                />
+            )}
         </div>
     );
 
@@ -1036,25 +1071,39 @@ function CertificationsTab({ employee, onEdit }) {
                             <div className="pa-auth-list">
                                 {activeRecords.map(rec => (
                                     <div key={rec.id} className="pa-auth-item pa-auth-item--active">
-                                        <div className="pa-auth-item__header">
-                                            <div className="pa-auth-item__left">
-                                                <span className="pa-auth-item__name">
-                                                    {rec.fileName || 'Current Record'}
-                                                </span>
-                                                <span className="pa-auth-item__dates">
-                                                    {rec.expirationDate ? `Expires ${formatDate(rec.expirationDate)}` : 'No expiry'}
-                                                </span>
-                                            </div>
-                                            <div className="pa-auth-item__right">
-                                                <span className={`ts-badge ts-badge--${statusBadgeClass(status)}`}>
-                                                    {statusLabel(status)} {days !== null && `(${days >= 0 ? `${days}d` : `${Math.abs(days)}d ago`})`}
-                                                </span>
-                                                {rec.fileName && (
-                                                    <button className="btn btn--ghost btn--xs" onClick={() => handleDownload(rec)}>{Icons.download}</button>
-                                                )}
-                                            </div>
+                                        <div className="cert-history__label">Current File</div>
+                                        <div className="cert-history__list">
+                                            {rec.fileName ? (
+                                                <CertFileRow
+                                                    upload={{ id: rec.id, fileName: rec.fileName, fileType: rec.fileType, note: rec.notes }}
+                                                    cacheKey={`cert:${rec.id}`}
+                                                    fetchBlob={() => api.downloadEmployeeCertification(rec.id)}
+                                                    onPreview={setPreviewUpload}
+                                                    onDownload={() => handleDownload(rec)}
+                                                    expiresText={rec.expirationDate ? `Expires ${formatDate(rec.expirationDate)}` : 'No expiry'}
+                                                    badge={(
+                                                        <span className={`ts-badge ts-badge--${statusBadgeClass(status)}`}>
+                                                            {statusLabel(status)} {days !== null && `(${days >= 0 ? `${days}d` : `${Math.abs(days)}d ago`})`}
+                                                        </span>
+                                                    )}
+                                                />
+                                            ) : (
+                                                <div className="file-row file-row--cert">
+                                                    <div className="file-row__main">
+                                                        <div className="file-row__name">No file uploaded</div>
+                                                        <div className="file-row__submeta">
+                                                            {rec.expirationDate ? `Expires ${formatDate(rec.expirationDate)}` : 'No expiry'}
+                                                        </div>
+                                                    </div>
+                                                    <div className="file-row__badge">
+                                                        <span className={`ts-badge ts-badge--${statusBadgeClass(status)}`}>
+                                                            {statusLabel(status)} {days !== null && `(${days >= 0 ? `${days}d` : `${Math.abs(days)}d ago`})`}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                        {rec.notes && (
+                                        {rec.notes && !rec.fileName && (
                                             <div className="pa-auth-item__body">
                                                 <div className="pa-auth-item__notes">{rec.notes}</div>
                                             </div>
@@ -1067,22 +1116,18 @@ function CertificationsTab({ employee, onEdit }) {
                                             const history = (rec.uploads || []).filter(u => u.fileName !== rec.fileName);
                                             if (history.length === 0) return null;
                                             return (
-                                                <div className="pa-auth-item__body">
-                                                    <div style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '4px 0' }}>History</div>
-                                                    {history.map(upload => (
-                                                        <div key={upload.id} style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '4px 0 4px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                            <span style={{ display: 'inline-flex', width: 14, height: 14, flexShrink: 0 }}>{Icons.paperclip}</span>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleDownloadUpload(upload)}
-                                                                title="View file"
-                                                                style={{ background: 'none', border: 'none', padding: 0, color: 'hsl(var(--primary))', cursor: 'pointer', textDecoration: 'underline', fontSize: 12 }}
-                                                            >
-                                                                {upload.fileName}
-                                                            </button>
-                                                            <span>({(upload.fileSize / 1024).toFixed(0)} KB)</span>
-                                                        </div>
-                                                    ))}
+                                                <div className="pa-auth-item__body cert-history__body">
+                                                    <div className="cert-history__label">History</div>
+                                                    <div className="cert-history__list">
+                                                        {history.map(upload => (
+                                                            <CertFileRow
+                                                                key={upload.id}
+                                                                upload={upload}
+                                                                onPreview={setPreviewUpload}
+                                                                onDownload={handleDownloadUpload}
+                                                            />
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             );
                                         })()}
@@ -1107,21 +1152,16 @@ function CertificationsTab({ employee, onEdit }) {
                                                         )}
                                                     </div>
                                                 </div>
-                                                {(rec.uploads || []).map(upload => (
-                                                    <div key={upload.id} style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '4px 0 4px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        <span style={{ display: 'inline-flex', width: 14, height: 14, flexShrink: 0 }}>{Icons.paperclip}</span>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleDownloadUpload(upload)}
-                                                            title="View file"
-                                                            style={{ background: 'none', border: 'none', padding: 0, color: 'hsl(var(--primary))', cursor: 'pointer', textDecoration: 'underline', fontSize: 12 }}
-                                                        >
-                                                            {upload.fileName}
-                                                        </button>
-                                                        <span>({(upload.fileSize / 1024).toFixed(0)} KB)</span>
-                                                        {upload.note && <span style={{ fontStyle: 'italic' }}>— {upload.note}</span>}
-                                                    </div>
-                                                ))}
+                                                <div className="cert-history__list">
+                                                    {(rec.uploads || []).map(upload => (
+                                                        <CertFileRow
+                                                            key={upload.id}
+                                                            upload={upload}
+                                                            onPreview={setPreviewUpload}
+                                                            onDownload={handleDownloadUpload}
+                                                        />
+                                                    ))}
+                                                </div>
                                             </div>
                                         ))}
                                     </>

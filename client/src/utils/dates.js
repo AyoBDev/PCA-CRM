@@ -59,3 +59,21 @@ export function toLocalDateStr(d) {
     const da = String(d.getDate()).padStart(2, '0');
     return `${yr}-${mo}-${da}`;
 }
+
+// NOTE: formatDate() is intentionally NOT reused here. formatDate() forces
+// timeZone:'UTC', but formatTimestamp reads the time-of-day (getHours/getMinutes)
+// in local time. Mixing a UTC date with a local time would misrender near-midnight
+// timestamps — e.g. an 11:30 PM local event on Aug 9 would show "Aug 10 at 11:30 PM".
+// Formatting BOTH the date and the time in local time keeps them consistent.
+export function formatTimestamp(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    // Format date in local timezone (not UTC like formatDate) — see note above.
+    const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const hr = d.getHours();
+    const min = String(d.getMinutes()).padStart(2, '0');
+    const ampm = hr >= 12 ? 'PM' : 'AM';
+    const hr12 = hr % 12 || 12;
+    return `${dateStr} at ${hr12}:${min} ${ampm}`;
+}
