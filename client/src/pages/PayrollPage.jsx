@@ -13,6 +13,7 @@ import { useAuth } from '../hooks/useAuth';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import { useUndoStack } from '../hooks/useUndoStack';
+import InlineEditable from '../components/common/InlineEditable';
 
 // ────────────────────────────────────────
 // PayrollUploadModal
@@ -348,67 +349,17 @@ const PayrollClientGroup = memo(function PayrollClientGroup({ clientName, visits
 // Used for clientName, employeeName, callInTime, callOutTime
 // ────────────────────────────────────────
 const PayrollEditableText = memo(function PayrollEditableText({ value, displayValue, placeholder, highlight, onSave, width = 130 }) {
-    const [editing, setEditing] = useState(false);
-    const [draft, setDraft]     = useState(value || '');
-    const [saving, setSaving]   = useState(false);
-
-    // keep draft in sync if parent updates the value (e.g. after server recalc)
-    const prevValue = useRef(value);
-    if (prevValue.current !== value) {
-        prevValue.current = value;
-        if (!editing) setDraft(value || '');
-    }
-
-    const commit = async () => {
-        const trimmed = draft.trim();
-        if (trimmed === (value || '').trim()) { setEditing(false); return; }
-        setSaving(true);
-        try {
-            await onSave(trimmed);
-        } catch (_) {
-            setDraft(value || '');
-        } finally {
-            setSaving(false);
-            setEditing(false);
-        }
-    };
-
-    if (editing) {
-        return (
-            <input
-                type="text"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onBlur={commit}
-                onKeyDown={(e) => {
-                    if (e.key === 'Enter') commit();
-                    if (e.key === 'Escape') { setDraft(value || ''); setEditing(false); }
-                }}
-                autoFocus
-                placeholder={placeholder}
-                style={{ width, padding: '2px 6px', fontSize: 13 }}
-            />
-        );
-    }
-
-    const isEmpty = !value || value === '00:00';
     return (
-        <span
-            title="Click to edit"
-            onClick={() => { setDraft(value || ''); setEditing(true); }}
-            style={{
-                cursor: 'pointer',
-                color: isEmpty || highlight ? 'hsl(270 50% 40%)' : 'inherit',
-                fontStyle: isEmpty ? 'italic' : 'normal',
-                fontWeight: highlight && !isEmpty ? 600 : 'normal',
-                borderBottom: '1px dashed hsl(var(--border))',
-                paddingBottom: 1,
-                opacity: saving ? 0.5 : 1,
-                whiteSpace: 'nowrap',
-            }}
-        >
-            {isEmpty ? placeholder : (displayValue ?? value)}
-        </span>
+        <InlineEditable
+            value={value ?? ''}
+            displayValue={displayValue}
+            placeholder={placeholder}
+            highlight={highlight}
+            width={width}
+            allowEmpty          // times/names may legitimately be blanked by an admin; guard is the toast+undo, not a hard block
+            undoLabel={placeholder ? placeholder.replace(/…|missing /gi, '').trim() || 'value' : 'value'}
+            onSave={onSave}
+        />
     );
 });
 
@@ -416,53 +367,21 @@ const PayrollEditableText = memo(function PayrollEditableText({ value, displayVa
 // PayrollEditableUnits — inline number editor
 // ────────────────────────────────────────
 const PayrollEditableUnits = memo(function PayrollEditableUnits({ visit, onChange }) {
-    const [editing, setEditing] = useState(false);
-    const [value, setValue]     = useState(String(visit.finalPayableUnits));
-    const [saving, setSaving]   = useState(false);
-
-    const commit = async () => {
-        const n = parseInt(value, 10);
-        if (isNaN(n) || n < 0 || n === visit.finalPayableUnits) {
-            setValue(String(visit.finalPayableUnits));
-            setEditing(false);
-            return;
-        }
-        setSaving(true);
-        try {
-            await api.updatePayrollVisit(visit.id, { finalPayableUnits: n });
-            onChange(n);
-        } catch (_) {
-            setValue(String(visit.finalPayableUnits));
-        } finally {
-            setSaving(false);
-            setEditing(false);
-        }
-    };
-
     if (visit.voidFlag) return <span className="text-destructive">VOID</span>;
-
-    if (editing) {
-        return (
-            <input
-                type="number" min="0" max="112"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                onBlur={commit}
-                onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setValue(String(visit.finalPayableUnits)); setEditing(false); } }}
-                autoFocus
-                style={{ width: 56, padding: '2px 4px', fontSize: 13, textAlign: 'center' }}
-            />
-        );
-    }
-
     return (
-        <span
-            title="Click to edit"
-            onClick={() => { setValue(String(visit.finalPayableUnits)); setEditing(true); }}
-            style={{ cursor: 'pointer', borderBottom: '1px dashed hsl(var(--border))', paddingBottom: 1, opacity: saving ? 0.5 : 1 }}
-        >
-            {visit.finalPayableUnits}
-        </span>
+        <InlineEditable
+            value={String(visit.finalPayableUnits)}
+            type="number"
+            min={0}
+            max={112}
+            width={56}
+            undoLabel="units"
+            onSave={async (v) => {
+                const n = parseInt(v, 10);
+                await api.updatePayrollVisit(visit.id, { finalPayableUnits: n });
+                onChange(n);
+            }}
+        />
     );
 });
 
