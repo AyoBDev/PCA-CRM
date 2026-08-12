@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Icons from '../../components/common/Icons';
+import InlineEditable from '../../components/common/InlineEditable';
 
 export default function CarePlanTab({
     client,
@@ -345,62 +346,23 @@ function CarePlanSummary({ client, expanded, onToggle, onSaveField }) {
 }
 
 function EditableField({ label, value, placeholder, multiline, hint, onSave }) {
-    const [editing, setEditing] = useState(false);
-    const [draft, setDraft] = useState(value);
-
-    const startEdit = () => { setDraft(value); setEditing(true); };
-    const cancel = () => { setDraft(value); setEditing(false); };
-    const save = () => { onSave((draft || '').trim()); setEditing(false); };
-
     return (
         <div className="cp-summary-field">
             <div className="cp-summary-field__head">
                 <span className="cp-summary-field__label">{label}</span>
-                {!editing && (
-                    <button className="btn btn--ghost btn--icon btn--sm" title="Edit" onClick={startEdit}>
-                        {Icons.edit}
-                    </button>
-                )}
             </div>
-            {editing ? (
-                <div className="cp-summary-field__edit">
-                    {multiline ? (
-                        <textarea
-                            className="finput"
-                            rows={4}
-                            value={draft}
-                            placeholder={placeholder}
-                            onChange={(e) => setDraft(e.target.value)}
-                            autoFocus
-                        />
-                    ) : (
-                        <input
-                            className="finput"
-                            value={draft}
-                            placeholder={placeholder}
-                            onChange={(e) => setDraft(e.target.value)}
-                            autoFocus
-                        />
-                    )}
-                    {hint && <span className="cp-summary-field__hint">{hint}</span>}
-                    <div className="cp-summary-field__actions">
-                        <button className="btn btn--outline btn--sm" onClick={cancel}>Cancel</button>
-                        <button className="btn btn--primary btn--sm" onClick={save}>Save</button>
-                    </div>
-                </div>
-            ) : (
-                <div className="cp-summary-field__value">
-                    {value && value.trim() ? (
-                        multiline
-                            ? value.split('\n').filter((l) => l.trim()).map((line, i) => (
-                                <div key={i} className="cp-summary-field__line">{line}</div>
-                              ))
-                            : value
-                    ) : (
-                        <span className="cp-summary-field__empty">Not specified</span>
-                    )}
-                </div>
-            )}
+            <div className="cp-summary-field__value">
+                <InlineEditable
+                    value={value || ''}
+                    placeholder={placeholder || 'Not specified'}
+                    multiline={multiline}
+                    allowEmpty
+                    width={multiline ? 280 : 200}
+                    undoLabel={(label || 'field').toLowerCase()}
+                    onSave={async (v) => { await onSave(v); }}
+                />
+                {hint && <span className="cp-summary-field__hint">{hint}</span>}
+            </div>
         </div>
     );
 }
