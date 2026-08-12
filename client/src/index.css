@@ -13787,6 +13787,36 @@ tr:hover .auth-note-icon--empty {
 }
 .file-row__actions .btn--icon svg { width: 14px; height: 14px; }
 
+/* Certification-history variant: two-line row (name + meta) reusing .file-row */
+.file-row--cert { align-items: center; }
+.file-row__main { flex: 1; min-width: 0; }
+.file-row--cert .file-row__name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file-row__submeta {
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.file-row__submeta em { font-style: italic; }
+
+/* Certification history list (reuses .file-row rows) */
+.cert-history__label {
+    font-size: 11px;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 8px 0 4px;
+}
+.cert-history__list {
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.cert-history__list .file-row:last-child { border-bottom: none; }
+
 /* ===== PDF Editor ===== */
 .pdf-editor {
     display: flex;
@@ -16551,7 +16581,7 @@ tr:hover .auth-note-icon--empty {
     bottom: calc(100% + 6px);
     left: 50%;
     transform: translateX(-50%) translateY(2px);
-    z-index: 50;
+    z-index: 1001;
     width: 240px;
     padding: 8px;
     background: hsl(var(--popover));
