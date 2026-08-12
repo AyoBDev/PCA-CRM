@@ -389,57 +389,25 @@ const PayrollEditableUnits = memo(function PayrollEditableUnits({ visit, onChang
 // PayrollEditableNotes — icon with hover tooltip, matching authorization page note design
 // ────────────────────────────────────────
 const PayrollEditableNotes = memo(function PayrollEditableNotes({ visitId, notes: initialNotes }) {
-    const [editing, setEditing] = useState(false);
-    const [value, setValue]     = useState(initialNotes || '');
-    const [saving, setSaving]   = useState(false);
-    const committingRef = useRef(false);
-    const savedNotes = useRef(initialNotes || '');
+    const [notes, setNotes] = useState(initialNotes || '');
+    // keep in sync if parent value changes
+    const prev = useRef(initialNotes || '');
+    if (prev.current !== (initialNotes || '')) { prev.current = initialNotes || ''; setNotes(initialNotes || ''); }
 
-    const commit = async () => {
-        if (committingRef.current) return;
-        committingRef.current = true;
-        const trimmed = value.trim();
-        if (trimmed === savedNotes.current.trim()) { setEditing(false); committingRef.current = false; return; }
-        setSaving(true);
-        try {
-            await api.updatePayrollVisitNotes(visitId, trimmed);
-            savedNotes.current = trimmed;
-            setValue(trimmed);
-        } catch (_) {
-            setValue(savedNotes.current);
-        } finally {
-            setSaving(false);
-            setEditing(false);
-            committingRef.current = false;
-        }
-    };
-
-    if (editing) {
-        return (
-            <div className="payroll-note-edit">
-                <textarea
-                    value={value}
-                    onChange={(e) => setValue(e.target.value)}
-                    onBlur={commit}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.target.blur(); } if (e.key === 'Escape') { setValue(savedNotes.current); setEditing(false); } }}
-                    autoFocus
-                    placeholder="Add note…"
-                    rows={2}
-                    className="payroll-note-edit__textarea"
-                />
-            </div>
-        );
-    }
-
-    const hasNote = !!value;
     return (
-        <span
-            className={`payroll-note-text ${hasNote ? 'payroll-note-text--has-note' : 'payroll-note-text--empty'}`}
-            onClick={(e) => { e.stopPropagation(); setEditing(true); }}
-        >
-            {hasNote ? value : 'add note…'}
-            {hasNote && <span className="payroll-note-tooltip">{value}</span>}
-        </span>
+        <InlineEditable
+            value={notes}
+            placeholder="add note…"
+            multiline
+            allowEmpty
+            width={180}
+            undoLabel="note"
+            className="payroll-note-inline"
+            onSave={async (v) => {
+                await api.updatePayrollVisitNotes(visitId, v);
+                setNotes(v);
+            }}
+        />
     );
 }, (prev, next) => prev.visitId === next.visitId && prev.notes === next.notes);
 
