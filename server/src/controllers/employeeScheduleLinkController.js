@@ -1,5 +1,6 @@
 const prisma = require('../lib/prisma');
 const { getWeekRange, SERVICE_COLOR_MAP } = require('../services/schedulingService');
+const { buildLiveSandataMap, resolveShiftAccountNumber, resolveShiftSandataId } = require('../lib/sandataResolver');
 
 // POST /api/employee-schedule-links
 async function createLink(req, res, next) {
@@ -89,10 +90,30 @@ async function getScheduleView(req, res) {
         orderBy: [{ shiftDate: 'asc' }, { startTime: 'asc' }],
     });
 
-    const enrichedShifts = shifts.map(s => ({
-        ...s,
-        serviceLabel: (SERVICE_COLOR_MAP[s.serviceCode] || {}).label || s.serviceCode,
-    }));
+    // Resolve the Sandata Client ID LIVE from each client's authorization for the
+    // shift's service code — never trust the copy stored on the shift row, which
+    // can drift from the source of truth (Authorization). A wrong value typed onto
+    // one shift must not leak into the shared PDF while the profile stays correct.
+    const clientIds = [...new Set(shifts.map(s => s.clientId).filter(Boolean))];
+    const auths = clientIds.length
+        ? await prisma.authorization.findMany({
+            where: { clientId: { in: clientIds }, archivedAt: null },
+        })
+        : [];
+
+    // Build live resolver bundle (clientId|serviceCode keyed maps) shared with
+    // the one-time shift-cleanup script so the two can never drift.
+    const liveMaps = buildLiveSandataMap(auths);
+
+    const enrichedShifts = shifts.map(s => {
+        const accountNumber = resolveShiftAccountNumber(s, liveMaps);
+        return {
+            ...s,
+            accountNumber,
+            sandataClientId: resolveShiftSandataId(s, accountNumber, liveMaps),
+            serviceLabel: (SERVICE_COLOR_MAP[s.serviceCode] || {}).label || s.serviceCode,
+        };
+    });
 
     // Fetch submitted timesheet hours for this PCA + week
     const wsDate = new Date(weekStart + 'T00:00:00.000Z');

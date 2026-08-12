@@ -72,10 +72,26 @@ Shared components under `client/src/components/`:
 - `common/DropdownMenu.jsx` — Reusable dropdown (trigger + panel)
 - `common/ActivityDrawer.jsx` — `ActivityButton` (page-level) and `EntityActivityButton` (entity-level) audit log viewers
 - `common/Modal.jsx`, `common/ConfirmModal.jsx`, `common/SignaturePad.jsx`
-- `common/PreviewModal.jsx` — **reusable in-app document viewer** (PDF via pdf.js canvas + images; zoom/fit/rotate/page-nav/download/print/optional delete). See "File Preview & Thumbnails".
-- `common/FileThumbnail.jsx` / `common/FileThumbnailStrip.jsx` — **reusable inline file thumbnails** with a portalled hover-preview popover. See "File Preview & Thumbnails".
-- `files/CertFileRow.jsx` — **reusable file row** (thumbnail · name · meta · preview/download) matching the File Manager list look.
+- `common/Tooltip.jsx` — **App-wide tooltip** (see below). Use this for all hover/focus hints; do not add new native `title=` attributes.
 - `layout/Layout.jsx`, `layout/Sidebar.jsx`, `layout/Toast.jsx`
+
+### Tooltip (`common/Tooltip.jsx`) — the standard hover/focus hint
+
+Reusable tooltip that wraps `@radix-ui/react-tooltip` behind our own interface (so the library stays swappable in one file). Radix gives collision-aware positioning (via Floating UI) and full WAI-ARIA a11y (`aria-describedby`, keyboard focus, Escape to dismiss); we only supply styling. **Prefer this over the native `title` attribute** — `title` has a browser-fixed ~1s delay, can't be styled, and doesn't work on keyboard focus.
+
+- **Provider is already mounted once** at the app root (`TooltipProvider` in `client/src/main.jsx`). Do not add another provider — just use `<Tooltip>` anywhere.
+- **Styling** lives in `index.css` (`.tooltip-content`, `.tooltip-arrow`), using the zinc tokens (`--popover`, `--border`, `--radius`). `z-index: 2000` so it renders above modals (`.modal-backdrop` is `z-index: 100`).
+- **Usage** — wrap any focusable/hoverable trigger (`asChild` passes the tooltip to your element, so it keeps its own styles):
+
+```jsx
+import Tooltip from '../components/common/Tooltip';
+
+<Tooltip content="Explains this control">
+  <button className="icon-btn" aria-label="Help">{Icons.helpCircle}</button>
+</Tooltip>
+```
+
+Props: `content` (string/node — if falsy, the trigger renders with no tooltip), `side` (`'top'` default), `align` (`'center'` default), `delayDuration` (ms, default 150), `sideOffset` (default 6). The trigger should be a single focusable element for a11y. Migrate existing native `title=` usages to `<Tooltip>` opportunistically when touching a component.
 
 Hooks under `client/src/hooks/`:
 - `useAuth.js` — auth context with `isAdmin`, `authUser`
@@ -302,7 +318,9 @@ This behavior is implemented via `handleServiceCodeChange` and `handleServiceCat
 The **Client** and **Authorization** tables are the single source of truth for the entire system. All operational modules (Timesheets, Scheduling, Payroll) read from Authorization at query time.
 
 **Key rules:**
-- When `accountNumber` or `sandataClientId` changes on an Authorization, it propagates to all active Shifts for that client + serviceCode
+- **`accountNumber` and `sandataClientId` are owned by the Authorization and resolved LIVE for every shift — the `Shift.account_number` / `Shift.sandata_client_id` columns are dormant (never read or written for display).** New shifts store `''` for both; they are NOT accepted from create/update/bulk request bodies, and there is no auth→shift propagation. To change either value, edit it on the client's authorization (client-details page) — that is the single place.
+- **Resolution** lives in `server/src/lib/sandataResolver.js` (`buildLiveSandataMap` → `resolveShiftAccountNumber` then `resolveShiftSandataId`). Account is derived first by `clientId|serviceCode` (fallback `name|serviceCode`); the Sandata ID is then derived by `clientId|derivedAccount` (fallbacks `clientId|serviceCode`, `name|serviceCode`). There is **no fallback to the shift's stored value** — unresolvable → `''` (renders `—`). Server surfaces enrich shifts via `enrichShiftLive(shift, maps)` in `schedulingService.js` (used by `listShifts` and the shared schedule view); never render the raw `shift.sandataClientId` / `shift.accountNumber`.
+- The Scheduling page shows both values **read-only** (with a copy button + info tooltip pointing to the client's authorization). `server/prisma/fix-shift-sandata-ids.js` remains as a one-time historical cleanup of the now-dormant stored column; it is not part of the live path.
 - The admin timesheet form auto-expands `enabledServices` from active authorizations (not just the stored client field)
 - The PCA form PUT handler also auto-expands `enabledServices` from authorizations (prevents Respite/Companion data from being zeroed on save)
 - Archiving an authorization logs the count of affected shifts in the audit trail

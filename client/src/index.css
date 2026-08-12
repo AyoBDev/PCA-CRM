@@ -9136,6 +9136,90 @@ button.sdr-section-tag:hover:not(:disabled) {
 .sched-day-row__field .searchable-select__dropdown {
     min-width: 180px;
 }
+
+/* ─── Resolved ID field (read-only account / Sandata Client ID) ─── */
+.resolved-id {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 5px 8px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 6px;
+    background: hsl(var(--muted) / 0.5);
+    width: 100%;
+    box-sizing: border-box;
+}
+.resolved-id__value {
+    flex: 1;
+    font-size: 13px;
+    color: hsl(var(--muted-foreground));
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.resolved-id__copy {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    border-radius: 4px;
+    flex-shrink: 0;
+    transition: color 0.15s, background 0.15s;
+}
+.resolved-id__copy:hover {
+    color: hsl(var(--foreground));
+    background: hsl(var(--accent));
+}
+.resolved-id__copy svg {
+    width: 13px;
+    height: 13px;
+}
+.resolved-id__info {
+    display: inline-flex;
+    align-items: center;
+    color: hsl(var(--muted-foreground) / 0.6);
+    flex-shrink: 0;
+    cursor: help;
+}
+.resolved-id__info svg {
+    width: 13px;
+    height: 13px;
+}
+
+/* App-wide tooltip (Radix). Styling only — positioning/a11y handled by Radix.
+   See client/src/components/common/Tooltip.jsx. */
+.tooltip-content {
+    max-width: 260px;
+    padding: 6px 10px;
+    border-radius: calc(var(--radius) - 2px);
+    background: hsl(var(--popover));
+    color: hsl(var(--popover-foreground));
+    border: 1px solid hsl(var(--border));
+    box-shadow: 0 4px 12px hsl(240 10% 3.9% / 0.12);
+    font-size: 12px;
+    line-height: 1.4;
+    /* Tooltips are the topmost transient hint — must sit above modals
+       (.modal-backdrop z-index: 100) and every other overlay (max 1000). */
+    z-index: 2000;
+    user-select: none;
+    animation: tooltip-in 120ms ease-out;
+}
+.tooltip-arrow {
+    fill: hsl(var(--popover));
+}
+@keyframes tooltip-in {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+}
+
 .sched-day-row__apply {
     font-size: 11px;
     padding: 6px 12px;
