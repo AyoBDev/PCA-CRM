@@ -169,13 +169,8 @@ export default function ProgramsAuthTab({
     async function handleSandataClientIdChange(code, value) {
         const { current, archived } = authGroupsForInsurance[code];
         const allAuths = [...current, ...archived];
-        try {
-            await Promise.all(allAuths.map(a => api.updateAuthSandataClientId(a.id, value)));
-            if (fetchClient) fetchClient();
-        } catch (err) {
-            if (showToast) showToast('Failed to update Client ID', 'error');
-            throw err;
-        }
+        await Promise.all(allAuths.map(a => api.updateAuthSandataClientId(a.id, value)));
+        if (fetchClient) fetchClient();
     }
 
     function renderServiceCard(code) {
