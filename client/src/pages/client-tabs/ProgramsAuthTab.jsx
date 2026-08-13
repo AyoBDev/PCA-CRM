@@ -4,6 +4,8 @@ import * as api from '../../api';
 import { ACCOUNT_NUMBER_OPTIONS } from '../../utils/accountMapping';
 import { AUTH_COLORS, DEFAULT_AUTH_COLOR, getAuthSortKey } from '../../utils/constants';
 import { useServices } from '../../hooks/useServices';
+import FilePreviewPane from '../../components/common/FilePreviewPane';
+import Tooltip from '../../components/common/Tooltip';
 
 const LEFT_CODES = ['PCS', 'SDPC', 'COPE', 'PAS'];
 const MULTI_AUTH_CODES = ['COPE', 'PAS'];
@@ -102,11 +104,27 @@ export default function ProgramsAuthTab({
     showToast,
     totalDocs,
     onSaveAuthNote,
+    setPreviewAuthDoc,
 }) {
     const { serviceColor } = useServices();
     const [expandedAuthIds, setExpandedAuthIds] = useState({});
     const [confirmDeleteDoc, setConfirmDeleteDoc] = useState(null);
     const [expandedHistory, setExpandedHistory] = useState({});
+    const [authDocSplit, setAuthDocSplit] = useState(false);
+    const [selectedAuthDoc, setSelectedAuthDoc] = useState(null);
+
+    // One shared item list across every authorization's documents, for the
+    // docked FilePreviewPane. Namespaced ids keep them distinct from other
+    // preview surfaces on the client detail page.
+    const allAuthsFlat = Object.values(authGroupsForInsurance).flatMap(({ current, archived }) => [...current, ...archived]);
+    const authDocItems = allAuthsFlat.flatMap(a => (a.documents || []).map(doc => ({
+        id: `auth-doc:${doc.id}`,
+        fileName: doc.fileName || doc.name,
+        fileType: doc.fileType || doc.mimeType,
+        cacheKey: `auth-doc:${doc.id}`,
+        fetchBlob: () => api.downloadAuthDocument(doc.id),
+        meta: a.serviceCode ? `${a.serviceCode}` : '',
+    })));
 
     const toggleAuthExpanded = (authId) => {
         setExpandedAuthIds(prev => ({ ...prev, [authId]: !prev[authId] }));
@@ -415,10 +433,32 @@ export default function ProgramsAuthTab({
                                 </button>
                             ))}
                         </div>
+                        <Tooltip content={authDocSplit ? 'Switch back to the list view' : 'Show a docked preview of authorization attachments'}>
+                            <button
+                                type="button"
+                                className={`btn btn--outline btn--sm${authDocSplit ? ' is-active' : ''}`}
+                                onClick={() => setAuthDocSplit(prev => !prev)}
+                            >
+                                {Icons.eye} {authDocSplit ? 'Preview: On' : 'Preview'}
+                            </button>
+                        </Tooltip>
                         <button className="btn btn--primary btn--sm" onClick={() => openAuthModal(null, '')}>{Icons.plus} Add Authorization</button>
                     </div>
                 </div>
                 <div className="cp-card__body">
+                    {authDocSplit && (
+                        <div className="pa-auth-doc-preview" style={{ marginBottom: 16 }}>
+                            <FilePreviewPane
+                                items={authDocItems}
+                                selectedId={selectedAuthDoc}
+                                onSelect={setSelectedAuthDoc}
+                                open={authDocSplit}
+                                onExpand={(item) => setPreviewAuthDoc && setPreviewAuthDoc({ fileName: item.fileName, fetchBlob: item.fetchBlob })}
+                                onDownload={(item) => setPreviewAuthDoc && setPreviewAuthDoc({ fileName: item.fileName, fetchBlob: item.fetchBlob })}
+                                emptyText="No authorization attachments on file."
+                            />
+                        </div>
+                    )}
                     {Object.keys(authGroupsForInsurance).length === 0 ? (
                         <div className="cp-empty-state-card">
                             <div className="cp-empty-state-card__icon">{Icons.clipboard}</div>
