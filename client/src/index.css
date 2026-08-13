@@ -1637,6 +1637,12 @@ body {
   .doc-viewer__spacer { display: none; }
 }
 
+.file-preview-pane { display: flex; flex-direction: column; min-height: 0; }
+.file-preview-pane--split { flex-direction: row; gap: 16px; align-items: stretch; }
+.file-preview-pane--split .file-preview-pane__list { flex: 0 0 320px; overflow-y: auto; max-height: 70vh; }
+.file-preview-pane__panel { flex: 1 1 auto; min-width: 0; min-height: 420px; height: 70vh; }
+.file-preview-pane__panel-empty, .file-preview-pane__empty { display: flex; align-items: center; justify-content: center; height: 100%; color: hsl(var(--muted-foreground)); font-size: 13px; padding: 24px; }
+
 @keyframes fadeIn {
   from {
     opacity: 0;
