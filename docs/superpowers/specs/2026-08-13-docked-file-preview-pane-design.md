@@ -64,7 +64,7 @@ New file: `common/FilePreviewPane.jsx`. Presentational, knows nothing about cert
   selectedId={selectedId}
   onSelect={(id) => …}
   open={split}                       // false = list only; true = list + docked panel
-  onToggle={() => …}                 // header "Preview" toggle
+  onToggle={() => …}                 // flips `open`; the toggle button lives in the HOST page toolbar, not the pane
   onExpand={(item) => …}             // opens the full-screen PreviewModal for the item
   onDownload={(item) => …}           // optional; falls back to item.fetchBlob download
   emptyText="No files"
@@ -74,7 +74,8 @@ New file: `common/FilePreviewPane.jsx`. Presentational, knows nothing about cert
 
 ### Layout & behavior
 
-- **Header**: title + a **Preview** toggle (list-only ↔ split). Matches the app toolbar look.
+- **Preview toggle placement**: the list-only ↔ split toggle is **not** inside the pane — it is rendered by the host page in its **existing top toolbar** (e.g. on `/files`, beside the "All Types" / "Name" selects). The page owns the `open` state and passes it in; `onToggle` flips it. This keeps per-row rows free of extra controls (so `/files` checkbox multi-select is untouched).
+- **Header** (optional): the pane may show a title; the toggle is a host-toolbar control, not a pane header button.
 - **List column** (left): one `CertFileRow` per item; the row whose `id === selectedId` gets an `is-selected` highlight. Clicking a row calls `onSelect(id)`. Each row keeps its own Preview (→ `onExpand`) and Download actions.
 - **Preview panel** (right, only when `open`): renders `<DocViewer>` for the selected item, plus an **Expand** action (calls `onExpand`) that pops the full-screen `PreviewModal`. Empty state when no selection.
 - **Responsive**: below `~900px` the split does not render — the component shows the list only, and row clicks call `onExpand` (full-screen modal) instead of docking. Implemented with a `matchMedia`/resize check (a small `useIsWide()` hook) so behavior is deterministic, not just CSS.
@@ -91,11 +92,11 @@ Each page maps its own data to the normalized item shape and owns selection + th
 
 ### 3b — File Manager (`FilesPage.jsx`)
 
-- Map the folder's `files` to items (`fetchBlob: () => fetch('/api/files/'+f.id+'/download', authHeader)`). Render `<FilePreviewPane>` in the right panel (`files-page__right`) as the single code path: `open=false` shows the list exactly as today, `open=true` docks the preview alongside it. (This replaces the direct `<FileList>` render on this surface.) `onExpand` reuses `previewFile` → `PreviewModal`. `onDelete` per row keeps the existing confirm flow. Checkbox multi-select must be preserved in the paned list — see Open Question 1.
+- Add a **Preview toggle to the top toolbar, beside the "All Types" / "Name" selects** (host-owned `split` state). Map the folder's `files` to items (`fetchBlob: () => fetch('/api/files/'+f.id+'/download', authHeader)`). Render `<FilePreviewPane open={split}>` in the right panel (`files-page__right`) as the single code path: `open=false` shows the list exactly as today (checkbox multi-select untouched), `open=true` docks the preview alongside it. (This replaces the direct `<FileList>` render on this surface.) `onExpand` reuses `previewFile` → `PreviewModal`. `onDelete` per row keeps the existing confirm flow. Because the toggle is in the toolbar (not on rows), checkbox multi-select needs no change.
 
 ### 3c — Client Programs/auth tab (`ProgramsAuthTab.jsx`) — full treatment
 
-- Replace the `cp-auth-attachments` download-only link list with items mapped from each auth's `documents[]` (`fetchBlob` wraps `api.downloadAuthDocument(id)`; see Data Contract note) rendered through `<FilePreviewPane>` (or, per auth, a `CertFileRow` list that toggles into the pane). Upload + delete affordances already on that tab are preserved. `onExpand` mounts a `PreviewModal` on the client detail page.
+- Replace the per-auth `cp-auth-attachments` download-only links with `CertFileRow` rows sourced from each authorization's `documents[]` (`fetchBlob` wraps `api.downloadAuthDocument(id)`; see Data Contract note), and add a **single shared preview pane for the whole tab**: selecting a document from any authorization card shows it in that one docked pane (host holds `selectedId` + `split` at the tab level; item ids namespaced e.g. `auth-doc:<id>`). Upload + delete affordances on each auth card are preserved. `onExpand` mounts a `PreviewModal` on the client detail page. The Preview toggle sits in the tab's toolbar area.
 
 ## Data Contract note — `downloadAuthDocument` returns a blob, not a Response
 
@@ -124,10 +125,10 @@ Each page maps its own data to the normalized item shape and owns selection + th
 - No change to archive/soft-delete, cert history data model, or the active/inactive toggle.
 - No multi-file compare / side-by-side of two documents.
 
-## Open Questions
+## Resolved Decisions
 
-1. **`/files` checkbox multi-select** in the paned list: keep checkboxes on the pane's rows (needs `CertFileRow` to optionally render a checkbox, or use `FileRow` on that surface) vs. only offer the pane when not in select mode. Lean: allow a `leading` slot on the row for the checkbox so `/files` keeps multi-select in split view.
-2. Whether the Programs/auth tab docks per-authorization or has one shared pane for the whole tab. Lean: one pane per expanded authorization card (attachments are scoped to an auth).
+1. **Preview toggle lives in the host page's top toolbar** (on `/files`, beside the "All Types" / "Name" selects), not on the pane or the rows. The page owns `split`/`open` state. Consequence: `/files` per-row checkbox multi-select is untouched.
+2. **The Programs/auth tab uses one shared preview pane** for the whole tab (not per-authorization card). Selecting a document from any auth card shows it in the single docked pane; item ids are namespaced (`auth-doc:<id>`).
 
 ## Files Touched
 
