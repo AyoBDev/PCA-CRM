@@ -1654,9 +1654,15 @@ body {
 .cert-viewer__body { flex: 1 1 auto; min-height: 420px; height: 60vh; }
 .cert-viewer__empty { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-height: 320px; color: hsl(var(--muted-foreground)); font-size: 13px; border: 1px dashed hsl(var(--border)); border-radius: var(--radius); }
 
-/* Portfolio two-column layout: card list (left) + persistent document viewer (right).
+/* Portfolio two-column layout: card list (left) + document viewer (right).
    Used by the employee Certifications tab and, with parallel classes, the client
-   Programs/Authorizations tab (see .pa-auth-portfolio below). */
+   Programs/Authorizations tab (see .pa-auth-portfolio below).
+   NOTE: the viewer is intentionally NOT `position: sticky`. Both hosts render this
+   inside `.cp-card__body` → `.cp-card`, and `.cp-card` has `overflow: hidden` — a
+   sticky descendant cannot escape an ancestor with overflow hidden/auto/scroll, so
+   it never actually tracks scroll (CSS spec: the nearest scrolling/clipping
+   ancestor becomes the sticky containing block). Rather than fight that ancestor's
+   clipping, the viewer simply scrolls with the page — a clean, predictable layout. */
 .cert-portfolio {
   display: flex;
   align-items: flex-start;
@@ -1669,9 +1675,6 @@ body {
 .cert-portfolio__viewer {
   flex: 1 1 45%;
   min-width: 0;
-  position: sticky;
-  top: 16px;
-  align-self: flex-start;
   background: hsl(var(--card));
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius);
@@ -1685,9 +1688,6 @@ body {
   .cert-portfolio__viewer {
     flex: 1 1 auto;
     width: 100%;
-  }
-  .cert-portfolio__viewer {
-    position: static;
   }
 }
 
@@ -11277,6 +11277,15 @@ button.sdr-section-tag:hover:not(:disabled) {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+/* Inside the portfolio list column (~55% width, beside the doc viewer) two grid
+   columns leave each card too narrow (~300px) for comfortable padding/content.
+   Collapse to a single flowing column so cards get full list-column width.
+   The __left/__right sub-columns are already flex columns, so stacking the grid
+   itself to one column makes them flow one after another correctly. Scoped to
+   .cert-portfolio__list so the standalone (non-portfolio) grid is unaffected. */
+.cert-portfolio__list .pa-services-grid {
+  grid-template-columns: 1fr;
 }
 .pa-service-card {
   border: 2px solid var(--card-border, hsl(var(--border)));
