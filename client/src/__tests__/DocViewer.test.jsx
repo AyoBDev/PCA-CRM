@@ -1,5 +1,5 @@
 // client/src/__tests__/DocViewer.test.jsx
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import DocViewer from '../components/common/DocViewer';
 
@@ -60,5 +60,22 @@ describe('DocViewer', () => {
     render(<DocViewer fileName="a.png" showToolbar={false} fetchBlob={() => Promise.resolve(mockResponse({ type: 'image/png' }))} />);
     await waitFor(() => expect(screen.getByRole('img')).toBeInTheDocument());
     expect(document.querySelector('.doc-viewer__toolbar')).not.toBeInTheDocument();
+  });
+
+  it('ignores ArrowRight when it originates from a text input, but pages when it does not', async () => {
+    render(
+      <div>
+        <input type="text" aria-label="search" />
+        <DocViewer fileName="a.pdf" fetchBlob={() => Promise.resolve(mockResponse({ type: 'application/pdf' }))} />
+      </div>
+    );
+    await waitFor(() => expect(screen.getByText('1 / 2')).toBeInTheDocument());
+
+    const inputEl = screen.getByLabelText('search');
+    fireEvent.keyDown(inputEl, { key: 'ArrowRight' });
+    expect(screen.getByText('1 / 2')).toBeInTheDocument();
+
+    fireEvent.keyDown(document.body, { key: 'ArrowRight' });
+    await waitFor(() => expect(screen.getByText('2 / 2')).toBeInTheDocument());
   });
 });

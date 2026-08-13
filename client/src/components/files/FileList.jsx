@@ -47,6 +47,17 @@ export default function FileList({
         return list;
     }, [files, filterType, sortBy]);
 
+    const previewItems = useMemo(() => filtered.map(f => ({
+        id: f.id,
+        fileName: f.name,
+        fileType: f.mimeType,
+        cacheKey: `file:${f.id}`,
+        fetchBlob: () => fetch(`/api/files/${f.id}/download`, {
+            headers: { Authorization: `Bearer ${api.getToken()}` },
+        }),
+        meta: `${getFileTypeInfo(f.name).label} · ${formatFileSize(f.size)}`,
+    })), [filtered]);
+
     if (!folder) {
         return (
             <div className="file-list file-list--empty-state">
@@ -105,16 +116,7 @@ export default function FileList({
                 </div>
             ) : previewOn ? (
                 <FilePreviewPane
-                    items={filtered.map(f => ({
-                        id: f.id,
-                        fileName: f.name,
-                        fileType: f.mimeType,
-                        cacheKey: `file:${f.id}`,
-                        fetchBlob: () => fetch(`/api/files/${f.id}/download`, {
-                            headers: { Authorization: `Bearer ${api.getToken()}` },
-                        }),
-                        meta: `${getFileTypeInfo(f.name).label} · ${formatFileSize(f.size)}`,
-                    }))}
+                    items={previewItems}
                     selectedId={selectedFileId}
                     onSelect={onSelectFile}
                     open={previewOn}

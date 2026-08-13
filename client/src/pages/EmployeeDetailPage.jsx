@@ -924,6 +924,23 @@ function CertificationsTab({ employee, onEdit }) {
     const statusLabel = (s) => s === 'ok' ? 'Active' : s === 'critical' ? 'Expiring Soon' : s === 'expired' ? 'Expired' : 'Not Set';
     const statusBadgeClass = (s) => s === 'ok' ? 'submitted' : s === 'critical' ? 'draft' : s === 'expired' ? 'critical' : 'draft';
 
+    // Stable fetchBlob closures for the docked FilePreviewPane, keyed by
+    // record/upload id. Built once per certRecords change (not per render of
+    // renderCertCard, which runs inside a .map() and can't call useMemo
+    // itself) so DocViewer doesn't see a new fetchBlob identity — and
+    // refetch/reload the file — on every unrelated re-render while the pane
+    // is open.
+    const certFetchBlobs = useMemo(() => {
+        const map = new Map();
+        certRecords.forEach(rec => {
+            map.set(`cert:${rec.id}`, () => api.downloadEmployeeCertification(rec.id));
+            (rec.uploads || []).forEach(u => {
+                map.set(`upload:${u.id}`, () => api.downloadCertificationUpload(u.id));
+            });
+        });
+        return map;
+    }, [certRecords]);
+
     return (
         <div className="cp-tab-panel">
             <div className="cp-card cp-card--elevated">
@@ -1133,7 +1150,7 @@ function CertificationsTab({ employee, onEdit }) {
                                         fileName: rec.fileName,
                                         fileType: rec.fileType,
                                         cacheKey: `cert:${rec.id}`,
-                                        fetchBlob: () => api.downloadEmployeeCertification(rec.id),
+                                        fetchBlob: certFetchBlobs.get(`cert:${rec.id}`) || (() => api.downloadEmployeeCertification(rec.id)),
                                         meta: rec.expirationDate ? `Expires ${formatDate(rec.expirationDate)}` : 'No expiry',
                                         badge: (
                                             <span className={`ts-badge ts-badge--${statusBadgeClass(status)}`}>
@@ -1145,7 +1162,7 @@ function CertificationsTab({ employee, onEdit }) {
                                         fileName: u.fileName,
                                         fileType: u.fileType,
                                         cacheKey: `cert-upload:${u.id}`,
-                                        fetchBlob: () => api.downloadCertificationUpload(u.id),
+                                        fetchBlob: certFetchBlobs.get(`upload:${u.id}`) || (() => api.downloadCertificationUpload(u.id)),
                                         meta: [u.submittedAt ? `Uploaded ${formatTimestamp(u.submittedAt)}` : '', u.expirationDate ? `Expires ${formatDate(u.expirationDate)}` : ''].filter(Boolean).join(' · '),
                                     }))];
 

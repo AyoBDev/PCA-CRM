@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import Icons from '../../components/common/Icons';
 import * as api from '../../api';
 import { ACCOUNT_NUMBER_OPTIONS } from '../../utils/accountMapping';
@@ -115,16 +115,22 @@ export default function ProgramsAuthTab({
 
     // One shared item list across every authorization's documents, for the
     // docked FilePreviewPane. Namespaced ids keep them distinct from other
-    // preview surfaces on the client detail page.
-    const allAuthsFlat = Object.values(authGroupsForInsurance).flatMap(({ current, archived }) => [...current, ...archived]);
-    const authDocItems = allAuthsFlat.flatMap(a => (a.documents || []).map(doc => ({
-        id: `auth-doc:${doc.id}`,
-        fileName: doc.fileName || doc.name,
-        fileType: doc.fileType || doc.mimeType,
-        cacheKey: `auth-doc:${doc.id}`,
-        fetchBlob: () => api.downloadAuthDocument(doc.id),
-        meta: a.serviceCode ? `${a.serviceCode}` : '',
-    })));
+    // preview surfaces on the client detail page. Memoized on
+    // authGroupsForInsurance so fetchBlob closures keep a stable identity
+    // across re-renders of this component that don't actually change the
+    // authorization/document data (DocViewer reloads whenever fetchBlob
+    // changes identity).
+    const authDocItems = useMemo(() => {
+        const allAuthsFlat = Object.values(authGroupsForInsurance).flatMap(({ current, archived }) => [...current, ...archived]);
+        return allAuthsFlat.flatMap(a => (a.documents || []).map(doc => ({
+            id: `auth-doc:${doc.id}`,
+            fileName: doc.fileName || doc.name,
+            fileType: doc.fileType || doc.mimeType,
+            cacheKey: `auth-doc:${doc.id}`,
+            fetchBlob: () => api.downloadAuthDocument(doc.id),
+            meta: a.serviceCode ? `${a.serviceCode}` : '',
+        })));
+    }, [authGroupsForInsurance]);
 
     const toggleAuthExpanded = (authId) => {
         setExpandedAuthIds(prev => ({ ...prev, [authId]: !prev[authId] }));

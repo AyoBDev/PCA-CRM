@@ -104,6 +104,8 @@ export default function DocViewer({ fileName, fetchBlob, maxBytes = DEFAULT_MAX_
 
     useEffect(() => {
         const onKey = (e) => {
+            const t = e.target;
+            if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
             if (!isPdf || numPages <= 1) return;
             if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); goPage(1); }
             if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); goPage(-1); }
