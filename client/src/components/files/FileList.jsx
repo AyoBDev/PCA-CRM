@@ -3,6 +3,7 @@ import UploadZone from './UploadZone';
 import FileRow from './FileRow';
 import FilePreviewPane from '../common/FilePreviewPane';
 import Tooltip from '../common/Tooltip';
+import ToggleSwitch from '../common/ToggleSwitch';
 import Icons from '../common/Icons';
 import { getFileTypeInfo, formatFileSize } from './fileTypeUtils.jsx';
 import * as api from '../../api';
@@ -97,13 +98,9 @@ export default function FileList({
                         <option value="size">Size</option>
                     </select>
                     <Tooltip content={previewOn ? 'Switch back to the list view' : 'Show a docked preview alongside the file list'}>
-                        <button
-                            type="button"
-                            className={`file-list__filter${previewOn ? ' is-active' : ''}`}
-                            onClick={onTogglePreview}
-                        >
-                            {Icons.eye} {previewOn ? 'Preview: On' : 'Preview'}
-                        </button>
+                        <span className="file-list__preview-toggle">
+                            <ToggleSwitch checked={previewOn} onChange={onTogglePreview} label="Preview" />
+                        </span>
                     </Tooltip>
                 </div>
             </div>

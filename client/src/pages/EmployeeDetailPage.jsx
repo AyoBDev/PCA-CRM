@@ -18,6 +18,7 @@ import PreviewModal from '../components/common/PreviewModal';
 import CertFileRow from '../components/files/CertFileRow';
 import FilePreviewPane from '../components/common/FilePreviewPane';
 import Tooltip from '../components/common/Tooltip';
+import ToggleSwitch from '../components/common/ToggleSwitch';
 import { hhmm12 } from '../utils/time';
 
 const TABS = [
@@ -1171,9 +1172,9 @@ function CertificationsTab({ employee, onEdit }) {
                                             <div className="cert-history__label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                                 <span>History</span>
                                                 <Tooltip content={split ? 'Hide the docked file preview' : 'Dock a file preview alongside this list'}>
-                                                    <button className="btn btn--outline btn--sm" onClick={() => setSplit(s => !s)}>
-                                                        {split ? 'Hide preview' : 'Preview'}
-                                                    </button>
+                                                    <span className="cert-preview-toggle">
+                                                        <ToggleSwitch checked={split} onChange={(v) => setSplit(v)} label="Preview" />
+                                                    </span>
                                                 </Tooltip>
                                             </div>
                                             {rec.notes && (

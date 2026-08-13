@@ -5,6 +5,7 @@ import { ACCOUNT_NUMBER_OPTIONS } from '../../utils/accountMapping';
 import { AUTH_COLORS, DEFAULT_AUTH_COLOR, getAuthSortKey } from '../../utils/constants';
 import { useServices } from '../../hooks/useServices';
 import FilePreviewPane from '../../components/common/FilePreviewPane';
+import ToggleSwitch from '../../components/common/ToggleSwitch';
 import Tooltip from '../../components/common/Tooltip';
 
 const LEFT_CODES = ['PCS', 'SDPC', 'COPE', 'PAS'];
@@ -440,13 +441,9 @@ export default function ProgramsAuthTab({
                             ))}
                         </div>
                         <Tooltip content={authDocSplit ? 'Switch back to the list view' : 'Show a docked preview of authorization attachments'}>
-                            <button
-                                type="button"
-                                className={`btn btn--outline btn--sm${authDocSplit ? ' is-active' : ''}`}
-                                onClick={() => setAuthDocSplit(prev => !prev)}
-                            >
-                                {Icons.eye} {authDocSplit ? 'Preview: On' : 'Preview'}
-                            </button>
+                            <span className="cp-auth-preview-toggle">
+                                <ToggleSwitch checked={authDocSplit} onChange={(v) => setAuthDocSplit(v)} label="Preview" />
+                            </span>
                         </Tooltip>
                         <button className="btn btn--primary btn--sm" onClick={() => openAuthModal(null, '')}>{Icons.plus} Add Authorization</button>
                     </div>
