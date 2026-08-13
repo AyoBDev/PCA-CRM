@@ -74,6 +74,8 @@ Shared components under `client/src/components/`:
 - `common/Modal.jsx`, `common/ConfirmModal.jsx`, `common/SignaturePad.jsx`
 - `common/DocViewer.jsx` — the shared pdf.js/image **rendering engine**; both `PreviewModal` (full-screen) and `FilePreviewPane` (docked) render it. See "File Preview & Thumbnails" below.
 - `common/FilePreviewPane.jsx` — **docked** split-view alternative to the full-screen `PreviewModal`. See "File Preview & Thumbnails" below.
+- `common/CertViewerPanel.jsx` — **persistent** DocViewer panel for the two-column certification portfolio layout. See "File Preview & Thumbnails" below.
+- `common/ToggleSwitch.jsx` — reusable sliding on/off switch (`role="switch"`, keyboard-toggleable).
 - `common/Tooltip.jsx` — **App-wide tooltip** (see below). Use this for all hover/focus hints; do not add new native `title=` attributes.
 - `layout/Layout.jsx`, `layout/Sidebar.jsx`, `layout/Toast.jsx`
 
@@ -481,6 +483,9 @@ All of them take a **`fetchBlob` function** (not a URL): `() => Promise<Response
 | `FileThumbnailStrip` | `common/FileThumbnailStrip.jsx` | A row of `FileThumbnail`s with a `+N` overflow gallery. |
 | `CertFileRow` | `files/CertFileRow.jsx` | A **file row** styled like the File Manager list (`.file-row`): thumbnail · name · meta line · Preview + Download. Used for both a current file and history items. Optional `fetchBlob`/`cacheKey`/`badge`/`expiresText`. |
 | `FileRow` | `files/FileRow.jsx` | The File Manager list row (checkbox · thumbnail · name · meta · actions). Reuse for file lists; use `CertFileRow` for lighter, badge-carrying rows. |
+| `CertViewerPanel` | `common/CertViewerPanel.jsx` | **Persistent** (non-modal) DocViewer panel used as the right-hand column of a two-column "certification portfolio" layout — header, a file-bar (filename + status badge), and `DocViewer` underneath. Props: `{ fileName, fetchBlob, status?, statusClass?, onHistory?, onReplace?, emptyText? }`; `onHistory`/`onReplace` are injected into `DocViewer` via `extraToolbarActions`. Renders an empty state when `fetchBlob` is falsy (nothing selected yet). |
+| `CertCard` | `employee/CertCard.jsx` | A selectable card for one certification in the portfolio's cards grid: icon, status badge, expiry date + days-remaining, a status-colored progress bar (via `progressForCert`), and View/Upload/Replace actions. Props: `{ label, icon, colors, status, statusLabel, days, expDate, renewalLabel, hasFile, selected, onSelect, onView, onUpload }`. |
+| `progressForCert` | `utils/certProgress.js` | `({ status, days, renewalYears, hasFile }) → { pct, variant }` — pure function computing a `CertCard`'s progress-bar fill percent and color variant (`expired`/`expiring`/`active`/`complete`/`notset`). Route any cert progress-bar math through this instead of re-deriving inline. |
 | `useFileThumbnail` | `hooks/useFileThumbnail.js` | `(cacheKey, fetchBlob, mimeType, { enabled, maxPdfBytes })` → `{ status, thumbUrl }`. LRU-cached, lazy. Backs `FileThumbnail`. |
 | `renderPdfFirstPage` / `loadPdfDocument` / `getPdfjs` | `lib/pdfThumbnail.js` | pdf.js helpers: first-page thumbnail dataURL; open a doc for the viewer; shared worker setup. **Always** go through these so the pdf.js worker is configured once. |
 | `getFileTypeInfo` / `FileTypeIcon` / `formatFileSize` / `formatUploadDate` | `files/fileTypeUtils.jsx` | File-type label/icon and size/date formatters used by the rows. |
@@ -518,6 +523,7 @@ const [preview, setPreview] = useState(null);
 ### Rules
 - **`DocViewer` is the only rendering engine for previewing a file in-app** (never open files in a new tab or embed a bare `<iframe>` for preview) — route through either `PreviewModal` (full-screen) or `FilePreviewPane` (docked), which both render `DocViewer`. Don't duplicate pdf.js/image rendering in a new component.
 - Prefer `PreviewModal` for a single ad-hoc preview action; use `FilePreviewPane` when a page wants a persistent, dockable split-view (list + preview side by side) with a toolbar toggle — see `FilesPage.jsx` and the certifications tab for reference usage.
+- **Two-column "certification portfolio" pattern** (`CertificationsTab` in `EmployeeDetailPage.jsx`): a cards grid (`CertCard`, one per certification) on the left plus a persistent `CertViewerPanel` on the right. The viewer column is only rendered on wide viewports — gated by `useIsWide(1024)` — and collapses to the existing full-screen `PreviewModal` on narrow screens (single-column card list; tapping a card opens the modal instead of docking). Each `CertCard`'s progress bar is driven by `progressForCert()` from `utils/certProgress.js`, never ad-hoc math.
 - Pass `onDelete` only where deletion is supported (it renders the Delete tool and should trigger the caller's existing confirm flow).
 - Thumbnails/previews are **lazy** and **cached** (`useFileThumbnail`) — reuse a stable `cacheKey` per file (`file:{id}`, `cert-upload:{id}`, `cert:{id}`).
 - PDF rendering must go through `lib/pdfThumbnail.js` (shared worker). The pdf.js bundle is code-split (`pdf-*.js`) — don't import `pdfjs-dist` directly elsewhere.
