@@ -16795,3 +16795,28 @@ tr:hover .auth-note-icon--empty {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
+/* CertCard — certification portfolio card (Task 3) */
+.cert-card { border: 1px solid hsl(var(--border)); border-left: 4px solid var(--card-accent, hsl(var(--primary))); border-radius: 12px; background: hsl(var(--card)); padding: 16px; cursor: pointer; transition: box-shadow 0.15s, border-color 0.15s; }
+.cert-card:hover { box-shadow: 0 4px 14px hsl(0 0% 0% / 0.06); }
+.cert-card.is-selected { box-shadow: 0 0 0 2px hsl(var(--primary)); }
+.cert-card__header { display: flex; align-items: center; gap: 10px; }
+.cert-card__icon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.cert-card__icon svg { width: 18px; height: 18px; }
+.cert-card__title-area { flex: 1; min-width: 0; }
+.cert-card__title { font-size: 14px; font-weight: 700; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cert-card__meta { margin: 12px 0 8px; }
+.cert-card__expiry { font-size: 14px; font-weight: 600; color: hsl(var(--foreground)); }
+.cert-card__days { font-size: 12px; color: hsl(var(--muted-foreground)); margin-top: 2px; }
+.cert-card__progress { height: 6px; border-radius: 999px; background: hsl(var(--muted)); overflow: hidden; }
+.cert-card__progress-fill { height: 100%; border-radius: 999px; }
+.cert-card__progress-fill--active { background: #22c55e; }
+.cert-card__progress-fill--expiring { background: #f59e0b; }
+.cert-card__progress-fill--expired { background: #dc2626; }
+.cert-card__progress-fill--notset { background: #8b5cf6; }
+.cert-card__progress-fill--complete { background: #22c55e; }
+.cert-card__renewal { display: flex; align-items: center; justify-content: space-between; margin: 12px 0; font-size: 13px; }
+.cert-card__renewal-label { color: hsl(var(--muted-foreground)); }
+.cert-card__renewal-value { font-weight: 600; }
+.cert-card__actions { display: flex; gap: 8px; }
+.cert-card__actions .btn { flex: 1; justify-content: center; }
