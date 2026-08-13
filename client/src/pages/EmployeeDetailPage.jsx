@@ -13,9 +13,11 @@ import EmployeeNotesTab from './employee-tabs/NotesTab';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import { TIMESHEET_STATUS_STYLES, TIMESHEET_SERVICE_COLORS } from '../utils/constants';
-import { formatDate } from '../utils/dates';
+import { formatDate, formatTimestamp } from '../utils/dates';
 import PreviewModal from '../components/common/PreviewModal';
 import CertFileRow from '../components/files/CertFileRow';
+import FilePreviewPane from '../components/common/FilePreviewPane';
+import Tooltip from '../components/common/Tooltip';
 import { hhmm12 } from '../utils/time';
 
 const TABS = [
@@ -804,6 +806,8 @@ function CertificationsTab({ employee, onEdit }) {
     const [showUploadModal, setShowUploadModal] = useState(null);
     const [certFilter, setCertFilter] = useState('All');
     const [previewUpload, setPreviewUpload] = useState(null);
+    const [split, setSplit] = useState(false);
+    const [selectedFileId, setSelectedFileId] = useState(null);
 
     const fetchCerts = useCallback(async () => {
         try {
@@ -890,6 +894,27 @@ function CertificationsTab({ employee, onEdit }) {
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = upload.fileName;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    // Shared save helper for FilePreviewPane items (current file + history), mirroring
+    // handleDownload/handleDownloadUpload but sourced from an item's fetchBlob.
+    const saveItem = async (item) => {
+        try {
+            const res = await item.fetchBlob();
+            if (!res.ok) throw new Error('Download failed');
+            const contentType = res.headers.get('Content-Type') || 'application/octet-stream';
+            const blob = await res.blob();
+            const url = URL.createObjectURL(new Blob([blob], { type: contentType }));
+            if (contentType === 'application/pdf') {
+                window.open(url, '_blank');
+            } else {
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = item.fileName;
                 a.click();
                 URL.revokeObjectURL(url);
             }
@@ -1069,70 +1094,87 @@ function CertificationsTab({ employee, onEdit }) {
                             <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', padding: '12px 0' }}>No certification records on file.</div>
                         ) : (
                             <div className="pa-auth-list">
-                                {activeRecords.map(rec => (
-                                    <div key={rec.id} className="pa-auth-item pa-auth-item--active">
-                                        <div className="cert-history__label">Current File</div>
-                                        <div className="cert-history__list">
-                                            {rec.fileName ? (
-                                                <CertFileRow
-                                                    upload={{ id: rec.id, fileName: rec.fileName, fileType: rec.fileType, note: rec.notes }}
-                                                    cacheKey={`cert:${rec.id}`}
-                                                    fetchBlob={() => api.downloadEmployeeCertification(rec.id)}
-                                                    onPreview={setPreviewUpload}
-                                                    onDownload={() => handleDownload(rec)}
-                                                    expiresText={rec.expirationDate ? `Expires ${formatDate(rec.expirationDate)}` : 'No expiry'}
-                                                    badge={(
-                                                        <span className={`ts-badge ts-badge--${statusBadgeClass(status)}`}>
-                                                            {statusLabel(status)} {days !== null && `(${days >= 0 ? `${days}d` : `${Math.abs(days)}d ago`})`}
-                                                        </span>
-                                                    )}
-                                                />
-                                            ) : (
-                                                <div className="file-row file-row--cert">
-                                                    <div className="file-row__main">
-                                                        <div className="file-row__name">No file uploaded</div>
-                                                        <div className="file-row__submeta">
-                                                            {rec.expirationDate ? `Expires ${formatDate(rec.expirationDate)}` : 'No expiry'}
+                                {activeRecords.map(rec => {
+                                    if (!rec.fileName) {
+                                        return (
+                                            <div key={rec.id} className="pa-auth-item pa-auth-item--active">
+                                                <div className="cert-history__label">Current File</div>
+                                                <div className="cert-history__list">
+                                                    <div className="file-row file-row--cert">
+                                                        <div className="file-row__main">
+                                                            <div className="file-row__name">No file uploaded</div>
+                                                            <div className="file-row__submeta">
+                                                                {rec.expirationDate ? `Expires ${formatDate(rec.expirationDate)}` : 'No expiry'}
+                                                            </div>
+                                                        </div>
+                                                        <div className="file-row__badge">
+                                                            <span className={`ts-badge ts-badge--${statusBadgeClass(status)}`}>
+                                                                {statusLabel(status)} {days !== null && `(${days >= 0 ? `${days}d` : `${Math.abs(days)}d ago`})`}
+                                                            </span>
                                                         </div>
                                                     </div>
-                                                    <div className="file-row__badge">
-                                                        <span className={`ts-badge ts-badge--${statusBadgeClass(status)}`}>
-                                                            {statusLabel(status)} {days !== null && `(${days >= 0 ? `${days}d` : `${Math.abs(days)}d ago`})`}
-                                                        </span>
+                                                </div>
+                                                {rec.notes && (
+                                                    <div className="pa-auth-item__body">
+                                                        <div className="pa-auth-item__notes">{rec.notes}</div>
                                                     </div>
+                                                )}
+                                            </div>
+                                        );
+                                    }
+
+                                    // History attachments under the active cert. The active file itself
+                                    // already appears as the first pane item, so skip the upload row that
+                                    // matches the active fileName to avoid a duplicate; the rest are
+                                    // prior/expired history files.
+                                    const history = (rec.uploads || []).filter(u => u.fileName !== rec.fileName);
+                                    const items = [{
+                                        id: `cert:${rec.id}`,
+                                        fileName: rec.fileName,
+                                        fileType: rec.fileType,
+                                        cacheKey: `cert:${rec.id}`,
+                                        fetchBlob: () => api.downloadEmployeeCertification(rec.id),
+                                        meta: rec.expirationDate ? `Expires ${formatDate(rec.expirationDate)}` : 'No expiry',
+                                        badge: (
+                                            <span className={`ts-badge ts-badge--${statusBadgeClass(status)}`}>
+                                                {statusLabel(status)} {days !== null && `(${days >= 0 ? `${days}d` : `${Math.abs(days)}d ago`})`}
+                                            </span>
+                                        ),
+                                    }, ...history.map(u => ({
+                                        id: `upload:${u.id}`,
+                                        fileName: u.fileName,
+                                        fileType: u.fileType,
+                                        cacheKey: `cert-upload:${u.id}`,
+                                        fetchBlob: () => api.downloadCertificationUpload(u.id),
+                                        meta: [u.submittedAt ? `Uploaded ${formatTimestamp(u.submittedAt)}` : '', u.expirationDate ? `Expires ${formatDate(u.expirationDate)}` : ''].filter(Boolean).join(' · '),
+                                    }))];
+
+                                    return (
+                                        <div key={rec.id} className="pa-auth-item pa-auth-item--active">
+                                            <div className="cert-history__label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                <span>History</span>
+                                                <Tooltip content={split ? 'Hide the docked file preview' : 'Dock a file preview alongside this list'}>
+                                                    <button className="btn btn--outline btn--sm" onClick={() => setSplit(s => !s)}>
+                                                        {split ? 'Hide preview' : 'Preview'}
+                                                    </button>
+                                                </Tooltip>
+                                            </div>
+                                            {rec.notes && (
+                                                <div className="pa-auth-item__body">
+                                                    <div className="pa-auth-item__notes">{rec.notes}</div>
                                                 </div>
                                             )}
+                                            <FilePreviewPane
+                                                items={items}
+                                                selectedId={selectedFileId}
+                                                onSelect={setSelectedFileId}
+                                                open={split}
+                                                onExpand={(item) => setPreviewUpload({ fileName: item.fileName, fetchBlob: item.fetchBlob })}
+                                                onDownload={saveItem}
+                                            />
                                         </div>
-                                        {rec.notes && !rec.fileName && (
-                                            <div className="pa-auth-item__body">
-                                                <div className="pa-auth-item__notes">{rec.notes}</div>
-                                            </div>
-                                        )}
-                                        {(() => {
-                                            // Show history attachments under the active cert. The active file
-                                            // itself already appears in the header with its own download button,
-                                            // so skip the upload row that matches the active fileName to avoid a
-                                            // duplicate; the rest are prior/expired history files.
-                                            const history = (rec.uploads || []).filter(u => u.fileName !== rec.fileName);
-                                            if (history.length === 0) return null;
-                                            return (
-                                                <div className="pa-auth-item__body cert-history__body">
-                                                    <div className="cert-history__label">History</div>
-                                                    <div className="cert-history__list">
-                                                        {history.map(upload => (
-                                                            <CertFileRow
-                                                                key={upload.id}
-                                                                upload={upload}
-                                                                onPreview={setPreviewUpload}
-                                                                onDownload={handleDownloadUpload}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })()}
-                                    </div>
-                                ))}
+                                    );
+                                })}
                                 {pendingRecords.length > 0 && (
                                     <>
                                         <div style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--primary))', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '8px 0 4px' }}>Pending Review (uploaded by employee)</div>
