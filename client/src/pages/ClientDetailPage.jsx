@@ -672,7 +672,9 @@ export default function ClientDetailPage() {
 
     const handleDownloadAuthDoc = async (doc) => {
         try {
-            const blob = await api.downloadAuthDocument(doc.id);
+            const res = await api.downloadAuthDocument(doc.id);
+            if (!res.ok) throw new Error('Download failed');
+            const blob = await res.blob();
             const url = URL.createObjectURL(blob);
             if (doc.mimeType === 'application/pdf' || doc.fileName?.toLowerCase().endsWith('.pdf')) {
                 window.open(url, '_blank');
