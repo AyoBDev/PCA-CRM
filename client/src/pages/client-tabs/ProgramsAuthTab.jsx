@@ -449,67 +449,72 @@ export default function ProgramsAuthTab({
                     </div>
                 </div>
                 <div className="cp-card__body">
-                    {authDocSplit && (
-                        <div className="pa-auth-doc-preview" style={{ marginBottom: 16 }}>
-                            <FilePreviewPane
-                                items={authDocItems}
-                                selectedId={selectedAuthDoc}
-                                onSelect={setSelectedAuthDoc}
-                                open={authDocSplit}
-                                onExpand={(item) => setPreviewAuthDoc && setPreviewAuthDoc({ fileName: item.fileName, fetchBlob: item.fetchBlob })}
-                                onDownload={(item) => setPreviewAuthDoc && setPreviewAuthDoc({ fileName: item.fileName, fetchBlob: item.fetchBlob })}
-                                emptyText="No authorization attachments on file."
-                            />
-                        </div>
-                    )}
-                    {Object.keys(authGroupsForInsurance).length === 0 ? (
-                        <div className="cp-empty-state-card">
-                            <div className="cp-empty-state-card__icon">{Icons.clipboard}</div>
-                            <p>No authorizations on file.</p>
-                        </div>
-                    ) : (
-                        <div className="pa-services-grid">
-                            <div className="pa-services-grid__left">
-                                {leftCodes.map(code => renderServiceCard(code))}
-                            </div>
-                            <div className="pa-services-grid__right">
-                                {rightCodes.map(code => renderServiceCard(code))}
-                            </div>
-                        </div>
-                    )}
+                    <div className={authDocSplit ? 'cert-portfolio' : undefined}>
+                        <div className={authDocSplit ? 'cert-portfolio__list' : undefined}>
+                            {Object.keys(authGroupsForInsurance).length === 0 ? (
+                                <div className="cp-empty-state-card">
+                                    <div className="cp-empty-state-card__icon">{Icons.clipboard}</div>
+                                    <p>No authorizations on file.</p>
+                                </div>
+                            ) : (
+                                <div className="pa-services-grid">
+                                    <div className="pa-services-grid__left">
+                                        {leftCodes.map(code => renderServiceCard(code))}
+                                    </div>
+                                    <div className="pa-services-grid__right">
+                                        {rightCodes.map(code => renderServiceCard(code))}
+                                    </div>
+                                </div>
+                            )}
 
-                    {Object.keys(authGroupsForInsurance).length > 0 && (
-                        <div className="pa-summary-bar">
-                            <div className="pa-summary-bar__item">
-                                <div className="pa-summary-bar__icon" style={{ color: '#22c55e' }}>{Icons.checkCircle}</div>
-                                <div className="pa-summary-bar__data">
-                                    <span className="pa-summary-bar__label">TOTAL ACTIVE</span>
-                                    <span className="pa-summary-bar__value">{totalActive}</span>
+                            {Object.keys(authGroupsForInsurance).length > 0 && (
+                                <div className="pa-summary-bar">
+                                    <div className="pa-summary-bar__item">
+                                        <div className="pa-summary-bar__icon" style={{ color: '#22c55e' }}>{Icons.checkCircle}</div>
+                                        <div className="pa-summary-bar__data">
+                                            <span className="pa-summary-bar__label">TOTAL ACTIVE</span>
+                                            <span className="pa-summary-bar__value">{totalActive}</span>
+                                        </div>
+                                    </div>
+                                    <div className="pa-summary-bar__item">
+                                        <div className="pa-summary-bar__icon" style={{ color: '#3b82f6' }}>{Icons.clock}</div>
+                                        <div className="pa-summary-bar__data">
+                                            <span className="pa-summary-bar__label">TOTAL UNITS</span>
+                                            <span className="pa-summary-bar__value">{totalUnits}</span>
+                                        </div>
+                                    </div>
+                                    <div className="pa-summary-bar__item">
+                                        <div className="pa-summary-bar__icon" style={{ color: '#f59e0b' }}>{Icons.clock}</div>
+                                        <div className="pa-summary-bar__data">
+                                            <span className="pa-summary-bar__label">TOTAL HOURS</span>
+                                            <span className="pa-summary-bar__value">{totalHours}</span>
+                                        </div>
+                                    </div>
+                                    <div className="pa-summary-bar__item">
+                                        <div className="pa-summary-bar__icon" style={{ color: '#22c55e' }}>{Icons.paperclip}</div>
+                                        <div className="pa-summary-bar__data">
+                                            <span className="pa-summary-bar__label">DOCUMENTS</span>
+                                            <span className="pa-summary-bar__value">{totalDocs || 0}</span>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="pa-summary-bar__item">
-                                <div className="pa-summary-bar__icon" style={{ color: '#3b82f6' }}>{Icons.clock}</div>
-                                <div className="pa-summary-bar__data">
-                                    <span className="pa-summary-bar__label">TOTAL UNITS</span>
-                                    <span className="pa-summary-bar__value">{totalUnits}</span>
-                                </div>
-                            </div>
-                            <div className="pa-summary-bar__item">
-                                <div className="pa-summary-bar__icon" style={{ color: '#f59e0b' }}>{Icons.clock}</div>
-                                <div className="pa-summary-bar__data">
-                                    <span className="pa-summary-bar__label">TOTAL HOURS</span>
-                                    <span className="pa-summary-bar__value">{totalHours}</span>
-                                </div>
-                            </div>
-                            <div className="pa-summary-bar__item">
-                                <div className="pa-summary-bar__icon" style={{ color: '#22c55e' }}>{Icons.paperclip}</div>
-                                <div className="pa-summary-bar__data">
-                                    <span className="pa-summary-bar__label">DOCUMENTS</span>
-                                    <span className="pa-summary-bar__value">{totalDocs || 0}</span>
-                                </div>
-                            </div>
+                            )}
                         </div>
-                    )}
+
+                        {authDocSplit && (
+                            <div className="cert-portfolio__viewer">
+                                <FilePreviewPane
+                                    items={authDocItems}
+                                    selectedId={selectedAuthDoc}
+                                    onSelect={setSelectedAuthDoc}
+                                    open={authDocSplit}
+                                    onExpand={(item) => setPreviewAuthDoc && setPreviewAuthDoc({ fileName: item.fileName, fetchBlob: item.fetchBlob })}
+                                    onDownload={(item) => setPreviewAuthDoc && setPreviewAuthDoc({ fileName: item.fileName, fetchBlob: item.fetchBlob })}
+                                    emptyText="No authorization attachments on file."
+                                />
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

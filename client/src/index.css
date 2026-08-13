@@ -1654,6 +1654,43 @@ body {
 .cert-viewer__body { flex: 1 1 auto; min-height: 420px; height: 60vh; }
 .cert-viewer__empty { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-height: 320px; color: hsl(var(--muted-foreground)); font-size: 13px; border: 1px dashed hsl(var(--border)); border-radius: var(--radius); }
 
+/* Portfolio two-column layout: card list (left) + persistent document viewer (right).
+   Used by the employee Certifications tab and, with parallel classes, the client
+   Programs/Authorizations tab (see .pa-auth-portfolio below). */
+.cert-portfolio {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+}
+.cert-portfolio__list {
+  flex: 1 1 55%;
+  min-width: 0;
+}
+.cert-portfolio__viewer {
+  flex: 1 1 45%;
+  min-width: 0;
+  position: sticky;
+  top: 16px;
+  align-self: flex-start;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 16px;
+}
+@media (max-width: 1023px) {
+  .cert-portfolio {
+    flex-direction: column;
+  }
+  .cert-portfolio__list,
+  .cert-portfolio__viewer {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+  .cert-portfolio__viewer {
+    position: static;
+  }
+}
+
 /* Sliding on/off switch (common/ToggleSwitch) */
 .toggle-switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
 .toggle-switch--disabled { cursor: default; opacity: 0.5; }
