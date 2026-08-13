@@ -1,6 +1,11 @@
 import { useState, useMemo } from 'react';
 import UploadZone from './UploadZone';
 import FileRow from './FileRow';
+import FilePreviewPane from '../common/FilePreviewPane';
+import Tooltip from '../common/Tooltip';
+import Icons from '../common/Icons';
+import { getFileTypeInfo, formatFileSize } from './fileTypeUtils.jsx';
+import * as api from '../../api';
 
 export default function FileList({
     folder,
@@ -13,6 +18,10 @@ export default function FileList({
     onDelete,
     onEditPdf,
     onUpload,
+    previewOn,
+    onTogglePreview,
+    selectedFileId,
+    onSelectFile,
 }) {
     const [sortBy, setSortBy] = useState('name');
     const [filterType, setFilterType] = useState('all');
@@ -76,6 +85,15 @@ export default function FileList({
                         <option value="date">Date</option>
                         <option value="size">Size</option>
                     </select>
+                    <Tooltip content={previewOn ? 'Switch back to the list view' : 'Show a docked preview alongside the file list'}>
+                        <button
+                            type="button"
+                            className={`file-list__filter${previewOn ? ' is-active' : ''}`}
+                            onClick={onTogglePreview}
+                        >
+                            {Icons.eye} {previewOn ? 'Preview: On' : 'Preview'}
+                        </button>
+                    </Tooltip>
                 </div>
             </div>
 
@@ -85,6 +103,25 @@ export default function FileList({
                 <div className="file-list__empty">
                     {filterType !== 'all' ? 'No files match this filter.' : 'No files yet. Upload files above.'}
                 </div>
+            ) : previewOn ? (
+                <FilePreviewPane
+                    items={filtered.map(f => ({
+                        id: f.id,
+                        fileName: f.name,
+                        fileType: f.mimeType,
+                        cacheKey: `file:${f.id}`,
+                        fetchBlob: () => fetch(`/api/files/${f.id}/download`, {
+                            headers: { Authorization: `Bearer ${api.getToken()}` },
+                        }),
+                        meta: `${getFileTypeInfo(f.name).label} · ${formatFileSize(f.size)}`,
+                    }))}
+                    selectedId={selectedFileId}
+                    onSelect={onSelectFile}
+                    open={previewOn}
+                    onExpand={(item) => onPreview(filtered.find(f => f.id === item.id))}
+                    onDownload={(item) => onDownload(filtered.find(f => f.id === item.id))}
+                    emptyText="No files yet. Upload files above."
+                />
             ) : (
                 <div className="file-list__rows">
                     {filtered.map(file => (
