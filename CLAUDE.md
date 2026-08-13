@@ -72,6 +72,8 @@ Shared components under `client/src/components/`:
 - `common/DropdownMenu.jsx` — Reusable dropdown (trigger + panel)
 - `common/ActivityDrawer.jsx` — `ActivityButton` (page-level) and `EntityActivityButton` (entity-level) audit log viewers
 - `common/Modal.jsx`, `common/ConfirmModal.jsx`, `common/SignaturePad.jsx`
+- `common/DocViewer.jsx` — the shared pdf.js/image **rendering engine**; both `PreviewModal` (full-screen) and `FilePreviewPane` (docked) render it. See "File Preview & Thumbnails" below.
+- `common/FilePreviewPane.jsx` — **docked** split-view alternative to the full-screen `PreviewModal`. See "File Preview & Thumbnails" below.
 - `common/Tooltip.jsx` — **App-wide tooltip** (see below). Use this for all hover/focus hints; do not add new native `title=` attributes.
 - `layout/Layout.jsx`, `layout/Sidebar.jsx`, `layout/Toast.jsx`
 
@@ -471,7 +473,10 @@ All of them take a **`fetchBlob` function** (not a URL): `() => Promise<Response
 
 | Component / util | File | Purpose |
 |------------------|------|---------|
-| `PreviewModal` | `common/PreviewModal.jsx` | Full-screen in-app **document viewer**. Portals to `<body>`; PDFs render via **pdf.js multi-page canvas**, images via `<img>`. Toolbar: zoom −/reset/+, fit-to-width, page ‹ n/total ›, rotate, download, print, and an **optional** delete. Unpreviewable/oversized → download fallback. Keyboard: Esc closes, ←/→ page. |
+| `PreviewModal` | `common/PreviewModal.jsx` | Full-screen in-app **document viewer**. Portals to `<body>`; renders `DocViewer` internally for the actual PDF/image rendering, plus its own modal chrome (backdrop, Esc/←/→ close/page handling, optional delete). Unpreviewable/oversized → download fallback. |
+| `DocViewer` | `common/DocViewer.jsx` | The **single rendering engine** for PDFs/images — both `PreviewModal` (full-screen) and `FilePreviewPane` (docked) render it; never duplicate pdf.js/image rendering elsewhere. Props: `{ fileName, fetchBlob, maxBytes?, showToolbar?, extraToolbarActions? }`. PDFs render via **pdf.js multi-page canvas**, images via `<img>`. Toolbar (when `showToolbar`): zoom −/reset/+, fit-to-width, page ‹ n/total ›, rotate, download, print. `extraToolbarActions` lets a host inject buttons (e.g. "Expand" in the docked pane). |
+| `FilePreviewPane` | `common/FilePreviewPane.jsx` | **Docked** split-view alternative to the full-screen `PreviewModal` — a file list on the left, `DocViewer` rendering the selected file on the right. Props: `{ items, selectedId, onSelect, open, onExpand, onDownload, emptyText }`. Item shape: `{ id, fileName, fileType, fetchBlob, cacheKey?, meta?, badge? }`. The **Preview toggle lives in the host page's toolbar** (not inside the component) — the host owns `open`/`selectedId` state. Uses `useIsWide(900)` to auto-collapse to modal-only (call `onExpand` instead of docking) on narrow screens, so it degrades gracefully without separate mobile logic. |
+| `useIsWide` | `hooks/useIsWide.js` | `(minWidth)` → boolean, tracks `window.innerWidth >= minWidth` via a resize listener. Backs `FilePreviewPane`'s docked/modal-only breakpoint; reusable anywhere a component needs a live viewport-width gate. |
 | `FileThumbnail` | `common/FileThumbnail.jsx` | Inline file thumbnail button (lazy via IntersectionObserver). Renders a first-page PDF / image thumbnail, or a type icon fallback. Hover shows an enlarged **popover portalled to `<body>`** (`position: fixed`, viewport-clamped) so no panel/overflow can clip it (`z-index: 2000`). |
 | `FileThumbnailStrip` | `common/FileThumbnailStrip.jsx` | A row of `FileThumbnail`s with a `+N` overflow gallery. |
 | `CertFileRow` | `files/CertFileRow.jsx` | A **file row** styled like the File Manager list (`.file-row`): thumbnail · name · meta line · Preview + Download. Used for both a current file and history items. Optional `fetchBlob`/`cacheKey`/`badge`/`expiresText`. |
@@ -511,7 +516,8 @@ const [preview, setPreview] = useState(null);
 ```
 
 ### Rules
-- **`PreviewModal` is the only in-app document viewer.** Never open files in a new tab or embed a bare `<iframe>` for preview; route through it.
+- **`DocViewer` is the only rendering engine for previewing a file in-app** (never open files in a new tab or embed a bare `<iframe>` for preview) — route through either `PreviewModal` (full-screen) or `FilePreviewPane` (docked), which both render `DocViewer`. Don't duplicate pdf.js/image rendering in a new component.
+- Prefer `PreviewModal` for a single ad-hoc preview action; use `FilePreviewPane` when a page wants a persistent, dockable split-view (list + preview side by side) with a toolbar toggle — see `FilesPage.jsx` and the certifications tab for reference usage.
 - Pass `onDelete` only where deletion is supported (it renders the Delete tool and should trigger the caller's existing confirm flow).
 - Thumbnails/previews are **lazy** and **cached** (`useFileThumbnail`) — reuse a stable `cacheKey` per file (`file:{id}`, `cert-upload:{id}`, `cert:{id}`).
 - PDF rendering must go through `lib/pdfThumbnail.js` (shared worker). The pdf.js bundle is code-split (`pdf-*.js`) — don't import `pdfjs-dist` directly elsewhere.
