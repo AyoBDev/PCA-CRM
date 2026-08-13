@@ -854,7 +854,7 @@ function CertificationsTab({ employee, onEdit }) {
         if (certFilter === 'OK') return status === 'ok';
         if (certFilter === 'Critical') return status === 'critical';
         if (certFilter === 'Expired') return status === 'expired';
-        if (certFilter === 'Missing') return !record?.fileName || !record?.expirationDate;
+        if (certFilter === 'Missing') return !record?.fileName || (!!ct.renewalYears && !record?.expirationDate);
         return true;
     });
 
