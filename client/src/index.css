@@ -1454,14 +1454,24 @@ body {
    Document Viewer (PreviewModal) — full-screen PDF/image viewer
    ============================================================ */
 .doc-viewer {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
   display: flex;
   flex-direction: column;
   background: hsl(224 30% 12%);
   color: hsl(0 0% 96%);
+}
+
+.doc-viewer--modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
   animation: fadeIn 0.15s ease;
+}
+
+.doc-viewer--embedded {
+  height: 100%;
+  min-height: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
 }
 
 .doc-viewer__header {
