@@ -2,6 +2,16 @@
 
 A running log of notable build-vs-adopt and design decisions, most recent first.
 
+## 2026-08-14 — Timesheet PDF blowing up to ~43 pages: fix in-house on PDFKit
+
+**Options considered:**
+- Adopt a higher-level PDF/layout library that paginates automatically (e.g. `pdfmake`, `@react-pdf/renderer`, or an HTML→PDF path via `puppeteer`). Signals: `pdfmake` and `@react-pdf/renderer` both handle flow layout and page breaks for you, but adopting either means rewriting the entire hand-tuned landscape grid (absolute-positioned day columns, merged totals cell, signature block) from scratch; `puppeteer` adds a headless-Chromium native dependency that is deploy-fragile on Railway. All three are large swaps for what is a single-page document that already renders correctly when it fits.
+- Build in-house: keep PDFKit, fix the actual defect.
+
+**Choice:** Build in-house — keep PDFKit; fix the pagination bug directly.
+
+**Why:** The bug is in our own layout logic, not a missing capability. `renderTimesheetPage` draws everything at manually-tracked absolute `gridY` coordinates; when a timesheet has enough sections (PAS + Homemaker + Respite + Companion) the content grows past the page's bottom margin, and PDFKit's *automatic* pagination then flushes a fresh page on every subsequent `doc.text()` call — producing dozens of near-blank pages with the signature block stranded far down. Fix (two parts, both at root cause): (1) disable auto-pagination during a single page's render so overflow can never silently spawn pages (safety net), restoring real `addPage` afterward so bulk export still gets one page per timesheet; (2) measure total content height up front and apply a uniform vertical `doc.scale()` when it exceeds the printable area, so the whole record — including signatures — always fits one landscape page. A library swap would discard the existing grid/signature layout for no benefit. Built test-first: a failing test reproduced the 45-page explosion; after the fix, four-section and two-section timesheets render 1 page and bulk export renders exactly N pages.
+
 ## 2026-08-09 — Reusable Tooltip: adopt Radix over building or floating-ui
 
 **Feature:** A reusable `<Tooltip>` for the whole app, replacing the native `title`
@@ -138,3 +148,14 @@ blanks a shift — and is idempotent.
 **Choice:** Build in-house on raw `pdfjs-dist` (client-side); no server changes, no native binaries.
 
 **Why:** `pdfjs-dist` is Mozilla's own library with **zero dependencies and zero native binaries** (~2.6M weekly downloads, actively maintained) — it renders a PDF page to canvas in the browser, which is exactly and only what a thumbnail needs. `react-pdf` would pull a full-viewer stack for a feature that is a single `getPage(1).render()` call. Server-side rendering (`pdf2pic`) and `sharp` both add native-binary deploy risk on Railway for fidelity the client already achieves. Images need no library at all (browser downscales `<img>`). The inline-thumbnail grid, `+N` overflow badge, and hover popover are presentational UI that reuse the `PreviewModal` and download endpoints already built in the employee-documents feature — one source of truth for fetching a file's bytes. The one tradeoff (client fetches each PDF to render its first page) is bounded by lazy-loading visible-only thumbnails and the `+N` cap.
+
+## 2026-08-12 — Safe inline editing (`InlineEditable` shared primitive)
+
+**Options considered:**
+- Adopt a third-party inline-edit / editable-cell library (e.g. `react-easy-edit`, `@tanstack/react-table` editable cells, `react-contenteditable`). Signals: some are popular, but they either ship their own visual/interaction model that fights our shadcn/zinc design system, are coupled to a data-grid we don't use, or (contenteditable) are notoriously fragile for plain-text fields. None encode the specific safety behavior we need (explicit-open, blur-cancels, empty-guard, toast+undo, reject-to-detect-failure), so we'd be re-implementing our own contract on top of a dependency anyway.
+- Patch each existing inline editor in place. Signals: smallest diff per file, but the app already had ~5 copy-pasted click-to-edit editors; patching each repeats the work and the next new page copies whichever unsafe copy it finds. Doesn't produce a durable app-wide guarantee.
+- Build in-house: one shared `InlineEditable` primitive (`client/src/components/common/InlineEditable.jsx`) that owns the interaction, and route all existing editors through it.
+
+**Choice:** Build in-house — a single shared primitive, migrate the 5 existing editors to it.
+
+**Why:** The requirement is a specific *safety contract*, not a missing widget: edit opens only via an explicit pencil affordance, ✓/✕ confirm with **blur cancelling** (killing the old silent-blur-save), a blank-value guard, a success toast, optional undo, and — critically — failure detection via the `onSave` promise rejecting. No off-the-shelf library encodes this, and every candidate would still need our contract layered on top while dragging in its own styling/data-model assumptions that clash with our design system. A ~150-line presentational component with zero new dependencies gives one place to maintain the behavior; "app-wide" only stays true if there's a single primitive the next page reuses. Built strictly test-first (14 RTL tests), reviewed per task; the migration also surfaced and fixed two latent error-swallow bugs (`handleSaveCarePlanField`, `handleSandataClientIdChange`) that the stricter reject-to-fail contract exposed.

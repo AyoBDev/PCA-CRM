@@ -377,10 +377,76 @@ function parseBlocks(json) {
     try { return JSON.parse(json || '[]'); } catch { return []; }
 }
 
+// Compute the exact total drawn height of a rendered timesheet page, mirroring
+// the top-to-bottom draw pass in renderTimesheetPage. Used to auto-fit the
+// record onto a single page so tall (4-section) timesheets can never overflow
+// into dozens of PDFKit auto-generated blank pages.
+function measureTimesheetHeight(ts) {
+    const RH = 12;
+    const activityCounts = { PAS: ADL_ACTIVITIES.length, Homemaker: IADL_ACTIVITIES.length, Respite: RESPITE_ACTIVITIES.length, Companion: COMPANION_ACTIVITIES.length };
+
+    const maxShiftsFor = (section) => {
+        let maxShifts = 1;
+        for (const e of ts.entries) {
+            const blocks = parseBlocks(e[`${section}TimeBlocks`]);
+            if (blocks.length + 1 > maxShifts) maxShifts = blocks.length + 1;
+        }
+        return maxShifts;
+    };
+
+    const sectionHeight = (label, section) => {
+        let h = 14;                                  // section header (hh)
+        h += activityCounts[label] * RH;             // activity check rows
+        h += RH * 2;                                 // PCA + Client initials
+        h += maxShiftsFor(section) * RH;             // shift rows
+        h += RH;                                     // "+ Add Shift"
+        h += 1;                                      // section bottom border (gridY += 1)
+        return h;
+    };
+
+    const hasRespite = (ts.totalRespiteHours || 0) > 0 || ts.entries.some(e => {
+        try { return Object.values(JSON.parse(e.respiteActivities || '{}')).some(Boolean); } catch { return false; }
+    });
+    const hasCompanion = (ts.totalCompanionHours || 0) > 0 || ts.entries.some(e => {
+        try { return Object.values(JSON.parse(e.companionActivities || '{}')).some(Boolean); } catch { return false; }
+    });
+
+    let y = 14;              // gridY starts at mL
+    y += 48 + 4;             // header + gap
+    y += 22;                 // column header bar (colH)
+    y += sectionHeight('PAS', 'adl');
+    y += sectionHeight('Homemaker', 'iadl');
+    if (hasRespite) y += sectionHeight('Respite', 'respite');
+    if (hasCompanion) y += sectionHeight('Companion', 'companion');
+    y += 30 + 8;            // daily totals bar (barH) + gap
+    y += 58;                // signature block (sigH)
+    return y;
+}
+
 function renderTimesheetPage(doc, ts) {
         const mL = 14;
         const pageW = doc.page.width - 28;
         const pageBottom = doc.page.height - 14;
+
+        // Never let overflowing text silently spawn extra pages. This is the
+        // safety net: with auto-pagination off, tall content clips instead of
+        // exploding into 40+ blank pages. The scale transform below is what
+        // actually makes the full record fit.
+        doc.options.bufferPages = true;
+        const originalAddPage = doc.addPage.bind(doc);
+        doc.addPage = () => doc;   // no-op during this page render
+
+        // Auto-fit: if the content is taller than the printable area, squeeze it
+        // vertically (widths unchanged) so everything — including signatures —
+        // lands on this single landscape page.
+        const printableH = doc.page.height - 28;   // top + bottom margins (14 each)
+        const contentH = measureTimesheetHeight(ts);
+        const scaleY = contentH > printableH ? printableH / contentH : 1;
+        const scaled = scaleY < 1;
+        if (scaled) {
+            doc.save();
+            doc.scale(1, scaleY, { origin: [mL, mL] });
+        }
 
         const labelW = 190;
         const totalsW = 72;
@@ -650,8 +716,8 @@ function renderTimesheetPage(doc, ts) {
         gridY += barH + 8;
 
         // ═══ SIGNATURE SECTION ═══
-        if (gridY + 60 > pageBottom) { doc.addPage(); gridY = 14; }
-
+        // Always on this page — the content is scaled to fit (see measureTimesheetHeight),
+        // so the signatures never spill onto a second page.
         const sigH = 58;
         doc.save().rect(mL, gridY, pageW, sigH).lineWidth(0.7).stroke('#ccc').restore();
 
@@ -706,6 +772,9 @@ function renderTimesheetPage(doc, ts) {
         doc.fontSize(5.5).font('Helvetica-Bold').fillColor(integrityColor);
         doc.text(`Integrity: ${integrityLabel}${ts.signedPayloadHash ? `   Digest: ${ts.signedPayloadHash.slice(0, 16)}` : ''}`, cols[3], gridY + 48, { width: sw });
 
+        if (scaled) doc.restore();
+        // Restore real pagination so the bulk export can start a fresh page per timesheet.
+        doc.addPage = originalAddPage;
 }
 
 async function exportTimesheetPdf(req, res, next) {
@@ -824,4 +893,4 @@ async function sendTimesheetReminders(req, res) {
     }
 }
 
-module.exports = { listTimesheets, getTimesheet, getActivities, createTimesheet, updateTimesheet, submitTimesheet, deleteTimesheet, restoreTimesheet, permanentlyDeleteTimesheet, bulkPermanentlyDeleteTimesheets, exportTimesheetPdf, exportBulkTimesheetPdf, updateTimesheetStatus, sendTimesheetReminders };
+module.exports = { listTimesheets, getTimesheet, getActivities, createTimesheet, updateTimesheet, submitTimesheet, deleteTimesheet, restoreTimesheet, permanentlyDeleteTimesheet, bulkPermanentlyDeleteTimesheets, exportTimesheetPdf, exportBulkTimesheetPdf, updateTimesheetStatus, sendTimesheetReminders, renderTimesheetPage };

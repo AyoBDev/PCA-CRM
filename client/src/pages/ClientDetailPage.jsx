@@ -376,13 +376,12 @@ export default function ClientDetailPage() {
         try {
             await api.patchClient(client.id, { [field]: value });
             setClient(prev => ({ ...prev, [field]: value }));
-            showToast('Care plan updated');
             undoState?.pushAction?.(
                 'Update care plan',
                 async () => { await api.patchClient(client.id, { [field]: oldValue }); setClient(prev => ({ ...prev, [field]: oldValue })); },
                 async () => { await api.patchClient(client.id, { [field]: value }); setClient(prev => ({ ...prev, [field]: value })); },
             );
-        } catch (err) { showToast(err.message, 'error'); }
+        } catch (err) { showToast(err.message, 'error'); throw err; }
     };
 
     const toggleFolder = (key) => {
