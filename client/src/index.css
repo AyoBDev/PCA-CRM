@@ -13990,6 +13990,8 @@ tr:hover .auth-note-icon--empty {
 }
 .file-row__submeta em { font-style: italic; }
 .file-row__badge { flex-shrink: 0; display: flex; align-items: center; }
+.file-row__leading { flex-shrink: 0; display: flex; align-items: center; }
+.file-row__leading input[type="checkbox"] { width: 15px; height: 15px; accent-color: hsl(var(--primary)); cursor: pointer; }
 .file-row--cert.is-selected { background: hsl(var(--primary) / 0.08); box-shadow: inset 3px 0 0 hsl(var(--primary)); }
 .file-row__main { cursor: default; }
 .file-row--cert[role="button"] .file-row__main, .file-row--cert .file-row__main[role="button"] { cursor: pointer; }

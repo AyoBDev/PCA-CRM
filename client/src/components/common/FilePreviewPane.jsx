@@ -48,6 +48,8 @@ export default function FilePreviewPane({
                         onSelect={() => previewInline(item)}
                         onPreview={() => previewInline(item)}
                         onDownload={() => (onDownload ? onDownload(item) : previewInline(item))}
+                        leading={item.leading}
+                        extraActions={item.extraActions}
                     />
                 ))}
             </div>
