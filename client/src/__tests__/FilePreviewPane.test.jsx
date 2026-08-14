@@ -39,6 +39,15 @@ describe('FilePreviewPane', () => {
     expect(onSelect).toHaveBeenCalledWith('b');
   });
 
+  it('the Preview button docks inline (onSelect), NOT full-screen (onExpand), when docked', () => {
+    const onSelect = vi.fn(), onExpand = vi.fn();
+    render(<FilePreviewPane items={items} selectedId={null} onSelect={onSelect} open onExpand={onExpand} />);
+    // CertFileRow renders a Preview button titled "Preview" per item
+    fireEvent.click(screen.getAllByTitle('Preview')[1]);
+    expect(onSelect).toHaveBeenCalledWith('b');
+    expect(onExpand).not.toHaveBeenCalled();
+  });
+
   it('on a narrow screen, row click calls onExpand and no panel renders', () => {
     wide = false;
     const onExpand = vi.fn();

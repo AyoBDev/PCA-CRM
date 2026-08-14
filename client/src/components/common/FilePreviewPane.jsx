@@ -8,7 +8,12 @@ export default function FilePreviewPane({ items, selectedId, onSelect, open, onE
     const docked = open && wide;
     const selected = items.find(i => i.id === selectedId) || null;
 
-    const rowSelect = (item) => { if (docked) onSelect(item.id); else onExpand(item); };
+    // Clicking a file (row body OR the Preview/eye button) docks it in the
+    // inline viewer. Full-screen is a deliberate, separate action: the Expand
+    // control in the docked viewer's toolbar. When the pane isn't docked
+    // (preview off, or too narrow for the split), previewing falls back to the
+    // full-screen modal since there's no inline panel to show it in.
+    const previewInline = (item) => { if (docked) onSelect(item.id); else onExpand(item); };
 
     return (
         <div className={`file-preview-pane${docked ? ' file-preview-pane--split' : ''}`}>
@@ -24,9 +29,9 @@ export default function FilePreviewPane({ items, selectedId, onSelect, open, onE
                         badge={item.badge}
                         expiresText={item.meta}
                         selected={docked && item.id === selectedId}
-                        onSelect={() => rowSelect(item)}
-                        onPreview={() => onExpand(item)}
-                        onDownload={() => (onDownload ? onDownload(item) : onExpand(item))}
+                        onSelect={() => previewInline(item)}
+                        onPreview={() => previewInline(item)}
+                        onDownload={() => (onDownload ? onDownload(item) : previewInline(item))}
                     />
                 ))}
             </div>
