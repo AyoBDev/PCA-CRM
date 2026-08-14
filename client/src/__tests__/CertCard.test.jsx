@@ -4,7 +4,7 @@ import CertCard from '../components/employee/CertCard';
 
 const base = {
   label: 'CPR & First Aid', icon: <svg/>, colors: { accent: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
-  status: 'ok', statusLabel: 'Active', days: 288, expDate: '2027-05-27', renewalLabel: '2 years',
+  status: 'ok', statusLabel: 'Active', days: 288, expDate: '2027-05-27', renewalLabel: '2 years', renewalYears: 2,
   onSelect: vi.fn(), onView: vi.fn(), onUpload: vi.fn(),
 };
 

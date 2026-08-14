@@ -2,10 +2,10 @@ import { progressForCert } from '../../utils/certProgress';
 import { formatDate } from '../../utils/dates';
 
 export default function CertCard({
-    label, icon, colors, status, statusLabel, days, expDate, renewalLabel,
+    label, icon, colors, status, statusLabel, days, expDate, renewalLabel, renewalYears,
     hasFile, selected, onSelect, onView, onUpload,
 }) {
-    const { pct, variant } = progressForCert({ status, days, renewalYears: renewalLabel && /year/.test(renewalLabel) ? parseInt(renewalLabel, 10) : (expDate ? 1 : null), hasFile });
+    const { pct, variant } = progressForCert({ status, days, renewalYears, hasFile });
     const badgeStyle =
         status === 'ok' ? { background: 'hsl(142 76% 92%)', color: '#16a34a' } :
         status === 'critical' ? { background: 'hsl(38 92% 92%)', color: '#d97706' } :

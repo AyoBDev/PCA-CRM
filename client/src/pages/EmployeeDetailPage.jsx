@@ -1094,6 +1094,7 @@ function CertificationsTab({ employee, onEdit }) {
                 days={days}
                 expDate={expDate}
                 renewalLabel={renewalLabelFor(ct)}
+                renewalYears={ct.renewalYears}
                 hasFile={!!activeWithFile}
                 selected={selectedCertId === ct.type}
                 onSelect={() => setSelectedCertId(ct.type)}
