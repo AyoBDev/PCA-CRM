@@ -403,7 +403,7 @@ export default function FilesPage() {
                             previewOn={split}
                             onTogglePreview={() => setSplit(s => !s)}
                             selectedFileId={selectedFileId}
-                            onSelectFile={setSelectedFileId}
+                            onSelectFile={(id) => { setSelectedFileId(id); setSplit(true); }}
                         />
                     )}
                 </div>

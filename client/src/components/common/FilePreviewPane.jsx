@@ -22,12 +22,15 @@ export default function FilePreviewPane({
 }) {
     const wide = useIsWide(900);
     const selected = items.find(i => i.id === selectedId) || null;
-    // On a wide screen the panel is shown when the toggle is on OR a file has
-    // been picked — so a click reveals the viewer even with the toggle off.
-    const showPanel = wide && (open || !!selected);
+    // The Preview toggle (`open`) is the source of truth for the viewer's
+    // visibility. Turning it off hides the viewer; turning it on shows it.
+    // Clicking a file reveals the viewer by turning the toggle on (the host's
+    // onSelect sets open=true) and docks the file inline — never full-screen,
+    // except on narrow screens where there's no room to dock.
+    const showPanel = wide && open;
 
     const previewInline = (item) => {
-        if (wide) onSelect(item.id);   // dock inline
+        if (wide) onSelect(item.id);   // host sets open=true + selects → docks inline
         else onExpand(item);           // no room to dock → full-screen
     };
 

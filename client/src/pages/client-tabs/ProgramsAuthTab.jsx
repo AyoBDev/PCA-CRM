@@ -127,7 +127,7 @@ export default function ProgramsAuthTab({
             setPreviewAuthDoc({ fileName: doc.fileName, fetchBlob: () => api.downloadAuthDocument(doc.id) });
         }
     };
-    const showAuthViewer = authViewerWide && (authDocSplit || !!selectedAuthDoc);
+    const showAuthViewer = authViewerWide && authDocSplit;
 
     // One shared item list across every authorization's documents, for the
     // docked FilePreviewPane. Namespaced ids keep them distinct from other

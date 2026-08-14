@@ -22,14 +22,18 @@ describe('FilePreviewPane', () => {
     expect(screen.getByText('b.png')).toBeInTheDocument();
   });
 
-  it('hides the panel when toggle off AND nothing selected', () => {
-    render(<FilePreviewPane items={items} selectedId={null} onSelect={vi.fn()} open={false} onExpand={vi.fn()} />);
+  it('hides the panel when the toggle is off (even if a file is selected)', () => {
+    // The Preview toggle (`open`) is the source of truth for visibility.
+    render(<FilePreviewPane items={items} selectedId="a" onSelect={vi.fn()} open={false} onExpand={vi.fn()} />);
     expect(screen.queryByTestId('docviewer')).not.toBeInTheDocument();
   });
 
-  it('reveals the panel when a file is selected even with the toggle off (wide)', () => {
-    render(<FilePreviewPane items={items} selectedId="a" onSelect={vi.fn()} open={false} onExpand={vi.fn()} />);
-    expect(screen.getByTestId('docviewer')).toHaveTextContent('a.pdf');
+  it('clicking a file calls onSelect (host reveals the panel by turning the toggle on)', () => {
+    const onSelect = vi.fn(), onExpand = vi.fn();
+    render(<FilePreviewPane items={items} selectedId={null} onSelect={onSelect} open={false} onExpand={onExpand} />);
+    fireEvent.click(screen.getByText('a.pdf'));
+    expect(onSelect).toHaveBeenCalledWith('a');   // docks inline via host
+    expect(onExpand).not.toHaveBeenCalled();       // never full-screen on wide
   });
 
   it('shows the selected item in the panel when open on a wide screen', () => {

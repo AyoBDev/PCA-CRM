@@ -827,7 +827,7 @@ function CertificationsTab({ employee, onEdit }) {
     };
     // Show the docked viewer column when the toggle is on OR a file has been
     // picked (a click reveals it) — but only where there's room (wide screens).
-    const showCertViewer = certViewerWide && (split || !!selectedCertDoc);
+    const showCertViewer = certViewerWide && split;
 
     const fetchCerts = useCallback(async () => {
         try {
