@@ -2,6 +2,16 @@
 
 A running log of notable build-vs-adopt and design decisions, most recent first.
 
+## 2026-08-14 — Timesheet PDF blowing up to ~43 pages: fix in-house on PDFKit
+
+**Options considered:**
+- Adopt a higher-level PDF/layout library that paginates automatically (e.g. `pdfmake`, `@react-pdf/renderer`, or an HTML→PDF path via `puppeteer`). Signals: `pdfmake` and `@react-pdf/renderer` both handle flow layout and page breaks for you, but adopting either means rewriting the entire hand-tuned landscape grid (absolute-positioned day columns, merged totals cell, signature block) from scratch; `puppeteer` adds a headless-Chromium native dependency that is deploy-fragile on Railway. All three are large swaps for what is a single-page document that already renders correctly when it fits.
+- Build in-house: keep PDFKit, fix the actual defect.
+
+**Choice:** Build in-house — keep PDFKit; fix the pagination bug directly.
+
+**Why:** The bug is in our own layout logic, not a missing capability. `renderTimesheetPage` draws everything at manually-tracked absolute `gridY` coordinates; when a timesheet has enough sections (PAS + Homemaker + Respite + Companion) the content grows past the page's bottom margin, and PDFKit's *automatic* pagination then flushes a fresh page on every subsequent `doc.text()` call — producing dozens of near-blank pages with the signature block stranded far down. Fix (two parts, both at root cause): (1) disable auto-pagination during a single page's render so overflow can never silently spawn pages (safety net), restoring real `addPage` afterward so bulk export still gets one page per timesheet; (2) measure total content height up front and apply a uniform vertical `doc.scale()` when it exceeds the printable area, so the whole record — including signatures — always fits one landscape page. A library swap would discard the existing grid/signature layout for no benefit. Built test-first: a failing test reproduced the 45-page explosion; after the fix, four-section and two-section timesheets render 1 page and bulk export renders exactly N pages.
+
 ## 2026-08-09 — Reusable Tooltip: adopt Radix over building or floating-ui
 
 **Feature:** A reusable `<Tooltip>` for the whole app, replacing the native `title`
