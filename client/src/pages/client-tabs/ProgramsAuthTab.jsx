@@ -4,7 +4,7 @@ import * as api from '../../api';
 import { ACCOUNT_NUMBER_OPTIONS } from '../../utils/accountMapping';
 import { AUTH_COLORS, DEFAULT_AUTH_COLOR, getAuthSortKey } from '../../utils/constants';
 import { useServices } from '../../hooks/useServices';
-import FilePreviewPane from '../../components/common/FilePreviewPane';
+import DocViewer from '../../components/common/DocViewer';
 import ToggleSwitch from '../../components/common/ToggleSwitch';
 import Tooltip from '../../components/common/Tooltip';
 
@@ -381,10 +381,24 @@ export default function ProgramsAuthTab({
                                                                     <div className="cp-auth-attachments__empty">No attachments</div>
                                                                 ) : (
                                                                     (a.documents || []).map(doc => (
-                                                                        <div key={doc.id} className="cp-auth-attachments__item">
-                                                                            <span className="cp-auth-attachments__name" onClick={() => handleDownloadAuthDoc(doc)} title="Download">
-                                                                                {Icons.download} {doc.fileName}
+                                                                        <div key={doc.id} className={`cp-auth-attachments__item${authDocSplit && selectedAuthDoc === `auth-doc:${doc.id}` ? ' cp-auth-attachments__item--selected' : ''}`}>
+                                                                            <span
+                                                                                className="cp-auth-attachments__name"
+                                                                                onClick={() => authDocSplit ? setSelectedAuthDoc(`auth-doc:${doc.id}`) : handleDownloadAuthDoc(doc)}
+                                                                                title={authDocSplit ? 'Preview' : 'Download'}
+                                                                            >
+                                                                                {Icons.fileText} {doc.fileName}
                                                                             </span>
+                                                                            <Tooltip content="Preview">
+                                                                                <button className="btn btn--ghost btn--icon btn--xs" onClick={() => authDocSplit ? setSelectedAuthDoc(`auth-doc:${doc.id}`) : (setPreviewAuthDoc && setPreviewAuthDoc({ fileName: doc.fileName, fetchBlob: () => api.downloadAuthDocument(doc.id) }))} aria-label="Preview">
+                                                                                    {Icons.eye}
+                                                                                </button>
+                                                                            </Tooltip>
+                                                                            <Tooltip content="Download">
+                                                                                <button className="btn btn--ghost btn--icon btn--xs" onClick={() => handleDownloadAuthDoc(doc)} aria-label="Download">
+                                                                                    {Icons.download}
+                                                                                </button>
+                                                                            </Tooltip>
                                                                             {confirmDeleteDoc === doc.id ? (
                                                                                 <span className="cp-auth-attachments__confirm-delete">
                                                                                     <span>Delete?</span>
@@ -501,19 +515,41 @@ export default function ProgramsAuthTab({
                             )}
                         </div>
 
-                        {authDocSplit && (
-                            <div className="cert-portfolio__viewer">
-                                <FilePreviewPane
-                                    items={authDocItems}
-                                    selectedId={selectedAuthDoc}
-                                    onSelect={setSelectedAuthDoc}
-                                    open={authDocSplit}
-                                    onExpand={(item) => setPreviewAuthDoc && setPreviewAuthDoc({ fileName: item.fileName, fetchBlob: item.fetchBlob })}
-                                    onDownload={(item) => setPreviewAuthDoc && setPreviewAuthDoc({ fileName: item.fileName, fetchBlob: item.fetchBlob })}
-                                    emptyText="No authorization attachments on file."
-                                />
-                            </div>
-                        )}
+                        {authDocSplit && (() => {
+                            const sel = authDocItems.find(i => i.id === selectedAuthDoc) || null;
+                            return (
+                                <div className="cert-portfolio__viewer">
+                                    <div className="cert-viewer">
+                                        <div className="cert-viewer__head">
+                                            <div>
+                                                <h3 className="cert-viewer__title">Interactive Attachment Viewer</h3>
+                                                <p className="cert-viewer__subtitle">Clear in-app document preview. Downloading is optional.</p>
+                                            </div>
+                                        </div>
+                                        {sel ? (
+                                            <>
+                                                <div className="cert-viewer__filebar">
+                                                    <span className="cert-viewer__filename">{Icons.fileText} {sel.fileName}</span>
+                                                </div>
+                                                <div className="cert-viewer__body">
+                                                    <DocViewer
+                                                        fileName={sel.fileName}
+                                                        fetchBlob={sel.fetchBlob}
+                                                        extraToolbarActions={setPreviewAuthDoc ? (
+                                                            <Tooltip content="Open full screen">
+                                                                <button className="doc-viewer__tool" onClick={() => setPreviewAuthDoc({ fileName: sel.fileName, fetchBlob: sel.fetchBlob })} aria-label="Open full screen">{Icons.externalLink || Icons.eye}</button>
+                                                            </Tooltip>
+                                                        ) : null}
+                                                    />
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="cert-viewer__empty">Select an attachment to preview it here.</div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
                 </div>
             </div>

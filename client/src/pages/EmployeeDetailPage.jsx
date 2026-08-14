@@ -16,7 +16,7 @@ import { TIMESHEET_STATUS_STYLES, TIMESHEET_SERVICE_COLORS } from '../utils/cons
 import { formatDate, formatTimestamp } from '../utils/dates';
 import PreviewModal from '../components/common/PreviewModal';
 import CertFileRow from '../components/files/CertFileRow';
-import FilePreviewPane from '../components/common/FilePreviewPane';
+import DocViewer from '../components/common/DocViewer';
 import Tooltip from '../components/common/Tooltip';
 import ToggleSwitch from '../components/common/ToggleSwitch';
 import { hhmm12 } from '../utils/time';
@@ -808,7 +808,9 @@ function CertificationsTab({ employee, onEdit }) {
     const [certFilter, setCertFilter] = useState('All');
     const [previewUpload, setPreviewUpload] = useState(null);
     const [split, setSplit] = useState(false);
-    const [selectedFileId, setSelectedFileId] = useState(null);
+    // The attachment shown in the tab-level docked Interactive Attachment Viewer
+    // (client-tab parity): { fileName, fetchBlob }. Set by clicking a cert's file.
+    const [selectedCertDoc, setSelectedCertDoc] = useState(null);
 
     const fetchCerts = useCallback(async () => {
         try {
@@ -964,6 +966,11 @@ function CertificationsTab({ employee, onEdit }) {
                                 </button>
                             ))}
                         </div>
+                        <Tooltip content={split ? 'Switch back to the list view' : 'Show a docked preview of certification attachments'}>
+                            <span className="cert-preview-toggle">
+                                <ToggleSwitch checked={split} onChange={(v) => setSplit(v)} label="Preview" />
+                            </span>
+                        </Tooltip>
                         <button className="btn btn--outline btn--sm" onClick={onEdit}>{Icons.edit} Edit Dates</button>
                     </div>
                 </div>
@@ -976,13 +983,49 @@ function CertificationsTab({ employee, onEdit }) {
                             <p>No certifications match the current filter.</p>
                         </div>
                     ) : (
-                        <div className="pa-services-grid">
-                            <div className="pa-services-grid__left">
-                                {filteredTypes.filter((_, i) => i % 2 === 0).map(ct => renderCertCard(ct))}
+                        <div className={split ? 'cert-portfolio' : undefined}>
+                            <div className={split ? 'cert-portfolio__list' : undefined}>
+                                <div className="pa-services-grid">
+                                    <div className="pa-services-grid__left">
+                                        {filteredTypes.filter((_, i) => i % 2 === 0).map(ct => renderCertCard(ct))}
+                                    </div>
+                                    <div className="pa-services-grid__right">
+                                        {filteredTypes.filter((_, i) => i % 2 === 1).map(ct => renderCertCard(ct))}
+                                    </div>
+                                </div>
                             </div>
-                            <div className="pa-services-grid__right">
-                                {filteredTypes.filter((_, i) => i % 2 === 1).map(ct => renderCertCard(ct))}
-                            </div>
+                            {split && (
+                                <div className="cert-portfolio__viewer">
+                                    <div className="cert-viewer">
+                                        <div className="cert-viewer__head">
+                                            <div>
+                                                <h3 className="cert-viewer__title">Interactive Attachment Viewer</h3>
+                                                <p className="cert-viewer__subtitle">Clear in-app document preview. Downloading is optional.</p>
+                                            </div>
+                                        </div>
+                                        {selectedCertDoc ? (
+                                            <>
+                                                <div className="cert-viewer__filebar">
+                                                    <span className="cert-viewer__filename">{Icons.fileText} {selectedCertDoc.fileName}</span>
+                                                </div>
+                                                <div className="cert-viewer__body">
+                                                    <DocViewer
+                                                        fileName={selectedCertDoc.fileName}
+                                                        fetchBlob={selectedCertDoc.fetchBlob}
+                                                        extraToolbarActions={(
+                                                            <Tooltip content="Open full screen">
+                                                                <button className="doc-viewer__tool" onClick={() => setPreviewUpload({ fileName: selectedCertDoc.fileName, fetchBlob: selectedCertDoc.fetchBlob })} aria-label="Open full screen">{Icons.externalLink || Icons.eye}</button>
+                                                            </Tooltip>
+                                                        )}
+                                                    />
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="cert-viewer__empty">Select an attachment to preview it here.</div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -1169,27 +1212,32 @@ function CertificationsTab({ employee, onEdit }) {
 
                                     return (
                                         <div key={rec.id} className="pa-auth-item pa-auth-item--active">
-                                            <div className="cert-history__label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                                <span>History</span>
-                                                <Tooltip content={split ? 'Hide the docked file preview' : 'Dock a file preview alongside this list'}>
-                                                    <span className="cert-preview-toggle">
-                                                        <ToggleSwitch checked={split} onChange={(v) => setSplit(v)} label="Preview" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
+                                            <div className="cert-history__label">Files</div>
                                             {rec.notes && (
                                                 <div className="pa-auth-item__body">
                                                     <div className="pa-auth-item__notes">{rec.notes}</div>
                                                 </div>
                                             )}
-                                            <FilePreviewPane
-                                                items={items}
-                                                selectedId={selectedFileId}
-                                                onSelect={setSelectedFileId}
-                                                open={split}
-                                                onExpand={(item) => setPreviewUpload({ fileName: item.fileName, fetchBlob: item.fetchBlob })}
-                                                onDownload={saveItem}
-                                            />
+                                            <div className="cert-history__list">
+                                                {items.map(item => (
+                                                    <CertFileRow
+                                                        key={item.id}
+                                                        upload={item}
+                                                        fetchBlob={item.fetchBlob}
+                                                        cacheKey={item.cacheKey}
+                                                        badge={item.badge}
+                                                        expiresText={item.meta}
+                                                        selected={split && selectedCertDoc?.id === item.id}
+                                                        onSelect={() => split
+                                                            ? setSelectedCertDoc({ id: item.id, fileName: item.fileName, fetchBlob: item.fetchBlob })
+                                                            : setPreviewUpload({ fileName: item.fileName, fetchBlob: item.fetchBlob })}
+                                                        onPreview={() => split
+                                                            ? setSelectedCertDoc({ id: item.id, fileName: item.fileName, fetchBlob: item.fetchBlob })
+                                                            : setPreviewUpload({ fileName: item.fileName, fetchBlob: item.fetchBlob })}
+                                                        onDownload={() => saveItem(item)}
+                                                    />
+                                                ))}
+                                            </div>
                                         </div>
                                     );
                                 })}
