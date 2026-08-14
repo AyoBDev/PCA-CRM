@@ -13,13 +13,13 @@ import EmployeeNotesTab from './employee-tabs/NotesTab';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import { TIMESHEET_STATUS_STYLES, TIMESHEET_SERVICE_COLORS } from '../utils/constants';
-import { formatDate } from '../utils/dates';
+import { formatDate, formatTimestamp } from '../utils/dates';
 import PreviewModal from '../components/common/PreviewModal';
 import CertFileRow from '../components/files/CertFileRow';
+import FilePreviewPane from '../components/common/FilePreviewPane';
+import Tooltip from '../components/common/Tooltip';
+import ToggleSwitch from '../components/common/ToggleSwitch';
 import { hhmm12 } from '../utils/time';
-import CertCard from '../components/employee/CertCard';
-import CertViewerPanel from '../components/common/CertViewerPanel';
-import { useIsWide } from '../hooks/useIsWide';
 
 const TABS = [
     { key: 'profile', label: 'Profile', icon: 'user' },
@@ -803,12 +803,12 @@ function CertificationsTab({ employee, onEdit }) {
     const { showToast } = useToast();
     const [certRecords, setCertRecords] = useState([]);
     const [loadingCerts, setLoadingCerts] = useState(true);
+    const [expandedType, setExpandedType] = useState(null);
     const [showUploadModal, setShowUploadModal] = useState(null);
     const [certFilter, setCertFilter] = useState('All');
     const [previewUpload, setPreviewUpload] = useState(null);
-    const [selectedCertId, setSelectedCertId] = useState(null);
-    const [historyFor, setHistoryFor] = useState(null);
-    const wide = useIsWide(1024);
+    const [split, setSplit] = useState(false);
+    const [selectedFileId, setSelectedFileId] = useState(null);
 
     const fetchCerts = useCallback(async () => {
         try {
@@ -819,10 +819,6 @@ function CertificationsTab({ employee, onEdit }) {
     }, [employee.id, showToast]);
 
     useEffect(() => { fetchCerts(); }, [fetchCerts]);
-
-    const renewalLabelFor = (ct) => ct.renewalYears
-        ? `${ct.renewalYears} year${ct.renewalYears > 1 ? 's' : ''}`
-        : (ct.type === 'id_expiration' ? 'Per ID date' : 'Not required');
 
     const getCertStatusForType = (certType) => {
         const typeDef = CERT_TYPES.find(t => t.type === certType);
@@ -850,25 +846,12 @@ function CertificationsTab({ employee, onEdit }) {
 
     const filteredTypes = CERT_TYPES.filter(ct => {
         if (certFilter === 'All') return true;
-        const { status, record } = getCertStatusForType(ct.type);
+        const { status } = getCertStatusForType(ct.type);
         if (certFilter === 'OK') return status === 'ok';
         if (certFilter === 'Critical') return status === 'critical';
         if (certFilter === 'Expired') return status === 'expired';
-        if (certFilter === 'Missing') return !record?.fileName || (!!ct.renewalYears && !record?.expirationDate);
         return true;
     });
-
-    // Auto-select the first cert (in CERT_TYPES order) whose active record has
-    // an uploaded file, once certs have loaded and nothing is selected yet.
-    useEffect(() => {
-        if (loadingCerts || selectedCertId) return;
-        const firstWithFile = CERT_TYPES.find(ct => {
-            const { record } = getCertStatusForType(ct.type);
-            return !!record?.fileName;
-        });
-        if (firstWithFile) setSelectedCertId(firstWithFile.type);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [loadingCerts, certRecords, selectedCertId]);
 
     const handleUpload = async (certType, formData) => {
         try {
@@ -876,6 +859,25 @@ function CertificationsTab({ employee, onEdit }) {
             showToast('Certification uploaded');
             setShowUploadModal(null);
             fetchCerts();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleDownload = async (cert) => {
+        try {
+            const res = await api.downloadEmployeeCertification(cert.id);
+            if (!res.ok) throw new Error('Download failed');
+            const contentType = res.headers.get('Content-Type') || 'application/octet-stream';
+            const blob = await res.blob();
+            const url = URL.createObjectURL(new Blob([blob], { type: contentType }));
+            if (contentType === 'application/pdf') {
+                window.open(url, '_blank');
+            } else {
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = cert.fileName;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -899,10 +901,31 @@ function CertificationsTab({ employee, onEdit }) {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    // Shared save helper for FilePreviewPane items (current file + history), mirroring
+    // handleDownload/handleDownloadUpload but sourced from an item's fetchBlob.
+    const saveItem = async (item) => {
+        try {
+            const res = await item.fetchBlob();
+            if (!res.ok) throw new Error('Download failed');
+            const contentType = res.headers.get('Content-Type') || 'application/octet-stream';
+            const blob = await res.blob();
+            const url = URL.createObjectURL(new Blob([blob], { type: contentType }));
+            if (contentType === 'application/pdf') {
+                window.open(url, '_blank');
+            } else {
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = item.fileName;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     const statusLabel = (s) => s === 'ok' ? 'Active' : s === 'critical' ? 'Expiring Soon' : s === 'expired' ? 'Expired' : 'Not Set';
     const statusBadgeClass = (s) => s === 'ok' ? 'submitted' : s === 'critical' ? 'draft' : s === 'expired' ? 'critical' : 'draft';
 
-    // Stable fetchBlob closures for the cert viewer/history modal, keyed by
+    // Stable fetchBlob closures for the docked FilePreviewPane, keyed by
     // record/upload id. Built once per certRecords change (not per render of
     // renderCertCard, which runs inside a .map() and can't call useMemo
     // itself) so DocViewer doesn't see a new fetchBlob identity — and
@@ -919,29 +942,6 @@ function CertificationsTab({ employee, onEdit }) {
         return map;
     }, [certRecords]);
 
-    // Opens the history modal for a cert type: resolves the active record
-    // (with its uploads) so the modal can list every stored file.
-    const openHistoryFor = (certType) => {
-        const { record } = getCertStatusForType(certType);
-        const colors = CERT_COLORS[certType] || CERT_COLORS.other;
-        setHistoryFor({ certType, label: colors.label, record: record || null, uploads: record?.uploads || [] });
-    };
-
-    // Derived viewer target for the currently selected cert type.
-    const selected = (() => {
-        if (!selectedCertId) return null;
-        const ct = CERT_TYPES.find(t => t.type === selectedCertId);
-        if (!ct) return null;
-        const { status, record } = getCertStatusForType(ct.type);
-        if (!record?.fileName) return { certType: ct.type, status, fileName: null, fetchBlob: null };
-        return {
-            certType: ct.type,
-            status,
-            fileName: record.fileName,
-            fetchBlob: certFetchBlobs.get(`cert:${record.id}`),
-        };
-    })();
-
     return (
         <div className="cp-tab-panel">
             <div className="cp-card cp-card--elevated">
@@ -953,7 +953,6 @@ function CertificationsTab({ employee, onEdit }) {
                                 { value: 'All', label: 'All' },
                                 { value: 'OK', label: 'Active' },
                                 { value: 'Critical', label: 'Expiring' },
-                                { value: 'Missing', label: 'Missing' },
                                 { value: 'Expired', label: 'Expired' },
                             ].map(opt => (
                                 <button
@@ -977,30 +976,13 @@ function CertificationsTab({ employee, onEdit }) {
                             <p>No certifications match the current filter.</p>
                         </div>
                     ) : (
-                        <div className="cert-portfolio">
-                            <div className="cert-portfolio__list">
-                                <div className="pa-services-grid">
-                                    <div className="pa-services-grid__left">
-                                        {filteredTypes.filter((_, i) => i % 2 === 0).map(ct => renderCertCard(ct))}
-                                    </div>
-                                    <div className="pa-services-grid__right">
-                                        {filteredTypes.filter((_, i) => i % 2 === 1).map(ct => renderCertCard(ct))}
-                                    </div>
-                                </div>
+                        <div className="pa-services-grid">
+                            <div className="pa-services-grid__left">
+                                {filteredTypes.filter((_, i) => i % 2 === 0).map(ct => renderCertCard(ct))}
                             </div>
-                            {wide && (
-                                <div className="cert-portfolio__viewer">
-                                    <CertViewerPanel
-                                        fileName={selected?.fileName}
-                                        fetchBlob={selected?.fetchBlob}
-                                        status={selected ? statusLabel(selected.status) : undefined}
-                                        statusClass={selected ? statusBadgeClass(selected.status) : 'draft'}
-                                        onReplace={() => selected && setShowUploadModal(selected.certType)}
-                                        onHistory={() => selected && openHistoryFor(selected.certType)}
-                                        emptyText={selected ? 'No file uploaded for this certification yet.' : 'Select a certification to preview its document.'}
-                                    />
-                                </div>
-                            )}
+                            <div className="pa-services-grid__right">
+                                {filteredTypes.filter((_, i) => i % 2 === 1).map(ct => renderCertCard(ct))}
+                            </div>
                         </div>
                     )}
 
@@ -1054,64 +1036,226 @@ function CertificationsTab({ employee, onEdit }) {
                     fetchBlob={previewUpload.fetchBlob || (() => api.downloadCertificationUpload(previewUpload.id))}
                 />
             )}
-            {historyFor && (
-                <Modal onClose={() => setHistoryFor(null)}>
-                    <h2 className="modal__title">{historyFor.label} — History</h2>
-                    <p className="modal__desc">All files uploaded for this certification.</p>
-                    {historyFor.uploads.length === 0 ? (
-                        <p style={{ color: 'hsl(var(--muted-foreground))', padding: '12px 0' }}>No history for this certification.</p>
-                    ) : (
-                        <div className="cert-history__list">
-                            {historyFor.uploads.map(u => (
-                                <CertFileRow
-                                    key={u.id}
-                                    upload={u}
-                                    onPreview={setPreviewUpload}
-                                    onDownload={handleDownloadUpload}
-                                    fetchBlob={certFetchBlobs.get(`upload:${u.id}`)}
-                                />
-                            ))}
-                        </div>
-                    )}
-                </Modal>
-            )}
         </div>
     );
 
     function renderCertCard(ct) {
-        const { status, days, expDate, record: activeRecord } = getCertStatusForType(ct.type);
+        const { status, days, expDate } = getCertStatusForType(ct.type);
+        const isExpanded = expandedType === ct.type;
         const colors = CERT_COLORS[ct.type] || CERT_COLORS.other;
-        const activeWithFile = activeRecord?.fileName ? activeRecord : null;
+        const allRecords = certRecords.filter(r => r.certType === ct.type);
+        const activeRecords = allRecords.filter(r => r.status === 'active');
+        const pendingRecords = allRecords.filter(r => r.status === 'pending');
+        const expiredRecords = allRecords.filter(r => r.status === 'expired');
+        const currentAttachment = activeRecords.find(r => r.fileName);
+        const allUploads = allRecords.flatMap(r => r.uploads || []);
+        // Count distinct files. Each CertificationUpload row IS one stored file
+        // (the active file already has its own "Active (imported)" upload row), so
+        // when uploads exist they are the source of truth. Only fall back to
+        // counting records-with-a-file for legacy certs that have inline fileData
+        // but no upload rows.
+        const attachCount = allUploads.length > 0
+            ? allUploads.length
+            : allRecords.filter(r => r.fileName).length;
 
         return (
-            <CertCard
-                key={ct.type}
-                label={colors.label}
-                icon={Icons[colors.icon]}
-                colors={{ accent: colors.accent, bg: colors.bg, border: colors.border }}
-                status={status}
-                statusLabel={statusLabel(status)}
-                days={days}
-                expDate={expDate}
-                renewalLabel={renewalLabelFor(ct)}
-                renewalYears={ct.renewalYears}
-                hasFile={!!activeWithFile}
-                selected={selectedCertId === ct.type}
-                onSelect={() => setSelectedCertId(ct.type)}
-                onView={() => {
-                    if (wide) {
-                        setSelectedCertId(ct.type);
-                    } else if (activeWithFile) {
-                        setPreviewUpload({
-                            fileName: activeWithFile.fileName,
-                            fetchBlob: certFetchBlobs.get(`cert:${activeWithFile.id}`),
-                        });
-                    } else {
-                        setShowUploadModal(ct.type);
-                    }
-                }}
-                onUpload={() => setShowUploadModal(ct.type)}
-            />
+            <div key={ct.type} className="pa-service-card" style={{ '--card-accent': colors.accent, '--card-bg': colors.bg, '--card-border': colors.border }}>
+                <div className="pa-service-card__header">
+                    <div className="pa-service-card__icon-wrap" style={{ background: colors.bg, color: colors.accent }}>
+                        {Icons[colors.icon]}
+                    </div>
+                    <div className="pa-service-card__title-area">
+                        <h4 className="pa-service-card__title">{colors.label}</h4>
+                        <span className={`pa-badge pa-badge--active`} style={
+                            status === 'ok' ? { background: 'hsl(142 76% 92%)', color: '#16a34a' } :
+                            status === 'critical' ? { background: 'hsl(38 92% 92%)', color: '#d97706' } :
+                            status === 'expired' ? { background: 'hsl(0 84% 94%)', color: '#dc2626' } :
+                            { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }
+                        }>
+                            {statusLabel(status)}
+                        </span>
+                    </div>
+                    {ct.renewalYears && (
+                        <div className="pa-service-card__account">
+                            <span className="pa-service-card__account-label">Renewal</span>
+                            <span style={{ fontSize: 13, fontWeight: 600 }}>{ct.renewalYears}yr</span>
+                        </div>
+                    )}
+                </div>
+
+                <div className="pa-service-card__body">
+                    <div className="pa-service-card__detail">
+                        {Icons.calendar} <span>{expDate ? `Expires ${formatDate(expDate)}` : 'No expiration date set'}</span>
+                    </div>
+                    <div className="pa-service-card__detail">
+                        {Icons.clock} <span>{days !== null ? (days >= 0 ? `${days} days remaining` : `Expired ${Math.abs(days)} days ago`) : '—'}</span>
+                    </div>
+                    <div className="pa-service-card__detail">
+                        {Icons.paperclip} <span>{attachCount} attachment{attachCount !== 1 ? 's' : ''}</span>
+                    </div>
+                </div>
+
+                <div className="pa-service-card__footer">
+                    <button className="btn btn--outline btn--sm" onClick={() => setShowUploadModal(ct.type)}>{Icons.upload} Upload</button>
+                    <button
+                        className="btn btn--outline btn--sm pa-btn--view-details"
+                        style={{ color: colors.accent, borderColor: colors.accent }}
+                        onClick={() => setExpandedType(isExpanded ? null : ct.type)}
+                    >
+                        {isExpanded ? Icons.chevronDown : Icons.chevronRight} {isExpanded ? 'Hide Details' : 'View Details'}
+                    </button>
+                </div>
+
+                {isExpanded && (
+                    <div className="pa-service-card__expanded">
+                        {activeRecords.length === 0 && expiredRecords.length === 0 ? (
+                            <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', padding: '12px 0' }}>No certification records on file.</div>
+                        ) : (
+                            <div className="pa-auth-list">
+                                {activeRecords.map(rec => {
+                                    if (!rec.fileName) {
+                                        return (
+                                            <div key={rec.id} className="pa-auth-item pa-auth-item--active">
+                                                <div className="cert-history__label">Current File</div>
+                                                <div className="cert-history__list">
+                                                    <div className="file-row file-row--cert">
+                                                        <div className="file-row__main">
+                                                            <div className="file-row__name">No file uploaded</div>
+                                                            <div className="file-row__submeta">
+                                                                {rec.expirationDate ? `Expires ${formatDate(rec.expirationDate)}` : 'No expiry'}
+                                                            </div>
+                                                        </div>
+                                                        <div className="file-row__badge">
+                                                            <span className={`ts-badge ts-badge--${statusBadgeClass(status)}`}>
+                                                                {statusLabel(status)} {days !== null && `(${days >= 0 ? `${days}d` : `${Math.abs(days)}d ago`})`}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                {rec.notes && (
+                                                    <div className="pa-auth-item__body">
+                                                        <div className="pa-auth-item__notes">{rec.notes}</div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    }
+
+                                    // History attachments under the active cert. The active file itself
+                                    // already appears as the first pane item, so skip the upload row that
+                                    // matches the active fileName to avoid a duplicate; the rest are
+                                    // prior/expired history files.
+                                    const history = (rec.uploads || []).filter(u => u.fileName !== rec.fileName);
+                                    const items = [{
+                                        id: `cert:${rec.id}`,
+                                        fileName: rec.fileName,
+                                        fileType: rec.fileType,
+                                        cacheKey: `cert:${rec.id}`,
+                                        fetchBlob: certFetchBlobs.get(`cert:${rec.id}`) || (() => api.downloadEmployeeCertification(rec.id)),
+                                        meta: rec.expirationDate ? `Expires ${formatDate(rec.expirationDate)}` : 'No expiry',
+                                        badge: (
+                                            <span className={`ts-badge ts-badge--${statusBadgeClass(status)}`}>
+                                                {statusLabel(status)} {days !== null && `(${days >= 0 ? `${days}d` : `${Math.abs(days)}d ago`})`}
+                                            </span>
+                                        ),
+                                    }, ...history.map(u => ({
+                                        id: `upload:${u.id}`,
+                                        fileName: u.fileName,
+                                        fileType: u.fileType,
+                                        cacheKey: `cert-upload:${u.id}`,
+                                        fetchBlob: certFetchBlobs.get(`upload:${u.id}`) || (() => api.downloadCertificationUpload(u.id)),
+                                        meta: [u.submittedAt ? `Uploaded ${formatTimestamp(u.submittedAt)}` : '', u.expirationDate ? `Expires ${formatDate(u.expirationDate)}` : ''].filter(Boolean).join(' · '),
+                                    }))];
+
+                                    return (
+                                        <div key={rec.id} className="pa-auth-item pa-auth-item--active">
+                                            <div className="cert-history__label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                <span>History</span>
+                                                <Tooltip content={split ? 'Hide the docked file preview' : 'Dock a file preview alongside this list'}>
+                                                    <span className="cert-preview-toggle">
+                                                        <ToggleSwitch checked={split} onChange={(v) => setSplit(v)} label="Preview" />
+                                                    </span>
+                                                </Tooltip>
+                                            </div>
+                                            {rec.notes && (
+                                                <div className="pa-auth-item__body">
+                                                    <div className="pa-auth-item__notes">{rec.notes}</div>
+                                                </div>
+                                            )}
+                                            <FilePreviewPane
+                                                items={items}
+                                                selectedId={selectedFileId}
+                                                onSelect={setSelectedFileId}
+                                                open={split}
+                                                onExpand={(item) => setPreviewUpload({ fileName: item.fileName, fetchBlob: item.fetchBlob })}
+                                                onDownload={saveItem}
+                                            />
+                                        </div>
+                                    );
+                                })}
+                                {pendingRecords.length > 0 && (
+                                    <>
+                                        <div style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--primary))', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '8px 0 4px' }}>Pending Review (uploaded by employee)</div>
+                                        {pendingRecords.map(rec => (
+                                            <div key={rec.id} className="pa-auth-item" style={{ borderLeft: '3px solid hsl(var(--primary))' }}>
+                                                <div className="pa-auth-item__header">
+                                                    <div className="pa-auth-item__left">
+                                                        <span className="pa-auth-item__name">{rec.fileName || 'Pending Upload'}</span>
+                                                        <span className="pa-auth-item__dates">
+                                                            Submitted {rec.updatedAt ? formatDate(rec.updatedAt) : ''}
+                                                        </span>
+                                                    </div>
+                                                    <div className="pa-auth-item__right">
+                                                        <span className="ts-badge ts-badge--submitted">Pending</span>
+                                                        {rec.fileName && (
+                                                            <button className="btn btn--ghost btn--xs" onClick={() => handleDownload(rec)}>{Icons.download}</button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="cert-history__list">
+                                                    {(rec.uploads || []).map(upload => (
+                                                        <CertFileRow
+                                                            key={upload.id}
+                                                            upload={upload}
+                                                            onPreview={setPreviewUpload}
+                                                            onDownload={handleDownloadUpload}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </>
+                                )}
+                                {expiredRecords.length > 0 && (
+                                    <>
+                                        <div style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '8px 0 4px' }}>Previous Expired</div>
+                                        {expiredRecords.map(rec => (
+                                            <div key={rec.id} className="pa-auth-item pa-auth-item--inactive">
+                                                <div className="pa-auth-item__header">
+                                                    <div className="pa-auth-item__left">
+                                                        <span className="pa-auth-item__name" style={{ textDecoration: 'line-through', opacity: 0.6 }}>
+                                                            {rec.fileName || 'Expired Record'}
+                                                        </span>
+                                                        <span className="pa-auth-item__dates">
+                                                            {rec.expirationDate ? `Expired ${formatDate(rec.expirationDate)}` : '—'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="pa-auth-item__right">
+                                                        <span className="ts-badge ts-badge--critical">Expired</span>
+                                                        {rec.fileName && (
+                                                            <button className="btn btn--ghost btn--xs" onClick={() => handleDownload(rec)}>{Icons.download}</button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
         );
     }
 }
