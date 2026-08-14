@@ -22,9 +22,14 @@ describe('FilePreviewPane', () => {
     expect(screen.getByText('b.png')).toBeInTheDocument();
   });
 
-  it('does not render the panel when open is false', () => {
-    render(<FilePreviewPane items={items} selectedId="a" onSelect={vi.fn()} open={false} onExpand={vi.fn()} />);
+  it('hides the panel when toggle off AND nothing selected', () => {
+    render(<FilePreviewPane items={items} selectedId={null} onSelect={vi.fn()} open={false} onExpand={vi.fn()} />);
     expect(screen.queryByTestId('docviewer')).not.toBeInTheDocument();
+  });
+
+  it('reveals the panel when a file is selected even with the toggle off (wide)', () => {
+    render(<FilePreviewPane items={items} selectedId="a" onSelect={vi.fn()} open={false} onExpand={vi.fn()} />);
+    expect(screen.getByTestId('docviewer')).toHaveTextContent('a.pdf');
   });
 
   it('shows the selected item in the panel when open on a wide screen', () => {

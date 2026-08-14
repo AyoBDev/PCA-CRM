@@ -1,9 +1,17 @@
 import Icons from './Icons';
 import DocViewer from './DocViewer';
 
+// The single shared "Interactive Attachment Viewer" used on /files (inside
+// FilePreviewPane), the employee certifications tab, and the client
+// authorizations tab. ONE component — behavior/looks change here for all three.
+//
+// Renders the selected document inline via DocViewer (never full-screen).
+// Full-screen is a deliberate, separate action: the Expand button (onExpand).
+// Optional onHistory / onReplace add surface-specific toolbar actions.
 export default function CertViewerPanel({
-    fileName, fetchBlob, status, statusClass = 'draft', onHistory, onReplace,
-    emptyText = 'Select a certification to preview its document.',
+    fileName, fetchBlob, status, statusClass = 'draft',
+    onExpand, onHistory, onReplace,
+    emptyText = 'Select a file to preview it here.',
 }) {
     return (
         <div className="cert-viewer">
@@ -27,6 +35,7 @@ export default function CertViewerPanel({
                                 <>
                                     {onHistory && <button className="doc-viewer__tool" onClick={onHistory} title="History" aria-label="History">{Icons.history}</button>}
                                     {onReplace && <button className="doc-viewer__tool" onClick={onReplace} title="Replace / Upload" aria-label="Replace / Upload">{Icons.upload}</button>}
+                                    {onExpand && <button className="doc-viewer__tool" onClick={onExpand} title="Open full screen" aria-label="Open full screen">{Icons.externalLink || Icons.eye}</button>}
                                 </>
                             )}
                         />

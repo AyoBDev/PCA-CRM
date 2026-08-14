@@ -9,7 +9,7 @@ vi.mock('../components/common/DocViewer', () => ({ default: ({ fileName, extraTo
 describe('CertViewerPanel', () => {
   it('shows the empty state when no file is selected', () => {
     render(<CertViewerPanel />);
-    expect(screen.getByText(/select a certification/i)).toBeInTheDocument();
+    expect(screen.getByText(/select a file to preview/i)).toBeInTheDocument();
     expect(screen.queryByTestId('docviewer')).not.toBeInTheDocument();
   });
 
