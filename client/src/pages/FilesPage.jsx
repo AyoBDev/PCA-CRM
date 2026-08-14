@@ -31,6 +31,8 @@ export default function FilesPage() {
     const [folders, setFolders] = useState([]);
     const [treeRefreshKey, setTreeRefreshKey] = useState(0);
     const [search, setSearch] = useState('');
+    const [split, setSplit] = useState(false);
+    const [selectedFileId, setSelectedFileId] = useState(null);
     const nameInputRef = useRef(null);
 
     const loadFiles = useCallback(async (folder) => {
@@ -398,6 +400,10 @@ export default function FilesPage() {
                             onDelete={handleDelete}
                             onEditPdf={handleEditPdf}
                             onUpload={handleUpload}
+                            previewOn={split}
+                            onTogglePreview={() => setSplit(s => !s)}
+                            selectedFileId={selectedFileId}
+                            onSelectFile={(id) => { setSelectedFileId(id); setSplit(true); }}
                         />
                     )}
                 </div>

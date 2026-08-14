@@ -16,7 +16,10 @@ import * as api from '../../api';
 //   badge       — element rendered before the actions (e.g. status chip).
 //   expiresText — override the meta line entirely (e.g. "Expires …" for the
 //                 active file, which has no submittedAt).
-export default function CertFileRow({ upload, onPreview, onDownload, fetchBlob, cacheKey, badge, expiresText }) {
+//   selected    — adds an `is-selected` highlight to the row.
+//   onSelect    — called with `upload` when the row body (name/meta area) is
+//                 clicked. Omit to leave the row non-interactive (default).
+export default function CertFileRow({ upload, onPreview, onDownload, fetchBlob, cacheKey, badge, expiresText, selected, onSelect, leading, extraActions }) {
     const resolvedFetch = fetchBlob || (() => api.downloadCertificationUpload(upload.id));
 
     let meta = expiresText;
@@ -33,7 +36,8 @@ export default function CertFileRow({ upload, onPreview, onDownload, fetchBlob, 
     const previewItem = fetchBlob ? { ...upload, fetchBlob: resolvedFetch } : upload;
 
     return (
-        <div className="file-row file-row--cert">
+        <div className={`file-row file-row--cert${selected ? ' is-selected' : ''}`}>
+            {leading && <div className="file-row__leading" onClick={(e) => e.stopPropagation()}>{leading}</div>}
             <div className="file-row__icon">
                 <FileThumbnail
                     file={{ fileName: upload.fileName, mimeType: upload.fileType }}
@@ -43,7 +47,12 @@ export default function CertFileRow({ upload, onPreview, onDownload, fetchBlob, 
                     size={28}
                 />
             </div>
-            <div className="file-row__main">
+            <div
+                className="file-row__main"
+                onClick={onSelect ? () => onSelect(upload) : undefined}
+                role={onSelect ? 'button' : undefined}
+                tabIndex={onSelect ? 0 : undefined}
+            >
                 <div className="file-row__name" title={upload.fileName}>{upload.fileName}</div>
                 {(meta || upload.note) && (
                     <div className="file-row__submeta">
@@ -53,9 +62,10 @@ export default function CertFileRow({ upload, onPreview, onDownload, fetchBlob, 
                 )}
             </div>
             {badge && <div className="file-row__badge">{badge}</div>}
-            <div className="file-row__actions">
+            <div className="file-row__actions" onClick={(e) => e.stopPropagation()}>
                 <button className="btn--icon" title="Preview" onClick={() => onPreview(previewItem)}>{Icons.eye}</button>
                 <button className="btn--icon" title="Download" onClick={() => onDownload(upload)}>{Icons.download}</button>
+                {extraActions}
             </div>
         </div>
     );

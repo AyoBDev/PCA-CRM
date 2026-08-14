@@ -1,10 +1,14 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import Icons from '../../components/common/Icons';
 import InlineEditable from '../../components/common/InlineEditable';
 import * as api from '../../api';
 import { ACCOUNT_NUMBER_OPTIONS } from '../../utils/accountMapping';
 import { AUTH_COLORS, DEFAULT_AUTH_COLOR, getAuthSortKey } from '../../utils/constants';
 import { useServices } from '../../hooks/useServices';
+import CertViewerPanel from '../../components/common/CertViewerPanel';
+import ToggleSwitch from '../../components/common/ToggleSwitch';
+import { useIsWide } from '../../hooks/useIsWide';
+import Tooltip from '../../components/common/Tooltip';
 
 const LEFT_CODES = ['PCS', 'SDPC', 'COPE', 'PAS'];
 const MULTI_AUTH_CODES = ['COPE', 'PAS'];
@@ -103,11 +107,47 @@ export default function ProgramsAuthTab({
     showToast,
     totalDocs,
     onSaveAuthNote,
+    setPreviewAuthDoc,
 }) {
     const { serviceColor } = useServices();
     const [expandedAuthIds, setExpandedAuthIds] = useState({});
     const [confirmDeleteDoc, setConfirmDeleteDoc] = useState(null);
     const [expandedHistory, setExpandedHistory] = useState({});
+    const [authDocSplit, setAuthDocSplit] = useState(false);
+    const [selectedAuthDoc, setSelectedAuthDoc] = useState(null);
+    const authViewerWide = useIsWide(900);
+
+    // Clicking an attachment opens it in the inline viewer — even with the
+    // Preview toggle off (it reveals the panel). On narrow screens (no room for
+    // a side panel) it opens full-screen instead.
+    const openAuthDoc = (doc) => {
+        if (authViewerWide) {
+            setSelectedAuthDoc(`auth-doc:${doc.id}`);
+            setAuthDocSplit(true);
+        } else if (setPreviewAuthDoc) {
+            setPreviewAuthDoc({ fileName: doc.fileName, fetchBlob: () => api.downloadAuthDocument(doc.id) });
+        }
+    };
+    const showAuthViewer = authViewerWide && authDocSplit;
+
+    // One shared item list across every authorization's documents, for the
+    // docked FilePreviewPane. Namespaced ids keep them distinct from other
+    // preview surfaces on the client detail page. Memoized on
+    // authGroupsForInsurance so fetchBlob closures keep a stable identity
+    // across re-renders of this component that don't actually change the
+    // authorization/document data (DocViewer reloads whenever fetchBlob
+    // changes identity).
+    const authDocItems = useMemo(() => {
+        const allAuthsFlat = Object.values(authGroupsForInsurance).flatMap(({ current, archived }) => [...current, ...archived]);
+        return allAuthsFlat.flatMap(a => (a.documents || []).map(doc => ({
+            id: `auth-doc:${doc.id}`,
+            fileName: doc.fileName || doc.name,
+            fileType: doc.fileType || doc.mimeType,
+            cacheKey: `auth-doc:${doc.id}`,
+            fetchBlob: () => api.downloadAuthDocument(doc.id),
+            meta: a.serviceCode ? `${a.serviceCode}` : '',
+        })));
+    }, [authGroupsForInsurance]);
 
     const toggleAuthExpanded = (authId) => {
         setExpandedAuthIds(prev => ({ ...prev, [authId]: !prev[authId] }));
@@ -350,10 +390,24 @@ export default function ProgramsAuthTab({
                                                                     <div className="cp-auth-attachments__empty">No attachments</div>
                                                                 ) : (
                                                                     (a.documents || []).map(doc => (
-                                                                        <div key={doc.id} className="cp-auth-attachments__item">
-                                                                            <span className="cp-auth-attachments__name" onClick={() => handleDownloadAuthDoc(doc)} title="Download">
-                                                                                {Icons.download} {doc.fileName}
+                                                                        <div key={doc.id} className={`cp-auth-attachments__item${selectedAuthDoc === `auth-doc:${doc.id}` ? ' cp-auth-attachments__item--selected' : ''}`}>
+                                                                            <span
+                                                                                className="cp-auth-attachments__name"
+                                                                                onClick={() => openAuthDoc(doc)}
+                                                                                title="Preview"
+                                                                            >
+                                                                                {Icons.fileText} {doc.fileName}
                                                                             </span>
+                                                                            <Tooltip content="Preview">
+                                                                                <button className="btn btn--ghost btn--icon btn--xs" onClick={() => openAuthDoc(doc)} aria-label="Preview">
+                                                                                    {Icons.eye}
+                                                                                </button>
+                                                                            </Tooltip>
+                                                                            <Tooltip content="Download">
+                                                                                <button className="btn btn--ghost btn--icon btn--xs" onClick={() => handleDownloadAuthDoc(doc)} aria-label="Download">
+                                                                                    {Icons.download}
+                                                                                </button>
+                                                                            </Tooltip>
                                                                             {confirmDeleteDoc === doc.id ? (
                                                                                 <span className="cp-auth-attachments__confirm-delete">
                                                                                     <span>Delete?</span>
@@ -409,58 +463,81 @@ export default function ProgramsAuthTab({
                                 </button>
                             ))}
                         </div>
+                        <Tooltip content={authDocSplit ? 'Switch back to the list view' : 'Show a docked preview of authorization attachments'}>
+                            <span className="cp-auth-preview-toggle">
+                                <ToggleSwitch checked={authDocSplit} onChange={(v) => setAuthDocSplit(v)} label="Preview" />
+                            </span>
+                        </Tooltip>
                         <button className="btn btn--primary btn--sm" onClick={() => openAuthModal(null, '')}>{Icons.plus} Add Authorization</button>
                     </div>
                 </div>
                 <div className="cp-card__body">
-                    {Object.keys(authGroupsForInsurance).length === 0 ? (
-                        <div className="cp-empty-state-card">
-                            <div className="cp-empty-state-card__icon">{Icons.clipboard}</div>
-                            <p>No authorizations on file.</p>
-                        </div>
-                    ) : (
-                        <div className="pa-services-grid">
-                            <div className="pa-services-grid__left">
-                                {leftCodes.map(code => renderServiceCard(code))}
-                            </div>
-                            <div className="pa-services-grid__right">
-                                {rightCodes.map(code => renderServiceCard(code))}
-                            </div>
-                        </div>
-                    )}
+                    <div className={showAuthViewer ? 'cert-portfolio' : undefined}>
+                        <div className={showAuthViewer ? 'cert-portfolio__list' : undefined}>
+                            {Object.keys(authGroupsForInsurance).length === 0 ? (
+                                <div className="cp-empty-state-card">
+                                    <div className="cp-empty-state-card__icon">{Icons.clipboard}</div>
+                                    <p>No authorizations on file.</p>
+                                </div>
+                            ) : (
+                                <div className="pa-services-grid">
+                                    <div className="pa-services-grid__left">
+                                        {leftCodes.map(code => renderServiceCard(code))}
+                                    </div>
+                                    <div className="pa-services-grid__right">
+                                        {rightCodes.map(code => renderServiceCard(code))}
+                                    </div>
+                                </div>
+                            )}
 
-                    {Object.keys(authGroupsForInsurance).length > 0 && (
-                        <div className="pa-summary-bar">
-                            <div className="pa-summary-bar__item">
-                                <div className="pa-summary-bar__icon" style={{ color: '#22c55e' }}>{Icons.checkCircle}</div>
-                                <div className="pa-summary-bar__data">
-                                    <span className="pa-summary-bar__label">TOTAL ACTIVE</span>
-                                    <span className="pa-summary-bar__value">{totalActive}</span>
+                            {Object.keys(authGroupsForInsurance).length > 0 && (
+                                <div className="pa-summary-bar">
+                                    <div className="pa-summary-bar__item">
+                                        <div className="pa-summary-bar__icon" style={{ color: '#22c55e' }}>{Icons.checkCircle}</div>
+                                        <div className="pa-summary-bar__data">
+                                            <span className="pa-summary-bar__label">TOTAL ACTIVE</span>
+                                            <span className="pa-summary-bar__value">{totalActive}</span>
+                                        </div>
+                                    </div>
+                                    <div className="pa-summary-bar__item">
+                                        <div className="pa-summary-bar__icon" style={{ color: '#3b82f6' }}>{Icons.clock}</div>
+                                        <div className="pa-summary-bar__data">
+                                            <span className="pa-summary-bar__label">TOTAL UNITS</span>
+                                            <span className="pa-summary-bar__value">{totalUnits}</span>
+                                        </div>
+                                    </div>
+                                    <div className="pa-summary-bar__item">
+                                        <div className="pa-summary-bar__icon" style={{ color: '#f59e0b' }}>{Icons.clock}</div>
+                                        <div className="pa-summary-bar__data">
+                                            <span className="pa-summary-bar__label">TOTAL HOURS</span>
+                                            <span className="pa-summary-bar__value">{totalHours}</span>
+                                        </div>
+                                    </div>
+                                    <div className="pa-summary-bar__item">
+                                        <div className="pa-summary-bar__icon" style={{ color: '#22c55e' }}>{Icons.paperclip}</div>
+                                        <div className="pa-summary-bar__data">
+                                            <span className="pa-summary-bar__label">DOCUMENTS</span>
+                                            <span className="pa-summary-bar__value">{totalDocs || 0}</span>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="pa-summary-bar__item">
-                                <div className="pa-summary-bar__icon" style={{ color: '#3b82f6' }}>{Icons.clock}</div>
-                                <div className="pa-summary-bar__data">
-                                    <span className="pa-summary-bar__label">TOTAL UNITS</span>
-                                    <span className="pa-summary-bar__value">{totalUnits}</span>
-                                </div>
-                            </div>
-                            <div className="pa-summary-bar__item">
-                                <div className="pa-summary-bar__icon" style={{ color: '#f59e0b' }}>{Icons.clock}</div>
-                                <div className="pa-summary-bar__data">
-                                    <span className="pa-summary-bar__label">TOTAL HOURS</span>
-                                    <span className="pa-summary-bar__value">{totalHours}</span>
-                                </div>
-                            </div>
-                            <div className="pa-summary-bar__item">
-                                <div className="pa-summary-bar__icon" style={{ color: '#22c55e' }}>{Icons.paperclip}</div>
-                                <div className="pa-summary-bar__data">
-                                    <span className="pa-summary-bar__label">DOCUMENTS</span>
-                                    <span className="pa-summary-bar__value">{totalDocs || 0}</span>
-                                </div>
-                            </div>
+                            )}
                         </div>
-                    )}
+
+                        {showAuthViewer && (() => {
+                            const sel = authDocItems.find(i => i.id === selectedAuthDoc) || null;
+                            return (
+                                <div className="cert-portfolio__viewer">
+                                    <CertViewerPanel
+                                        fileName={sel?.fileName}
+                                        fetchBlob={sel?.fetchBlob}
+                                        onExpand={sel && setPreviewAuthDoc ? () => setPreviewAuthDoc({ fileName: sel.fileName, fetchBlob: sel.fetchBlob }) : undefined}
+                                        emptyText="Select an attachment to preview it here."
+                                    />
+                                </div>
+                            );
+                        })()}
+                    </div>
                 </div>
             </div>
         </div>

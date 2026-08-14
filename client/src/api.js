@@ -326,13 +326,7 @@ export const uploadAuthDocument = (authId, formData) => {
 export const downloadAuthDocument = (id) => {
     const headers = {};
     if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-    return fetch(`${BASE}/auth-documents/${id}/download`, { headers })
-        .then(async res => {
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const contentType = res.headers.get('Content-Type') || 'application/octet-stream';
-            const arrayBuffer = await res.arrayBuffer();
-            return new Blob([arrayBuffer], { type: contentType });
-        });
+    return fetch(`${BASE}/auth-documents/${id}/download`, { headers });
 };
 export const deleteAuthDocument = (id) =>
     request(`/auth-documents/${id}`, { method: 'DELETE' });

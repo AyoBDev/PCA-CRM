@@ -4,6 +4,7 @@ import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import PreviewModal from '../components/common/PreviewModal';
 import AuthorizationFormModal from '../components/common/AuthorizationFormModal';
 import Breadcrumbs from '../components/common/Breadcrumbs';
 import { EntityActivityButton } from '../components/common/ActivityDrawer';
@@ -128,6 +129,7 @@ export default function ClientDetailPage() {
     const [summaryExpandedService, setSummaryExpandedService] = useState(null);
     const [authFilterStatus, setAuthFilterStatus] = useState('active');
     const [expandedAuthAttachments, setExpandedAuthAttachments] = useState({});
+    const [previewAuthDoc, setPreviewAuthDoc] = useState(null);
 
     const fetchClient = useCallback(async () => {
         try {
@@ -671,7 +673,9 @@ export default function ClientDetailPage() {
 
     const handleDownloadAuthDoc = async (doc) => {
         try {
-            const blob = await api.downloadAuthDocument(doc.id);
+            const res = await api.downloadAuthDocument(doc.id);
+            if (!res.ok) throw new Error('Download failed');
+            const blob = await res.blob();
             const url = URL.createObjectURL(blob);
             if (doc.mimeType === 'application/pdf' || doc.fileName?.toLowerCase().endsWith('.pdf')) {
                 window.open(url, '_blank');
@@ -1074,6 +1078,7 @@ export default function ClientDetailPage() {
                             showToast={showToast}
                             totalDocs={totalDocs}
                             onSaveAuthNote={handleSaveAuthNote}
+                            setPreviewAuthDoc={setPreviewAuthDoc}
                         />
                     )}
                     {activeTab === 'documents' && (
@@ -1539,6 +1544,14 @@ export default function ClientDetailPage() {
                     confirmVariant="danger"
                     onConfirm={handleArchiveClient}
                     onClose={() => setConfirmArchiveClient(false)}
+                />
+            )}
+            {previewAuthDoc && (
+                <PreviewModal
+                    open
+                    fileName={previewAuthDoc.fileName}
+                    fetchBlob={previewAuthDoc.fetchBlob}
+                    onClose={() => setPreviewAuthDoc(null)}
                 />
             )}
         </>
