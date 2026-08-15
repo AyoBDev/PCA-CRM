@@ -246,3 +246,13 @@ inactive) and audit. This is the in-app way to fix the pre-fix early-retired
 rows on prod without a script. Verified end-to-end against the running API:
 reactivating #2895 set it active while its renewal #3261 stayed active and all
 dates were unchanged.
+## 2026-08-14 — Employee Portal v3 Area 2: Lifecycle + Agency Review
+
+**Decision:** Build in-house (extend the existing Area 1 requirement ledger + a small status-machine module), not adopt a workflow/state-machine library (e.g. XState, `javascript-state-machine`).
+
+**Options considered:**
+- **XState / javascript-state-machine** — mature, well-documented, large community. Rejected: our machine is 7 states / 8 edges with DB-persisted status and audit side-effects on every edge; a library adds a dependency and an interpreter abstraction for a table that fits in ~30 lines, and the transitions must run inside Prisma transactions alongside other writes. Poor fit for the effort saved.
+- **New dedicated review table** — rejected per spec: the Area 1 `EmployeeRequirement` ledger already holds per-item state; adding `reviewStatus` reuses it and keeps one source of truth. Audit log already captures who/when per decision, so no separate history table (YAGNI).
+- **Custom (chosen)** — `onboardingLifecycle.transition()` as the single gate for status writes + a pure `reviewSummary()` derivation. Minimal surface, fully testable, no new deps.
+
+**Why:** the domain is small and tightly coupled to our persistence + audit conventions; a library would constrain more than it helps.
