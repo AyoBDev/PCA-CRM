@@ -123,7 +123,7 @@ model Employee {
   notes                   String                 @default("") @map("notes")
   critical                Boolean                @default(false) @map("critical")
   complianceStatus        String                 @default("ok") @map("compliance_status")
-  onboardingStatus        String                 @default("active") @map("onboarding_status")
+  onboardingStatus        String                 @default("invitation_pending") @map("onboarding_status")
   availability            Json?                  @map("availability")
   latitude                Float?                 @map("latitude")
   longitude               Float?                 @map("longitude")
@@ -1198,6 +1198,7 @@ model EmployeeRequirement {
   // submission — they can be uploaded later from the app/Profile.
   optional        Boolean   @default(false)
   rejectionReason String    @default("") @map("rejection_reason")
+  reviewStatus    String    @default("pending") @map("review_status")
   dueDate         DateTime? @map("due_date")
   documentId      Int?      @map("document_id")
   certificationId Int?      @map("certification_id")
