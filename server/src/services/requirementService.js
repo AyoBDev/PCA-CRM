@@ -24,6 +24,7 @@ async function projectLedger(employeeId) {
       status: r.status,
       optional: Boolean(r.optional),
       rejectionReason: r.rejectionReason,
+      reviewStatus: r.reviewStatus || 'pending',
       label: cat ? (cat.label || cat.title) : '',
       requiresExpiry: cat ? Boolean(cat.requiresExpiry) : false,
       fileName: file ? file.fileName : null,
@@ -94,4 +95,13 @@ function isOnboardingComplete(requirements) {
   });
 }
 
-module.exports = { assignRequirements, markSubmitted, markPolicyAck, isOnboardingComplete, projectLedger, KINDS };
+// Decide the finalize outcome from per-item admin review states.
+// `reviewStatus`: 'pending' | 'approved' | 'rejected'. Optional items never block.
+function reviewSummary(requirements) {
+  const required = requirements.filter(r => !r.optional);
+  const rejectedIds = required.filter(r => r.reviewStatus === 'rejected').map(r => r.id);
+  const allApproved = required.every(r => r.reviewStatus === 'approved');
+  return { outcome: allApproved ? 'approved' : 'changes_requested', rejectedIds };
+}
+
+module.exports = { assignRequirements, markSubmitted, markPolicyAck, isOnboardingComplete, projectLedger, reviewSummary, KINDS };
