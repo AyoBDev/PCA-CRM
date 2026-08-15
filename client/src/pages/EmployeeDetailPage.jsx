@@ -12,7 +12,7 @@ import PayrollTab from './employee-tabs/PayrollTab';
 import EmployeeNotesTab from './employee-tabs/NotesTab';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
-import { TIMESHEET_STATUS_STYLES, TIMESHEET_SERVICE_COLORS } from '../utils/constants';
+import { TIMESHEET_STATUS_STYLES, TIMESHEET_SERVICE_COLORS, ONBOARDING_STATUS_LABELS, ONBOARDING_STATUS_BADGE_VARIANT } from '../utils/constants';
 import { formatDate, formatTimestamp } from '../utils/dates';
 import PreviewModal from '../components/common/PreviewModal';
 import CertFileRow from '../components/files/CertFileRow';
@@ -510,7 +510,7 @@ export default function EmployeeDetailPage() {
             <ContextBar>
                 <ContextBar.Right>
                     <EntityActivityButton entityType="Employee" entityId={employee.id} />
-                    {employee.onboardingStatus === 'invited' && (
+                    {employee.onboardingStatus === 'invitation_pending' && (
                         <>
                             <button className="btn btn--outline btn--sm" onClick={handleCopyOnboardingLink}>
                                 {Icons.copy} Copy Link
@@ -547,11 +547,10 @@ export default function EmployeeDetailPage() {
                                     <option value="active">Active</option>
                                     <option value="inactive">Inactive</option>
                                 </select>
-                                {employee.onboardingStatus === 'invited' && (
-                                    <span className="ts-badge ts-badge--draft">Invited</span>
-                                )}
-                                {employee.onboardingStatus === 'submitted' && (
-                                    <span className="ts-badge ts-badge--submitted">Pending Review</span>
+                                {ONBOARDING_STATUS_BADGE_VARIANT[employee.onboardingStatus] && (
+                                    <span className={`ts-badge ts-badge--${ONBOARDING_STATUS_BADGE_VARIANT[employee.onboardingStatus]}`}>
+                                        {ONBOARDING_STATUS_LABELS[employee.onboardingStatus]}
+                                    </span>
                                 )}
                             </div>
                             <div className="cp-bio__chips">
@@ -642,7 +641,7 @@ export default function EmployeeDetailPage() {
                     )}
                     {activeTab === 'availability' && (
                         <div className="cp-tab-panel">
-                            {employee.onboardingStatus === 'submitted' && (
+                            {employee.onboardingStatus === 'pending_review' && (
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
                                     <button className="btn btn--primary btn--sm" onClick={() => setShowReviewModal(true)}>
                                         {Icons.checkCircle} Review Onboarding

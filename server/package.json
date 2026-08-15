@@ -12,6 +12,7 @@
     "db:seed": "node prisma/seed.js",
     "db:seed-requirements": "node prisma/seed-requirements.js",
     "db:migrate-employees": "node prisma/migrate-employees.js",
+    "db:migrate-lifecycle": "node prisma/migrate-lifecycle-statuses.js",
     "db:migrate-data": "node prisma/migrate-data.js",
     "db:backfill-auth-required": "node prisma/backfill-authorization-required.js",
     "db:backfill-geocodes": "node prisma/backfill-geocodes.js",
