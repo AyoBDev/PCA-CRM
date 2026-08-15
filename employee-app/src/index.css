@@ -509,6 +509,12 @@ body {
 .loading-screen { display: flex; align-items: center; justify-content: center; min-height: 100dvh; color: hsl(var(--muted-foreground)); }
 .page-loading { display: flex; align-items: center; justify-content: center; padding: 48px; color: hsl(var(--muted-foreground)); }
 
+/* === ONBOARDING STATUS === */
+.onboarding-status-screen { padding: 24px; }
+.onboarding-status-screen__card { max-width: 360px; text-align: center; }
+.onboarding-status-screen__card h1 { font-size: 18px; font-weight: 600; color: hsl(var(--foreground)); margin: 0 0 8px; }
+.onboarding-status-screen__card p { font-size: 14px; color: hsl(var(--muted-foreground)); margin: 0; }
+
 /* === TIMESHEET STATUS === */
 .ts-status-bar {
   display: flex;

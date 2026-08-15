@@ -14,11 +14,15 @@ import CertificationsPage from './pages/CertificationsPage';
 import AvailabilityPage from './pages/AvailabilityPage';
 import TasksPage from './pages/TasksPage';
 import ProfilePage from './pages/ProfilePage';
+import OnboardingStatusPage from './pages/OnboardingStatusPage';
 
 function ProtectedRoutes() {
   const { user, loading } = useAuth();
   if (loading) return <div className="loading-screen">Loading...</div>;
   if (!user) return <Navigate to="/login" replace />;
+  if (user.onboardingStatus && user.onboardingStatus !== 'active') {
+    return <Navigate to="/onboarding-status" replace />;
+  }
   return (
     <NotificationsProvider>
       <EmployeeLayout />
@@ -32,6 +36,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/onboard/:token" element={<OnboardingPage />} />
+        <Route path="/onboarding-status" element={<OnboardingStatusPage />} />
         <Route element={<ProtectedRoutes />}>
           <Route index element={<HomePage />} />
           <Route path="schedule" element={<SchedulePage />} />
