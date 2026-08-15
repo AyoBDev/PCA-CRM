@@ -121,7 +121,7 @@ async function resendInvite(req, res, next) {
         const employee = await prisma.employee.findUnique({ where: { id } });
         if (!employee) return res.status(404).json({ error: 'Employee not found' });
         if (employee.onboardingStatus !== 'invitation_pending') {
-            return res.status(400).json({ error: 'Can only resend invite for employees with status "invited"' });
+            return res.status(400).json({ error: 'Can only resend invite for employees who have not yet started onboarding' });
         }
         if (!employee.email) {
             return res.status(400).json({ error: 'Employee has no email address' });

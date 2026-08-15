@@ -3,7 +3,7 @@ const onboarding = require('../../services/onboardingService');
 const audit = require('../../services/auditService');
 const lifecycle = require('../../services/onboardingLifecycle');
 const { uploadFile } = require('../../lib/storage');
-const { markSubmitted, markPolicyAck, resetItemForRework, projectLedger } = require('../../services/requirementService');
+const { markSubmitted, markPolicyAck, projectLedger } = require('../../services/requirementService');
 const { safeFileName } = require('../../lib/fileNameUtils');
 
 // First real onboarding data moves the employee off invitation_pending. Safe
