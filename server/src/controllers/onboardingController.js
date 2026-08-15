@@ -250,4 +250,20 @@ async function reviewRequirementItem(req, res, next) {
     }
 }
 
-module.exports = { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, rejectOnboarding, requestOnboardingChange, getOnboardingLink, getOnboardingReviews, getOnboardingReviewDetail, reviewRequirementItem };
+// Admin "finalize review" — reads per-item review decisions and either
+// approves+activates the employee (and their login user) or sends them back to
+// changes_requested (reopening the onboarding token). See onboardingService.finalizeOnboarding.
+async function finalizeOnboarding(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const { outcome } = await onboarding.finalizeOnboarding(id, { userId: req.user.id, userName: req.user.name, userRole: req.user.role });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: id, entityName: '', metadata: { action: 'finalize_onboarding', outcome } });
+        res.json({ success: true, outcome });
+    } catch (err) {
+        if (err.message === 'Employee not found') return res.status(404).json({ error: err.message });
+        if (err.message === 'Employee is not pending review') return res.status(400).json({ error: err.message });
+        next(err);
+    }
+}
+
+module.exports = { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, rejectOnboarding, requestOnboardingChange, getOnboardingLink, getOnboardingReviews, getOnboardingReviewDetail, reviewRequirementItem, finalizeOnboarding };

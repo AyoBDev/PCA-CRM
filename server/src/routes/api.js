@@ -181,7 +181,7 @@ const { getPayrollProfile, upsertPayrollProfile, revealSensitiveField } = requir
 const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalizeReceipts, sendReceipts, downloadReceiptPdf } = require('../controllers/receiptController');
 const { previewSandata, applySandata, undoSandata } = require('../controllers/sandataController');
 const { listConversations, getConversationMessages, adminSendMessage, markConversationRead, getUnreadSummary } = require('../controllers/employeePortal/adminChatController');
-const { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, rejectOnboarding, requestOnboardingChange, getOnboardingLink, getOnboardingReviews, getOnboardingReviewDetail, reviewRequirementItem } = require('../controllers/onboardingController');
+const { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, rejectOnboarding, requestOnboardingChange, getOnboardingLink, getOnboardingReviews, getOnboardingReviewDetail, reviewRequirementItem, finalizeOnboarding } = require('../controllers/onboardingController');
 const { savePersonal, saveEmergency, uploadDocument: uploadOnboardingDocument, ackPolicy } = require('../controllers/employeePortal/onboardingRequirementsController');
 const catalog = require('../controllers/catalogController');
 const { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats, createLeadContact, listLeadContacts, deleteLeadContact, getLeadReminders, getClientLeadContacts } = require('../controllers/leadController');
@@ -461,6 +461,7 @@ router.patch('/employees/:id/reject-onboarding', requireRole('admin'), requirePe
 router.patch('/employees/:id/request-onboarding-change', requireRole('admin'), requirePermission('employees'), requestOnboardingChange);
 router.get('/employees/:id/onboarding-review', requireRole('admin'), requirePermission('employees'), getOnboardingReviewDetail);
 router.patch('/employees/:id/requirements/:reqId/review', requireRole('admin'), requirePermission('employees'), reviewRequirementItem);
+router.post('/employees/:id/onboarding/finalize', requireRole('admin'), requirePermission('employees'), finalizeOnboarding);
 router.get('/employees/:id/onboarding-link', requireRole('admin'), requirePermission('employees'), getOnboardingLink);
 router.get('/employees/:id/availability', requireRole('admin', 'user'), requirePermission('employees'), getEmployeeAvailability);
 

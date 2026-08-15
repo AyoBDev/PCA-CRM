@@ -1,6 +1,8 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../lib/prisma');
 const { isEmailConfigured, sendEmail } = require('./notificationService');
+const lifecycle = require('./onboardingLifecycle');
+const { projectLedger, reviewSummary } = require('./requirementService');
 
 const ONBOARDING_EXPIRY_DAYS = 7;
 const EMPLOYEE_APP_URL = process.env.EMPLOYEE_APP_URL || 'http://localhost:4000/employee';
@@ -182,6 +184,47 @@ async function reviewItem(employeeId, reqId, { decision, reason }) {
     return prisma.employeeRequirement.update({ where: { id: reqId }, data: { reviewStatus: 'approved', rejectionReason: '' } });
 }
 
+// Admin "finalize review" decision, driven by per-item review outcomes rather than
+// a single admin action: if every required EmployeeRequirement is approved, the
+// employee moves pending_review → approved → active and their login user is
+// activated. If any required item is rejected, the employee is sent back to
+// changes_requested and their onboarding token is reopened so they can fix things.
+async function finalizeOnboarding(employeeId, actor = {}) {
+    const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+    if (!employee) throw new Error('Employee not found');
+    if (employee.onboardingStatus !== 'pending_review') throw new Error('Employee is not pending review');
+
+    const ledger = await projectLedger(employeeId);
+    const { outcome } = reviewSummary(ledger);
+    const meta = { userId: actor.userId, userName: actor.userName, userRole: actor.userRole };
+
+    if (outcome === 'approved') {
+        await prisma.$transaction(async (tx) => {
+            await lifecycle.transition(tx, employeeId, 'approved', meta);
+            await lifecycle.transition(tx, employeeId, 'active', meta);
+            if (employee.userId) await tx.user.update({ where: { id: employee.userId }, data: { status: 'active' } });
+        });
+        sendWelcomeEmail(employee).catch(err => console.error('Welcome email failed:', err.message));
+        return { outcome, employee };
+    }
+
+    // changes_requested
+    await prisma.$transaction(async (tx) => {
+        await lifecycle.transition(tx, employeeId, 'changes_requested', meta);
+        await tx.onboardingToken.updateMany({
+            where: { employeeId },
+            data: { status: 'pending', completedAt: null, expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) },
+        });
+        if (employee.userId) await tx.user.update({ where: { id: employee.userId }, data: { status: 'pending' } });
+    });
+    const active = await prisma.onboardingToken.findFirst({ where: { employeeId, status: 'pending', expiresAt: { gt: new Date() } } });
+    if (!active) {
+        const token = await createOnboardingToken(employeeId);
+        sendOnboardingEmail(employee, token).catch(err => console.error('Onboarding re-invite email failed:', err.message));
+    }
+    return { outcome, employee };
+}
+
 module.exports = {
     createOnboardingToken,
     sendOnboardingEmail,
@@ -191,5 +234,6 @@ module.exports = {
     approveOnboarding,
     reviewOnboarding,
     reviewItem,
+    finalizeOnboarding,
     EMPLOYEE_APP_URL,
 };
