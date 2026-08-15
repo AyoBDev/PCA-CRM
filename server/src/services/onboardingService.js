@@ -83,7 +83,7 @@ async function completeOnboarding(tokenStr, { password, availability }) {
     await prisma.$transaction([
         prisma.employee.update({
             where: { id: employee.id },
-            data: { userId: user.id, onboardingStatus: skipApproval ? 'active' : 'submitted' },
+            data: { userId: user.id },
         }),
         prisma.onboardingToken.update({
             where: { id: token.id },
@@ -107,68 +107,21 @@ async function completeOnboarding(tokenStr, { password, availability }) {
         }),
     ]);
 
+    if (skipApproval) {
+        await prisma.employee.update({ where: { id: employee.id }, data: { onboardingStatus: 'active' } });
+    } else {
+        // invitation_pending|onboarding_in_progress|changes_requested → pending_review.
+        // A first-ever submit is typically still invitation_pending (if the employee
+        // skipped straight to submit without triggering a first-data save); a
+        // re-submit after changes_requested goes straight to pending_review.
+        const cur = await prisma.employee.findUnique({ where: { id: employee.id } });
+        if (cur.onboardingStatus === 'invitation_pending') {
+            await lifecycle.transition(prisma, employee.id, 'onboarding_in_progress');
+        }
+        await lifecycle.transition(prisma, employee.id, 'pending_review');
+    }
+
     return { employee, user, skipApproval };
-}
-
-async function approveOnboarding(employeeId) {
-    const employee = await prisma.employee.findUnique({
-        where: { id: employeeId },
-        include: { user: true },
-    });
-    if (!employee) throw new Error('Employee not found');
-    if (employee.onboardingStatus !== 'submitted') throw new Error('Employee is not pending approval');
-
-    await prisma.$transaction([
-        prisma.employee.update({
-            where: { id: employeeId },
-            data: { onboardingStatus: 'active', adminReviewNote: '' },
-        }),
-        prisma.user.update({
-            where: { id: employee.userId },
-            data: { status: 'active' },
-        }),
-    ]);
-
-    sendWelcomeEmail(employee).catch(err => console.error('Welcome email failed:', err.message));
-    return employee;
-}
-
-// Send a submitted employee back to onboarding to fix things, with a note they'll
-// see. Used for both "reject" and "request change" (decision is recorded by the
-// caller in the audit log + status). Reopens the onboarding token so the employee's
-// existing link works again, and puts the account back to pending.
-async function reviewOnboarding(employeeId, { status, note }) {
-    const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
-    if (!employee) throw new Error('Employee not found');
-    if (employee.onboardingStatus !== 'submitted') throw new Error('Employee is not pending approval');
-
-    const ops = [
-        prisma.employee.update({
-            where: { id: employeeId },
-            data: { onboardingStatus: status, adminReviewNote: note || '' },
-        }),
-        // Reopen any existing onboarding tokens so the employee can return via their link.
-        prisma.onboardingToken.updateMany({
-            where: { employeeId },
-            data: { status: 'pending', completedAt: null, expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) },
-        }),
-    ];
-    // If a login account was already created at submit, hold it as pending again.
-    if (employee.userId) {
-        ops.push(prisma.user.update({ where: { id: employee.userId }, data: { status: 'pending' } }));
-    }
-    await prisma.$transaction(ops);
-
-    // Guarantee the employee has a usable link back in — if none exists (or all are
-    // expired), mint a fresh one and email it.
-    const active = await prisma.onboardingToken.findFirst({
-        where: { employeeId, status: 'pending', expiresAt: { gt: new Date() } },
-    });
-    if (!active) {
-        const token = await createOnboardingToken(employeeId);
-        sendOnboardingEmail(employee, token).catch(err => console.error('Onboarding re-invite email failed:', err.message));
-    }
-    return employee;
 }
 
 // Per-item admin review decision on a single EmployeeRequirement (approve/reject).
@@ -231,8 +184,6 @@ module.exports = {
     sendWelcomeEmail,
     validateToken,
     completeOnboarding,
-    approveOnboarding,
-    reviewOnboarding,
     reviewItem,
     finalizeOnboarding,
     EMPLOYEE_APP_URL,

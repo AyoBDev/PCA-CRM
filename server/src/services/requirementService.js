@@ -73,17 +73,33 @@ async function assignRequirements(tx, employeeId, selections = {}) {
   return rows;
 }
 
+// A re-upload of a previously-rejected document/cert must also flip the item
+// back into the review queue (reviewStatus 'pending', reason cleared) rather
+// than staying stuck 'rejected' — so this always resets both fields alongside
+// the status write.
 async function markSubmitted(tx, requirementId, fulfillment = {}) {
-  const data = { status: 'submitted' };
+  const data = { status: 'submitted', reviewStatus: 'pending', rejectionReason: '' };
   if (fulfillment.documentId) data.documentId = fulfillment.documentId;
   if (fulfillment.certificationId) data.certificationId = fulfillment.certificationId;
   return tx.employeeRequirement.update({ where: { id: requirementId }, data });
 }
 
+// A re-ack of a previously-rejected policy also flips it back into the review
+// queue (reviewStatus 'pending', reason cleared) alongside the fulfillment write.
 async function markPolicyAck(tx, requirementId, policyAckId) {
   return tx.employeeRequirement.update({
     where: { id: requirementId },
-    data: { status: 'approved', policyAckId },
+    data: { status: 'approved', policyAckId, reviewStatus: 'pending', rejectionReason: '' },
+  });
+}
+
+// Flip a previously-rejected requirement back into rework: the employee has
+// re-uploaded a document/cert or re-acked a policy, so it should re-enter the
+// admin review queue as 'pending' rather than stay stuck 'rejected'.
+async function resetItemForRework(tx, requirementId) {
+  return tx.employeeRequirement.update({
+    where: { id: requirementId },
+    data: { reviewStatus: 'pending', status: 'submitted', rejectionReason: '' },
   });
 }
 
@@ -104,4 +120,4 @@ function reviewSummary(requirements) {
   return { outcome: allApproved ? 'approved' : 'changes_requested', rejectedIds };
 }
 
-module.exports = { assignRequirements, markSubmitted, markPolicyAck, isOnboardingComplete, projectLedger, reviewSummary, KINDS };
+module.exports = { assignRequirements, markSubmitted, markPolicyAck, resetItemForRework, isOnboardingComplete, projectLedger, reviewSummary, KINDS };

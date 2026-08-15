@@ -64,8 +64,8 @@ async function createEmployee(req, res, next) {
 
         // Auto-send onboarding invite if email provided and no user account linked
         if (employee.email && !userId) {
-            await prisma.employee.update({ where: { id: employee.id }, data: { onboardingStatus: 'invited' } });
-            employee.onboardingStatus = 'invited';
+            await prisma.employee.update({ where: { id: employee.id }, data: { onboardingStatus: 'invitation_pending' } });
+            employee.onboardingStatus = 'invitation_pending';
             const token = await onboarding.createOnboardingToken(employee.id);
             onboarding.sendOnboardingEmail(employee, token).catch(err => console.error('Onboarding email failed:', err.message));
             audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'onboarding_invite_sent' } });

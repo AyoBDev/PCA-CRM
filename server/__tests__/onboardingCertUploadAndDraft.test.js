@@ -8,7 +8,7 @@ afterAll(async () => { await prisma.$disconnect(); });
 describe('onboarding certification upload + availability draft', () => {
   let token, employeeId, certReqId;
   beforeAll(async () => {
-    const e = await prisma.employee.create({ data: { name: 'Cert EE', email: `cert-${Date.now()}@t.co`, onboardingStatus: 'invited' } });
+    const e = await prisma.employee.create({ data: { name: 'Cert EE', email: `cert-${Date.now()}@t.co`, onboardingStatus: 'invitation_pending' } });
     employeeId = e.id;
     token = (await onboarding.createOnboardingToken(e.id)).token;
     const ct = await prisma.certType.create({ data: { key: `cpr-${Date.now()}`, label: 'CPR', sortOrder: 1 } });

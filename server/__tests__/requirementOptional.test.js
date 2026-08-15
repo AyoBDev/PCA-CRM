@@ -19,7 +19,7 @@ describe('optional requirements', () => {
   });
 
   it('assignRequirements resolves certTypeKeys and marks them optional', async () => {
-    const emp = await prisma.employee.create({ data: { name: 'Opt EE', email: `opt-${Date.now()}@t.co`, onboardingStatus: 'invited' } });
+    const emp = await prisma.employee.create({ data: { name: 'Opt EE', email: `opt-${Date.now()}@t.co`, onboardingStatus: 'invitation_pending' } });
     const key = `cpr-${Date.now()}`;
     await prisma.certType.create({ data: { key, label: 'CPR', sortOrder: 1 } });
     const rows = await prisma.$transaction(tx =>

@@ -120,7 +120,7 @@ async function resendInvite(req, res, next) {
         const id = Number(req.params.id);
         const employee = await prisma.employee.findUnique({ where: { id } });
         if (!employee) return res.status(404).json({ error: 'Employee not found' });
-        if (employee.onboardingStatus !== 'invited') {
+        if (employee.onboardingStatus !== 'invitation_pending') {
             return res.status(400).json({ error: 'Can only resend invite for employees with status "invited"' });
         }
         if (!employee.email) {
@@ -133,48 +133,6 @@ async function resendInvite(req, res, next) {
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'resend_onboarding_invite' } });
         res.json({ success: true });
     } catch (err) { next(err); }
-}
-
-async function approveOnboarding(req, res, next) {
-    try {
-        const id = Number(req.params.id);
-        const employee = await onboarding.approveOnboarding(id);
-
-        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'approve_onboarding' } });
-        res.json({ success: true });
-    } catch (err) {
-        if (err.message === 'Employee not found') return res.status(404).json({ error: err.message });
-        if (err.message === 'Employee is not pending approval') return res.status(400).json({ error: err.message });
-        next(err);
-    }
-}
-
-async function rejectOnboarding(req, res, next) {
-    try {
-        const id = Number(req.params.id);
-        const note = (req.body && req.body.note) || '';
-        const employee = await onboarding.reviewOnboarding(id, { status: 'changes_requested', note });
-        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'reject_onboarding', note } });
-        res.json({ success: true });
-    } catch (err) {
-        if (err.message === 'Employee not found') return res.status(404).json({ error: err.message });
-        if (err.message === 'Employee is not pending approval') return res.status(400).json({ error: err.message });
-        next(err);
-    }
-}
-
-async function requestOnboardingChange(req, res, next) {
-    try {
-        const id = Number(req.params.id);
-        const note = (req.body && req.body.note) || '';
-        const employee = await onboarding.reviewOnboarding(id, { status: 'changes_requested', note });
-        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'request_onboarding_change', note } });
-        res.json({ success: true });
-    } catch (err) {
-        if (err.message === 'Employee not found') return res.status(404).json({ error: err.message });
-        if (err.message === 'Employee is not pending approval') return res.status(400).json({ error: err.message });
-        next(err);
-    }
 }
 
 async function getOnboardingLink(req, res, next) {
@@ -216,7 +174,7 @@ async function getOnboardingReviewDetail(req, res, next) {
 async function getOnboardingReviews(req, res, next) {
     try {
         const employees = await prisma.employee.findMany({
-            where: { onboardingStatus: 'submitted' },
+            where: { onboardingStatus: 'pending_review' },
             select: { id: true, name: true, email: true, phone: true, updatedAt: true },
             orderBy: { updatedAt: 'asc' }, // oldest submissions first
         });
@@ -266,4 +224,4 @@ async function finalizeOnboarding(req, res, next) {
     }
 }
 
-module.exports = { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, rejectOnboarding, requestOnboardingChange, getOnboardingLink, getOnboardingReviews, getOnboardingReviewDetail, reviewRequirementItem, finalizeOnboarding };
+module.exports = { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, getOnboardingLink, getOnboardingReviews, getOnboardingReviewDetail, reviewRequirementItem, finalizeOnboarding };

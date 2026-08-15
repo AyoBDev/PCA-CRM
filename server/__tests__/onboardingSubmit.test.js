@@ -8,7 +8,7 @@ afterAll(async () => { await prisma.$disconnect(); });
 describe('onboarding submit gating', () => {
   let token, employeeId, policyReqId, policyId;
   beforeAll(async () => {
-    const e = await prisma.employee.create({ data: { name: 'Sub EE', email: `sub-${Date.now()}@t.co`, onboardingStatus: 'invited' } });
+    const e = await prisma.employee.create({ data: { name: 'Sub EE', email: `sub-${Date.now()}@t.co`, onboardingStatus: 'invitation_pending' } });
     employeeId = e.id;
     token = (await onboarding.createOnboardingToken(e.id)).token;
     const p = await prisma.policyDocument.create({ data: { key: `subp-${Date.now()}`, title: 'Handbook', sortOrder: 1 } });
@@ -42,7 +42,7 @@ describe('onboarding submit gating', () => {
     const ee = await prisma.employee.findUnique({ where: { id: employeeId } });
     // A pending User must now be linked so the employee can eventually log in.
     expect(ee.userId).not.toBeNull();
-    expect(['submitted', 'active']).toContain(ee.onboardingStatus);
+    expect(['pending_review', 'active']).toContain(ee.onboardingStatus);
     const avail = await prisma.employeeAvailability.findFirst({ where: { employeeId } });
     expect(avail).not.toBeNull();
     expect(avail.transportation).toBe('Own car');

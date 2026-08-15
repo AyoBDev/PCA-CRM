@@ -8,7 +8,7 @@ afterAll(async () => { await prisma.$disconnect(); });
 describe('onboarding requirements + personal save', () => {
   let token, employeeId;
   beforeAll(async () => {
-    const e = await prisma.employee.create({ data: { name: 'Onb EE', email: `onb-${Date.now()}@t.co`, onboardingStatus: 'invited' } });
+    const e = await prisma.employee.create({ data: { name: 'Onb EE', email: `onb-${Date.now()}@t.co`, onboardingStatus: 'invitation_pending' } });
     employeeId = e.id;
     const tokenRecord = await onboarding.createOnboardingToken(e.id);
     token = tokenRecord.token;
