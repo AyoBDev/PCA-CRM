@@ -21,6 +21,7 @@ import { useIsWide } from '../hooks/useIsWide';
 import Tooltip from '../components/common/Tooltip';
 import ToggleSwitch from '../components/common/ToggleSwitch';
 import { hhmm12 } from '../utils/time';
+import OnboardingReviewModal from '../components/employees/OnboardingReviewModal';
 
 const TABS = [
     { key: 'profile', label: 'Profile', icon: 'user' },
@@ -351,6 +352,7 @@ export default function EmployeeDetailPage() {
     const [shiftsLoading, setShiftsLoading] = useState(false);
     const [availabilityData, setAvailabilityData] = useState(null);
     const [loadingAvailability, setLoadingAvailability] = useState(false);
+    const [showReviewModal, setShowReviewModal] = useState(false);
 
     const fetchEmployee = useCallback(async () => {
         try {
@@ -440,14 +442,9 @@ export default function EmployeeDetailPage() {
         }
     };
 
-    const handleApprove = async () => {
-        try {
-            await api.approveOnboarding(employee.id);
-            showToast(`${employee.name}'s account has been activated`, 'success');
-            fetchEmployee();
-        } catch (err) {
-            showToast(err.message, 'error');
-        }
+    const handleReviewResolved = () => {
+        setShowReviewModal(false);
+        fetchEmployee();
     };
 
     const handleToggleActive = async (next) => {
@@ -647,8 +644,8 @@ export default function EmployeeDetailPage() {
                         <div className="cp-tab-panel">
                             {employee.onboardingStatus === 'submitted' && (
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-                                    <button className="btn btn--primary btn--sm" onClick={handleApprove}>
-                                        {Icons.checkCircle} Approve Onboarding
+                                    <button className="btn btn--primary btn--sm" onClick={() => setShowReviewModal(true)}>
+                                        {Icons.checkCircle} Review Onboarding
                                     </button>
                                 </div>
                             )}
@@ -698,6 +695,13 @@ export default function EmployeeDetailPage() {
                     employee={employee}
                     onSave={handleSaveCerts}
                     onClose={() => setShowCertModal(false)}
+                />
+            )}
+            {showReviewModal && (
+                <OnboardingReviewModal
+                    employeeId={employee.id}
+                    onClose={() => setShowReviewModal(false)}
+                    onResolved={handleReviewResolved}
                 />
             )}
         </>

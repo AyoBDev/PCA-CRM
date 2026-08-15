@@ -936,17 +936,10 @@ export async function resendOnboardingInvite(employeeId) {
     return request(`/employees/${employeeId}/resend-invite`, { method: 'POST' });
 }
 
-export async function approveOnboarding(employeeId) {
-    return request(`/employees/${employeeId}/approve-onboarding`, { method: 'PATCH' });
-}
-
-export async function rejectOnboarding(employeeId, note) {
-    return request(`/employees/${employeeId}/reject-onboarding`, { method: 'PATCH', body: JSON.stringify({ note }) });
-}
-
-export async function requestOnboardingChange(employeeId, note) {
-    return request(`/employees/${employeeId}/request-onboarding-change`, { method: 'PATCH', body: JSON.stringify({ note }) });
-}
+export const reviewRequirementItem = (employeeId, reqId, decision, reason) =>
+  request(`/employees/${employeeId}/requirements/${reqId}/review`, { method: 'PATCH', body: JSON.stringify({ decision, reason }) });
+export const finalizeOnboarding = (employeeId) =>
+  request(`/employees/${employeeId}/onboarding/finalize`, { method: 'POST' });
 
 export async function getEmployeeAvailability(employeeId) {
     return request(`/employees/${employeeId}/availability`);
