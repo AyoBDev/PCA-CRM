@@ -101,6 +101,10 @@ export default function OnboardingPage() {
                 setInfo(data);
                 if (!initialStepApplied) {
                     rehydrate(data);
+                    // If the admin sent items back for changes, jump straight to the
+                    // first rejected item's step instead of the normal resume step.
+                    const firstRejectedStep = firstRejectedStepFor(data);
+                    if (firstRejectedStep != null) setStep(firstRejectedStep);
                     setInitialStepApplied(true);
                 }
             })
@@ -109,6 +113,23 @@ export default function OnboardingPage() {
         // rehydrate is stable for the life of the component; intentionally omitted.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [token]);
+
+    // Maps a rejected requirement's `kind` to the STEPS key that renders it.
+    const KIND_TO_STEP_KEY = { document: 'documents', certification: 'certifications', policy: 'policies' };
+
+    // When the onboarding record is in changes_requested mode and has at least one
+    // rejected requirement, return the step index of the FIRST rejected item's kind
+    // so the wizard opens directly on the step that needs attention. Returns null
+    // when there's nothing to jump to (normal resume logic applies instead).
+    function firstRejectedStepFor(data) {
+        const requirements = (data && data.requirements) || [];
+        const rejected = requirements.filter(r => r.reviewStatus === 'rejected');
+        if (data?.onboardingStatus !== 'changes_requested' || rejected.length === 0) return null;
+        const stepKey = KIND_TO_STEP_KEY[rejected[0].kind];
+        if (!stepKey) return null;
+        const idx = STEPS.findIndex(s => s.key === stepKey);
+        return idx === -1 ? null : idx;
+    }
 
     // Refill everything the server has saved so a returning employee resumes where
     // they left off. Password is never restored (it isn't stored until submit).
@@ -333,6 +354,8 @@ export default function OnboardingPage() {
 
     const requirements = info.requirements || [];
     const isLastStep = step === STEPS.length - 1;
+    const rejectedItems = (info?.requirements || []).filter(r => r.reviewStatus === 'rejected');
+    const changesRequested = info?.onboardingStatus === 'changes_requested' && rejectedItems.length > 0;
 
     return (
         <div className="onboard-page">
@@ -359,6 +382,18 @@ export default function OnboardingPage() {
                 <div className="wizard-dots__label">
                     {STEPS[step].label} <span>· Step {step + 1} of {STEPS.length}</span>
                 </div>
+
+                {changesRequested && (
+                    <div className="cr-banner" role="alert">
+                        <h3>Changes requested</h3>
+                        <p>Please fix the flagged items below and resubmit.</p>
+                        <ul>
+                            {rejectedItems.map(r => (
+                                <li key={r.id}><strong>{r.label}</strong>{r.rejectionReason ? <span className="cr-banner__reason"> — {r.rejectionReason}</span> : null}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
 
                 {info && info.adminReviewNote && (
                     <div className="onboard-review-note">

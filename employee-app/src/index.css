@@ -854,6 +854,22 @@ body {
 .onboard-review-note strong { font-size: 13px; }
 .onboard-review-note p { margin: 4px 0 0; font-size: 14px; white-space: pre-wrap; }
 
+/* Banner shown when the admin has requested changes to specific requirement
+   items — lists each rejected item + reason so the employee knows what to fix. */
+.cr-banner {
+    margin: 12px 0 4px;
+    padding: 12px 14px;
+    border: 1px solid #fde68a;
+    background: #fffbeb;
+    border-radius: 8px;
+    color: #92400e;
+}
+.cr-banner h3 { margin: 0; font-size: 14px; }
+.cr-banner > p { margin: 4px 0 8px; font-size: 14px; }
+.cr-banner ul { margin: 0; padding-left: 18px; }
+.cr-banner li { font-size: 14px; margin-bottom: 2px; }
+.cr-banner__reason { color: #b45309; }
+
 /* Inline "(optional)" note next to a field label. */
 .onboard-optional-inline {
     font-weight: 400;

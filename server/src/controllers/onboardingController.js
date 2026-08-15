@@ -21,6 +21,7 @@ async function getOnboardingInfo(req, res, next) {
             employeeEmail: employee.email,
             // If an admin sent them back, show the note explaining what to fix.
             adminReviewNote: employee.adminReviewNote || '',
+            onboardingStatus: employee.onboardingStatus,
             requirements,
             // Already-saved values so a returning employee's form is pre-filled on reload.
             // (Password is never returned — it isn't stored until final submit.)
