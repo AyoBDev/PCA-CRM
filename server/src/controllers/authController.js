@@ -82,11 +82,13 @@ async function getMe(req, res, next) {
         const permissions = user.permissionGroup && Array.isArray(user.permissionGroup.permissions)
             ? user.permissionGroup.permissions
             : [];
+        const employee = await prisma.employee.findUnique({ where: { userId: user.id }, select: { onboardingStatus: true } });
         res.json({
             id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone,
             permissionGroupId: user.permissionGroupId ?? null,
             permissions,
             permissionsVersion: user.permissionsVersion ?? 1,
+            onboardingStatus: employee ? employee.onboardingStatus : null,
         });
     } catch (err) { next(err); }
 }
@@ -402,6 +404,7 @@ async function employeeLogin(req, res, next) {
                 permissionGroupId: user.permissionGroupId ?? null,
                 permissions,
                 permissionsVersion: user.permissionsVersion ?? 1,
+                onboardingStatus: employee.onboardingStatus,
             },
         });
     } catch (err) { next(err); }

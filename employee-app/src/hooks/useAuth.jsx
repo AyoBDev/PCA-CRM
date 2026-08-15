@@ -30,8 +30,18 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  const refreshMe = useCallback(async () => {
+    try {
+      const me = await api.getMe();
+      const merged = { ...(JSON.parse(localStorage.getItem('user') || '{}')), ...me };
+      localStorage.setItem('user', JSON.stringify(merged));
+      setUser(merged);
+      return merged;
+    } catch { return null; }
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refreshMe }}>
       {children}
     </AuthContext.Provider>
   );

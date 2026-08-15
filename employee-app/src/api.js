@@ -51,6 +51,19 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }).then(async r => { if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.error || 'Invalid credentials'); } return r.json(); }),
 
+  // NOTE: /auth/me lives outside the /api/employee prefix (like /auth/employee-login above),
+  // so it must use a raw fetch with an explicit Authorization header rather than the
+  // request() helper, which always targets /api/employee/*.
+  getMe: () => {
+    const token = localStorage.getItem('token');
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return fetch(`${BASE}/api/auth/me`, { headers }).then(async r => {
+      if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.error || 'Request failed'); }
+      return r.json();
+    });
+  },
+
   getHomeSummary: () => request('/home/summary'),
   getNextShift: () => request('/home/next-shift'),
   getActivity: () => request('/home/activity'),
