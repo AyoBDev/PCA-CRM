@@ -73,23 +73,30 @@ async function assignRequirements(tx, employeeId, selections = {}) {
   return rows;
 }
 
-// A re-upload of a previously-rejected document/cert must also flip the item
-// back into the review queue (reviewStatus 'pending', reason cleared) rather
-// than staying stuck 'rejected' — so this always resets both fields alongside
-// the status write.
+// Decide the reviewStatus write for a (re)fulfillment. A previously-REJECTED
+// item must flip back into the review queue ('pending', reason cleared) so the
+// changes_requested → rework loop works. But an ALREADY-APPROVED item must NOT
+// silently un-approve when an active employee re-uploads/re-acks — that would
+// corrupt the review ledger. So: rejected → pending (cleared); approved → left
+// untouched; anything else (pending/none) → normalized to pending.
+function reviewStatusForRefulfill(current) {
+  if (current === 'approved') return {}; // leave approved items alone
+  return { reviewStatus: 'pending', rejectionReason: '' };
+}
+
 async function markSubmitted(tx, requirementId, fulfillment = {}) {
-  const data = { status: 'submitted', reviewStatus: 'pending', rejectionReason: '' };
+  const existing = await tx.employeeRequirement.findUnique({ where: { id: requirementId } });
+  const data = { status: 'submitted', ...reviewStatusForRefulfill(existing && existing.reviewStatus) };
   if (fulfillment.documentId) data.documentId = fulfillment.documentId;
   if (fulfillment.certificationId) data.certificationId = fulfillment.certificationId;
   return tx.employeeRequirement.update({ where: { id: requirementId }, data });
 }
 
-// A re-ack of a previously-rejected policy also flips it back into the review
-// queue (reviewStatus 'pending', reason cleared) alongside the fulfillment write.
 async function markPolicyAck(tx, requirementId, policyAckId) {
+  const existing = await tx.employeeRequirement.findUnique({ where: { id: requirementId } });
   return tx.employeeRequirement.update({
     where: { id: requirementId },
-    data: { status: 'approved', policyAckId, reviewStatus: 'pending', rejectionReason: '' },
+    data: { status: 'approved', policyAckId, ...reviewStatusForRefulfill(existing && existing.reviewStatus) },
   });
 }
 

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
@@ -22,7 +23,13 @@ const DEFAULT_COPY = {
 };
 
 export default function OnboardingStatusPage() {
-  const { user } = useAuth();
+  const { user, refreshMe } = useAuth();
+
+  // Poll the employee's current status on mount so that once an admin approves
+  // them (status → active), the gated employee picks it up without re-logging in
+  // — the page's own active→/ guard below then lets them through. Hooks stay
+  // above the early returns (React Hook Rule).
+  useEffect(() => { if (refreshMe) refreshMe(); }, [refreshMe]);
 
   if (!user) return <Navigate to="/login" replace />;
   if (user.onboardingStatus === 'active') return <Navigate to="/" replace />;

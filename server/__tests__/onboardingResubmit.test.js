@@ -64,6 +64,40 @@ describe('re-upload flips a rejected document requirement back to pending', () =
   });
 });
 
+describe('re-upload / re-ack does NOT un-approve an already-approved item (I2)', () => {
+  const { markSubmitted, markPolicyAck } = require('../src/services/requirementService');
+
+  it('markSubmitted leaves an approved item approved (does not flip to pending)', async () => {
+    const emp = await prisma.employee.create({ data: { name: 'ActiveEE', email: `active-${Date.now()}@t.co`, onboardingStatus: 'active' } });
+    const req = await prisma.employeeRequirement.create({ data: { employeeId: emp.id, kind: 'document', catalogTypeId: 1, status: 'approved', reviewStatus: 'approved', rejectionReason: '' } });
+    await markSubmitted(prisma, req.id, {});
+    const after = await prisma.employeeRequirement.findUnique({ where: { id: req.id } });
+    expect(after.reviewStatus).toBe('approved');
+    await prisma.employee.delete({ where: { id: emp.id } });
+  });
+
+  it('markPolicyAck leaves an approved policy item approved', async () => {
+    const emp = await prisma.employee.create({ data: { name: 'ActivePolEE', email: `activepol-${Date.now()}@t.co`, onboardingStatus: 'active' } });
+    const req = await prisma.employeeRequirement.create({ data: { employeeId: emp.id, kind: 'policy', catalogTypeId: 1, status: 'approved', reviewStatus: 'approved', rejectionReason: '' } });
+    const ack = await prisma.employeePolicyAck.create({ data: { employeeId: emp.id, policyDocumentId: 1, policyVersion: 1, ipAddress: '::1' } });
+    await markPolicyAck(prisma, req.id, ack.id);
+    const after = await prisma.employeeRequirement.findUnique({ where: { id: req.id } });
+    expect(after.reviewStatus).toBe('approved');
+    expect(after.policyAckId).toBe(ack.id);
+    await prisma.employee.delete({ where: { id: emp.id } });
+  });
+
+  it('markSubmitted still flips a rejected item back to pending (rework preserved)', async () => {
+    const emp = await prisma.employee.create({ data: { name: 'RejEE', email: `rej-${Date.now()}@t.co`, onboardingStatus: 'changes_requested' } });
+    const req = await prisma.employeeRequirement.create({ data: { employeeId: emp.id, kind: 'document', catalogTypeId: 1, status: 'submitted', reviewStatus: 'rejected', rejectionReason: 'Bad' } });
+    await markSubmitted(prisma, req.id, {});
+    const after = await prisma.employeeRequirement.findUnique({ where: { id: req.id } });
+    expect(after.reviewStatus).toBe('pending');
+    expect(after.rejectionReason).toBe('');
+    await prisma.employee.delete({ where: { id: emp.id } });
+  });
+});
+
 describe('first-data save transitions employee to onboarding_in_progress', () => {
   it('savePersonal moves invitation_pending → onboarding_in_progress', async () => {
     const emp = await prisma.employee.create({ data: { name: 'FirstData', email: `fd-${Date.now()}@t.co`, onboardingStatus: 'invitation_pending' } });

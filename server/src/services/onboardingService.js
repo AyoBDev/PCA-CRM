@@ -70,15 +70,41 @@ async function completeOnboarding(tokenStr, { password, availability }) {
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     let user;
+    // skipApproval means "adopt a pre-existing EXTERNAL account and activate
+    // immediately" — it must NOT trigger for the onboarding user this flow
+    // itself minted on the first submit. On the first submit we create the user
+    // AND link employee.userId to it, so a re-submit after changes_requested has
+    // employee.userId === existingUser.id (our own minted user). We only skip
+    // approval when the existing user is genuinely external — i.e. it is NOT the
+    // employee's already-linked onboarding user. This keeps the re-submit loop
+    // going to pending_review instead of auto-activating.
     let skipApproval = false;
     if (existingUser) {
         user = existingUser;
-        skipApproval = true;
+        const isOwnMintedUser = employee.userId === existingUser.id;
+        skipApproval = !isOwnMintedUser;
     } else {
         user = await prisma.user.create({
             data: { email, passwordHash, name: employee.name, role: 'pca', status: 'pending' },
         });
     }
+
+    // Availability write is idempotent: on a re-submit the row already exists
+    // (@unique employeeId), so a create() would P2002/500 and roll back the whole
+    // transaction — upsert keeps the loop working. Same field mapping either way.
+    const availabilityData = {
+        availableFrom: new Date(availability.availableFrom),
+        availableUntil: availability.availableUntil ? new Date(availability.availableUntil) : null,
+        weeklySchedule: availability.weeklySchedule,
+        maxHoursPerWeek: availability.maxHoursPerWeek,
+        maxConcurrentClients: availability.maxConcurrentClients,
+        maxTravelDistance: availability.maxTravelTime || availability.maxTravelDistance,
+        transportation: availability.transportation,
+        holidayAvailability: availability.holidayAvailability,
+        blackoutDates: availability.blackoutDates,
+        initialTimeOff: availability.initialTimeOff,
+        notes: availability.notes || '',
+    };
 
     await prisma.$transaction([
         prisma.employee.update({
@@ -89,25 +115,21 @@ async function completeOnboarding(tokenStr, { password, availability }) {
             where: { id: token.id },
             data: { status: 'completed', completedAt: new Date() },
         }),
-        prisma.employeeAvailability.create({
-            data: {
-                employeeId: employee.id,
-                availableFrom: new Date(availability.availableFrom),
-                availableUntil: availability.availableUntil ? new Date(availability.availableUntil) : null,
-                weeklySchedule: availability.weeklySchedule,
-                maxHoursPerWeek: availability.maxHoursPerWeek,
-                maxConcurrentClients: availability.maxConcurrentClients,
-                maxTravelDistance: availability.maxTravelTime || availability.maxTravelDistance,
-                transportation: availability.transportation,
-                holidayAvailability: availability.holidayAvailability,
-                blackoutDates: availability.blackoutDates,
-                initialTimeOff: availability.initialTimeOff,
-                notes: availability.notes || '',
-            },
+        prisma.employeeAvailability.upsert({
+            where: { employeeId: employee.id },
+            create: { employeeId: employee.id, ...availabilityData },
+            update: availabilityData,
         }),
     ]);
 
     if (skipApproval) {
+        // External-account adoption: the email already belongs to a pre-existing
+        // (non-onboarding) user, so we skip admin review and activate directly.
+        // The employee is typically still invitation_pending here, and
+        // invitation_pending → active is NOT a legal lifecycle.transition() edge,
+        // so this status write is intentionally raw. This path is NOT reachable
+        // on a normal re-submit (that always has isOwnMintedUser === true →
+        // skipApproval === false → the pending_review branch below).
         await prisma.employee.update({ where: { id: employee.id }, data: { onboardingStatus: 'active' } });
     } else {
         // invitation_pending|onboarding_in_progress|changes_requested → pending_review.
