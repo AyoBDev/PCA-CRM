@@ -232,4 +232,22 @@ async function getOnboardingReviews(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, rejectOnboarding, requestOnboardingChange, getOnboardingLink, getOnboardingReviews, getOnboardingReviewDetail };
+// Admin per-item decision on a single requirement (approve/reject). Does not move
+// the employee's overall onboarding status.
+async function reviewRequirementItem(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const reqId = Number(req.params.reqId);
+        const { decision, reason } = req.body || {};
+        if (!['approved', 'rejected'].includes(decision)) return res.status(400).json({ error: 'decision must be approved or rejected' });
+        const updated = await onboarding.reviewItem(id, reqId, { decision, reason });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: id, entityName: '', metadata: { action: 'review_requirement', reqId, decision } });
+        res.json({ success: true, requirement: updated });
+    } catch (err) {
+        if (err.message === 'Requirement not found') return res.status(404).json({ error: err.message });
+        if (err.message === 'Rejection reason required') return res.status(400).json({ error: err.message });
+        next(err);
+    }
+}
+
+module.exports = { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, rejectOnboarding, requestOnboardingChange, getOnboardingLink, getOnboardingReviews, getOnboardingReviewDetail, reviewRequirementItem };

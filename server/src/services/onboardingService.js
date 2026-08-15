@@ -169,6 +169,19 @@ async function reviewOnboarding(employeeId, { status, note }) {
     return employee;
 }
 
+// Per-item admin review decision on a single EmployeeRequirement (approve/reject).
+// Does not move the employee's overall onboarding status — see onboardingLifecycle.js
+// for the status machine, which is not invoked here.
+async function reviewItem(employeeId, reqId, { decision, reason }) {
+    const req = await prisma.employeeRequirement.findUnique({ where: { id: reqId } });
+    if (!req || req.employeeId !== employeeId) throw new Error('Requirement not found');
+    if (decision === 'rejected') {
+        if (!reason || !reason.trim()) throw new Error('Rejection reason required');
+        return prisma.employeeRequirement.update({ where: { id: reqId }, data: { reviewStatus: 'rejected', rejectionReason: reason.trim() } });
+    }
+    return prisma.employeeRequirement.update({ where: { id: reqId }, data: { reviewStatus: 'approved', rejectionReason: '' } });
+}
+
 module.exports = {
     createOnboardingToken,
     sendOnboardingEmail,
@@ -177,5 +190,6 @@ module.exports = {
     completeOnboarding,
     approveOnboarding,
     reviewOnboarding,
+    reviewItem,
     EMPLOYEE_APP_URL,
 };
