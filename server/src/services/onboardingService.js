@@ -190,7 +190,13 @@ async function finalizeOnboarding(employeeId, actor = {}) {
             where: { employeeId },
             data: { status: 'pending', completedAt: null, expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) },
         });
-        if (employee.userId) await tx.user.update({ where: { id: employee.userId }, data: { status: 'pending' } });
+        // Intentionally do NOT demote the login user to status:'pending' here. The
+        // employee must be able to log into the (onboarding-gated) portal to address
+        // the requested changes and re-submit. Onboarding gating is driven by
+        // employee.onboardingStatus + the employee-app App gate, NOT by user.status.
+        // (The employee-login controller also relaxes its pending-status gate for
+        // employees whose onboardingStatus is pending_review/changes_requested, so a
+        // user still on status:'pending' from first submit can reach the portal too.)
     });
     const active = await prisma.onboardingToken.findFirst({ where: { employeeId, status: 'pending', expiresAt: { gt: new Date() } } });
     if (!active) {

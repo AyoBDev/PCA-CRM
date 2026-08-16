@@ -78,10 +78,15 @@ describe('Onboarding Flow', () => {
         expect(user.role).toBe('pca');
     });
 
-    it('pending user cannot log in via employee portal', async () => {
+    // A pending_review employee (user.status 'pending') CAN log into the portal —
+    // the App-level status gate keeps them onboarding-only until 'active'. This is
+    // the Area 2 lifecycle behavior (employeeLogin relaxes the pending gate for
+    // employees whose onboardingStatus is pending_review/changes_requested).
+    it('pending_review employee CAN log in via employee portal (gated to onboarding-only)', async () => {
         const res = await request(app).post('/api/auth/employee-login').send({ email: 'newpca@test.com', password: 'securepass1' });
-        expect(res.status).toBe(403);
-        expect(res.body.error).toContain('pending');
+        expect(res.status).toBe(200);
+        expect(res.body.token).toBeTruthy();
+        expect(res.body.user.onboardingStatus).toBe('pending_review');
     });
 
     it('admin finalizes onboarding (no rejected items → approved + active)', async () => {

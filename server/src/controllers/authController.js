@@ -380,12 +380,18 @@ async function employeeLogin(req, res, next) {
         if (!user.active) {
             return res.status(403).json({ error: 'This account has been deactivated. Please contact your administrator.' });
         }
-        if (user.status === 'pending') {
-            return res.status(403).json({ error: 'Your account is pending admin approval. You will receive an email when activated.' });
-        }
+        // Fetch the linked employee up front so the pending-status gate below can be
+        // relaxed for employees who are actively onboarding. The portal keeps them on
+        // the onboarding-only screen via employee.onboardingStatus + the App gate; a
+        // pending user.status must NOT lock them out of the very portal they need to
+        // reach to fix things and re-submit.
         const employee = await prisma.employee.findUnique({ where: { userId: user.id } });
         if (!employee) {
             return res.status(403).json({ error: 'No employee profile is linked to this account.' });
+        }
+        const ONBOARDING_LOGIN_STATUSES = ['pending_review', 'changes_requested'];
+        if (user.status === 'pending' && !ONBOARDING_LOGIN_STATUSES.includes(employee.onboardingStatus)) {
+            return res.status(403).json({ error: 'Your account is pending admin approval. You will receive an email when activated.' });
         }
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) {
