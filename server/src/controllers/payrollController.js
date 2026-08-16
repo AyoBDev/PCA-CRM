@@ -222,6 +222,9 @@ async function uploadPayrollRun(req, res, next) {
         // Only include active (manualStatus === 'active') non-archived authorizations.
         const authSnapshot = {};
         for (const client of clientsWithAuths) {
+            // Skip archived clients — a duplicate/archived client record sharing the
+            // same normalized name would otherwise double-count its auth units.
+            if (client.archivedAt) continue;
             const norm = normalizeName(client.clientName);
             if (!authSnapshot[norm]) authSnapshot[norm] = { _records: [] };
             const activeAuths = client.authorizations.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt);
@@ -457,6 +460,9 @@ async function getPayrollRun(req, res, next) {
             // Only include active (manualStatus === 'active') non-archived authorizations
             const allClients = await prisma.client.findMany({ include: { authorizations: true } });
             for (const client of allClients) {
+                // Skip archived clients — a duplicate/archived client record sharing the
+                // same normalized name would otherwise double-count its auth units.
+                if (client.archivedAt) continue;
                 const norm = normalizeName(client.clientName);
                 if (!authMap[norm]) authMap[norm] = { _records: [] };
                 const activeAuths = client.authorizations.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt);
