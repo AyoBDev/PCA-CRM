@@ -35,13 +35,18 @@ function buildAuthTypeFields(body) {
 }
 
 async function deactivatePreviousAuths(clientId, serviceCode, serviceName, excludeId, auditContext) {
+    // `excludeId` may be a single id or an array of ids to leave untouched.
+    // A future-dated renewal passes both the new auth AND the still-active
+    // renewed-from auth here, so the current authorization is not clobbered
+    // before its effective date.
+    const excludeIds = Array.isArray(excludeId) ? excludeId : [excludeId];
     // Program codes allow multiple active auths with different service names
     const where = {
         clientId,
         serviceCode,
         manualStatus: 'active',
         archivedAt: null,
-        id: { not: excludeId },
+        id: { notIn: excludeIds },
     };
     if (MULTI_AUTH_CODES.includes(serviceCode) && serviceName) {
         where.serviceName = serviceName;
@@ -307,6 +312,18 @@ async function renewAuthorization(req, res, next) {
         // Server-authoritative close date: the day before the new auth starts.
         const closeDateStr = newStart ? dayBefore(newStart) : null;
 
+        // A future-dated renewal must NOT retire the current authorization before
+        // its effective date. When the new auth starts after today, the old auth
+        // stays `active` — its end date is moved to the day before the new start,
+        // so date-range filtering (server `filterAuthsByWeek` + the client's
+        // Scheduler / Care Plan) keeps showing the current units until the new
+        // auth's start date, at which point the end date makes it drop out and the
+        // new auth becomes visible. Only an immediate/backdated renewal (start
+        // today or earlier) genuinely closes the old auth now, so it flips to
+        // `inactive` right away.
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const isFutureRenewal = !!newStart && newStart > todayStr;
+
         const newAuth = await prisma.authorization.create({
             data: {
                 clientId,
@@ -331,7 +348,9 @@ async function renewAuthorization(req, res, next) {
         await prisma.authorization.update({
             where: { id: oldId },
             data: {
-                manualStatus: 'inactive',
+                // Future renewal: keep the current auth active until its (moved) end
+                // date passes. Immediate/backdated renewal: retire it now.
+                ...(isFutureRenewal ? {} : { manualStatus: 'inactive' }),
                 closedAt: new Date(),
                 renewedToId: newAuth.id,
                 // Parses at local midnight by convention, matching the note in server/src/lib/authDates.js.
@@ -340,9 +359,12 @@ async function renewAuthorization(req, res, next) {
         });
 
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Authorization', entityId: newAuth.id, entityName: `${req.body.serviceCode} (renewal)`, metadata: { renewedFromId: oldId } });
-        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: oldId, entityName: oldAuth.serviceCode, changes: [{ field: 'manualStatus', oldValue: oldAuth.manualStatus, newValue: 'inactive' }], metadata: { reason: 'renewed', renewedToId: newAuth.id } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: oldId, entityName: oldAuth.serviceCode, changes: [{ field: 'manualStatus', oldValue: oldAuth.manualStatus, newValue: isFutureRenewal ? (oldAuth.manualStatus || 'active') : 'inactive' }], metadata: { reason: 'renewed', renewedToId: newAuth.id, effectiveStart: newStart || null } });
 
-        await deactivatePreviousAuths(clientId, newAuth.serviceCode, (req.body.serviceName || '').trim(), newAuth.id, {
+        // On a future renewal, keep the current auth out of the "superseded" sweep
+        // so it stays active until its effective end date.
+        const excludeFromDeactivate = isFutureRenewal ? [newAuth.id, oldId] : newAuth.id;
+        await deactivatePreviousAuths(clientId, newAuth.serviceCode, (req.body.serviceName || '').trim(), excludeFromDeactivate, {
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
         });
 

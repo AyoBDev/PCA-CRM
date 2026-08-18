@@ -221,7 +221,18 @@ export default function ProgramsAuthTab({
         const allAuths = [...current, ...archived];
         const filteredAuths = sortAuths(filterAuths(allAuths));
         const activeAuths = current.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt);
-        const latestAuth = activeAuths[0] || current[0] || allAuths[0];
+        // Prefer the auth that is effective TODAY so a future-dated renewal (which
+        // stays active until its start date) doesn't hijack the card and show its
+        // future units before it takes effect — the current auth's units must
+        // remain on display until the renewal's start date. Matches the
+        // date-driven filtering used by the Scheduler.
+        const today = new Date();
+        const effectiveToday = activeAuths.find(a => {
+            const start = a.authorizationStartDate ? new Date(a.authorizationStartDate) : null;
+            const end = a.authorizationEndDate ? new Date(a.authorizationEndDate) : null;
+            return (!start || start <= today) && (!end || end >= today);
+        });
+        const latestAuth = effectiveToday || activeAuths[0] || current[0] || allAuths[0];
         const attachCount = latestAuth ? (latestAuth.documents || []).length : 0;
         const currentAccountNumber = latestAuth?.accountNumber || '';
         const currentSandataClientId = latestAuth?.sandataClientId || '';
@@ -300,7 +311,11 @@ export default function ProgramsAuthTab({
                 </div>
 
                 {(() => {
-                    const history = allAuths.filter(a => a.renewedToId); // superseded-by-renewal auths
+                    // Superseded-by-renewal auths — but not the one currently on the
+                    // card. A future-dated renewal leaves the current auth active
+                    // (with renewedToId set) until its start date; while it's still
+                    // the effective auth it belongs on the card, not in "Superseded".
+                    const history = allAuths.filter(a => a.renewedToId && a.id !== latestAuth?.id);
                     if (!history.length) return null;
                     const isHistoryOpen = expandedHistory[code];
                     return (
