@@ -66,3 +66,46 @@ describe('current auth during a future renewal gap', () => {
         expect(currentAuthForCode(auths, 'PCS', on('2026-09-01')).authorizedUnits).toBe(48);
     });
 });
+
+import { coverageIssue } from '../utils/authorizations';
+
+describe('coverageIssue', () => {
+    const prior = { id: 1, serviceCode: 'SDPC', authorizationStartDate: '2025-11-20', authorizationEndDate: '2026-08-30' };
+
+    it('flags a gap when the new start is more than one day after the prior end', () => {
+        const r = coverageIssue({ serviceCode: 'SDPC', authorizationStartDate: '2026-09-01' }, [prior]);
+        expect(r).toEqual({ kind: 'gap', gapDays: 1, priorEndDate: '2026-08-30' });
+    });
+
+    it('no gap when the new start is exactly the day after the prior end', () => {
+        const r = coverageIssue({ serviceCode: 'SDPC', authorizationStartDate: '2026-08-31' }, [prior]);
+        expect(r).toBeNull();
+    });
+
+    it('flags an overlap when the new start is on/before the prior end', () => {
+        const r = coverageIssue({ serviceCode: 'SDPC', authorizationStartDate: '2026-08-15' }, [prior]);
+        expect(r).toEqual({ kind: 'overlap', priorEndDate: '2026-08-30' });
+    });
+
+    it('reports multi-day gaps', () => {
+        const r = coverageIssue({ serviceCode: 'SDPC', authorizationStartDate: '2026-09-05' }, [prior]);
+        expect(r).toEqual({ kind: 'gap', gapDays: 5, priorEndDate: '2026-08-30' });
+    });
+
+    it('ignores a different service code', () => {
+        const r = coverageIssue({ serviceCode: 'PCS', authorizationStartDate: '2026-09-05' }, [prior]);
+        expect(r).toBeNull();
+    });
+
+    it('excludes the row being edited and the renewed-from auth', () => {
+        expect(coverageIssue({ serviceCode: 'SDPC', authorizationStartDate: '2026-09-01' }, [prior], { excludeId: 1 })).toBeNull();
+        expect(coverageIssue({ serviceCode: 'SDPC', authorizationStartDate: '2026-09-01' }, [prior], { excludeRenewedFromId: 1 })).toBeNull();
+    });
+
+    it('ignores inactive/archived priors', () => {
+        const inactive = { ...prior, manualStatus: 'inactive' };
+        const archived = { ...prior, archivedAt: '2026-01-01' };
+        expect(coverageIssue({ serviceCode: 'SDPC', authorizationStartDate: '2026-09-01' }, [inactive])).toBeNull();
+        expect(coverageIssue({ serviceCode: 'SDPC', authorizationStartDate: '2026-09-01' }, [archived])).toBeNull();
+    });
+});

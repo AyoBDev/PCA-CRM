@@ -8,6 +8,7 @@ import { ServiceCodeSelect } from '../utils/serviceCodes';
 import { AUTH_COLORS, DEFAULT_AUTH_COLOR } from '../utils/constants';
 import { formatDate } from '../utils/dates';
 import { unitsToHours } from '../utils/time';
+import { isAuthEffectiveOn } from '../utils/authorizations';
 
 export default function ClientServicePage() {
     const { clientId, serviceCode } = useParams();
@@ -45,7 +46,12 @@ export default function ClientServicePage() {
         .filter(a => (a.serviceCode || a.serviceCategory || 'Other') === serviceCode)
         .sort((a, b) => new Date(b.authorizationStartDate || 0) - new Date(a.authorizationStartDate || 0));
 
-    const currentAuth = allAuths.find(a => !a.archivedAt && a.status !== 'Expired' && a.manualStatus === 'active');
+    // "Current" = the auth in effect TODAY (dates are the source of truth). A
+    // scheduled future renewal is NOT current until its start date; the current
+    // auth stays the current one until then. Fall back to the most recent active
+    // auth when none is effective today (e.g. all expired, or a gap day).
+    const currentAuth = allAuths.find(a => isAuthEffectiveOn(a))
+        || allAuths.find(a => !a.archivedAt && a.status !== 'Expired' && (a.manualStatus || 'active') === 'active');
     const historyAuths = allAuths.filter(a => a !== currentAuth);
 
     // Modal handlers

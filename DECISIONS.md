@@ -195,3 +195,22 @@ no period), so a scheduled future renewal is no longer summed on top of the
 current auth (e.g. SDPC 28 + 28 = 56). The payroll processing pipeline and
 manual-unit-limit cap already used `filterAuthsByWeek` per visit week, so only
 the banner map needed the fix.
+
+**App-wide single-source-of-truth audit + expired-drops-to-history:** audited
+every surface that reads authorizations. Server operational paths were already
+date-correct: Timesheet limits use a per-week filter (`filterActiveAuthsForWeek`
+in `timesheetController.js`), Scheduling uses `filterAuthsByWeek` per shift week,
+the PCA form uses `filterAuthsByWeek`/`classifyWeekAuthBySection` per week, and
+payroll processing/manual-cap use `filterAuthsByWeek` per visit week — so a
+future renewal never leaks into a past/current period. The only server gap
+(payroll banner) was fixed earlier this session. On the client, the ledger LISTS
+were status-only (`manualStatus==='active'`), so a date-expired auth lingered in
+"Active" after its end date. Per the decision "hide expired from Active, keep in
+History", added `isAuthListedActive` / `isAuthExpired` to `utils/authorizations.js`
+and routed the master sheet (AuthorizationsPage), Programs tab card, Profile
+overview, ClientServicePage current-auth, and the client-detail header chips
+through the shared helpers — so once a renewal starts, the old program drops out
+of Active views and remains under authorization history. Also added an advisory
+coverage-gap/overlap WARNING (`coverageIssue`) in the auth modal (never
+auto-edits dates) after finding a real 1-day SDPC gap (old ends Aug 30, renewal
+starts Sep 1 → Aug 31 uncovered) in existing data.

@@ -8,6 +8,7 @@ import AuthorizationFormModal from '../components/common/AuthorizationFormModal'
 import DrawerPanel from '../components/common/DrawerPanel';
 import ClientCreationWizard from '../components/ClientCreationWizard';
 import { formatDate as fmtDate, daysClass } from '../utils/dates';
+import { isAuthListedActive } from '../utils/authorizations';
 import { statusLabel } from '../utils/status';
 import { SERVICE_CODE_COLORS, SERVICE_CODE_NAMES, getAuthSortKey } from '../utils/constants';
 import { useToast } from '../hooks/useToast';
@@ -1044,7 +1045,7 @@ export default function AuthorizationsPage() {
                                     </thead>
                                     <tbody>
                                         {paginatedClients.map((client) => {
-                                            const activeAuths = client.authorizations.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt);
+                                            const activeAuths = client.authorizations.filter(a => isAuthListedActive(a));
                                             const minDays = activeAuths.length > 0
                                                 ? Math.min(...activeAuths.map(a => a.daysToExpire).filter(d => d != null))
                                                 : null;
@@ -1124,7 +1125,7 @@ export default function AuthorizationsPage() {
                                                         </td>
                                                     </tr>
                                                     {isOpen && (() => {
-                                                        const activeAuths = sortAuthorizations(client.authorizations.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt));
+                                                        const activeAuths = sortAuthorizations(client.authorizations.filter(a => isAuthListedActive(a)));
                                                         if (activeAuths.length === 0) return (
                                                             <tr className="row-auth">
                                                                 <td colSpan={7} style={{ paddingLeft: 36, color: 'hsl(var(--muted-foreground))', fontStyle: 'italic', fontSize: 13 }}>
@@ -1251,6 +1252,7 @@ export default function AuthorizationsPage() {
                 <AuthorizationFormModal
                     auth={modal.auth}
                     clientId={modal.clientId}
+                    siblingAuths={(clients.find(c => c.id === modal.clientId)?.authorizations) || []}
                     isRenewal={modal.isRenewal}
                     onSave={handleSaveAuth}
                     onClose={() => setModal(null)}
@@ -1329,7 +1331,7 @@ export default function AuthorizationsPage() {
 
                     <div className="drawer-section">
                         <h3 className="drawer-section__title">Authorizations</h3>
-                        {(drawerClient.authorizations || []).filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt).length === 0 ? (
+                        {(drawerClient.authorizations || []).filter(a => isAuthListedActive(a)).length === 0 ? (
                             <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', fontStyle: 'italic' }}>No authorizations yet.</p>
                         ) : (
                             <table className="data-table data-table--compact">
@@ -1340,7 +1342,7 @@ export default function AuthorizationsPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {sortAuthorizations((drawerClient.authorizations || []).filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt)).map(auth => (
+                                    {sortAuthorizations((drawerClient.authorizations || []).filter(a => isAuthListedActive(a))).map(auth => (
                                         <tr key={auth.id}>
                                             <td>{auth.serviceCategory || '—'}</td>
                                             <td>{auth.serviceCode}</td>
