@@ -118,6 +118,11 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
             if ((auth.manualStatus || 'active') !== 'active') continue;
             if (auth.archivedAt) continue;
             if (auth.authorizationEndDate && new Date(auth.authorizationEndDate) < now) continue;
+            // Skip not-yet-effective auths (e.g. a future-dated renewal) so their
+            // future units don't get summed alongside the current auth during the
+            // pre-start gap — the current units must stand alone until the new
+            // auth's start date.
+            if (auth.authorizationStartDate && new Date(auth.authorizationStartDate) > now) continue;
             const code = deriveCode(auth);
             if (!code) continue;
             if (!map[code]) map[code] = { units: 0, category: '', accountNumber: '', sandataClientId: '' };
