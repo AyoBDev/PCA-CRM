@@ -312,17 +312,30 @@ async function renewAuthorization(req, res, next) {
         // Server-authoritative close date: the day before the new auth starts.
         const closeDateStr = newStart ? dayBefore(newStart) : null;
 
-        // A future-dated renewal must NOT retire the current authorization before
-        // its effective date. When the new auth starts after today, the old auth
-        // stays `active` — its end date is moved to the day before the new start,
-        // so date-range filtering (server `filterAuthsByWeek` + the client's
-        // Scheduler / Care Plan) keeps showing the current units until the new
-        // auth's start date, at which point the end date makes it drop out and the
-        // new auth becomes visible. Only an immediate/backdated renewal (start
-        // today or earlier) genuinely closes the old auth now, so it flips to
-        // `inactive` right away.
+        // Renewal activation is an EXPLICIT choice made in the confirmation modal
+        // ("Wait until start date" vs "Start immediately"), not inferred here.
+        // Dates remain the source of truth for what is current; this flag only
+        // decides whether the current authorization is retired now.
+        //
+        //   scheduled  → keep the current auth `active`; its end date is moved to
+        //                the day before the new start, so date-range filtering
+        //                (server `filterAuthsByWeek` + client Scheduler/Care Plan)
+        //                keeps showing the current units until the new start date,
+        //                then hands over automatically. Only valid for a future
+        //                start (a start today/earlier can't be "waited for").
+        //   immediate  → retire the current auth now; the renewal becomes current
+        //                today even if its start date is in the future.
+        //
+        // Back-compat: if the client sends no flag, fall back to date inference
+        // (future start ⇒ scheduled) so older callers keep the fixed behavior.
         const todayStr = new Date().toISOString().slice(0, 10);
-        const isFutureRenewal = !!newStart && newStart > todayStr;
+        const startIsFuture = !!newStart && newStart > todayStr;
+        const activation = req.body.renewalActivation === 'immediate' ? 'immediate'
+            : req.body.renewalActivation === 'scheduled' ? 'scheduled'
+            : (startIsFuture ? 'scheduled' : 'immediate');
+        // A "scheduled" renewal only defers retirement when the start is actually
+        // in the future; otherwise there is nothing to wait for.
+        const deferRetire = activation === 'scheduled' && startIsFuture;
 
         const newAuth = await prisma.authorization.create({
             data: {
@@ -350,7 +363,7 @@ async function renewAuthorization(req, res, next) {
             data: {
                 // Future renewal: keep the current auth active until its (moved) end
                 // date passes. Immediate/backdated renewal: retire it now.
-                ...(isFutureRenewal ? {} : { manualStatus: 'inactive' }),
+                ...(deferRetire ? {} : { manualStatus: 'inactive' }),
                 closedAt: new Date(),
                 renewedToId: newAuth.id,
                 // Parses at local midnight by convention, matching the note in server/src/lib/authDates.js.
@@ -359,11 +372,11 @@ async function renewAuthorization(req, res, next) {
         });
 
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Authorization', entityId: newAuth.id, entityName: `${req.body.serviceCode} (renewal)`, metadata: { renewedFromId: oldId } });
-        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: oldId, entityName: oldAuth.serviceCode, changes: [{ field: 'manualStatus', oldValue: oldAuth.manualStatus, newValue: isFutureRenewal ? (oldAuth.manualStatus || 'active') : 'inactive' }], metadata: { reason: 'renewed', renewedToId: newAuth.id, effectiveStart: newStart || null } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: oldId, entityName: oldAuth.serviceCode, changes: [{ field: 'manualStatus', oldValue: oldAuth.manualStatus, newValue: deferRetire ? (oldAuth.manualStatus || 'active') : 'inactive' }], metadata: { reason: 'renewed', renewedToId: newAuth.id, effectiveStart: newStart || null, activation } });
 
-        // On a future renewal, keep the current auth out of the "superseded" sweep
-        // so it stays active until its effective end date.
-        const excludeFromDeactivate = isFutureRenewal ? [newAuth.id, oldId] : newAuth.id;
+        // On a scheduled (deferred) renewal, keep the current auth out of the
+        // "superseded" sweep so it stays active until its effective end date.
+        const excludeFromDeactivate = deferRetire ? [newAuth.id, oldId] : newAuth.id;
         await deactivatePreviousAuths(clientId, newAuth.serviceCode, (req.body.serviceName || '').trim(), excludeFromDeactivate, {
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
         });

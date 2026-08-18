@@ -170,3 +170,79 @@ blanks a shift — and is idempotent.
 **Choice:** Build in-house — root-cause fix in `renewAuthorization`, plus close two latent date-guard gaps it exposed.
 
 **Why:** The bug is in our own logic, not a missing capability. `renewAuthorization` set the renewed-from auth to `manualStatus: 'inactive'` immediately, and both the server (`filterAuthsByWeek`) and the client Scheduler reject non-active auths — so a future renewal made the current auth vanish (0 units) before its effective date. Fix: keep the old auth **active** on a future renewal (its end date is already moved to the day before the new start), so date-range filtering keeps showing current units until the new auth's start date, then switches automatically. Two guards the change surfaced were also fixed: (1) `deactivatePreviousAuths` now accepts an id array so the still-active renewed-from auth isn't swept as "superseded"; (2) the Scheduler's `authorizedServiceMap` now skips not-yet-effective auths (missing start-date check) so current + future units don't double-count during the gap. Also made the Programs tab pick the auth effective *today* for its card so a future renewal doesn't display its future units early. Immediate/backdated renewals (start ≤ today) still close the old auth now. Built test-first: failing test reproducing the vanished current auth → root-cause fix → green; added an end-to-end `filterAuthsByWeek` test proving current units before the new start and new units after. Server 720/721 (1 pre-existing cross-suite flake, passes in isolation), auth+scheduling 75/75, client 70/70.
+
+**Rows broken before the fix are corrected manually in the app (no migration
+script shipped):** existing authorizations retired early by this bug are not
+self-healing, but they are fixed by hand on prod via the client's Programs tab —
+filter to Inactive, open the affected auth, and re-activate it (or edit its
+dates). No one-time script is included in this PR.
+
+**Model refinement (single source of truth):** per the SSOT rule that the
+authorization is the source of truth and only the *current active*
+authorization should drive the system, the fix was reworked so an auth's
+START/END dates decide what is "current today", with `manualStatus` as a manual
+override on top. The immediate-vs-scheduled decision is now an EXPLICIT choice
+in the renewal confirmation modal ("Wait until start date" — recommended — vs
+"Start immediately"), sent as `renewalActivation` and honored server-side (no
+date inference except as back-compat). A shared helper
+`client/src/utils/authorizations.js` (`isAuthEffectiveOn` / `currentAuthorizations`
+/ `currentAuthForCode`) is the single place any consumer asks "is this the
+current auth?", and the Scheduler unit maps + Programs card + account/Sandata
+auto-fill all route through it — so nothing reads raw `manualStatus` without the
+date window and a not-yet-effective scheduled renewal can never be counted.
+
+**Renewal modal UX + payroll banner (follow-up):** the "wait vs start
+immediately" choice moved to its OWN confirmation modal shown after "Save
+Renewal" (only for a future start), and the pre-save "auto-closes on <date>"
+preview banner was removed. Extended the single-source-of-truth (date-effective)
+rule to the Payroll run: the banner's authorized-units map (`buildClientAuthMap`
+in `payrollController.js`) now filters authorizations to those effective for the
+run's pay period via `filterAuthsByWeek` (falling back to "today" when a run has
+no period), so a scheduled future renewal is no longer summed on top of the
+current auth (e.g. SDPC 28 + 28 = 56). The payroll processing pipeline and
+manual-unit-limit cap already used `filterAuthsByWeek` per visit week, so only
+the banner map needed the fix.
+
+**App-wide single-source-of-truth audit + expired-drops-to-history:** audited
+every surface that reads authorizations. Server operational paths were already
+date-correct: Timesheet limits use a per-week filter (`filterActiveAuthsForWeek`
+in `timesheetController.js`), Scheduling uses `filterAuthsByWeek` per shift week,
+the PCA form uses `filterAuthsByWeek`/`classifyWeekAuthBySection` per week, and
+payroll processing/manual-cap use `filterAuthsByWeek` per visit week — so a
+future renewal never leaks into a past/current period. The only server gap
+(payroll banner) was fixed earlier this session. On the client, the ledger LISTS
+were status-only (`manualStatus==='active'`), so a date-expired auth lingered in
+"Active" after its end date. Per the decision "hide expired from Active, keep in
+History", added `isAuthListedActive` / `isAuthExpired` to `utils/authorizations.js`
+and routed the master sheet (AuthorizationsPage), Programs tab card, Profile
+overview, ClientServicePage current-auth, and the client-detail header chips
+through the shared helpers — so once a renewal starts, the old program drops out
+of Active views and remains under authorization history. Also added an advisory
+coverage-gap/overlap WARNING (`coverageIssue`) in the auth modal (never
+auto-edits dates) after finding a real 1-day SDPC gap (old ends Aug 30, renewal
+starts Sep 1 → Aug 31 uncovered) in existing data.
+
+**Pre-fix data — two categories, both corrected manually in the app.** Auditing
+live data surfaced two pre-existing problems from renewals created before the
+fixes: (1) early-retired renewals (old auth flipped inactive while its successor
+hasn't started — e.g. Frank Wilson PCS, Andranik Zadoyan S5125); (2) coverage
+gaps/overlaps between same-code auths (e.g. Andranik SDPC + S5125, 1-day gap on
+Aug 31; overlaps on Cheryl Johnson S5150, Evan Moreland S5130). No migration
+script is shipped — staff correct these by hand on the client's Programs tab
+(re-activate an early-retired auth; edit an auth's start/end dates to close a gap
+or overlap). Going forward, the modal's coverage warning catches new gaps at
+entry time.
+
+**"Mark as Active" reactivation (fills the manual-fix gap).** The app had no way
+to re-activate an authorization that was wrongly inactivated (e.g. one an old
+renewal retired early) — the Edit modal only offers Renewal/Inactive. Added a
+"Mark as Active" button on the Programs-tab authorization-history row (where a
+superseded auth shows), visible to admins only, and only when the auth is
+`inactive`, not archived, and NOT date-expired (reactivating a genuinely-expired
+auth makes no sense). It calls the full-record PUT with `skipDeactivate: true`
+(the proven renew-undo path) so it does NOT sweep the same-code successor — the
+reactivated auth and the renewal coexist by date. Wired with undo/redo (undo →
+inactive) and audit. This is the in-app way to fix the pre-fix early-retired
+rows on prod without a script. Verified end-to-end against the running API:
+reactivating #2895 set it active while its renewal #3261 stayed active and all
+dates were unchanged.

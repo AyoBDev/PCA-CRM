@@ -4,6 +4,7 @@ import InlineEditable from '../../components/common/InlineEditable';
 import * as api from '../../api';
 import { ACCOUNT_NUMBER_OPTIONS } from '../../utils/accountMapping';
 import { AUTH_COLORS, DEFAULT_AUTH_COLOR, getAuthSortKey } from '../../utils/constants';
+import { isAuthEffectiveOn, isAuthListedActive, isAuthExpired } from '../../utils/authorizations';
 import { useServices } from '../../hooks/useServices';
 import CertViewerPanel from '../../components/common/CertViewerPanel';
 import ToggleSwitch from '../../components/common/ToggleSwitch';
@@ -91,6 +92,7 @@ export default function ProgramsAuthTab({
     openAuthModal,
     handleArchiveAuth,
     handleRestoreAuth,
+    handleReactivateAuth,
     handleUploadAuthDoc,
     handleDownloadAuthDoc,
     handleDeleteAuthDoc,
@@ -220,18 +222,16 @@ export default function ProgramsAuthTab({
         const displayLabel = groupServiceName ? `${baseCode} - ${groupServiceName}` : colors.label;
         const allAuths = [...current, ...archived];
         const filteredAuths = sortAuths(filterAuths(allAuths));
-        const activeAuths = current.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt);
-        // Prefer the auth that is effective TODAY so a future-dated renewal (which
-        // stays active until its start date) doesn't hijack the card and show its
-        // future units before it takes effect — the current auth's units must
-        // remain on display until the renewal's start date. Matches the
-        // date-driven filtering used by the Scheduler.
-        const today = new Date();
-        const effectiveToday = activeAuths.find(a => {
-            const start = a.authorizationStartDate ? new Date(a.authorizationStartDate) : null;
-            const end = a.authorizationEndDate ? new Date(a.authorizationEndDate) : null;
-            return (!start || start <= today) && (!end || end >= today);
-        });
+        // "Active" for the card = not archived, not manually inactive, and not
+        // date-expired — so once the current auth's end date passes, it drops off
+        // the card and the renewal (or nothing) takes over. A future-dated renewal
+        // still counts as active (it has a job to do).
+        const activeAuths = current.filter(a => isAuthListedActive(a));
+        // Prefer the auth that is effective TODAY (shared single-source-of-truth
+        // helper) so a scheduled future renewal doesn't hijack the card and show
+        // its future units before it takes effect — the current auth's units must
+        // remain on display until the renewal's start date.
+        const effectiveToday = activeAuths.find(a => isAuthEffectiveOn(a));
         const latestAuth = effectiveToday || activeAuths[0] || current[0] || allAuths[0];
         const attachCount = latestAuth ? (latestAuth.documents || []).length : 0;
         const currentAccountNumber = latestAuth?.accountNumber || '';
@@ -325,17 +325,38 @@ export default function ProgramsAuthTab({
                             </button>
                             {isHistoryOpen && (
                                 <div className="pa-history__thread">
-                                    {history.sort((a, b) => new Date(b.authorizationEndDate || 0) - new Date(a.authorizationEndDate || 0)).map(h => (
+                                    {history.sort((a, b) => new Date(b.authorizationEndDate || 0) - new Date(a.authorizationEndDate || 0)).map(h => {
+                                        // Offer "Mark as Active" only when reactivating makes sense:
+                                        // the auth was inactivated but its own window still covers
+                                        // today/future (e.g. an old renewal retired it early). A
+                                        // genuinely date-expired auth is not reactivatable.
+                                        const canReactivate = isAdmin
+                                            && typeof handleReactivateAuth === 'function'
+                                            && (h.manualStatus || 'active') === 'inactive'
+                                            && !h.archivedAt
+                                            && !isAuthExpired(h);
+                                        return (
                                         <div key={h.id} className="pa-history__item">
                                             <div className="pa-history__fields">
                                                 <span><b>#{h.authorizationNumber || '—'}</b></span>
                                                 <span>{h.authorizedUnits} units</span>
                                                 <span>{formatDate(h.authorizationStartDate)} – {formatDate(h.authorizationEndDate)}</span>
                                                 <span className="pa-badge">Superseded</span>
+                                                {canReactivate && (
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn--outline btn--sm"
+                                                        style={{ marginLeft: 'auto', color: '#16a34a', borderColor: '#16a34a' }}
+                                                        onClick={() => handleReactivateAuth(h.id)}
+                                                    >
+                                                        Mark as Active
+                                                    </button>
+                                                )}
                                             </div>
                                             {h.notes && <div className="pa-history__note"><b>Note:</b> {h.notes}</div>}
                                         </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
