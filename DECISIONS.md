@@ -193,3 +193,15 @@ date inference except as back-compat). A shared helper
 current auth?", and the Scheduler unit maps + Programs card + account/Sandata
 auto-fill all route through it — so nothing reads raw `manualStatus` without the
 date window and a not-yet-effective scheduled renewal can never be counted.
+
+**Renewal modal UX + payroll banner (follow-up):** the "wait vs start
+immediately" choice moved to its OWN confirmation modal shown after "Save
+Renewal" (only for a future start), and the pre-save "auto-closes on <date>"
+preview banner was removed. Extended the single-source-of-truth (date-effective)
+rule to the Payroll run: the banner's authorized-units map (`buildClientAuthMap`
+in `payrollController.js`) now filters authorizations to those effective for the
+run's pay period via `filterAuthsByWeek` (falling back to "today" when a run has
+no period), so a scheduled future renewal is no longer summed on top of the
+current auth (e.g. SDPC 28 + 28 = 56). The payroll processing pipeline and
+manual-unit-limit cap already used `filterAuthsByWeek` per visit week, so only
+the banner map needed the fix.
