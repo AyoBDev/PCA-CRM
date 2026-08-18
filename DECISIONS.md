@@ -161,14 +161,11 @@ blanks a shift — and is idempotent.
 
 **Why:** The bug is in our own logic, not a missing capability. `renewAuthorization` set the renewed-from auth to `manualStatus: 'inactive'` immediately, and both the server (`filterAuthsByWeek`) and the client Scheduler reject non-active auths — so a future renewal made the current auth vanish (0 units) before its effective date. Fix: keep the old auth **active** on a future renewal (its end date is already moved to the day before the new start), so date-range filtering keeps showing current units until the new auth's start date, then switches automatically. Two guards the change surfaced were also fixed: (1) `deactivatePreviousAuths` now accepts an id array so the still-active renewed-from auth isn't swept as "superseded"; (2) the Scheduler's `authorizedServiceMap` now skips not-yet-effective auths (missing start-date check) so current + future units don't double-count during the gap. Also made the Programs tab pick the auth effective *today* for its card so a future renewal doesn't display its future units early. Immediate/backdated renewals (start ≤ today) still close the old auth now. Built test-first: failing test reproducing the vanished current auth → root-cause fix → green; added an end-to-end `filterAuthsByWeek` test proving current units before the new start and new units after. Server 720/721 (1 pre-existing cross-suite flake, passes in isolation), auth+scheduling 75/75, client 70/70.
 
-**Backfill for rows broken before the fix:** existing authorizations already
-retired early by this bug are NOT self-healing (the fix only changes new
-renewals). Added `server/prisma/fix-early-retired-renewals.js` — a one-time,
-dry-run-by-default, idempotent, audited repair that reactivates any
-renewed-from auth whose successor's start date is still in the future and whose
-own window still covers today (leaving end dates and the successor untouched).
-Verified end-to-end on the test DB (dry-run → apply → no-op re-run). Run
-`node prisma/fix-early-retired-renewals.js` (dry run) then `--apply` on prod.
+**Rows broken before the fix are corrected manually in the app (no migration
+script shipped):** existing authorizations retired early by this bug are not
+self-healing, but they are fixed by hand on prod via the client's Programs tab —
+filter to Inactive, open the affected auth, and re-activate it (or edit its
+dates). No one-time script is included in this PR.
 
 **Model refinement (single source of truth):** per the SSOT rule that the
 authorization is the source of truth and only the *current active*
@@ -215,16 +212,13 @@ coverage-gap/overlap WARNING (`coverageIssue`) in the auth modal (never
 auto-edits dates) after finding a real 1-day SDPC gap (old ends Aug 30, renewal
 starts Sep 1 → Aug 31 uncovered) in existing data.
 
-**Pre-fix data — two categories.** Auditing live data surfaced two pre-existing
-problems from renewals created before the fixes: (1) early-retired renewals (old
-auth flipped inactive while its successor hasn't started) — repaired by
-`fix-early-retired-renewals.js` (found 2: Frank Wilson PCS, Andranik Zadoyan
-S5125); (2) coverage gaps/overlaps between same-code auths. Added
-`report-auth-coverage-gaps.js` — REPORT-ONLY by default (matches "warn, don't
-auto-change"), with an opt-in `--fix-gaps` that closes gaps by extending the
-prior auth's end date to the day before the next start (never touches overlaps —
-shortening an auth is a staff judgement call). Excludes MULTI_AUTH_CODES
-(COPE/PAS) since concurrent program auths are by design. Dev DB: 2 real gaps
-(Andranik SDPC + S5125, 1 day each on Aug 31) and 2 overlaps (Cheryl Johnson
-S5150, Evan Moreland S5130) for staff review. Dates written at UTC midnight to
-avoid a timezone day-shift.
+**Pre-fix data — two categories, both corrected manually in the app.** Auditing
+live data surfaced two pre-existing problems from renewals created before the
+fixes: (1) early-retired renewals (old auth flipped inactive while its successor
+hasn't started — e.g. Frank Wilson PCS, Andranik Zadoyan S5125); (2) coverage
+gaps/overlaps between same-code auths (e.g. Andranik SDPC + S5125, 1-day gap on
+Aug 31; overlaps on Cheryl Johnson S5150, Evan Moreland S5130). No migration
+script is shipped — staff correct these by hand on the client's Programs tab
+(re-activate an early-retired auth; edit an auth's start/end dates to close a gap
+or overlap). Going forward, the modal's coverage warning catches new gaps at
+entry time.
