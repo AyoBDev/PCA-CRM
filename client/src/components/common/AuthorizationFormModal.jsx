@@ -5,6 +5,7 @@ import { useServices } from '../../hooks/useServices';
 import { ServiceCodeSelect, SERVICE_CATEGORIES, SERVICE_NAME_SUGGESTIONS } from '../../utils/serviceCodes';
 import { SERVICE_CODE_NAMES } from '../../utils/constants';
 import { getAccountForCategory, getAccountForServiceCode, ACCOUNT_NUMBER_OPTIONS } from '../../utils/accountMapping';
+import { coverageIssue } from '../../utils/authorizations';
 
 // Local mirror of the day-before-start computation used for the renewal
 // close-preview banner (the previous authorization auto-closes the day
@@ -40,6 +41,7 @@ function fmtDayBefore(dateStr) {
 export default function AuthorizationFormModal({
     auth,
     clientId,
+    siblingAuths = [],
     onSave,
     onClose,
     onRenewal,
@@ -105,6 +107,23 @@ export default function AuthorizationFormModal({
     // A start of today or earlier is always effectively immediate.
     const todayStr = new Date().toISOString().slice(0, 10);
     const startIsFuture = !!startDate && startDate > todayStr;
+
+    // Coverage warning: when this auth's start date leaves a GAP after — or
+    // OVERLAPS — the previous same-code authorization, surface it so staff can
+    // fix the dates. Advisory only; never auto-changes a date the user typed.
+    const coverage = coverageIssue(
+        { serviceCode, authorizationStartDate: startDate },
+        siblingAuths,
+        { excludeId: auth?.id, excludeRenewedFromId: auth?.renewedFromId }
+    );
+    const coverageWarning = coverage && (() => {
+        const priorEndStr = new Date(coverage.priorEndDate + 'T00:00:00').toLocaleDateString('en-US');
+        if (coverage.kind === 'gap') {
+            const d = coverage.gapDays;
+            return { kind: 'gap', text: `The previous ${serviceCode} authorization ends ${priorEndStr}, but this one starts ${startDate} — leaving ${d} day${d > 1 ? 's' : ''} (${d === 1 ? 'that day has' : 'those days have'} no ${serviceCode} coverage). Set this start to the day after ${priorEndStr}, or adjust the previous end date, to close the gap.` };
+        }
+        return { kind: 'overlap', text: `This ${serviceCode} authorization starts ${startDate}, but the previous one runs through ${priorEndStr} — the dates overlap. Two ${serviceCode} authorizations would be effective at once. Adjust one of the dates so they don't overlap.` };
+    })();
 
     // Parse pasted date text into YYYY-MM-DD for date inputs
     const handleDatePaste = (setter) => (e) => {
@@ -522,6 +541,13 @@ export default function AuthorizationFormModal({
                                 {files.length} file{files.length !== 1 ? 's' : ''} selected
                             </div>
                         )}
+                    </div>
+                )}
+
+                {coverageWarning && !correctingInPlace && (
+                    <div className="preview-box" role="alert"
+                        style={{ background: 'hsl(var(--warning-bg))', borderColor: 'hsl(var(--warning))', color: 'hsl(38 60% 28%)' }}>
+                        <b>⚠ {coverageWarning.kind === 'gap' ? 'Coverage gap' : 'Overlapping dates'}.</b> {coverageWarning.text}
                     </div>
                 )}
 

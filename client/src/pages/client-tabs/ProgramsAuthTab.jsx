@@ -4,7 +4,7 @@ import InlineEditable from '../../components/common/InlineEditable';
 import * as api from '../../api';
 import { ACCOUNT_NUMBER_OPTIONS } from '../../utils/accountMapping';
 import { AUTH_COLORS, DEFAULT_AUTH_COLOR, getAuthSortKey } from '../../utils/constants';
-import { isAuthEffectiveOn } from '../../utils/authorizations';
+import { isAuthEffectiveOn, isAuthListedActive } from '../../utils/authorizations';
 import { useServices } from '../../hooks/useServices';
 import CertViewerPanel from '../../components/common/CertViewerPanel';
 import ToggleSwitch from '../../components/common/ToggleSwitch';
@@ -221,7 +221,11 @@ export default function ProgramsAuthTab({
         const displayLabel = groupServiceName ? `${baseCode} - ${groupServiceName}` : colors.label;
         const allAuths = [...current, ...archived];
         const filteredAuths = sortAuths(filterAuths(allAuths));
-        const activeAuths = current.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt);
+        // "Active" for the card = not archived, not manually inactive, and not
+        // date-expired — so once the current auth's end date passes, it drops off
+        // the card and the renewal (or nothing) takes over. A future-dated renewal
+        // still counts as active (it has a job to do).
+        const activeAuths = current.filter(a => isAuthListedActive(a));
         // Prefer the auth that is effective TODAY (shared single-source-of-truth
         // helper) so a scheduled future renewal doesn't hijack the card and show
         // its future units before it takes effect — the current auth's units must

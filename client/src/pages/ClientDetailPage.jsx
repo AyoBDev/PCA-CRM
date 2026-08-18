@@ -26,6 +26,7 @@ import FollowUpHistoryList from '../components/leads/FollowUpHistoryList';
 import { AUTH_COLORS, DEFAULT_AUTH_COLOR } from '../utils/constants';
 import { formatDate, formatDateTime } from '../utils/dates';
 import { unitsToHours } from '../utils/time';
+import { isAuthListedActive } from '../utils/authorizations';
 
 const DOC_CATEGORIES = [
     { value: 'admission_packet', label: 'Client Admission Packets', color: '#3b82f6' },
@@ -721,7 +722,10 @@ export default function ClientDetailPage() {
     const PROGRAM_CODES = ['COPE', 'PAS'];
     const activeServiceEntries = [];
     const seenKeys = new Set();
-    (client.authorizations || []).filter(a => !a.archivedAt).forEach(a => {
+    // Header service chips reflect currently-authorized services: active, not
+    // archived, and not date-expired (a future renewal still counts). An expired
+    // service without a renewal drops off once its end date passes.
+    (client.authorizations || []).filter(a => isAuthListedActive(a)).forEach(a => {
         const isProgramCode = PROGRAM_CODES.includes(a.serviceCode);
         const key = isProgramCode ? `${a.serviceCode}::${a.serviceName || ''}` : a.serviceCode;
         if (!seenKeys.has(key)) {
@@ -1521,6 +1525,7 @@ export default function ClientDetailPage() {
                 <AuthorizationFormModal
                     auth={editingAuth ? { ...editingAuth } : (authPresetServiceCode ? { serviceCode: authPresetServiceCode } : null)}
                     clientId={client.id}
+                    siblingAuths={client.authorizations || []}
                     onSave={handleSaveAuth}
                     onRenewal={handleRenewAuth}
                     onInactivate={handleInactivateAuth}

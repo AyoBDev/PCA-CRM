@@ -46,9 +46,75 @@ export function currentAuthorizations(auths, onDate = new Date()) {
 }
 
 /**
+ * Has this authorization's end date passed as of `onDate`? (date-only, UTC).
+ * Independent of manualStatus — an auth can be `manualStatus: 'active'` yet be
+ * date-expired (nothing auto-flips the status when the end date passes).
+ */
+export function isAuthExpired(auth, onDate = new Date()) {
+    if (!auth || !auth.authorizationEndDate) return false;
+    return dayMs(auth.authorizationEndDate) < dayMs(onDate);
+}
+
+/**
+ * "Active" for authorization LEDGER lists (master sheet, Programs tab): not
+ * archived, not manually inactive, and not date-expired. A future-dated renewal
+ * still counts as active (it has a job to do); a past-end-date auth drops to
+ * history. Use this so an expired auth disappears from "Active" once its end
+ * date passes and the renewal takes over.
+ */
+export function isAuthListedActive(auth, onDate = new Date()) {
+    if (!auth) return false;
+    if (auth.archivedAt) return false;
+    if ((auth.manualStatus || 'active') !== 'active') return false;
+    if (isAuthExpired(auth, onDate)) return false;
+    return true;
+}
+
+/**
  * Pick the single current authorization for a given serviceCode (first match in
  * the provided order). Returns undefined when none is in effect on `onDate`.
  */
 export function currentAuthForCode(auths, serviceCode, onDate = new Date()) {
     return (auths || []).find(a => a.serviceCode === serviceCode && isAuthEffectiveOn(a, onDate));
+}
+
+/**
+ * Advisory coverage check for a new/edited authorization against the client's
+ * other same-code authorizations. Detects a GAP (this auth starts more than one
+ * day after the previous one ends → uncovered days) or an OVERLAP (this auth
+ * starts on/before the previous one ends → two effective at once). Never changes
+ * data — the caller surfaces it as a warning so staff can fix the dates.
+ *
+ * @param {object} draft         the auth being saved: { serviceCode, authorizationStartDate }
+ * @param {Array}  siblingAuths  the client's other authorizations
+ * @param {object} [opts]
+ * @param {number} [opts.excludeId]      auth id being edited (skip self-compare)
+ * @param {number} [opts.excludeRenewedFromId]  renewed-from id (its end date is being moved by the renewal)
+ * @returns {{ kind: 'gap'|'overlap', gapDays?: number, priorEndDate: string } | null}
+ */
+export function coverageIssue(draft, siblingAuths, opts = {}) {
+    const startStr = draft && draft.authorizationStartDate;
+    const code = draft && draft.serviceCode;
+    if (!startStr || !code) return null;
+    const startMs = new Date(startStr + 'T00:00:00').getTime();
+    const { excludeId, excludeRenewedFromId } = opts;
+    const prior = (siblingAuths || [])
+        .filter(a => a && a.serviceCode === code)
+        .filter(a => a.id !== excludeId && a.id !== excludeRenewedFromId)
+        .filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt)
+        .filter(a => a.authorizationEndDate)
+        .map(a => ({
+            endMs: new Date(a.authorizationEndDate).getTime(),
+            startMs: a.authorizationStartDate ? new Date(a.authorizationStartDate).getTime() : -Infinity,
+            endDate: a.authorizationEndDate,
+        }))
+        .filter(a => a.startMs <= startMs) // a prior/current auth, not a later future one
+        .sort((a, b) => b.endMs - a.endMs)[0];
+    if (!prior) return null;
+    const oneDay = 24 * 60 * 60 * 1000;
+    const priorEndDate = new Date(prior.endDate).toISOString().slice(0, 10);
+    const gapDays = Math.round((startMs - prior.endMs) / oneDay) - 1;
+    if (gapDays > 0) return { kind: 'gap', gapDays, priorEndDate };
+    if (startMs <= prior.endMs) return { kind: 'overlap', priorEndDate };
+    return null;
 }
