@@ -222,3 +222,17 @@ script is shipped — staff correct these by hand on the client's Programs tab
 (re-activate an early-retired auth; edit an auth's start/end dates to close a gap
 or overlap). Going forward, the modal's coverage warning catches new gaps at
 entry time.
+
+**"Mark as Active" reactivation (fills the manual-fix gap).** The app had no way
+to re-activate an authorization that was wrongly inactivated (e.g. one an old
+renewal retired early) — the Edit modal only offers Renewal/Inactive. Added a
+"Mark as Active" button on the Programs-tab authorization-history row (where a
+superseded auth shows), visible to admins only, and only when the auth is
+`inactive`, not archived, and NOT date-expired (reactivating a genuinely-expired
+auth makes no sense). It calls the full-record PUT with `skipDeactivate: true`
+(the proven renew-undo path) so it does NOT sweep the same-code successor — the
+reactivated auth and the renewal coexist by date. Wired with undo/redo (undo →
+inactive) and audit. This is the in-app way to fix the pre-fix early-retired
+rows on prod without a script. Verified end-to-end against the running API:
+reactivating #2895 set it active while its renewal #3261 stayed active and all
+dates were unchanged.

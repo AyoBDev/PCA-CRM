@@ -4,7 +4,7 @@ import InlineEditable from '../../components/common/InlineEditable';
 import * as api from '../../api';
 import { ACCOUNT_NUMBER_OPTIONS } from '../../utils/accountMapping';
 import { AUTH_COLORS, DEFAULT_AUTH_COLOR, getAuthSortKey } from '../../utils/constants';
-import { isAuthEffectiveOn, isAuthListedActive } from '../../utils/authorizations';
+import { isAuthEffectiveOn, isAuthListedActive, isAuthExpired } from '../../utils/authorizations';
 import { useServices } from '../../hooks/useServices';
 
 const LEFT_CODES = ['PCS', 'SDPC', 'COPE', 'PAS'];
@@ -88,6 +88,7 @@ export default function ProgramsAuthTab({
     openAuthModal,
     handleArchiveAuth,
     handleRestoreAuth,
+    handleReactivateAuth,
     handleUploadAuthDoc,
     handleDownloadAuthDoc,
     handleDeleteAuthDoc,
@@ -284,17 +285,38 @@ export default function ProgramsAuthTab({
                             </button>
                             {isHistoryOpen && (
                                 <div className="pa-history__thread">
-                                    {history.sort((a, b) => new Date(b.authorizationEndDate || 0) - new Date(a.authorizationEndDate || 0)).map(h => (
+                                    {history.sort((a, b) => new Date(b.authorizationEndDate || 0) - new Date(a.authorizationEndDate || 0)).map(h => {
+                                        // Offer "Mark as Active" only when reactivating makes sense:
+                                        // the auth was inactivated but its own window still covers
+                                        // today/future (e.g. an old renewal retired it early). A
+                                        // genuinely date-expired auth is not reactivatable.
+                                        const canReactivate = isAdmin
+                                            && typeof handleReactivateAuth === 'function'
+                                            && (h.manualStatus || 'active') === 'inactive'
+                                            && !h.archivedAt
+                                            && !isAuthExpired(h);
+                                        return (
                                         <div key={h.id} className="pa-history__item">
                                             <div className="pa-history__fields">
                                                 <span><b>#{h.authorizationNumber || '—'}</b></span>
                                                 <span>{h.authorizedUnits} units</span>
                                                 <span>{formatDate(h.authorizationStartDate)} – {formatDate(h.authorizationEndDate)}</span>
                                                 <span className="pa-badge">Superseded</span>
+                                                {canReactivate && (
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn--outline btn--sm"
+                                                        style={{ marginLeft: 'auto', color: '#16a34a', borderColor: '#16a34a' }}
+                                                        onClick={() => handleReactivateAuth(h.id)}
+                                                    >
+                                                        Mark as Active
+                                                    </button>
+                                                )}
                                             </div>
                                             {h.notes && <div className="pa-history__note"><b>Note:</b> {h.notes}</div>}
                                         </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
