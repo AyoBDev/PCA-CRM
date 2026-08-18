@@ -170,3 +170,12 @@ blanks a shift — and is idempotent.
 **Choice:** Build in-house — root-cause fix in `renewAuthorization`, plus close two latent date-guard gaps it exposed.
 
 **Why:** The bug is in our own logic, not a missing capability. `renewAuthorization` set the renewed-from auth to `manualStatus: 'inactive'` immediately, and both the server (`filterAuthsByWeek`) and the client Scheduler reject non-active auths — so a future renewal made the current auth vanish (0 units) before its effective date. Fix: keep the old auth **active** on a future renewal (its end date is already moved to the day before the new start), so date-range filtering keeps showing current units until the new auth's start date, then switches automatically. Two guards the change surfaced were also fixed: (1) `deactivatePreviousAuths` now accepts an id array so the still-active renewed-from auth isn't swept as "superseded"; (2) the Scheduler's `authorizedServiceMap` now skips not-yet-effective auths (missing start-date check) so current + future units don't double-count during the gap. Also made the Programs tab pick the auth effective *today* for its card so a future renewal doesn't display its future units early. Immediate/backdated renewals (start ≤ today) still close the old auth now. Built test-first: failing test reproducing the vanished current auth → root-cause fix → green; added an end-to-end `filterAuthsByWeek` test proving current units before the new start and new units after. Server 720/721 (1 pre-existing cross-suite flake, passes in isolation), auth+scheduling 75/75, client 70/70.
+
+**Backfill for rows broken before the fix:** existing authorizations already
+retired early by this bug are NOT self-healing (the fix only changes new
+renewals). Added `server/prisma/fix-early-retired-renewals.js` — a one-time,
+dry-run-by-default, idempotent, audited repair that reactivates any
+renewed-from auth whose successor's start date is still in the future and whose
+own window still covers today (leaving end dates and the successor untouched).
+Verified end-to-end on the test DB (dry-run → apply → no-op re-run). Run
+`node prisma/fix-early-retired-renewals.js` (dry run) then `--apply` on prod.
