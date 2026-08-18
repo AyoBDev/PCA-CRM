@@ -75,6 +75,12 @@ export default function AuthorizationFormModal({
     const [inactiveReason, setInactiveReason] = useState('Client transferred to another agency');
     const [inactiveNote, setInactiveNote] = useState('');
     const [correctingInPlace, setCorrectingInPlace] = useState(false);
+    // Renewal activation: 'scheduled' = keep the current auth in effect until the
+    // new start date, then the renewal takes over automatically (dates are the
+    // source of truth). 'immediate' = retire the current auth now and make the
+    // renewal current today. Defaults to scheduled; only meaningful when the new
+    // start date is in the future.
+    const [renewalActivation, setRenewalActivation] = useState('scheduled');
     const [files, setFiles] = useState([]);
 
     // GUIDE annual-visits detail fields
@@ -90,6 +96,11 @@ export default function AuthorizationFormModal({
     const authorizationType = isGuide ? 'Annual Visits' : 'Weekly Units';
     const isAnnual = authorizationType === 'Annual Visits';
     const hoursPerYear = (Number(authorizedVisitsPerYear) || 0) * (Number(hoursPerVisit) || 0);
+
+    // The activation choice only matters when the new start date is in the future.
+    // A start of today or earlier is always effectively immediate.
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const startIsFuture = !!startDate && startDate > todayStr;
 
     // Parse pasted date text into YYYY-MM-DD for date inputs
     const handleDatePaste = (setter) => (e) => {
@@ -182,6 +193,9 @@ export default function AuthorizationFormModal({
                 authorizationType,
                 authorizedVisitsPerYear: isAnnual && authorizedVisitsPerYear ? Number(authorizedVisitsPerYear) : null,
                 hoursPerVisit: isAnnual && hoursPerVisit ? Number(hoursPerVisit) : null,
+                // Explicit activation: only a future start can be 'scheduled'; a
+                // start today/earlier is always immediate.
+                renewalActivation: startIsFuture ? renewalActivation : 'immediate',
                 files,
             });
             return;
@@ -375,6 +389,38 @@ export default function AuthorizationFormModal({
                             with an end date of <b>{startDate ? fmtDayBefore(startDate) : '-'}</b> - the day before
                             this new authorization starts. No overlapping dates, no manual entry.
                         </div>
+
+                        {/* When the new start date is in the future, ask whether the
+                            current authorization should keep running until then
+                            (scheduled) or be replaced right away (immediate). Dates
+                            are the source of truth; this is the explicit override. */}
+                        {startIsFuture && (
+                            <div className="form-group">
+                                <label>When should this renewal take effect?</label>
+                                <div className="auth-status-cards">
+                                    <label className={`auth-status-card ${renewalActivation === 'scheduled' ? 'auth-status-card--renewal' : ''}`}>
+                                        <input type="radio" name="renewalActivation" value="scheduled"
+                                            checked={renewalActivation === 'scheduled'} onChange={() => setRenewalActivation('scheduled')} />
+                                        <div className="auth-status-card__radio"><span className="auth-status-card__dot" /></div>
+                                        <span className="auth-status-card__label">Wait until start date</span>
+                                        <span className="auth-status-card__desc">
+                                            Recommended. The current authorization stays in effect (Scheduler, Care Plan, units)
+                                            through {startDate ? fmtDayBefore(startDate) : '-'}, then this renewal takes over automatically on {startDate || 'its start date'}.
+                                        </span>
+                                    </label>
+                                    <label className={`auth-status-card ${renewalActivation === 'immediate' ? 'auth-status-card--renewal' : ''}`}>
+                                        <input type="radio" name="renewalActivation" value="immediate"
+                                            checked={renewalActivation === 'immediate'} onChange={() => setRenewalActivation('immediate')} />
+                                        <div className="auth-status-card__radio"><span className="auth-status-card__dot" /></div>
+                                        <span className="auth-status-card__label">Start immediately</span>
+                                        <span className="auth-status-card__desc">
+                                            Replace the current authorization now. It is retired today and this renewal becomes current
+                                            immediately, even though its start date is in the future.
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+                        )}
                         <div className="form-group">
                             <label>New Authorization Number</label>
                             <input type="text" value={authorizationNumber} onChange={(e) => setAuthorizationNumber(e.target.value)} placeholder="e.g. A-2026-0119" />

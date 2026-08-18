@@ -530,6 +530,12 @@ export default function ClientDetailPage() {
             // Snapshot the old auth's pre-renew state so undo can restore it exactly —
             // renewAuthorization truncates its end date and sets renewedToId/closedAt server-side.
             const oldAuthSnapshot = (client.authorizations || []).find(a => a.id === oldAuthId) || editingAuth;
+            // Mirror the server's rule: a scheduled renewal with a future start leaves
+            // the old auth ACTIVE (dates govern hand-over); otherwise it's retired now.
+            // Redo must restore whichever status the renewal actually produced.
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const startIsFuture = !!data.authorizationStartDate && data.authorizationStartDate > todayStr;
+            const oldStaysActive = data.renewalActivation !== 'immediate' && startIsFuture;
             const newAuth = await api.renewAuthorization(oldAuthId, data);
             if (files && files.length && newAuth?.id) {
                 for (const file of files) {
@@ -552,7 +558,7 @@ export default function ClientDetailPage() {
                     });
                     await fetchClient();
                 },
-                async () => { await api.restoreAuthorization(newAuth.id); await api.updateAuthManualStatus(oldAuthId, 'inactive'); await fetchClient(); },
+                async () => { await api.restoreAuthorization(newAuth.id); if (!oldStaysActive) await api.updateAuthManualStatus(oldAuthId, 'inactive'); await fetchClient(); },
             );
             setShowAuthModal(false);
             fetchClient();

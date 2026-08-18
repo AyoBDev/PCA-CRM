@@ -169,3 +169,17 @@ renewed-from auth whose successor's start date is still in the future and whose
 own window still covers today (leaving end dates and the successor untouched).
 Verified end-to-end on the test DB (dry-run → apply → no-op re-run). Run
 `node prisma/fix-early-retired-renewals.js` (dry run) then `--apply` on prod.
+
+**Model refinement (single source of truth):** per the SSOT rule that the
+authorization is the source of truth and only the *current active*
+authorization should drive the system, the fix was reworked so an auth's
+START/END dates decide what is "current today", with `manualStatus` as a manual
+override on top. The immediate-vs-scheduled decision is now an EXPLICIT choice
+in the renewal confirmation modal ("Wait until start date" — recommended — vs
+"Start immediately"), sent as `renewalActivation` and honored server-side (no
+date inference except as back-compat). A shared helper
+`client/src/utils/authorizations.js` (`isAuthEffectiveOn` / `currentAuthorizations`
+/ `currentAuthForCode`) is the single place any consumer asks "is this the
+current auth?", and the Scheduler unit maps + Programs card + account/Sandata
+auto-fill all route through it — so nothing reads raw `manualStatus` without the
+date window and a not-yet-effective scheduled renewal can never be counted.

@@ -633,6 +633,11 @@ export default function AuthorizationsPage() {
             const { oldAuthId, files, ...data } = payload;
             const oldClient = clients.find(c => c.id === (payload.clientId || modal.clientId));
             const oldAuthSnapshot = oldClient?.authorizations?.find(a => a.id === oldAuthId);
+            // Mirror the server's rule: a scheduled renewal with a future start leaves
+            // the old auth ACTIVE; redo must restore that, not force it inactive.
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const startIsFuture = !!data.authorizationStartDate && data.authorizationStartDate > todayStr;
+            const oldStaysActive = data.renewalActivation !== 'immediate' && startIsFuture;
             const newAuth = await api.renewAuthorization(oldAuthId, data);
             if (files && files.length && newAuth?.id) {
                 for (const file of files) {
@@ -657,7 +662,7 @@ export default function AuthorizationsPage() {
                 },
                 async () => {
                     await api.restoreAuthorization(newAuth.id);
-                    await api.updateAuthManualStatus(oldAuthId, 'inactive');
+                    if (!oldStaysActive) await api.updateAuthManualStatus(oldAuthId, 'inactive');
                     fetchClients();
                 }
             );
