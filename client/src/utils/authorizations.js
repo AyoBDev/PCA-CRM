@@ -96,7 +96,12 @@ export function coverageIssue(draft, siblingAuths, opts = {}) {
     const startStr = draft && draft.authorizationStartDate;
     const code = draft && draft.serviceCode;
     if (!startStr || !code) return null;
-    const startMs = new Date(startStr + 'T00:00:00').getTime();
+    // All comparisons use UTC calendar-day ms (dayMs) so a non-UTC process
+    // timezone can't shift the result by a day — the draft start (YYYY-MM-DD
+    // from a date input) and the sibling's ISO-UTC end date are normalized the
+    // same way. oneDay is exactly 24h because both operands are UTC midnights.
+    const startMs = dayMs(startStr);
+    const oneDay = 24 * 60 * 60 * 1000;
     const { excludeId, excludeRenewedFromId } = opts;
     const prior = (siblingAuths || [])
         .filter(a => a && a.serviceCode === code)
@@ -104,15 +109,14 @@ export function coverageIssue(draft, siblingAuths, opts = {}) {
         .filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt)
         .filter(a => a.authorizationEndDate)
         .map(a => ({
-            endMs: new Date(a.authorizationEndDate).getTime(),
-            startMs: a.authorizationStartDate ? new Date(a.authorizationStartDate).getTime() : -Infinity,
+            endMs: dayMs(a.authorizationEndDate),
+            startMs: a.authorizationStartDate ? dayMs(a.authorizationStartDate) : -Infinity,
             endDate: a.authorizationEndDate,
         }))
         .filter(a => a.startMs <= startMs) // a prior/current auth, not a later future one
         .sort((a, b) => b.endMs - a.endMs)[0];
     if (!prior) return null;
-    const oneDay = 24 * 60 * 60 * 1000;
-    const priorEndDate = new Date(prior.endDate).toISOString().slice(0, 10);
+    const priorEndDate = new Date(prior.endMs).toISOString().slice(0, 10);
     const gapDays = Math.round((startMs - prior.endMs) / oneDay) - 1;
     if (gapDays > 0) return { kind: 'gap', gapDays, priorEndDate };
     if (startMs <= prior.endMs) return { kind: 'overlap', priorEndDate };
