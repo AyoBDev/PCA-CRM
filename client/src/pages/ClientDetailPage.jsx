@@ -620,6 +620,24 @@ export default function ClientDetailPage() {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    // Re-activate an authorization that was superseded/inactivated (e.g. one an
+    // old renewal retired early). Uses the full-record PUT with skipDeactivate so
+    // it does NOT sweep the same-code successor (the renewal stays active); the
+    // two coexist by date. Undo flips it back to inactive.
+    const handleReactivateAuth = async (authId) => {
+        try {
+            const snap = (client.authorizations || []).find(a => a.id === authId);
+            if (!snap) return;
+            await api.updateAuthorization(authId, { ...snap, manualStatus: 'active', skipDeactivate: true });
+            showToast('Authorization marked active');
+            fetchClient();
+            undoState.pushAction('Marked authorization active',
+                async () => { await api.updateAuthManualStatus(authId, 'inactive'); fetchClient(); },
+                async () => { await api.updateAuthorization(authId, { ...snap, manualStatus: 'active', skipDeactivate: true }); fetchClient(); }
+            );
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     const handleSaveAuthNote = async (authId, note) => {
         // updateAuthorization is a full-record PUT (it does not merge with the existing
         // row), so every write must resend the auth's other fields alongside the note.
@@ -1072,6 +1090,7 @@ export default function ClientDetailPage() {
                             openAuthModal={openAuthModal}
                             handleArchiveAuth={handleArchiveAuth}
                             handleRestoreAuth={handleRestoreAuth}
+                            handleReactivateAuth={handleReactivateAuth}
                             handleUploadAuthDoc={handleUploadAuthDoc}
                             handleDownloadAuthDoc={handleDownloadAuthDoc}
                             handleDeleteAuthDoc={handleDeleteAuthDoc}
