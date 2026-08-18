@@ -21,6 +21,7 @@ import { SERVICE_COLORS, DAY_NAMES_SHORT } from '../utils/constants';
 import { CLIENT_COLORS } from '../utils/ui';
 import { deriveServiceCode } from '../utils/serviceCodes';
 import { toLocalDateStr } from '../utils/dates';
+import { isAuthEffectiveOn, currentAuthForCode } from '../utils/authorizations';
 import Tooltip from '../components/common/Tooltip';
 
 function buildClientColorMap(shifts) {
@@ -115,14 +116,11 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
         const now = new Date();
         const map = {};
         for (const auth of selectedClient.authorizations) {
-            if ((auth.manualStatus || 'active') !== 'active') continue;
-            if (auth.archivedAt) continue;
-            if (auth.authorizationEndDate && new Date(auth.authorizationEndDate) < now) continue;
-            // Skip not-yet-effective auths (e.g. a future-dated renewal) so their
-            // future units don't get summed alongside the current auth during the
-            // pre-start gap — the current units must stand alone until the new
-            // auth's start date.
-            if (auth.authorizationStartDate && new Date(auth.authorizationStartDate) > now) continue;
+            // Single source of truth: an auth is current only when it is in effect
+            // TODAY (date window) and not manually inactivated/archived. This
+            // excludes a not-yet-effective scheduled renewal, so its future units
+            // don't get summed alongside the current auth during the pre-start gap.
+            if (!isAuthEffectiveOn(auth, now)) continue;
             const code = deriveCode(auth);
             if (!code) continue;
             if (!map[code]) map[code] = { units: 0, category: '', accountNumber: '', sandataClientId: '' };
@@ -1515,13 +1513,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
     const deriveAcctSandata = (svcCode) => {
         if (!filterClientId) return { accountNumber: '', sandataClientId: '' };
         const client = clients.find(c => String(c.id) === String(filterClientId));
-        const now = new Date();
-        const auth = client?.authorizations?.find(a =>
-            a.serviceCode === svcCode &&
-            (a.manualStatus || 'active') === 'active' &&
-            !a.archivedAt &&
-            (!a.authorizationEndDate || new Date(a.authorizationEndDate) >= now)
-        );
+        const auth = currentAuthForCode(client?.authorizations, svcCode);
         return { accountNumber: auth?.accountNumber || '', sandataClientId: auth?.sandataClientId || '' };
     };
 
@@ -1582,13 +1574,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
             const next = { ...prev, [shiftId]: { ...prev[shiftId], [field]: value } };
             if (field === 'serviceCode' && filterClientId) {
                 const client = clients.find(c => String(c.id) === String(filterClientId));
-                const now = new Date();
-                const auth = client?.authorizations?.find(a =>
-                    a.serviceCode === value &&
-                    (a.manualStatus || 'active') === 'active' &&
-                    !a.archivedAt &&
-                    (!a.authorizationEndDate || new Date(a.authorizationEndDate) >= now)
-                );
+                const auth = currentAuthForCode(client?.authorizations, value);
                 if (auth) {
                     const current = next[shiftId];
                     if (auth.accountNumber && (!current.accountNumber || ACCOUNT_NUMBER_OPTIONS.includes(current.accountNumber))) {
@@ -1764,8 +1750,8 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
         const now = new Date();
         const map = {};
         for (const auth of selectedClient.authorizations) {
-            if ((auth.manualStatus || 'active') !== 'active' || auth.archivedAt) continue;
-            if (auth.authorizationEndDate && new Date(auth.authorizationEndDate) < now) continue;
+            // Current = in effect today (dates) and not manually inactive/archived.
+            if (!isAuthEffectiveOn(auth, now)) continue;
             const code = auth.serviceCode;
             if (!map[code]) map[code] = { units: 0, category: auth.serviceCategory };
             map[code].units += (auth.authorizedUnits || 0);

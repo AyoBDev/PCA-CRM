@@ -4,6 +4,7 @@ import InlineEditable from '../../components/common/InlineEditable';
 import * as api from '../../api';
 import { ACCOUNT_NUMBER_OPTIONS } from '../../utils/accountMapping';
 import { AUTH_COLORS, DEFAULT_AUTH_COLOR, getAuthSortKey } from '../../utils/constants';
+import { isAuthEffectiveOn } from '../../utils/authorizations';
 import { useServices } from '../../hooks/useServices';
 import CertViewerPanel from '../../components/common/CertViewerPanel';
 import ToggleSwitch from '../../components/common/ToggleSwitch';
@@ -221,17 +222,11 @@ export default function ProgramsAuthTab({
         const allAuths = [...current, ...archived];
         const filteredAuths = sortAuths(filterAuths(allAuths));
         const activeAuths = current.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt);
-        // Prefer the auth that is effective TODAY so a future-dated renewal (which
-        // stays active until its start date) doesn't hijack the card and show its
-        // future units before it takes effect — the current auth's units must
-        // remain on display until the renewal's start date. Matches the
-        // date-driven filtering used by the Scheduler.
-        const today = new Date();
-        const effectiveToday = activeAuths.find(a => {
-            const start = a.authorizationStartDate ? new Date(a.authorizationStartDate) : null;
-            const end = a.authorizationEndDate ? new Date(a.authorizationEndDate) : null;
-            return (!start || start <= today) && (!end || end >= today);
-        });
+        // Prefer the auth that is effective TODAY (shared single-source-of-truth
+        // helper) so a scheduled future renewal doesn't hijack the card and show
+        // its future units before it takes effect — the current auth's units must
+        // remain on display until the renewal's start date.
+        const effectiveToday = activeAuths.find(a => isAuthEffectiveOn(a));
         const latestAuth = effectiveToday || activeAuths[0] || current[0] || allAuths[0];
         const attachCount = latestAuth ? (latestAuth.documents || []).length : 0;
         const currentAccountNumber = latestAuth?.accountNumber || '';
