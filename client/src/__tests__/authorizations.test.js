@@ -108,4 +108,19 @@ describe('coverageIssue', () => {
         expect(coverageIssue({ serviceCode: 'SDPC', authorizationStartDate: '2026-09-01' }, [inactive])).toBeNull();
         expect(coverageIssue({ serviceCode: 'SDPC', authorizationStartDate: '2026-09-01' }, [archived])).toBeNull();
     });
+
+    // Regression: the prior end date arrives from the API as an ISO-UTC string
+    // while the draft start is a bare YYYY-MM-DD from a date input. Both must be
+    // normalized to the same UTC calendar day so the gap math can't drift by a
+    // day under a non-UTC process timezone.
+    it('computes the gap correctly when the prior end is an ISO-UTC datetime', () => {
+        const isoPrior = { id: 9, serviceCode: 'SDPC', authorizationStartDate: '2025-11-20T00:00:00.000Z', authorizationEndDate: '2026-08-30T00:00:00.000Z' };
+        expect(coverageIssue({ serviceCode: 'SDPC', authorizationStartDate: '2026-09-01' }, [isoPrior]))
+            .toEqual({ kind: 'gap', gapDays: 1, priorEndDate: '2026-08-30' });
+        // adjacent day → no gap
+        expect(coverageIssue({ serviceCode: 'SDPC', authorizationStartDate: '2026-08-31' }, [isoPrior])).toBeNull();
+        // same day → overlap
+        expect(coverageIssue({ serviceCode: 'SDPC', authorizationStartDate: '2026-08-30' }, [isoPrior]))
+            .toEqual({ kind: 'overlap', priorEndDate: '2026-08-30' });
+    });
 });
