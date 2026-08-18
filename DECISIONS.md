@@ -224,3 +224,17 @@ of Active views and remains under authorization history. Also added an advisory
 coverage-gap/overlap WARNING (`coverageIssue`) in the auth modal (never
 auto-edits dates) after finding a real 1-day SDPC gap (old ends Aug 30, renewal
 starts Sep 1 → Aug 31 uncovered) in existing data.
+
+**Pre-fix data — two categories.** Auditing live data surfaced two pre-existing
+problems from renewals created before the fixes: (1) early-retired renewals (old
+auth flipped inactive while its successor hasn't started) — repaired by
+`fix-early-retired-renewals.js` (found 2: Frank Wilson PCS, Andranik Zadoyan
+S5125); (2) coverage gaps/overlaps between same-code auths. Added
+`report-auth-coverage-gaps.js` — REPORT-ONLY by default (matches "warn, don't
+auto-change"), with an opt-in `--fix-gaps` that closes gaps by extending the
+prior auth's end date to the day before the next start (never touches overlaps —
+shortening an auth is a staff judgement call). Excludes MULTI_AUTH_CODES
+(COPE/PAS) since concurrent program auths are by design. Dev DB: 2 real gaps
+(Andranik SDPC + S5125, 1 day each on Aug 31) and 2 overlaps (Cheryl Johnson
+S5150, Evan Moreland S5130) for staff review. Dates written at UTC midnight to
+avoid a timezone day-shift.
