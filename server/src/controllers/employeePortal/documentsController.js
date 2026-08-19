@@ -64,4 +64,26 @@ async function uploadDocument(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { getRequirements, getDocuments, uploadDocument };
+// GET /api/employee/onboarding/my-link
+// Lets a LOGGED-IN employee who is still onboarding (pending_review / changes_requested)
+// retrieve their own onboarding token, so they can reach the onboarding wizard directly
+// in-app — a second point of entry that doesn't depend on the email link. Mints a fresh
+// token if none is currently usable. Only valid while onboarding; otherwise 400.
+async function getMyOnboardingLink(req, res, next) {
+    try {
+        const emp = req.employee;
+        const ONBOARDING_STATES = ['pending_review', 'changes_requested', 'onboarding_in_progress', 'invitation_pending'];
+        if (!ONBOARDING_STATES.includes(emp.onboardingStatus)) {
+            return res.status(400).json({ error: 'Not currently onboarding' });
+        }
+        const onboarding = require('../../services/onboardingService');
+        let token = await prisma.onboardingToken.findFirst({
+            where: { employeeId: emp.id, status: 'pending', expiresAt: { gt: new Date() } },
+            orderBy: { createdAt: 'desc' },
+        });
+        if (!token) token = await onboarding.createOnboardingToken(emp.id);
+        res.json({ token: token.token });
+    } catch (err) { next(err); }
+}
+
+module.exports = { getRequirements, getDocuments, uploadDocument, getMyOnboardingLink };
