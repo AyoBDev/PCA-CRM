@@ -1,6 +1,6 @@
 const express = require('express');
 const multer = require('multer');
-const { authenticate } = require('../middleware/authMiddleware');
+const { authenticate, requireSurface } = require('../middleware/authMiddleware');
 const { requireEmployeeLink } = require('../middleware/requireEmployeeLink');
 const { getProfile, updateProfile } = require('../controllers/employeePortal/profileController');
 const { getHomeSummary, getNextShift, getActivity } = require('../controllers/employeePortal/homeController');
@@ -13,7 +13,7 @@ const { getMessages, sendMessage, markRead, getUnreadCount } = require('../contr
 const { getNotifications, markNotificationsRead } = require('../controllers/employeePortal/notificationController');
 const { getTimesheet } = require('../controllers/employeePortal/timesheetController');
 const { getMyOffers, respondToMyOffer } = require('../controllers/employeePortal/offersController');
-const { getRequirements, getDocuments, uploadDocument } = require('../controllers/employeePortal/documentsController');
+const { getRequirements, getDocuments, uploadDocument, getMyOnboardingLink } = require('../controllers/employeePortal/documentsController');
 const { ackPolicy } = require('../controllers/employeePortal/policiesController');
 
 const certUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -22,6 +22,7 @@ const portalUpload = multer({ storage: multer.memoryStorage(), limits: { fileSiz
 const router = express.Router();
 
 router.use(authenticate);
+router.use(requireSurface('employee'));
 router.use(requireEmployeeLink);
 
 // Home
@@ -78,6 +79,7 @@ router.post('/offers/:id/respond', respondToMyOffer);
 router.get('/requirements', getRequirements);
 router.get('/documents', getDocuments);
 router.post('/documents/:reqId', portalUpload.single('file'), uploadDocument);
+router.get('/onboarding/my-link', getMyOnboardingLink);
 router.post('/policies/:reqId/ack', ackPolicy);
 
 module.exports = router;

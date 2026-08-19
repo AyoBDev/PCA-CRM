@@ -1,9 +1,18 @@
 const prisma = require('../../lib/prisma');
 const onboarding = require('../../services/onboardingService');
 const audit = require('../../services/auditService');
+const lifecycle = require('../../services/onboardingLifecycle');
 const { uploadFile } = require('../../lib/storage');
 const { markSubmitted, markPolicyAck, projectLedger } = require('../../services/requirementService');
 const { safeFileName } = require('../../lib/fileNameUtils');
+
+// First real onboarding data moves the employee off invitation_pending. Safe
+// no-op when already past it (e.g. pending_review) — transition() throws on
+// an illegal move, so swallow only that case and let anything else propagate.
+async function markInProgress(employeeId) {
+    try { await lifecycle.transition(prisma, employeeId, 'onboarding_in_progress'); }
+    catch (e) { if (!/Illegal onboarding transition/.test(e.message)) throw e; }
+}
 
 const ALLOWED = ['image/jpeg', 'image/png', 'image/heic', 'image/webp', 'application/pdf'];
 
@@ -26,6 +35,7 @@ async function savePersonal(req, res, next) {
         if (!employee) return res.status(400).json({ error: 'Invalid link' });
         const { address, dob, gender, preferredLanguage, ssn } = req.body;
         await prisma.employee.update({ where: { id: employee.id }, data: { address, dob, gender, preferredLanguage, ssn } });
+        await markInProgress(employee.id);
         // Public (token-auth) mutation → userId 0. Log only which fields were touched, never PHI values (dob/ssn).
         const fields = Object.keys({ address, dob, gender, preferredLanguage, ssn }).filter((k) => req.body[k] !== undefined);
         audit.logAction({ userId: 0, userName: employee.name, userRole: 'pca', action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'onboarding_personal_saved', fields } });
@@ -39,6 +49,7 @@ async function saveEmergency(req, res, next) {
         if (!employee) return res.status(400).json({ error: 'Invalid link' });
         const { emergencyContactName, emergencyContactRelationship, emergencyContactPhone, emergencyContactEmail } = req.body;
         await prisma.employee.update({ where: { id: employee.id }, data: { emergencyContactName, emergencyContactRelationship, emergencyContactPhone, emergencyContactEmail } });
+        await markInProgress(employee.id);
         audit.logAction({ userId: 0, userName: employee.name, userRole: 'pca', action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'onboarding_emergency_saved' } });
         res.json({ success: true });
     } catch (err) { next(err); }

@@ -31,7 +31,9 @@ async function employeeAuthHeader(overrides = {}) {
   });
 
   const token = jwt.sign(
-    { id: user.id, permissionsVersion: user.permissionsVersion ?? 1 },
+    // surface: 'employee' — the portal routes now enforce the token surface via
+    // requireSurface('employee'), matching a real employee-login token.
+    { id: user.id, surface: 'employee', permissionsVersion: user.permissionsVersion ?? 1 },
     JWT_SECRET
   );
 

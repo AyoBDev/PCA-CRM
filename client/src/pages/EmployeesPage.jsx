@@ -11,6 +11,7 @@ import ContextBar from '../components/common/ContextBar';
 import { useUndoStack } from '../hooks/useUndoStack';
 import { getInitials, getAvatarColor } from '../utils/ui';
 import { formatDate as fmtDate } from '../utils/dates';
+import { ONBOARDING_STATUS_LABELS, ONBOARDING_STATUS_BADGE_VARIANT } from '../utils/constants';
 
 const CERT_FIELDS = [
     { key: 'tbDueDate', label: 'TB' },
@@ -752,8 +753,11 @@ export default function EmployeesPage() {
                                                         <div>
                                                             <div style={{ fontWeight: 500, color: 'hsl(var(--primary))', display: 'flex', alignItems: 'center', gap: 6 }}>
                                                                 {emp.name}
-                                                                {emp.onboardingStatus === 'invited' && <span className="ts-badge ts-badge--draft" style={{ fontSize: 10 }}>Invited</span>}
-                                                                {emp.onboardingStatus === 'submitted' && <span className="ts-badge ts-badge--submitted" style={{ fontSize: 10 }}>Pending Review</span>}
+                                                                {ONBOARDING_STATUS_BADGE_VARIANT[emp.onboardingStatus] && (
+                                                                    <span className={`ts-badge ts-badge--${ONBOARDING_STATUS_BADGE_VARIANT[emp.onboardingStatus]}`} style={{ fontSize: 10 }}>
+                                                                        {ONBOARDING_STATUS_LABELS[emp.onboardingStatus]}
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                             {emp.email && <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>{emp.email}</div>}
                                                         </div>

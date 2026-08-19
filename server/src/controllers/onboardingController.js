@@ -21,6 +21,10 @@ async function getOnboardingInfo(req, res, next) {
             employeeEmail: employee.email,
             // If an admin sent them back, show the note explaining what to fix.
             adminReviewNote: employee.adminReviewNote || '',
+            onboardingStatus: employee.onboardingStatus,
+            // A returning employee already has a login account (set a password on their
+            // first submit). The wizard uses this to SKIP the password step on re-entry.
+            hasAccount: Boolean(employee.userId),
             requirements,
             // Already-saved values so a returning employee's form is pre-filled on reload.
             // (Password is never returned — it isn't stored until final submit.)
@@ -88,6 +92,9 @@ async function completeOnboarding(req, res, next) {
         if (err.message === 'not_found' || err.message === 'completed' || err.message === 'expired') {
             return res.status(400).json({ error: 'This onboarding link is no longer valid.' });
         }
+        if (err.message === 'password_required') {
+            return res.status(400).json({ error: 'Password must be at least 8 characters' });
+        }
         next(err);
     }
 }
@@ -100,7 +107,10 @@ async function submitOnboarding(req, res, next) {
         // v3 gate: every required document/cert/policy must be satisfied before the account is created.
         const reqs = await prisma.employeeRequirement.findMany({ where: { employeeId: employee.id } });
         if (!isOnboardingComplete(reqs)) return res.status(400).json({ error: 'Please complete all required items before submitting.' });
-        if (!password) return res.status(400).json({ error: 'A password is required to finish onboarding.' });
+        // A returning employee (already has a login account — e.g. re-submitting after
+        // changes_requested) is NOT asked to set a password again, so don't require one.
+        // A first-time submit (no linked account yet) still must set a password.
+        if (!employee.userId && !password) return res.status(400).json({ error: 'A password is required to finish onboarding.' });
         if (!availability) return res.status(400).json({ error: 'Availability details are required to finish onboarding.' });
         // Reuse the proven account-creation path: hashes the password, creates/links the User,
         // stores availability, and marks the token completed (all transactional).
@@ -111,6 +121,9 @@ async function submitOnboarding(req, res, next) {
         if (err.message === 'not_found' || err.message === 'completed' || err.message === 'expired') {
             return res.status(400).json({ error: 'This onboarding link is no longer valid.' });
         }
+        if (err.message === 'password_required') {
+            return res.status(400).json({ error: 'Password must be at least 8 characters' });
+        }
         next(err);
     }
 }
@@ -120,8 +133,8 @@ async function resendInvite(req, res, next) {
         const id = Number(req.params.id);
         const employee = await prisma.employee.findUnique({ where: { id } });
         if (!employee) return res.status(404).json({ error: 'Employee not found' });
-        if (employee.onboardingStatus !== 'invited') {
-            return res.status(400).json({ error: 'Can only resend invite for employees with status "invited"' });
+        if (employee.onboardingStatus !== 'invitation_pending') {
+            return res.status(400).json({ error: 'Can only resend invite for employees who have not yet started onboarding' });
         }
         if (!employee.email) {
             return res.status(400).json({ error: 'Employee has no email address' });
@@ -133,48 +146,6 @@ async function resendInvite(req, res, next) {
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'resend_onboarding_invite' } });
         res.json({ success: true });
     } catch (err) { next(err); }
-}
-
-async function approveOnboarding(req, res, next) {
-    try {
-        const id = Number(req.params.id);
-        const employee = await onboarding.approveOnboarding(id);
-
-        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'approve_onboarding' } });
-        res.json({ success: true });
-    } catch (err) {
-        if (err.message === 'Employee not found') return res.status(404).json({ error: err.message });
-        if (err.message === 'Employee is not pending approval') return res.status(400).json({ error: err.message });
-        next(err);
-    }
-}
-
-async function rejectOnboarding(req, res, next) {
-    try {
-        const id = Number(req.params.id);
-        const note = (req.body && req.body.note) || '';
-        const employee = await onboarding.reviewOnboarding(id, { status: 'changes_requested', note });
-        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'reject_onboarding', note } });
-        res.json({ success: true });
-    } catch (err) {
-        if (err.message === 'Employee not found') return res.status(404).json({ error: err.message });
-        if (err.message === 'Employee is not pending approval') return res.status(400).json({ error: err.message });
-        next(err);
-    }
-}
-
-async function requestOnboardingChange(req, res, next) {
-    try {
-        const id = Number(req.params.id);
-        const note = (req.body && req.body.note) || '';
-        const employee = await onboarding.reviewOnboarding(id, { status: 'changes_requested', note });
-        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'request_onboarding_change', note } });
-        res.json({ success: true });
-    } catch (err) {
-        if (err.message === 'Employee not found') return res.status(404).json({ error: err.message });
-        if (err.message === 'Employee is not pending approval') return res.status(400).json({ error: err.message });
-        next(err);
-    }
 }
 
 async function getOnboardingLink(req, res, next) {
@@ -216,7 +187,7 @@ async function getOnboardingReviewDetail(req, res, next) {
 async function getOnboardingReviews(req, res, next) {
     try {
         const employees = await prisma.employee.findMany({
-            where: { onboardingStatus: 'submitted' },
+            where: { onboardingStatus: 'pending_review' },
             select: { id: true, name: true, email: true, phone: true, updatedAt: true },
             orderBy: { updatedAt: 'asc' }, // oldest submissions first
         });
@@ -232,4 +203,75 @@ async function getOnboardingReviews(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, rejectOnboarding, requestOnboardingChange, getOnboardingLink, getOnboardingReviews, getOnboardingReviewDetail };
+// Admin per-item decision on a single requirement (approve/reject). Does not move
+// the employee's overall onboarding status.
+async function reviewRequirementItem(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const reqId = Number(req.params.reqId);
+        const { decision, reason } = req.body || {};
+        if (!['approved', 'rejected'].includes(decision)) return res.status(400).json({ error: 'decision must be approved or rejected' });
+        const updated = await onboarding.reviewItem(id, reqId, { decision, reason });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: id, entityName: '', metadata: { action: 'review_requirement', reqId, decision } });
+        res.json({ success: true, requirement: updated });
+    } catch (err) {
+        if (err.message === 'Requirement not found') return res.status(404).json({ error: err.message });
+        if (err.message === 'Rejection reason required') return res.status(400).json({ error: err.message });
+        next(err);
+    }
+}
+
+// Admin "finalize review" — reads per-item review decisions and either
+// approves+activates the employee (and their login user) or sends them back to
+// changes_requested (reopening the onboarding token). See onboardingService.finalizeOnboarding.
+async function finalizeOnboarding(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const { outcome } = await onboarding.finalizeOnboarding(id, { userId: req.user.id, userName: req.user.name, userRole: req.user.role });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: id, entityName: '', metadata: { action: 'finalize_onboarding', outcome } });
+        res.json({ success: true, outcome });
+    } catch (err) {
+        if (err.message === 'Employee not found') return res.status(404).json({ error: err.message });
+        if (err.message === 'Employee is not pending review') return res.status(400).json({ error: err.message });
+        next(err);
+    }
+}
+
+// Explicit whole-submission decisions (the 3 review-modal buttons). Each is
+// independent of per-item state and maps to one lifecycle transition.
+const REVIEW_DECISION_ERRORS = (err, res, next) => {
+    if (err.message === 'Employee not found') return res.status(404).json({ error: err.message });
+    if (err.message === 'Employee is not pending review') return res.status(400).json({ error: err.message });
+    next(err);
+};
+
+async function approveOnboardingSubmission(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        await onboarding.approveOnboardingSubmission(id, { userId: req.user.id, userName: req.user.name, userRole: req.user.role });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: id, entityName: '', metadata: { action: 'approve_onboarding' } });
+        res.json({ success: true, outcome: 'approved' });
+    } catch (err) { REVIEW_DECISION_ERRORS(err, res, next); }
+}
+
+async function sendBackOnboarding(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const note = (req.body && req.body.note) || '';
+        await onboarding.sendBackOnboarding(id, { userId: req.user.id, userName: req.user.name, userRole: req.user.role }, note);
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: id, entityName: '', metadata: { action: 'send_back_onboarding', note } });
+        res.json({ success: true, outcome: 'changes_requested' });
+    } catch (err) { REVIEW_DECISION_ERRORS(err, res, next); }
+}
+
+async function rejectOnboardingSubmission(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const note = (req.body && req.body.note) || '';
+        await onboarding.rejectOnboardingSubmission(id, { userId: req.user.id, userName: req.user.name, userRole: req.user.role }, note);
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: id, entityName: '', metadata: { action: 'reject_onboarding', note } });
+        res.json({ success: true, outcome: 'inactive' });
+    } catch (err) { REVIEW_DECISION_ERRORS(err, res, next); }
+}
+
+module.exports = { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, getOnboardingLink, getOnboardingReviews, getOnboardingReviewDetail, reviewRequirementItem, finalizeOnboarding, approveOnboardingSubmission, sendBackOnboarding, rejectOnboardingSubmission };

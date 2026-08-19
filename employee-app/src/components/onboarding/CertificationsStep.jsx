@@ -38,6 +38,9 @@ export default function CertificationsStep({ requirements = [], onUpload }) {
             <p className="onboard-hint">Upload a photo or PDF for each required certification.</p>
             {certs.map(req => {
                 const done = req.status === 'submitted' || req.status === 'approved';
+                // An approved item is locked read-only — no Replace control. Rejected/pending
+                // items stay editable (even if previously "submitted") so the employee can fix them.
+                const locked = req.reviewStatus === 'approved';
                 return (
                     <div key={req.id} className="form-group">
                         <label>
@@ -49,7 +52,12 @@ export default function CertificationsStep({ requirements = [], onUpload }) {
                                 </span>
                             )}
                         </label>
-                        {done ? (
+                        {locked ? (
+                            <div className="onboard-upload-done">
+                                <span className="onboard-upload-done__check">✓</span>
+                                <span>{req.fileName ? `Uploaded: ${req.fileName}` : 'Uploaded'}</span>
+                            </div>
+                        ) : done ? (
                             <div className="onboard-upload-done">
                                 <span className="onboard-upload-done__check">✓</span>
                                 <span>{req.fileName ? `Uploaded: ${req.fileName}` : 'Uploaded'}</span>

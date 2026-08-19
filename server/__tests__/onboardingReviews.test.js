@@ -20,7 +20,7 @@ async function tokenFor(role) {
 describe('GET /api/onboarding/reviews (admin-only)', () => {
   let submittedEmpId;
   beforeAll(async () => {
-    const e = await prisma.employee.create({ data: { name: 'Review Me', email: `rev-emp-${Date.now()}@t.co`, onboardingStatus: 'submitted' } });
+    const e = await prisma.employee.create({ data: { name: 'Review Me', email: `rev-emp-${Date.now()}@t.co`, onboardingStatus: 'pending_review' } });
     submittedEmpId = e.id;
     // one required (done) + one optional (pending) requirement
     const dt = await prisma.documentType.create({ data: { key: `revd-${Date.now()}`, label: 'ID', sortOrder: 1 } });

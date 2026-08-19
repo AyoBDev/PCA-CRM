@@ -24,6 +24,7 @@ async function projectLedger(employeeId) {
       status: r.status,
       optional: Boolean(r.optional),
       rejectionReason: r.rejectionReason,
+      reviewStatus: r.reviewStatus || 'pending',
       label: cat ? (cat.label || cat.title) : '',
       requiresExpiry: cat ? Boolean(cat.requiresExpiry) : false,
       fileName: file ? file.fileName : null,
@@ -72,17 +73,40 @@ async function assignRequirements(tx, employeeId, selections = {}) {
   return rows;
 }
 
+// Decide the reviewStatus write for a (re)fulfillment. A previously-REJECTED
+// item must flip back into the review queue ('pending', reason cleared) so the
+// changes_requested → rework loop works. But an ALREADY-APPROVED item must NOT
+// silently un-approve when an active employee re-uploads/re-acks — that would
+// corrupt the review ledger. So: rejected → pending (cleared); approved → left
+// untouched; anything else (pending/none) → normalized to pending.
+function reviewStatusForRefulfill(current) {
+  if (current === 'approved') return {}; // leave approved items alone
+  return { reviewStatus: 'pending', rejectionReason: '' };
+}
+
 async function markSubmitted(tx, requirementId, fulfillment = {}) {
-  const data = { status: 'submitted' };
+  const existing = await tx.employeeRequirement.findUnique({ where: { id: requirementId } });
+  const data = { status: 'submitted', ...reviewStatusForRefulfill(existing && existing.reviewStatus) };
   if (fulfillment.documentId) data.documentId = fulfillment.documentId;
   if (fulfillment.certificationId) data.certificationId = fulfillment.certificationId;
   return tx.employeeRequirement.update({ where: { id: requirementId }, data });
 }
 
 async function markPolicyAck(tx, requirementId, policyAckId) {
+  const existing = await tx.employeeRequirement.findUnique({ where: { id: requirementId } });
   return tx.employeeRequirement.update({
     where: { id: requirementId },
-    data: { status: 'approved', policyAckId },
+    data: { status: 'approved', policyAckId, ...reviewStatusForRefulfill(existing && existing.reviewStatus) },
+  });
+}
+
+// Flip a previously-rejected requirement back into rework: the employee has
+// re-uploaded a document/cert or re-acked a policy, so it should re-enter the
+// admin review queue as 'pending' rather than stay stuck 'rejected'.
+async function resetItemForRework(tx, requirementId) {
+  return tx.employeeRequirement.update({
+    where: { id: requirementId },
+    data: { reviewStatus: 'pending', status: 'submitted', rejectionReason: '' },
   });
 }
 
@@ -94,4 +118,13 @@ function isOnboardingComplete(requirements) {
   });
 }
 
-module.exports = { assignRequirements, markSubmitted, markPolicyAck, isOnboardingComplete, projectLedger, KINDS };
+// Decide the finalize outcome from per-item admin review states.
+// `reviewStatus`: 'pending' | 'approved' | 'rejected'. Optional items never block.
+function reviewSummary(requirements) {
+  const required = requirements.filter(r => !r.optional);
+  const rejectedIds = required.filter(r => r.reviewStatus === 'rejected').map(r => r.id);
+  const allApproved = required.every(r => r.reviewStatus === 'approved');
+  return { outcome: allApproved ? 'approved' : 'changes_requested', rejectedIds };
+}
+
+module.exports = { assignRequirements, markSubmitted, markPolicyAck, resetItemForRework, isOnboardingComplete, projectLedger, reviewSummary, KINDS };

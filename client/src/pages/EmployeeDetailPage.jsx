@@ -12,7 +12,7 @@ import PayrollTab from './employee-tabs/PayrollTab';
 import EmployeeNotesTab from './employee-tabs/NotesTab';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
-import { TIMESHEET_STATUS_STYLES, TIMESHEET_SERVICE_COLORS } from '../utils/constants';
+import { TIMESHEET_STATUS_STYLES, TIMESHEET_SERVICE_COLORS, ONBOARDING_STATUS_LABELS, ONBOARDING_STATUS_BADGE_VARIANT } from '../utils/constants';
 import { formatDate, formatTimestamp } from '../utils/dates';
 import PreviewModal from '../components/common/PreviewModal';
 import CertFileRow from '../components/files/CertFileRow';
@@ -21,6 +21,7 @@ import { useIsWide } from '../hooks/useIsWide';
 import Tooltip from '../components/common/Tooltip';
 import ToggleSwitch from '../components/common/ToggleSwitch';
 import { hhmm12 } from '../utils/time';
+import OnboardingReviewModal from '../components/employees/OnboardingReviewModal';
 
 const TABS = [
     { key: 'profile', label: 'Profile', icon: 'user' },
@@ -351,6 +352,8 @@ export default function EmployeeDetailPage() {
     const [shiftsLoading, setShiftsLoading] = useState(false);
     const [availabilityData, setAvailabilityData] = useState(null);
     const [loadingAvailability, setLoadingAvailability] = useState(false);
+    const [showReviewModal, setShowReviewModal] = useState(false);
+    const [autoReviewShown, setAutoReviewShown] = useState(false);
 
     const fetchEmployee = useCallback(async () => {
         try {
@@ -390,6 +393,15 @@ export default function EmployeeDetailPage() {
     }, [employeeId, employee]);
 
     useEffect(() => { fetchEmployee(); fetchUsers(); }, [fetchEmployee, fetchUsers]);
+    // Auto-open the onboarding review modal once when landing on a pending_review
+    // employee, so the admin is prompted to approve/reject without hunting for the
+    // button. Guarded so closing the modal doesn't immediately reopen it.
+    useEffect(() => {
+        if (employee && employee.onboardingStatus === 'pending_review' && !autoReviewShown) {
+            setShowReviewModal(true);
+            setAutoReviewShown(true);
+        }
+    }, [employee, autoReviewShown]);
     useEffect(() => { if (activeTab === 'schedule') fetchShifts(); }, [activeTab, fetchShifts]);
     useEffect(() => { if (activeTab === 'availability') fetchAvailability(); }, [activeTab, fetchAvailability]);
 
@@ -440,14 +452,9 @@ export default function EmployeeDetailPage() {
         }
     };
 
-    const handleApprove = async () => {
-        try {
-            await api.approveOnboarding(employee.id);
-            showToast(`${employee.name}'s account has been activated`, 'success');
-            fetchEmployee();
-        } catch (err) {
-            showToast(err.message, 'error');
-        }
+    const handleReviewResolved = () => {
+        setShowReviewModal(false);
+        fetchEmployee();
     };
 
     const handleToggleActive = async (next) => {
@@ -485,6 +492,11 @@ export default function EmployeeDetailPage() {
         );
     }
 
+    // True while the employee has not yet finished onboarding (any pre-active
+    // lifecycle state). Used to suppress the Active/Inactive account toggle so it
+    // can't contradict the onboarding badge.
+    const isOnboarding = ['invitation_pending', 'onboarding_in_progress', 'pending_review', 'changes_requested'].includes(employee.onboardingStatus);
+
     const overallStatus = (() => {
         let worst = 'valid';
         for (const { key } of CERT_FIELDS) {
@@ -513,7 +525,7 @@ export default function EmployeeDetailPage() {
             <ContextBar>
                 <ContextBar.Right>
                     <EntityActivityButton entityType="Employee" entityId={employee.id} />
-                    {employee.onboardingStatus === 'invited' && (
+                    {employee.onboardingStatus === 'invitation_pending' && (
                         <>
                             <button className="btn btn--outline btn--sm" onClick={handleCopyOnboardingLink}>
                                 {Icons.copy} Copy Link
@@ -541,20 +553,25 @@ export default function EmployeeDetailPage() {
                             <div className="cp-bio__name-row">
                                 <h2 className="cp-bio__name">{employee.name}</h2>
                                 {employee.critical && <span className="ts-badge ts-badge--danger">Critical</span>}
-                                <select
-                                    className={`cp-bio__status-select cp-bio__status-select--${employee.active ? 'active' : 'inactive'}`}
-                                    value={employee.active ? 'active' : 'inactive'}
-                                    onChange={(e) => handleToggleActive(e.target.value === 'active')}
-                                    title="Marks the employee not currently working. Does not archive or hide them."
-                                >
-                                    <option value="active">Active</option>
-                                    <option value="inactive">Inactive</option>
-                                </select>
-                                {employee.onboardingStatus === 'invited' && (
-                                    <span className="ts-badge ts-badge--draft">Invited</span>
-                                )}
-                                {employee.onboardingStatus === 'submitted' && (
-                                    <span className="ts-badge ts-badge--submitted">Pending Review</span>
+                                {/* The Active/Inactive account toggle only makes sense once the
+                                    employee has FINISHED onboarding. While they're still in an
+                                    onboarding state (invited/onboarding/pending review/changes
+                                    requested), showing "Active" contradicts the onboarding badge —
+                                    so we show the onboarding badge alone until they're activated. */}
+                                {isOnboarding ? (
+                                    <span className={`ts-badge ts-badge--${ONBOARDING_STATUS_BADGE_VARIANT[employee.onboardingStatus]}`}>
+                                        {ONBOARDING_STATUS_LABELS[employee.onboardingStatus]}
+                                    </span>
+                                ) : (
+                                    <select
+                                        className={`cp-bio__status-select cp-bio__status-select--${employee.active ? 'active' : 'inactive'}`}
+                                        value={employee.active ? 'active' : 'inactive'}
+                                        onChange={(e) => handleToggleActive(e.target.value === 'active')}
+                                        title="Marks the employee not currently working. Does not archive or hide them."
+                                    >
+                                        <option value="active">Active</option>
+                                        <option value="inactive">Inactive</option>
+                                    </select>
                                 )}
                             </div>
                             <div className="cp-bio__chips">
@@ -564,7 +581,9 @@ export default function EmployeeDetailPage() {
                                 <span className={`cp-chip ${overallStatus === 'valid' ? 'cp-chip--program' : overallStatus === 'expiring' ? 'cp-chip--risk' : 'cp-chip--complaint'}`}>
                                     {overallStatus === 'valid' ? 'All Certs Valid' : overallStatus === 'expiring' ? 'Certs Expiring Soon' : 'Certs Expired'}
                                 </span>
-                                {employee.user && (
+                                {/* Show the linked login account only when its name differs from
+                                    the employee's — otherwise it just duplicates the header name. */}
+                                {employee.user && employee.user.name && employee.user.name.trim() !== employee.name.trim() && (
                                     <span className="cp-chip cp-chip--program">{Icons.users} {employee.user.name}</span>
                                 )}
                             </div>
@@ -645,10 +664,10 @@ export default function EmployeeDetailPage() {
                     )}
                     {activeTab === 'availability' && (
                         <div className="cp-tab-panel">
-                            {employee.onboardingStatus === 'submitted' && (
+                            {employee.onboardingStatus === 'pending_review' && (
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-                                    <button className="btn btn--primary btn--sm" onClick={handleApprove}>
-                                        {Icons.checkCircle} Approve Onboarding
+                                    <button className="btn btn--primary btn--sm" onClick={() => setShowReviewModal(true)}>
+                                        {Icons.checkCircle} Review Onboarding
                                     </button>
                                 </div>
                             )}
@@ -698,6 +717,13 @@ export default function EmployeeDetailPage() {
                     employee={employee}
                     onSave={handleSaveCerts}
                     onClose={() => setShowCertModal(false)}
+                />
+            )}
+            {showReviewModal && (
+                <OnboardingReviewModal
+                    employeeId={employee.id}
+                    onClose={() => setShowReviewModal(false)}
+                    onResolved={handleReviewResolved}
                 />
             )}
         </>

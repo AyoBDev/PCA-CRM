@@ -509,6 +509,12 @@ body {
 .loading-screen { display: flex; align-items: center; justify-content: center; min-height: 100dvh; color: hsl(var(--muted-foreground)); }
 .page-loading { display: flex; align-items: center; justify-content: center; padding: 48px; color: hsl(var(--muted-foreground)); }
 
+/* === ONBOARDING STATUS === */
+.onboarding-status-screen { padding: 24px; }
+.onboarding-status-screen__card { max-width: 360px; text-align: center; }
+.onboarding-status-screen__card h1 { font-size: 18px; font-weight: 600; color: hsl(var(--foreground)); margin: 0 0 8px; }
+.onboarding-status-screen__card p { font-size: 14px; color: hsl(var(--muted-foreground)); margin: 0; }
+
 /* === TIMESHEET STATUS === */
 .ts-status-bar {
   display: flex;
@@ -847,6 +853,22 @@ body {
 }
 .onboard-review-note strong { font-size: 13px; }
 .onboard-review-note p { margin: 4px 0 0; font-size: 14px; white-space: pre-wrap; }
+
+/* Banner shown when the admin has requested changes to specific requirement
+   items — lists each rejected item + reason so the employee knows what to fix. */
+.cr-banner {
+    margin: 12px 0 4px;
+    padding: 12px 14px;
+    border: 1px solid #fde68a;
+    background: #fffbeb;
+    border-radius: 8px;
+    color: #92400e;
+}
+.cr-banner h3 { margin: 0; font-size: 14px; }
+.cr-banner > p { margin: 4px 0 8px; font-size: 14px; }
+.cr-banner ul { margin: 0; padding-left: 18px; }
+.cr-banner li { font-size: 14px; margin-bottom: 2px; }
+.cr-banner__reason { color: #b45309; }
 
 /* Inline "(optional)" note next to a field label. */
 .onboard-optional-inline {
