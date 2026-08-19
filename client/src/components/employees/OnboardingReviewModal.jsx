@@ -106,6 +106,8 @@ export default function OnboardingReviewModal({ employeeId, onClose, onResolved 
     const [busyId, setBusyId] = useState(null); // row currently saving a decision
     const [bulkBusy, setBulkBusy] = useState(false);
     const [finishing, setFinishing] = useState(false);
+    const [decisionMode, setDecisionMode] = useState(null); // null | 'send_back' | 'reject' — reveals the note field
+    const [note, setNote] = useState('');
     const { showToast } = useToast();
 
     useEffect(() => {
@@ -148,19 +150,31 @@ export default function OnboardingReviewModal({ employeeId, onClose, onResolved 
         }
     }
 
-    async function finishReview() {
+    // Whole-submission decisions — the 3 always-present footer buttons. Each is an
+    // explicit admin choice independent of per-item state.
+    async function runDecision(fn, successMsg) {
         setFinishing(true);
         try {
-            const { outcome } = await api.finalizeOnboarding(employeeId);
-            showToast(outcome === 'approved' ? 'Approved & activated' : 'Sent back for changes', 'success');
+            await fn();
+            showToast(successMsg, 'success');
             onResolved?.(employeeId);
             onClose();
         } catch (e) {
-            showToast(e.message || 'Could not finish review', 'error');
+            showToast(e.message || 'Could not complete the action', 'error');
         } finally {
             setFinishing(false);
         }
     }
+
+    const approveSubmission = () => runDecision(() => api.approveOnboardingSubmission(employeeId), 'Approved & activated');
+    const confirmSendBack = () => {
+        if (!note.trim()) return;
+        runDecision(() => api.sendBackOnboarding(employeeId, note.trim()), 'Sent back for correction');
+    };
+    const confirmReject = () => {
+        if (!note.trim()) return;
+        runDecision(() => api.rejectOnboardingSubmission(employeeId, note.trim()), 'Application rejected');
+    };
 
     const emp = data?.employee;
     const av = data?.availability;
@@ -170,7 +184,7 @@ export default function OnboardingReviewModal({ employeeId, onClose, onResolved 
 
     const requiredRows = rows.filter((r) => !r.optional);
     const remainingRequired = requiredRows.filter((r) => r.reviewStatus === 'pending');
-    const canFinish = requiredRows.length > 0 && remainingRequired.length === 0;
+    const hasRequirements = requiredRows.length > 0;
     const busy = busyId != null || bulkBusy || finishing;
 
     return (
@@ -220,22 +234,62 @@ export default function OnboardingReviewModal({ employeeId, onClose, onResolved 
                 </div>
             )}
 
+            {!loading && emp && decisionMode && (
+                <div className="form-group orm-note">
+                    <label>
+                        {decisionMode === 'send_back'
+                            ? 'What does the employee need to correct? (they will see this)'
+                            : 'Reason for rejecting this application (internal note)'}
+                    </label>
+                    <textarea
+                        rows={3}
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
+                        autoFocus
+                        placeholder={decisionMode === 'send_back'
+                            ? 'Describe what to fix — the employee sees this when they return to onboarding…'
+                            : 'Why is this application being rejected…'}
+                    />
+                </div>
+            )}
+
             {!loading && emp && (
                 <div className="orm-actions">
-                    <button
-                        className="btn btn--outline"
-                        onClick={approveAllRemaining}
-                        disabled={busy || remainingRequired.length === 0}
-                    >
-                        Approve all remaining
-                    </button>
-                    <button
-                        className="btn btn--success"
-                        onClick={finishReview}
-                        disabled={busy || !canFinish}
-                    >
-                        {Icons.checkCircle} Finish Review
-                    </button>
+                    {!decisionMode ? (
+                        <>
+                            <button className="btn btn--danger" onClick={() => { setDecisionMode('reject'); setNote(''); }} disabled={busy}>
+                                {Icons.alertCircle} Reject Application
+                            </button>
+                            <button className="btn btn--warning" onClick={() => { setDecisionMode('send_back'); setNote(''); }} disabled={busy}>
+                                {Icons.rotateCcw} Send Back for Correction
+                            </button>
+                            {hasRequirements && (
+                                <button
+                                    className="btn btn--outline"
+                                    onClick={approveAllRemaining}
+                                    disabled={busy || remainingRequired.length === 0}
+                                >
+                                    Approve all remaining
+                                </button>
+                            )}
+                            <button className="btn btn--success" onClick={approveSubmission} disabled={busy}>
+                                {Icons.checkCircle} Approve &amp; Activate
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <button className="btn btn--outline" onClick={() => { setDecisionMode(null); setNote(''); }} disabled={busy}>
+                                Back
+                            </button>
+                            <button
+                                className={decisionMode === 'reject' ? 'btn btn--danger' : 'btn btn--warning'}
+                                onClick={decisionMode === 'reject' ? confirmReject : confirmSendBack}
+                                disabled={busy || !note.trim()}
+                            >
+                                {decisionMode === 'reject' ? 'Confirm Reject' : 'Send Back for Correction'}
+                            </button>
+                        </>
+                    )}
                 </div>
             )}
         </Modal>

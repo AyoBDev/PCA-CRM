@@ -940,6 +940,13 @@ export const reviewRequirementItem = (employeeId, reqId, decision, reason) =>
   request(`/employees/${employeeId}/requirements/${reqId}/review`, { method: 'PATCH', body: JSON.stringify({ decision, reason }) });
 export const finalizeOnboarding = (employeeId) =>
   request(`/employees/${employeeId}/onboarding/finalize`, { method: 'POST' });
+// Whole-submission review decisions (the 3 review-modal buttons).
+export const approveOnboardingSubmission = (employeeId) =>
+  request(`/employees/${employeeId}/onboarding/approve`, { method: 'POST' });
+export const sendBackOnboarding = (employeeId, note) =>
+  request(`/employees/${employeeId}/onboarding/send-back`, { method: 'POST', body: JSON.stringify({ note }) });
+export const rejectOnboardingSubmission = (employeeId, note) =>
+  request(`/employees/${employeeId}/onboarding/reject`, { method: 'POST', body: JSON.stringify({ note }) });
 
 export async function getEmployeeAvailability(employeeId) {
     return request(`/employees/${employeeId}/availability`);
