@@ -1,7 +1,9 @@
+import { TOKEN_KEY, USER_KEY } from './authKeys';
+
 const BASE = import.meta.env.VITE_API_URL || '';
 
 async function request(path, options = {}) {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem(TOKEN_KEY);
   const headers = { ...options.headers };
   if (token) headers['Authorization'] = `Bearer ${token}`;
   if (!(options.body instanceof FormData)) {
@@ -9,8 +11,8 @@ async function request(path, options = {}) {
   }
   const res = await fetch(`${BASE}/api/employee${path}`, { ...options, headers });
   if (res.status === 401) {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
     const base = import.meta.env.BASE_URL || '/';
     window.location.href = `${base}login`;
     return;
@@ -55,7 +57,7 @@ export const api = {
   // so it must use a raw fetch with an explicit Authorization header rather than the
   // request() helper, which always targets /api/employee/*.
   getMe: () => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem(TOKEN_KEY);
     const headers = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
     return fetch(`${BASE}/api/auth/me`, { headers }).then(async r => {
@@ -93,8 +95,11 @@ export const api = {
   getProfile: () => request('/profile'),
   updateProfile: (data) => request('/profile', { method: 'PATCH', body: JSON.stringify(data) }),
   getRequirements: () => request('/requirements'),
+  // For a logged-in onboarding employee: fetch their own onboarding token so the app
+  // can send them into the onboarding wizard without needing the email link.
+  getMyOnboardingLink: () => request('/onboarding/my-link'),
   uploadRequirementDocument: (reqId, formData) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem(TOKEN_KEY);
     const headers = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
     return fetch(`${BASE}/api/employee/documents/${reqId}`, {

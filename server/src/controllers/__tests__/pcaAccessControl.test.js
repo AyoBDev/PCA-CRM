@@ -71,4 +71,23 @@ describe('pca token cannot reach the main staff API', () => {
         const res = await request(app).get('/api/clients').set('Authorization', `Bearer ${adminToken}`);
         expect(res.status).toBe(200);
     });
+
+    // Surface boundary (added with the login-surface claim):
+    it('BLOCKS an admin-surface token from the employee portal', async () => {
+        const res = await request(app).get('/api/employee/home/summary').set('Authorization', `Bearer ${adminToken}`);
+        expect(res.status).toBe(403);
+    });
+
+    it('allows BOTH tokens to reach the surface-agnostic /api/auth/me', async () => {
+        const asPca = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${pcaToken}`);
+        const asAdmin = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${adminToken}`);
+        expect(asPca.status).toBe(200);
+        expect(asAdmin.status).toBe(200);
+    });
+
+    it('BLOCKS a pca account at the ADMIN login endpoint (must use the employee portal)', async () => {
+        const res = await request(app).post('/api/auth/login').send({ email: PCA_EMAIL, password: 'secret123' });
+        expect(res.status).toBe(403);
+        expect(res.body.error).toMatch(/employee portal/i);
+    });
 });

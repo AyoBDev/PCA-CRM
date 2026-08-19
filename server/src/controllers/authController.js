@@ -7,13 +7,19 @@ const { JWT_SECRET } = require('../config/secrets');
 
 const TOKEN_EXPIRY = '24h';
 
-function signToken(user, permissions) {
+// `surface` records which app the token was issued for: 'admin' (the office/admin
+// web app, via /auth/login) or 'employee' (the PCA portal, via /auth/employee-login).
+// Route middleware enforces the boundary so an employee-portal token can't be used
+// against admin APIs and vice-versa. Defaults to 'admin' so any pre-existing token
+// minted before this claim keeps working in the admin app.
+function signToken(user, permissions, surface = 'admin') {
     return jwt.sign(
         {
             id: user.id,
             email: user.email,
             name: user.name,
             role: user.role,
+            surface,
             permissionGroupId: user.permissionGroupId ?? null,
             permissions: Array.isArray(permissions) ? permissions : [],
             permissionsVersion: user.permissionsVersion ?? 1,
@@ -40,14 +46,16 @@ async function login(req, res, next) {
         if (!user.active) {
             return res.status(403).json({ error: 'This account has been deactivated. Please contact your administrator.' });
         }
+        // Caregivers belong in the Employee Portal, never the admin app. Check this
+        // BEFORE the pending-status gate so an employee always gets the clear
+        // "use the Employee Portal" message rather than a misleading "pending approval"
+        // one. (Belt-and-suspenders — the token's `surface` claim, enforced by route
+        // middleware, is the primary boundary.)
+        if (user.role === 'pca') {
+            return res.status(403).json({ error: 'Please use the Employee Portal to log in.' });
+        }
         if (user.status === 'pending') {
             return res.status(403).json({ error: 'Your account is pending admin approval. You will receive an email when activated.' });
-        }
-        if (user.role === 'pca') {
-            const employee = await prisma.employee.findUnique({ where: { userId: user.id } });
-            if (employee) {
-                return res.status(403).json({ error: 'Please use the Employee Portal to log in.' });
-            }
         }
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) {
@@ -57,7 +65,7 @@ async function login(req, res, next) {
             ? await prisma.permissionGroup.findUnique({ where: { id: user.permissionGroupId } })
             : null;
         const permissions = group && Array.isArray(group.permissions) ? group.permissions : [];
-        const token = signToken(user, permissions);
+        const token = signToken(user, permissions, 'admin');
         audit.logAction({ userId: user.id, userName: user.name, userRole: user.role, action: 'LOGIN', entityType: 'User', entityId: user.id, entityName: user.name });
         res.json({
             token,
@@ -387,7 +395,7 @@ async function employeeLogin(req, res, next) {
         // reach to fix things and re-submit.
         const employee = await prisma.employee.findUnique({ where: { userId: user.id } });
         if (!employee) {
-            return res.status(403).json({ error: 'No employee profile is linked to this account.' });
+            return res.status(403).json({ error: 'This account is not an employee account. Please use the admin app to log in.' });
         }
         const ONBOARDING_LOGIN_STATUSES = ['pending_review', 'changes_requested'];
         if (user.status === 'pending' && !ONBOARDING_LOGIN_STATUSES.includes(employee.onboardingStatus)) {
@@ -401,7 +409,7 @@ async function employeeLogin(req, res, next) {
             ? await prisma.permissionGroup.findUnique({ where: { id: user.permissionGroupId } })
             : null;
         const permissions = group && Array.isArray(group.permissions) ? group.permissions : [];
-        const token = signToken(user, permissions);
+        const token = signToken(user, permissions, 'employee');
         audit.logAction({ userId: user.id, userName: user.name, userRole: user.role, action: 'LOGIN', entityType: 'User', entityId: user.id, entityName: user.name, metadata: { portal: 'employee' } });
         res.json({
             token,

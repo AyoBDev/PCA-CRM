@@ -15,6 +15,7 @@ vi.mock('../api', () => ({
     getMessageUnreadCount: vi.fn().mockResolvedValue({ count: 0 }),
     login: vi.fn(),
     getMe: vi.fn(),
+    getMyOnboardingLink: vi.fn().mockResolvedValue({ token: 'tok-123' }),
   },
 }));
 

@@ -35,4 +35,19 @@ function requireRole(...roles) {
     };
 }
 
-module.exports = { authenticate, requireRole };
+// Enforce the token's login surface. A token minted for the employee portal
+// (surface: 'employee') must not be usable against admin APIs, and vice-versa.
+// Tokens minted before the `surface` claim existed have no surface → treated as
+// 'admin' (back-compat), so existing admin sessions keep working; employee tokens
+// always carry the claim (issued after this change).
+function requireSurface(expected) {
+    return (req, res, next) => {
+        const surface = (req.user && req.user.surface) || 'admin';
+        if (surface !== expected) {
+            return res.status(403).json({ error: 'This session is not valid for this application. Please log in again.' });
+        }
+        next();
+    };
+}
+
+module.exports = { authenticate, requireRole, requireSurface };
