@@ -13,7 +13,7 @@ const STATUSES = {
 const TRANSITIONS = {
   invitation_pending: ['onboarding_in_progress'],
   onboarding_in_progress: ['pending_review'],
-  pending_review: ['approved', 'changes_requested'],
+  pending_review: ['approved', 'changes_requested', 'inactive'],
   changes_requested: ['pending_review'],
   approved: ['active'],
   active: ['inactive'],

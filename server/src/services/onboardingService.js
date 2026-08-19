@@ -65,10 +65,16 @@ async function completeOnboarding(tokenStr, { password, availability }) {
     const { valid, token, employee, reason } = await validateToken(tokenStr);
     if (!valid) throw new Error(reason);
 
-    const passwordHash = await bcrypt.hash(password, 10);
     const email = employee.email.toLowerCase().trim();
-
     const existingUser = await prisma.user.findUnique({ where: { email } });
+    // A returning employee (already has a login account, e.g. re-submitting after
+    // changes_requested) keeps their existing password — they were NOT asked for one.
+    // Only a brand-new account requires a password to be set here.
+    if (!existingUser && (!password || password.length < 8)) {
+        throw new Error('password_required');
+    }
+    const passwordHash = password ? await bcrypt.hash(password, 10) : null;
+
     let user;
     // skipApproval means "adopt a pre-existing EXTERNAL account and activate
     // immediately" — it must NOT trigger for the onboarding user this flow
@@ -206,12 +212,74 @@ async function finalizeOnboarding(employeeId, actor = {}) {
     return { outcome, employee };
 }
 
+// Explicit admin decision: approve the whole submission and activate the account,
+// regardless of per-item review state. Backs the "Approve & Activate" button.
+async function approveOnboardingSubmission(employeeId, actor = {}) {
+    const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+    if (!employee) throw new Error('Employee not found');
+    if (employee.onboardingStatus !== 'pending_review') throw new Error('Employee is not pending review');
+    const meta = { userId: actor.userId, userName: actor.userName, userRole: actor.userRole };
+    await prisma.$transaction(async (tx) => {
+        await lifecycle.transition(tx, employeeId, 'approved', meta);
+        await lifecycle.transition(tx, employeeId, 'active', meta);
+        if (employee.userId) await tx.user.update({ where: { id: employee.userId }, data: { status: 'active' } });
+    });
+    sendWelcomeEmail(employee).catch(err => console.error('Welcome email failed:', err.message));
+    return { employee };
+}
+
+// Explicit admin decision: send the whole submission back for correction. Moves the
+// employee to changes_requested, reopens their onboarding link, and stores the admin's
+// note (so they know what to fix). Backs the "Send Back for Correction" button.
+async function sendBackOnboarding(employeeId, actor = {}, note = '') {
+    const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+    if (!employee) throw new Error('Employee not found');
+    if (employee.onboardingStatus !== 'pending_review') throw new Error('Employee is not pending review');
+    const meta = { userId: actor.userId, userName: actor.userName, userRole: actor.userRole, detail: { note } };
+    await prisma.$transaction(async (tx) => {
+        await lifecycle.transition(tx, employeeId, 'changes_requested', meta);
+        await tx.employee.update({ where: { id: employeeId }, data: { adminReviewNote: note || '' } });
+        await tx.onboardingToken.updateMany({
+            where: { employeeId },
+            data: { status: 'pending', completedAt: null, expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) },
+        });
+        // Do NOT demote user.status — see finalizeOnboarding's changes_requested note.
+    });
+    const active = await prisma.onboardingToken.findFirst({ where: { employeeId, status: 'pending', expiresAt: { gt: new Date() } } });
+    if (!active) {
+        const token = await createOnboardingToken(employeeId);
+        sendOnboardingEmail(employee, token).catch(err => console.error('Onboarding re-invite email failed:', err.message));
+    }
+    return { employee };
+}
+
+// Explicit admin decision: reject/decline the submission outright. The employee does
+// NOT re-enter onboarding — the account is deactivated (onboardingStatus → inactive,
+// login user held inactive). Backs the "Reject" button.
+async function rejectOnboardingSubmission(employeeId, actor = {}, note = '') {
+    const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+    if (!employee) throw new Error('Employee not found');
+    if (employee.onboardingStatus !== 'pending_review') throw new Error('Employee is not pending review');
+    const meta = { userId: actor.userId, userName: actor.userName, userRole: actor.userRole, detail: { note } };
+    await prisma.$transaction(async (tx) => {
+        await lifecycle.transition(tx, employeeId, 'inactive', meta);
+        // Also flip the legacy `active` boolean so the employees-list status column
+        // (which reads employee.active, not onboardingStatus) reflects the rejection.
+        await tx.employee.update({ where: { id: employeeId }, data: { adminReviewNote: note || '', active: false } });
+        if (employee.userId) await tx.user.update({ where: { id: employee.userId }, data: { status: 'pending', active: false } });
+    });
+    return { employee };
+}
+
 module.exports = {
     createOnboardingToken,
     sendOnboardingEmail,
     sendWelcomeEmail,
     validateToken,
     completeOnboarding,
+    approveOnboardingSubmission,
+    sendBackOnboarding,
+    rejectOnboardingSubmission,
     reviewItem,
     finalizeOnboarding,
     EMPLOYEE_APP_URL,

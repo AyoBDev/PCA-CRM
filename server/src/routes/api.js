@@ -181,7 +181,7 @@ const { getPayrollProfile, upsertPayrollProfile, revealSensitiveField } = requir
 const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalizeReceipts, sendReceipts, downloadReceiptPdf } = require('../controllers/receiptController');
 const { previewSandata, applySandata, undoSandata } = require('../controllers/sandataController');
 const { listConversations, getConversationMessages, adminSendMessage, markConversationRead, getUnreadSummary } = require('../controllers/employeePortal/adminChatController');
-const { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, getOnboardingLink, getOnboardingReviews, getOnboardingReviewDetail, reviewRequirementItem, finalizeOnboarding } = require('../controllers/onboardingController');
+const { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, getOnboardingLink, getOnboardingReviews, getOnboardingReviewDetail, reviewRequirementItem, finalizeOnboarding, approveOnboardingSubmission, sendBackOnboarding, rejectOnboardingSubmission } = require('../controllers/onboardingController');
 const { savePersonal, saveEmergency, uploadDocument: uploadOnboardingDocument, ackPolicy } = require('../controllers/employeePortal/onboardingRequirementsController');
 const catalog = require('../controllers/catalogController');
 const { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats, createLeadContact, listLeadContacts, deleteLeadContact, getLeadReminders, getClientLeadContacts } = require('../controllers/leadController');
@@ -194,7 +194,7 @@ const {
     getPermissionKeys,
     assignUserPermissionGroup,
 } = require('../controllers/permissionGroupController');
-const { authenticate, requireRole } = require('../middleware/authMiddleware');
+const { authenticate, requireRole, requireSurface } = require('../middleware/authMiddleware');
 const { requirePermission } = require('../middleware/permissionMiddleware');
 const rateLimit = require('express-rate-limit');
 const employeeRoutes = require('./employee');
@@ -267,8 +267,16 @@ router.get('/backup/export', backupAuth, exportBackup);
 // ── All routes below require authentication ──
 router.use(authenticate);
 
-// Auth (authenticated)
+// Auth (authenticated). `/auth/me` is surface-agnostic — BOTH the admin app and the
+// employee portal call it to refresh the current user, so it must accept either
+// surface. It stays ABOVE the admin-surface guard for that reason.
 router.get('/auth/me', getMe);
+
+// ── Everything below is the ADMIN/office surface ──
+// An employee-portal token (surface: 'employee') must not reach admin APIs. The
+// employee portal has its own routes mounted at '/employee' (above the global
+// authenticate), so this guard does not affect it.
+router.use(requireSurface('admin'));
 
 // Auth — user management (admin only)
 router.post('/auth/register', requireRole('admin'), requirePermission('users'), register);
@@ -459,6 +467,9 @@ router.post('/employees/:id/resend-invite', requireRole('admin'), requirePermiss
 router.get('/employees/:id/onboarding-review', requireRole('admin'), requirePermission('employees'), getOnboardingReviewDetail);
 router.patch('/employees/:id/requirements/:reqId/review', requireRole('admin'), requirePermission('employees'), reviewRequirementItem);
 router.post('/employees/:id/onboarding/finalize', requireRole('admin'), requirePermission('employees'), finalizeOnboarding);
+router.post('/employees/:id/onboarding/approve', requireRole('admin'), requirePermission('employees'), approveOnboardingSubmission);
+router.post('/employees/:id/onboarding/send-back', requireRole('admin'), requirePermission('employees'), sendBackOnboarding);
+router.post('/employees/:id/onboarding/reject', requireRole('admin'), requirePermission('employees'), rejectOnboardingSubmission);
 router.get('/employees/:id/onboarding-link', requireRole('admin'), requirePermission('employees'), getOnboardingLink);
 router.get('/employees/:id/availability', requireRole('admin', 'user'), requirePermission('employees'), getEmployeeAvailability);
 
