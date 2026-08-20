@@ -64,8 +64,24 @@ function update(kind) {
     };
 }
 
+function setActive(kind) {
+    return async (req, res, next) => {
+        try {
+            const { model, entity } = MODELS[kind];
+            const id = parseInt(req.params.id);
+            const active = Boolean(req.body.active);
+            const row = await model().update({ where: { id }, data: { active } });
+            audit.logAction({
+                userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+                action: active ? 'RESTORE' : 'ARCHIVE', entityType: entity, entityId: row.id, entityName: row.label || row.title,
+            });
+            res.json(row);
+        } catch (err) { next(err); }
+    };
+}
+
 module.exports = {
-    listDocuments: list('documents'), createDocument: create('documents'), updateDocument: update('documents'),
-    listCertTypes: list('cert-types'), createCertType: create('cert-types'), updateCertType: update('cert-types'),
-    listPolicies: list('policies'), createPolicy: create('policies'), updatePolicy: update('policies'),
+    listDocuments: list('documents'), createDocument: create('documents'), updateDocument: update('documents'), setDocumentActive: setActive('documents'),
+    listCertTypes: list('cert-types'), createCertType: create('cert-types'), updateCertType: update('cert-types'), setCertTypeActive: setActive('cert-types'),
+    listPolicies: list('policies'), createPolicy: create('policies'), updatePolicy: update('policies'), setPolicyActive: setActive('policies'),
 };

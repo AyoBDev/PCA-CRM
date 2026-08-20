@@ -42,3 +42,19 @@ describe('updateCertType', () => {
     expect(data).not.toHaveProperty('id');
   });
 });
+
+describe('setDocumentActive', () => {
+  test('deactivate logs ARCHIVE and does not touch requirements', async () => {
+    prisma.documentType.update.mockResolvedValue({ id: 2, label: 'W-4', active: false });
+    const { req, res } = mockReqRes({ id: '2' }, { active: false });
+    await catalog.setDocumentActive(req, res);
+    expect(prisma.documentType.update).toHaveBeenCalledWith({ where: { id: 2 }, data: { active: false } });
+    expect(audit.logAction).toHaveBeenCalledWith(expect.objectContaining({ action: 'ARCHIVE', entityType: 'DocumentType' }));
+  });
+  test('reactivate logs RESTORE', async () => {
+    prisma.documentType.update.mockResolvedValue({ id: 2, label: 'W-4', active: true });
+    const { req, res } = mockReqRes({ id: '2' }, { active: true });
+    await catalog.setDocumentActive(req, res);
+    expect(audit.logAction).toHaveBeenCalledWith(expect.objectContaining({ action: 'RESTORE' }));
+  });
+});
