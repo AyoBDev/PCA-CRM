@@ -992,3 +992,11 @@ export const markAttentionSeen = (keys) => {
 export const getCatalogDocuments = () => request('/catalogs/documents');
 export const getCatalogCertTypes = () => request('/catalogs/cert-types');
 export const getCatalogPolicies = () => request('/catalogs/policies');
+export const createCatalog = (kind, body) =>
+    request(`/catalogs/${kind}`, { method: 'POST', body: JSON.stringify(body) });
+export const updateCatalog = (kind, id, body) =>
+    request(`/catalogs/${kind}/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+export const setCatalogActive = (kind, id, active) =>
+    request(`/catalogs/${kind}/${id}/active`, { method: 'PATCH', body: JSON.stringify({ active }) });
+export const reorderCatalog = (kind, ids) =>
+    request(`/catalogs/${kind}/reorder`, { method: 'PATCH', body: JSON.stringify({ ids }) });

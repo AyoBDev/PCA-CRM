@@ -12,6 +12,7 @@ const ENTITY_TYPES = [
     'Client', 'Employee', 'User', 'Shift', 'Timesheet',
     'Authorization', 'PayrollRun', 'PayrollProfile', 'PermanentLink', 'PermissionGroup', 'InsuranceType', 'Service', 'Task', 'Receipt', 'AdminFile', 'Message', 'CertificationUpload', 'Lead', 'LeadContact',
     'ShiftOffer', 'ShiftCallout', 'EmployeeRequirement', 'EmployeeDocument', 'EmployeePolicyAck',
+    'DocumentType', 'CertType', 'PolicyDocument',
 ];
 
 export default function HistoryPage() {
