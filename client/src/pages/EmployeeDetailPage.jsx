@@ -833,6 +833,10 @@ function CertificationsTab({ employee, onEdit }) {
     const [loadingCerts, setLoadingCerts] = useState(true);
     const [expandedType, setExpandedType] = useState(null);
     const [showUploadModal, setShowUploadModal] = useState(null);
+    // File picked via the shared CertCard's native file input (Upload/Replace
+    // button) — carried into CertUploadModal as a preset so it isn't dropped;
+    // the admin still confirms/adds the expiration date + notes before saving.
+    const [pendingUploadFile, setPendingUploadFile] = useState(null);
     const [certFilter, setCertFilter] = useState('All');
     const [previewUpload, setPreviewUpload] = useState(null);
     const [split, setSplit] = useState(false);
@@ -904,6 +908,7 @@ function CertificationsTab({ employee, onEdit }) {
             await api.createEmployeeCertification(employee.id, formData);
             showToast('Certification uploaded');
             setShowUploadModal(null);
+            setPendingUploadFile(null);
             fetchCerts();
         } catch (err) { showToast(err.message, 'error'); }
     };
@@ -1092,8 +1097,9 @@ function CertificationsTab({ employee, onEdit }) {
                 <CertUploadModal
                     certType={showUploadModal}
                     certLabel={CERT_TYPES.find(t => t.type === showUploadModal)?.label || showUploadModal}
+                    initialFile={pendingUploadFile}
                     onUpload={handleUpload}
-                    onClose={() => setShowUploadModal(null)}
+                    onClose={() => { setShowUploadModal(null); setPendingUploadFile(null); }}
                 />
             )}
             {previewUpload && (
@@ -1131,19 +1137,8 @@ function CertificationsTab({ employee, onEdit }) {
                     hasFile={hasFile}
                     uploads={allUploads}
                     onView={() => setExpandedType(isExpanded ? null : ct.type)}
-                    onUpload={() => setShowUploadModal(ct.type)}
+                    onUpload={(file) => { setPendingUploadFile(file); setShowUploadModal(ct.type); }}
                 />
-
-                <div className="pa-service-card__footer">
-                    <button className="btn btn--outline btn--sm" onClick={() => setShowUploadModal(ct.type)}>{Icons.upload} Upload</button>
-                    <button
-                        className="btn btn--outline btn--sm pa-btn--view-details"
-                        style={{ color: colors.accent, borderColor: colors.accent }}
-                        onClick={() => setExpandedType(isExpanded ? null : ct.type)}
-                    >
-                        {isExpanded ? Icons.chevronDown : Icons.chevronRight} {isExpanded ? 'Hide Details' : 'View Details'}
-                    </button>
-                </div>
 
                 {isExpanded && (
                     <div className="pa-service-card__expanded">
@@ -1300,9 +1295,9 @@ function CertificationsTab({ employee, onEdit }) {
     }
 }
 
-function CertUploadModal({ certType, certLabel, onUpload, onClose }) {
+function CertUploadModal({ certType, certLabel, initialFile, onUpload, onClose }) {
     const [expDate, setExpDate] = useState('');
-    const [file, setFile] = useState(null);
+    const [file, setFile] = useState(initialFile || null);
     const [notes, setNotes] = useState('');
 
     const handleSubmit = (e) => {
@@ -1318,7 +1313,11 @@ function CertUploadModal({ certType, certLabel, onUpload, onClose }) {
     return (
         <Modal onClose={onClose}>
             <h2 className="modal__title">Upload {certLabel}</h2>
-            <p className="modal__desc">Add a new certification record with optional file attachment.</p>
+            <p className="modal__desc">
+                {initialFile
+                    ? `Confirm the expiration date for "${initialFile.name}" to finish adding this record.`
+                    : 'Add a new certification record with optional file attachment.'}
+            </p>
             <form onSubmit={handleSubmit}>
                 <div className="form-group">
                     <label htmlFor="certExpDate">Expiration Date</label>
@@ -1327,6 +1326,7 @@ function CertUploadModal({ certType, certLabel, onUpload, onClose }) {
                 <div className="form-group">
                     <label htmlFor="certFile">File Attachment</label>
                     <input id="certFile" type="file" onChange={e => setFile(e.target.files[0])} accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" />
+                    {file && <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', marginTop: 4 }}>Selected: {file.name}</div>}
                 </div>
                 <div className="form-group">
                     <label htmlFor="certNotes">Notes</label>
