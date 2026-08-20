@@ -106,6 +106,20 @@ export default function SchedulePage() {
                   {shift.client?.phone && <p className="shift-card__detail-row"><span className="shift-card__detail-label">Phone:</span><a href={`tel:${shift.client.phone}`}>{shift.client.phone}</a></p>}
                   {shift.client?.gateCode && <p className="shift-card__detail-row"><span className="shift-card__detail-label">Gate Code:</span>{shift.client.gateCode}</p>}
                   {shift.notes && <p className="shift-card__detail-row"><span className="shift-card__detail-label">Notes:</span>{shift.notes}</p>}
+                  {(shift.client?.mainServices || shift.client?.carePlanSchedule || shift.client?.caregiverRequirements) && (
+                    <div className="shift-card__care-plan">
+                      <p className="shift-card__detail-label" style={{ marginTop: 8, fontWeight: 600 }}>Care Plan</p>
+                      {shift.client.mainServices && (
+                        <p className="shift-card__detail-row"><span className="shift-card__detail-label">Main Services:</span>{shift.client.mainServices}</p>
+                      )}
+                      {shift.client.carePlanSchedule && (
+                        <p className="shift-card__detail-row"><span className="shift-card__detail-label">Care Schedule:</span>{shift.client.carePlanSchedule}</p>
+                      )}
+                      {shift.client.caregiverRequirements && (
+                        <p className="shift-card__detail-row"><span className="shift-card__detail-label">Caregiver Requirements:</span>{shift.client.caregiverRequirements}</p>
+                      )}
+                    </div>
+                  )}
                   {shift.client?.address && (
                     <a href={mapsUrl(shift.client.address)} target="_blank" rel="noopener" className="btn btn--primary btn--sm" style={{ marginTop: 8, textDecoration: 'none' }} onClick={e => e.stopPropagation()}>Navigate</a>
                   )}
