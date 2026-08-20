@@ -21,6 +21,7 @@ beforeEach(() => {
     api.updateCatalog.mockResolvedValue({});
     api.setCatalogActive.mockResolvedValue({});
     api.createCatalog.mockResolvedValue({});
+    api.reorderCatalog.mockResolvedValue({ success: true });
 });
 
 function renderPage() {
@@ -61,4 +62,17 @@ test('renders tabs with accessible names', async () => {
     expect(screen.getByRole('tab', { name: /^documents$/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /^certifications$/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /^policies$/i })).toBeInTheDocument();
+});
+
+test('moving a document row down persists the new order', async () => {
+    api.getCatalogDocuments.mockResolvedValue({
+        documentTypes: [
+            { id: 1, label: 'W-4', active: true, sortOrder: 0 },
+            { id: 2, label: 'I-9', active: true, sortOrder: 1 },
+        ],
+    });
+    renderPage();
+    await waitFor(() => expect(screen.getByText('W-4')).toBeInTheDocument());
+    screen.getAllByRole('button', { name: /move down/i })[0].click();
+    await waitFor(() => expect(api.reorderCatalog).toHaveBeenCalledWith('documents', [2, 1]));
 });

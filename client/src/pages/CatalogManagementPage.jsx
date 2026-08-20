@@ -102,6 +102,48 @@ export default function CatalogManagementPage() {
         }
     };
 
+    // Move a row up/down: swap with its neighbor, optimistically reorder
+    // local state, persist via reorderCatalog, and push an undo entry that
+    // restores/re-applies the ordering (mirrors saveField's undo pattern).
+    const handleMove = async (index, direction) => {
+        const targetIndex = index + direction;
+        if (targetIndex < 0 || targetIndex >= rows.length) return;
+
+        const prevIds = rows.map((r) => r.id);
+        const nextRows = [...rows];
+        [nextRows[index], nextRows[targetIndex]] = [nextRows[targetIndex], nextRows[index]];
+        const nextIds = nextRows.map((r) => r.id);
+
+        setRows(nextRows);
+        try {
+            await api.reorderCatalog(tab, nextIds);
+            undoState.pushAction(
+                `Reordered ${tab}`,
+                async () => {
+                    await api.reorderCatalog(tab, prevIds);
+                    setRows((prev) => {
+                        const byId = new Map(prev.map((r) => [r.id, r]));
+                        return prevIds.map((id) => byId.get(id)).filter(Boolean);
+                    });
+                },
+                async () => {
+                    await api.reorderCatalog(tab, nextIds);
+                    setRows((prev) => {
+                        const byId = new Map(prev.map((r) => [r.id, r]));
+                        return nextIds.map((id) => byId.get(id)).filter(Boolean);
+                    });
+                }
+            );
+        } catch (err) {
+            // Revert the optimistic reorder on failure.
+            setRows((prev) => {
+                const byId = new Map(prev.map((r) => [r.id, r]));
+                return prevIds.map((id) => byId.get(id)).filter(Boolean);
+            });
+            showToast(err.message, 'error');
+        }
+    };
+
     const labelField = KIND_CONFIG[tab].labelField;
 
     return (
@@ -136,6 +178,7 @@ export default function CatalogManagementPage() {
                     <table className="data-table">
                         <thead>
                             <tr>
+                                <th scope="col">Order</th>
                                 <th scope="col">{tab === 'policies' ? 'Title' : 'Label'}</th>
                                 {tab === 'cert-types' && <th scope="col">Renewal (years)</th>}
                                 {tab === 'cert-types' && <th scope="col">Requires Expiry</th>}
@@ -145,13 +188,35 @@ export default function CatalogManagementPage() {
                         <tbody>
                             {rows.length === 0 && !loading && (
                                 <tr>
-                                    <td colSpan={tab === 'cert-types' ? 4 : 2} className="text-muted">
+                                    <td colSpan={tab === 'cert-types' ? 5 : 3} className="text-muted">
                                         No {TABS.find((t) => t.id === tab)?.label.toLowerCase()} yet.
                                     </td>
                                 </tr>
                             )}
-                            {rows.map((row) => (
+                            {rows.map((row, index) => (
                                 <tr key={row.id}>
+                                    <td>
+                                        <div style={{ display: 'flex', gap: 4 }}>
+                                            <button
+                                                type="button"
+                                                className="btn btn--ghost btn--icon"
+                                                aria-label="Move up"
+                                                disabled={index === 0}
+                                                onClick={() => handleMove(index, -1)}
+                                            >
+                                                {Icons.chevronUp}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="btn btn--ghost btn--icon"
+                                                aria-label="Move down"
+                                                disabled={index === rows.length - 1}
+                                                onClick={() => handleMove(index, 1)}
+                                            >
+                                                {Icons.chevronDown}
+                                            </button>
+                                        </div>
+                                    </td>
                                     <td>
                                         <InlineEditable
                                             value={row[labelField]}
