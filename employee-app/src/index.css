@@ -233,6 +233,10 @@ body {
   border-top: 1px solid hsl(var(--border));
 }
 .shift-card__detail-row { font-size: 13px; color: hsl(var(--foreground)); margin-bottom: 6px; }
+/* Care-plan values (e.g. Main Services) are stored as multi-line lists; preserve
+   their newlines instead of collapsing them into a run-on line. Scoped to the
+   care-plan block so single-line rows (phone/gate) are unaffected. */
+.shift-card__care-plan .shift-card__detail-row { white-space: pre-line; }
 .shift-card__detail-label {
   font-size: 11px;
   text-transform: uppercase;
