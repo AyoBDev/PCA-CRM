@@ -287,7 +287,10 @@ export default function ProgramsAuthTab({
                                 {Icons.paperclip} <span>{attachCount} ATTACHMENT{attachCount !== 1 ? 'S' : ''}</span>
                             </div>
                             {(latestAuth.manualStatus === 'inactive') && !latestAuth.renewedToId && latestAuth.inactiveReason && (
-                                <div className="pa-auth-inactive-reason">🛑 <span><b>{latestAuth.inactiveReason}.</b> {latestAuth.inactiveNote}</span></div>
+                                <div className="pa-auth-inactive-reason">
+                                    <span className="pa-auth-inactive-reason__icon" aria-hidden="true">{Icons.alertOctagon}</span>
+                                    <span><b>{latestAuth.inactiveReason}.</b> {latestAuth.inactiveNote}</span>
+                                </div>
                             )}
                         </>
                     ) : (

@@ -62,6 +62,26 @@ const CertIcons = {
             <path d="M12 3a1 1 0 0 1 1 1v8.59l2.3-2.3a1 1 0 0 1 1.4 1.42l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.42l2.3 2.3V4a1 1 0 0 1 1-1ZM4 14a1 1 0 0 1 1 1v4h14v-4a1 1 0 1 1 2 0v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4a1 1 0 0 1 1-1Z" />
         </svg>
     ),
+    mail: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M2 6.5A2.5 2.5 0 0 1 4.5 4h15A2.5 2.5 0 0 1 22 6.5v.3l-10 6.25L2 6.8V6.5Zm0 2.66V17.5A2.5 2.5 0 0 0 4.5 20h15a2.5 2.5 0 0 0 2.5-2.5V9.16l-9.47 5.92a1 1 0 0 1-1.06 0L2 9.16Z" />
+        </svg>
+    ),
+    checkCircle: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <path fillRule="evenodd" clipRule="evenodd" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm4.7 7.71a1 1 0 0 0-1.4-1.42l-4.8 4.8-1.8-1.8a1 1 0 1 0-1.4 1.42l2.5 2.5a1 1 0 0 0 1.4 0l5.5-5.5Z" />
+        </svg>
+    ),
+    alertTriangle: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <path fillRule="evenodd" clipRule="evenodd" d="M10.25 3.1a2 2 0 0 1 3.5 0l8 14A2 2 0 0 1 20 20H4a2 2 0 0 1-1.75-2.9l8-14ZM12 8a1 1 0 0 1 1 1v4a1 1 0 1 1-2 0V9a1 1 0 0 1 1-1Zm0 8.75a1.13 1.13 0 1 0 0 2.25 1.13 1.13 0 0 0 0-2.25Z" />
+        </svg>
+    ),
+    bell: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2a6 6 0 0 0-6 6c0 3.5-.86 5.5-1.6 6.6-.3.44-.55.8-.7 1.15A1 1 0 0 0 4.6 17h14.8a1 1 0 0 0 .9-1.25c-.15-.35-.4-.71-.7-1.15C18.86 13.5 18 11.5 18 8a6 6 0 0 0-6-6Zm-1.7 18.5a1.94 1.94 0 0 0 3.4 0 .75.75 0 0 0-.65-1.13h-2.1a.75.75 0 0 0-.65 1.13Z" />
+        </svg>
+    ),
 };
 
 export default CertIcons;
