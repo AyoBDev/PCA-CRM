@@ -22,6 +22,7 @@ import Tooltip from '../components/common/Tooltip';
 import ToggleSwitch from '../components/common/ToggleSwitch';
 import { hhmm12 } from '../utils/time';
 import OnboardingReviewModal from '../components/employees/OnboardingReviewModal';
+import CertCard from '../components/employee/CertCard';
 
 const TABS = [
     { key: 'profile', label: 'Profile', icon: 'user' },
@@ -969,6 +970,9 @@ function CertificationsTab({ employee, onEdit }) {
 
     const statusLabel = (s) => s === 'ok' ? 'Active' : s === 'critical' ? 'Expiring Soon' : s === 'expired' ? 'Expired' : 'Not Set';
     const statusBadgeClass = (s) => s === 'ok' ? 'submitted' : s === 'critical' ? 'draft' : s === 'expired' ? 'critical' : 'draft';
+    // Map the admin's local status vocabulary ('ok'|'critical'|'expired'|'unknown')
+    // to the shared CertCard's status enum ('approved'|'expiring'|'expired'|'missing').
+    const toSharedStatus = (s) => s === 'ok' ? 'approved' : s === 'critical' ? 'expiring' : s === 'expired' ? 'expired' : 'missing';
 
     // Stable fetchBlob closures for the docked FilePreviewPane, keyed by
     // record/upload id. Built once per certRecords change (not per render of
@@ -1113,51 +1117,22 @@ function CertificationsTab({ employee, onEdit }) {
         const expiredRecords = allRecords.filter(r => r.status === 'expired');
         const currentAttachment = activeRecords.find(r => r.fileName);
         const allUploads = allRecords.flatMap(r => r.uploads || []);
-        // Count distinct files. Each CertificationUpload row IS one stored file
-        // (the active file already has its own "Active (imported)" upload row), so
-        // when uploads exist they are the source of truth. Only fall back to
-        // counting records-with-a-file for legacy certs that have inline fileData
-        // but no upload rows.
-        const attachCount = allUploads.length > 0
-            ? allUploads.length
-            : allRecords.filter(r => r.fileName).length;
+        const hasFile = !!currentAttachment;
 
         return (
             <div key={ct.type} className="pa-service-card" style={{ '--card-accent': colors.accent, '--card-bg': colors.bg, '--card-border': colors.border }}>
-                <div className="pa-service-card__header">
-                    <div className="pa-service-card__icon-wrap" style={{ background: colors.bg, color: colors.accent }}>
-                        {Icons[colors.icon]}
-                    </div>
-                    <div className="pa-service-card__title-area">
-                        <h4 className="pa-service-card__title">{colors.label}</h4>
-                        <span className={`pa-badge pa-badge--active`} style={
-                            status === 'ok' ? { background: 'hsl(142 76% 92%)', color: '#16a34a' } :
-                            status === 'critical' ? { background: 'hsl(38 92% 92%)', color: '#d97706' } :
-                            status === 'expired' ? { background: 'hsl(0 84% 94%)', color: '#dc2626' } :
-                            { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }
-                        }>
-                            {statusLabel(status)}
-                        </span>
-                    </div>
-                    {ct.renewalYears && (
-                        <div className="pa-service-card__account">
-                            <span className="pa-service-card__account-label">Renewal</span>
-                            <span style={{ fontSize: 13, fontWeight: 600 }}>{ct.renewalYears}yr</span>
-                        </div>
-                    )}
-                </div>
-
-                <div className="pa-service-card__body">
-                    <div className="pa-service-card__detail">
-                        {Icons.calendar} <span>{expDate ? `Expires ${formatDate(expDate)}` : 'No expiration date set'}</span>
-                    </div>
-                    <div className="pa-service-card__detail">
-                        {Icons.clock} <span>{days !== null ? (days >= 0 ? `${days} days remaining` : `Expired ${Math.abs(days)} days ago`) : '—'}</span>
-                    </div>
-                    <div className="pa-service-card__detail">
-                        {Icons.paperclip} <span>{attachCount} attachment{attachCount !== 1 ? 's' : ''}</span>
-                    </div>
-                </div>
+                <CertCard
+                    label={colors.label}
+                    status={toSharedStatus(status)}
+                    statusLabel={statusLabel(status)}
+                    expirationDate={expDate}
+                    requiresExpiry={true}
+                    renewalYears={ct.renewalYears}
+                    hasFile={hasFile}
+                    uploads={allUploads}
+                    onView={() => setExpandedType(isExpanded ? null : ct.type)}
+                    onUpload={() => setShowUploadModal(ct.type)}
+                />
 
                 <div className="pa-service-card__footer">
                     <button className="btn btn--outline btn--sm" onClick={() => setShowUploadModal(ct.type)}>{Icons.upload} Upload</button>
