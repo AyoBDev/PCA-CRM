@@ -16,19 +16,23 @@ const TABS = [
 
 // Per-kind config: how to load rows, which field carries the row's primary
 // display label, and which entity name to use in undo descriptions.
+// The admin management page loads ALL rows (including inactive) so a
+// deactivated row can still be found and reactivated — see api.js's
+// { all: true } opt-in (assign-picker consumers keep calling with no arg,
+// which stays active-only).
 const KIND_CONFIG = {
     documents: {
-        load: async () => (await api.getCatalogDocuments()).documentTypes || [],
+        load: async () => (await api.getCatalogDocuments({ all: true })).documentTypes || [],
         labelField: 'label',
         entityName: 'document type',
     },
     'cert-types': {
-        load: async () => (await api.getCatalogCertTypes()).certTypes || [],
+        load: async () => (await api.getCatalogCertTypes({ all: true })).certTypes || [],
         labelField: 'label',
         entityName: 'certification type',
     },
     policies: {
-        load: async () => (await api.getCatalogPolicies()).policyDocuments || [],
+        load: async () => (await api.getCatalogPolicies({ all: true })).policyDocuments || [],
         labelField: 'title',
         entityName: 'policy',
     },
@@ -194,7 +198,7 @@ export default function CatalogManagementPage() {
                                 </tr>
                             )}
                             {rows.map((row, index) => (
-                                <tr key={row.id}>
+                                <tr key={row.id} className={row.active ? undefined : 'catalog-row--inactive'}>
                                     <td>
                                         <div style={{ display: 'flex', gap: 4 }}>
                                             <button
@@ -218,13 +222,16 @@ export default function CatalogManagementPage() {
                                         </div>
                                     </td>
                                     <td>
-                                        <InlineEditable
-                                            value={row[labelField]}
-                                            placeholder={tab === 'policies' ? 'Title' : 'Label'}
-                                            onSave={async (next) => { await saveField(row, labelField, next); }}
-                                            undoLabel={KIND_CONFIG[tab].entityName}
-                                            width={220}
-                                        />
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <InlineEditable
+                                                value={row[labelField]}
+                                                placeholder={tab === 'policies' ? 'Title' : 'Label'}
+                                                onSave={async (next) => { await saveField(row, labelField, next); }}
+                                                undoLabel={KIND_CONFIG[tab].entityName}
+                                                width={220}
+                                            />
+                                            {!row.active && <span className="catalog-row__inactive-badge">Inactive</span>}
+                                        </div>
                                     </td>
                                     {tab === 'cert-types' && (
                                         <td>

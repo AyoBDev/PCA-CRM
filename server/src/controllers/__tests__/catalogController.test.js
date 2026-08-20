@@ -1,7 +1,7 @@
 jest.mock('../../lib/prisma', () => ({
-  documentType: { update: jest.fn(), updateMany: jest.fn(), findMany: jest.fn() },
-  certType: { update: jest.fn(), updateMany: jest.fn(), findMany: jest.fn() },
-  policyDocument: { update: jest.fn(), updateMany: jest.fn(), findMany: jest.fn() },
+  documentType: { update: jest.fn(), updateMany: jest.fn(), findMany: jest.fn(), create: jest.fn() },
+  certType: { update: jest.fn(), updateMany: jest.fn(), findMany: jest.fn(), create: jest.fn() },
+  policyDocument: { update: jest.fn(), updateMany: jest.fn(), findMany: jest.fn(), create: jest.fn() },
   $transaction: jest.fn(async (ops) => Promise.all(ops)),
 }));
 jest.mock('../../services/auditService', () => ({ logAction: jest.fn() }));
@@ -56,6 +56,22 @@ describe('setDocumentActive', () => {
     const { req, res } = mockReqRes({ id: '2' }, { active: true });
     await catalog.setDocumentActive(req, res);
     expect(audit.logAction).toHaveBeenCalledWith(expect.objectContaining({ action: 'RESTORE' }));
+  });
+});
+
+describe('createCertType (allowlist)', () => {
+  test('allows key + editable fields but strips a non-creatable field (id)', async () => {
+    prisma.certType.create.mockResolvedValue({ id: 5, key: 'first-aid', label: 'First Aid', renewalYears: 2 });
+    const { req, res } = mockReqRes({}, {
+      key: 'first-aid', label: 'First Aid', renewalYears: 2, requiresExpiry: true, sortOrder: 3,
+      id: 999, notAField: 'nope',
+    });
+    await catalog.createCertType(req, res);
+    const data = prisma.certType.create.mock.calls[0][0].data;
+    expect(data).toEqual({ key: 'first-aid', label: 'First Aid', renewalYears: 2, requiresExpiry: true, sortOrder: 3 });
+    expect(data).not.toHaveProperty('id');
+    expect(data).not.toHaveProperty('notAField');
+    expect(res.status).toHaveBeenCalledWith(201);
   });
 });
 

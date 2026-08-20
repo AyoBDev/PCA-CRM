@@ -76,3 +76,31 @@ test('moving a document row down persists the new order', async () => {
     screen.getAllByRole('button', { name: /move down/i })[0].click();
     await waitFor(() => expect(api.reorderCatalog).toHaveBeenCalledWith('documents', [2, 1]));
 });
+
+test('loads with { all: true } so inactive rows remain reachable', async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByText('W-4')).toBeInTheDocument());
+    expect(api.getCatalogDocuments).toHaveBeenCalledWith({ all: true });
+});
+
+test('an inactive row is still rendered, de-emphasized, with its toggle off', async () => {
+    api.getCatalogDocuments.mockResolvedValue({
+        documentTypes: [
+            { id: 1, label: 'W-4', active: true, sortOrder: 0 },
+            { id: 2, label: 'I-9', active: false, sortOrder: 1 },
+        ],
+    });
+    renderPage();
+    await waitFor(() => expect(screen.getByText('I-9')).toBeInTheDocument());
+
+    // Row renders with the de-emphasized class.
+    const row = screen.getByText('I-9').closest('tr');
+    expect(row).toHaveClass('catalog-row--inactive');
+
+    // Shows a muted "Inactive" indicator.
+    expect(screen.getByText('Inactive')).toBeInTheDocument();
+
+    // Its active toggle reflects active:false (unchecked switch).
+    const activeToggle = row.querySelector('#active-2');
+    expect(activeToggle).toHaveAttribute('aria-checked', 'false');
+});

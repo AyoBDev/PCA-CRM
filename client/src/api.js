@@ -989,9 +989,11 @@ export const markAttentionSeen = (keys) => {
 };
 
 // ── Onboarding Catalogs ──
-export const getCatalogDocuments = () => request('/catalogs/documents');
-export const getCatalogCertTypes = () => request('/catalogs/cert-types');
-export const getCatalogPolicies = () => request('/catalogs/policies');
+// Pass { all: true } to include inactive rows (admin management page).
+// Default (no arg) stays active-only, e.g. for assign-picker consumers.
+export const getCatalogDocuments = ({ all } = {}) => request(`/catalogs/documents${all ? '?all=1' : ''}`);
+export const getCatalogCertTypes = ({ all } = {}) => request(`/catalogs/cert-types${all ? '?all=1' : ''}`);
+export const getCatalogPolicies = ({ all } = {}) => request(`/catalogs/policies${all ? '?all=1' : ''}`);
 export const createCatalog = (kind, body) =>
     request(`/catalogs/${kind}`, { method: 'POST', body: JSON.stringify(body) });
 export const updateCatalog = (kind, id, body) =>

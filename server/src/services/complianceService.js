@@ -23,11 +23,6 @@ async function evaluateCompliance(employeeId) {
   return newStatus;
 }
 
-function renewalYearsFor(certKey, catalogMap) {
-  const t = catalogMap[certKey];
-  return t && t.renewalYears != null ? t.renewalYears : null;
-}
-
 async function createComplianceTask(employeeId, certType, certId) {
   const existing = await prisma.employeeTask.findFirst({
     where: { employeeId, linkedCertId: certId, completedAt: null },
@@ -55,4 +50,4 @@ async function resolveComplianceTasks(certId) {
   });
 }
 
-module.exports = { evaluateCompliance, createComplianceTask, createNotification, resolveComplianceTasks, renewalYearsFor };
+module.exports = { evaluateCompliance, createComplianceTask, createNotification, resolveComplianceTasks };

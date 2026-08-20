@@ -11,17 +11,41 @@ function list(kind) {
     return async (req, res, next) => {
         try {
             const { model, resKey } = MODELS[kind];
-            const rows = await model().findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } });
+            const query = req.query || {};
+            const includeInactive = query.all === '1' || query.includeInactive === 'true';
+            const where = includeInactive ? {} : { active: true };
+            const rows = await model().findMany({ where, orderBy: { sortOrder: 'asc' } });
             res.json({ [resKey]: rows });
         } catch (err) { next(err); }
     };
+}
+
+const EDITABLE = {
+    documents: ['label', 'requiresExpiry', 'sortOrder'],
+    'cert-types': ['label', 'requiresExpiry', 'renewalYears', 'sortOrder'],
+    policies: ['title', 'body', 'version', 'sortOrder'],
+};
+
+// Create allows everything update allows, plus the unique `key` field
+// (only set at creation time, never editable afterward).
+const CREATABLE = {
+    documents: [...EDITABLE.documents, 'key'],
+    'cert-types': [...EDITABLE['cert-types'], 'key'],
+    policies: [...EDITABLE.policies, 'key'],
+};
+
+function pick(obj, keys) {
+    const out = {};
+    for (const k of keys) if (obj[k] !== undefined) out[k] = obj[k];
+    return out;
 }
 
 function create(kind) {
     return async (req, res, next) => {
         try {
             const { model, entity } = MODELS[kind];
-            const row = await model().create({ data: req.body });
+            const data = pick(req.body, CREATABLE[kind]);
+            const row = await model().create({ data });
             audit.logAction({
                 userId: req.user.id,
                 userName: req.user.name,
@@ -34,18 +58,6 @@ function create(kind) {
             res.status(201).json(row);
         } catch (err) { next(err); }
     };
-}
-
-const EDITABLE = {
-    documents: ['label', 'requiresExpiry', 'sortOrder'],
-    'cert-types': ['label', 'requiresExpiry', 'renewalYears', 'sortOrder'],
-    policies: ['title', 'body', 'version', 'sortOrder'],
-};
-
-function pick(obj, keys) {
-    const out = {};
-    for (const k of keys) if (obj[k] !== undefined) out[k] = obj[k];
-    return out;
 }
 
 function update(kind) {

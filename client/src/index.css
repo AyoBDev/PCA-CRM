@@ -989,6 +989,22 @@ body {
 }
 .data-table th .th-sort svg { width: 14px; height: 14px; }
 
+/* ─── Catalog Management: inactive rows stay visible but de-emphasized ─── */
+.catalog-row--inactive {
+  opacity: 0.55;
+}
+.catalog-row__inactive-badge {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted));
+  border-radius: 4px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
 /* ─── Client (Parent) Row ─── */
 .row-client {
   cursor: pointer;
