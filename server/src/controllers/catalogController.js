@@ -80,8 +80,26 @@ function setActive(kind) {
     };
 }
 
+function reorder(kind) {
+    return async (req, res, next) => {
+        try {
+            const { model, entity } = MODELS[kind];
+            const ids = Array.isArray(req.body.ids) ? req.body.ids : [];
+            await prisma.$transaction(ids.map((id, index) =>
+                model().update({ where: { id: parseInt(id) }, data: { sortOrder: index } })
+            ));
+            audit.logAction({
+                userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+                action: 'UPDATE', entityType: entity, entityId: 0, entityName: `${kind} reorder`,
+                metadata: { action: 'catalog_reorder', ids },
+            });
+            res.json({ success: true });
+        } catch (err) { next(err); }
+    };
+}
+
 module.exports = {
-    listDocuments: list('documents'), createDocument: create('documents'), updateDocument: update('documents'), setDocumentActive: setActive('documents'),
-    listCertTypes: list('cert-types'), createCertType: create('cert-types'), updateCertType: update('cert-types'), setCertTypeActive: setActive('cert-types'),
-    listPolicies: list('policies'), createPolicy: create('policies'), updatePolicy: update('policies'), setPolicyActive: setActive('policies'),
+    listDocuments: list('documents'), createDocument: create('documents'), updateDocument: update('documents'), setDocumentActive: setActive('documents'), reorderDocuments: reorder('documents'),
+    listCertTypes: list('cert-types'), createCertType: create('cert-types'), updateCertType: update('cert-types'), setCertTypeActive: setActive('cert-types'), reorderCertTypes: reorder('cert-types'),
+    listPolicies: list('policies'), createPolicy: create('policies'), updatePolicy: update('policies'), setPolicyActive: setActive('policies'), reorderPolicies: reorder('policies'),
 };

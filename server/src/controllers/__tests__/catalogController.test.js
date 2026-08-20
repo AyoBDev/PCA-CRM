@@ -58,3 +58,16 @@ describe('setDocumentActive', () => {
     expect(audit.logAction).toHaveBeenCalledWith(expect.objectContaining({ action: 'RESTORE' }));
   });
 });
+
+describe('reorderCertTypes', () => {
+  test('writes sortOrder by array position in one transaction', async () => {
+    prisma.certType.update.mockImplementation(({ where, data }) => Promise.resolve({ id: where.id, ...data }));
+    const { req, res } = mockReqRes({}, { ids: [30, 10, 20] });
+    await catalog.reorderCertTypes(req, res);
+    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(prisma.certType.update).toHaveBeenCalledWith({ where: { id: 30 }, data: { sortOrder: 0 } });
+    expect(prisma.certType.update).toHaveBeenCalledWith({ where: { id: 10 }, data: { sortOrder: 1 } });
+    expect(prisma.certType.update).toHaveBeenCalledWith({ where: { id: 20 }, data: { sortOrder: 2 } });
+    expect(res.json).toHaveBeenCalledWith({ success: true });
+  });
+});
