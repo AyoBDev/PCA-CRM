@@ -1,23 +1,43 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
-import CertCard from '../components/common/CertCard';
 import CertSummary from '../components/common/CertSummary';
+import CertIcons from '../components/common/CertIcons';
+import { CERT_COLORS } from '../utils/certColors';
 
+// status vocabulary matches the admin's CertificationsTab.getCertStatusForType:
+// 'ok' | 'critical' | 'expired' | 'unknown'
 function statusFor(item) {
-  if (!item) return 'missing';
-  if (item.requiresExpiry && item.expirationDate) {
-    const exp = new Date(item.expirationDate).getTime();
-    const now = Date.now();
-    if (exp < now) return 'expired';
-    if (exp <= now + 30 * 86400000) return 'expiring';
-    return 'approved';
-  }
-  if (item.status === 'active' || item.status === 'approved') return 'approved';
-  if (item.status === 'expired') return item.requiresExpiry ? 'expired' : 'approved';
-  if (item.status === 'expiring') return item.requiresExpiry ? 'expiring' : 'approved';
-  if (item.currentFile) return 'pending';
-  return 'missing';
+  if (!item || (!item.requiresExpiry) || !item.expirationDate) return 'unknown';
+  const now = new Date();
+  const d = new Date(item.expirationDate);
+  const days = Math.ceil((d - now) / 86400000);
+  if (days < 0) return 'expired';
+  if (days <= 30) return 'critical';
+  return 'ok';
+}
+
+function daysRemaining(item) {
+  if (!item || !item.expirationDate) return null;
+  const now = new Date();
+  const d = new Date(item.expirationDate);
+  return Math.ceil((d - now) / 86400000);
+}
+
+function statusLabel(s) {
+  return s === 'ok' ? 'Active' : s === 'critical' ? 'Expiring Soon' : s === 'expired' ? 'Expired' : 'Not Set';
+}
+
+function statusBadgeStyle(s) {
+  if (s === 'ok') return { background: 'hsl(142 76% 92%)', color: '#16a34a' };
+  if (s === 'critical') return { background: 'hsl(38 92% 92%)', color: '#d97706' };
+  if (s === 'expired') return { background: 'hsl(0 84% 94%)', color: '#dc2626' };
+  return { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' };
+}
+
+function formatDate(d) {
+  if (!d) return '';
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function formatFileSize(bytes) {
@@ -27,9 +47,21 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function formatDate(d) {
-  if (!d) return '';
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+function CertUploadInput({ onFile, children }) {
+  const fileRef = useRef(null);
+  function onPick(e) {
+    const file = e.target.files && e.target.files[0];
+    if (file) onFile(file);
+    e.target.value = '';
+  }
+  return (
+    <>
+      <input ref={fileRef} type="file" accept="image/*,application/pdf" hidden onChange={onPick} />
+      <button type="button" className="btn btn--outline btn--sm" onClick={() => fileRef.current && fileRef.current.click()}>
+        {children}
+      </button>
+    </>
+  );
 }
 
 export default function CertificationsPage() {
@@ -38,7 +70,7 @@ export default function CertificationsPage() {
   const [summary, setSummary] = useState({ approved: 0, pending: 0, actionNeeded: 0, total: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [expanded, setExpanded] = useState(() => new Set());
+  const [expandedId, setExpandedId] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -90,15 +122,6 @@ export default function CertificationsPage() {
     }
   }
 
-  function toggleHistory(requirementId) {
-    setExpanded(prev => {
-      const next = new Set(prev);
-      if (next.has(requirementId)) next.delete(requirementId);
-      else next.add(requirementId);
-      return next;
-    });
-  }
-
   return (
     <div>
       <div className="sub-header">
@@ -114,60 +137,102 @@ export default function CertificationsPage() {
 
       {loading ? (
         <div className="skeleton skeleton--card" style={{ height: 120 }} />
-      ) : certifications.map(item => {
-        const status = statusFor(item);
-        const uploads = Array.isArray(item.uploads) ? item.uploads : [];
-        const isOpen = expanded.has(item.requirementId);
-        return (
-          <div key={item.requirementId} style={{ marginBottom: 12 }}>
-            <CertCard
-              label={item.label}
-              status={status}
-              statusLabel={item.statusLabel}
-              expirationDate={item.expirationDate}
-              requiresExpiry={item.requiresExpiry}
-              renewalYears={item.renewalYears}
-              hasFile={!!item.currentFile}
-              uploads={uploads}
-              onView={() => {}}
-              onUpload={(file) => uploadFor(item, file)}
-            />
-            {uploads.length > 0 && (
-              <div className="cert-history">
-                <button
-                  type="button"
-                  className="cert-history__toggle"
-                  onClick={() => toggleHistory(item.requirementId)}
-                  aria-expanded={isOpen}
-                >
-                  {isOpen ? 'Hide' : 'Show'} upload history ({uploads.length})
-                </button>
-                {isOpen && (
-                  <ul className="cert-history__list">
-                    {uploads.map(u => (
-                      <li key={u.id} className="cert-history__item">
-                        <div className="cert-history__item-info">
-                          <span className="cert-history__item-name">{u.fileName}</span>
-                          <span className="cert-history__item-meta">
-                            {formatDate(u.submittedAt)}{u.fileSize ? ` · ${formatFileSize(u.fileSize)}` : ''}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          className="btn btn--outline btn--sm"
-                          onClick={() => handleDownload(u)}
-                        >
-                          Download
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+      ) : (
+        <div className="pa-services-grid">
+          <div className="pa-services-grid__left">
+            {certifications.filter((_, i) => i % 2 === 0).map(item => renderCertCard(item))}
+          </div>
+          <div className="pa-services-grid__right">
+            {certifications.filter((_, i) => i % 2 === 1).map(item => renderCertCard(item))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  function renderCertCard(item) {
+    const status = statusFor(item);
+    const days = daysRemaining(item);
+    const colors = CERT_COLORS[item.certType] || CERT_COLORS.other;
+    const uploads = Array.isArray(item.uploads) ? item.uploads : [];
+    const attachCount = uploads.length > 0 ? uploads.length : (item.currentFile ? 1 : 0);
+    const isExpanded = expandedId === item.requirementId;
+
+    return (
+      <div
+        key={item.requirementId}
+        className="pa-service-card"
+        style={{ '--card-accent': colors.accent, '--card-bg': colors.bg, '--card-border': colors.border }}
+      >
+        <div className="pa-service-card__header">
+          <div className="pa-service-card__icon-wrap" style={{ background: colors.bg, color: colors.accent }}>
+            {CertIcons[colors.icon]}
+          </div>
+          <div className="pa-service-card__title-area">
+            <h4 className="pa-service-card__title">{item.label || colors.label}</h4>
+            <span className="pa-badge pa-badge--active" style={statusBadgeStyle(status)}>
+              {statusLabel(status)}
+            </span>
+          </div>
+          {item.renewalYears ? (
+            <div className="pa-service-card__account">
+              <span className="pa-service-card__account-label">Renewal</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{item.renewalYears}yr</span>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="pa-service-card__body">
+          <div className="pa-service-card__detail">
+            {CertIcons.calendar} <span>{item.expirationDate ? `Expires ${formatDate(item.expirationDate)}` : 'No expiration date set'}</span>
+          </div>
+          <div className="pa-service-card__detail">
+            {CertIcons.clock} <span>{days !== null ? (days >= 0 ? `${days} days remaining` : `Expired ${Math.abs(days)} days ago`) : '—'}</span>
+          </div>
+          <div className="pa-service-card__detail">
+            {CertIcons.paperclip} <span>{attachCount} attachment{attachCount !== 1 ? 's' : ''}</span>
+          </div>
+        </div>
+
+        <div className="pa-service-card__footer">
+          <CertUploadInput onFile={(file) => uploadFor(item, file)}>
+            {CertIcons.upload} {item.currentFile ? 'Replace' : 'Upload'}
+          </CertUploadInput>
+          <button
+            className="btn btn--outline btn--sm pa-btn--view-details"
+            style={{ color: colors.accent, borderColor: colors.accent }}
+            onClick={() => setExpandedId(isExpanded ? null : item.requirementId)}
+          >
+            {isExpanded ? CertIcons.chevronDown : CertIcons.chevronRight} {isExpanded ? 'Hide Details' : 'View Details'}
+          </button>
+        </div>
+
+        {isExpanded && (
+          <div className="pa-service-card__expanded">
+            {uploads.length === 0 ? (
+              <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', padding: '12px 0' }}>No files on file.</div>
+            ) : (
+              <div className="cert-history__list">
+                {uploads.map(u => (
+                  <div key={u.id} className="file-row file-row--cert">
+                    <div className="file-row__main">
+                      <div className="file-row__name">{u.fileName}</div>
+                      <div className="file-row__submeta">
+                        {formatDate(u.submittedAt)}{u.fileSize ? ` · ${formatFileSize(u.fileSize)}` : ''}
+                      </div>
+                    </div>
+                    <div className="file-row__badge">
+                      <button type="button" className="btn btn--outline btn--sm" onClick={() => handleDownload(u)}>
+                        {CertIcons.download} Download
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
-        );
-      })}
-    </div>
-  );
+        )}
+      </div>
+    );
+  }
 }

@@ -631,6 +631,142 @@ body {
 .cert-history__item-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cert-history__item-meta { font-size: 11px; color: hsl(var(--muted-foreground)); }
 
+/* === CERTIFICATIONS — "pa-service-card" portfolio design (ported from
+   client/src/index.css / client/src/pages/EmployeeDetailPage.jsx so the
+   employee app's Certifications page matches the admin app's look). === */
+.pa-services-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (min-width: 768px) {
+  .pa-services-grid { grid-template-columns: 1fr 1fr; }
+}
+.pa-services-grid__left,
+.pa-services-grid__right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.pa-service-card {
+  border: 2px solid var(--card-border, hsl(var(--border)));
+  border-radius: 12px;
+  padding: 20px;
+  background: hsl(var(--card));
+}
+.pa-service-card__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.pa-service-card__icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.pa-service-card__icon-wrap svg {
+  width: 24px;
+  height: 24px;
+}
+.pa-service-card__title-area {
+  flex: 1;
+  min-width: 0;
+}
+.pa-service-card__title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: hsl(var(--foreground));
+  margin: 0 0 6px 0;
+  text-transform: uppercase;
+}
+.pa-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.pa-badge--active {
+  background: hsl(142 76% 92%);
+  color: #16a34a;
+}
+.pa-service-card__account {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.pa-service-card__account-label {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+.pa-service-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.pa-service-card__detail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: hsl(var(--foreground));
+}
+.pa-service-card__detail svg {
+  width: 14px;
+  height: 14px;
+  color: hsl(var(--muted-foreground));
+  flex-shrink: 0;
+}
+.pa-service-card__footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  padding-top: 12px;
+  border-top: 1px solid hsl(var(--border) / 0.5);
+}
+.pa-service-card__footer .btn svg { width: 14px; height: 14px; }
+.pa-btn--view-details:hover {
+  opacity: 0.8;
+}
+.pa-service-card__expanded {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid hsl(var(--border) / 0.5);
+}
+
+/* File rows inside the expanded history (ported subset of the admin's
+   .file-row / .file-row--cert used by CertFileRow). */
+.cert-history__list {
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.file-row--cert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+}
+.cert-history__list .file-row--cert:last-child { border-bottom: none; }
+.file-row__main { flex: 1; min-width: 0; }
+.file-row__name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file-row__submeta { font-size: 11px; color: hsl(var(--muted-foreground)); margin-top: 1px; }
+.file-row__badge { flex-shrink: 0; display: flex; align-items: center; }
+.file-row__badge .btn svg { width: 14px; height: 14px; }
+
 /* === PAY STUBS === */
 .paystub-card {
   background: hsl(var(--card));
