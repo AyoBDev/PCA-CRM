@@ -36,8 +36,36 @@ function create(kind) {
     };
 }
 
+const EDITABLE = {
+    documents: ['label', 'requiresExpiry', 'sortOrder'],
+    'cert-types': ['label', 'requiresExpiry', 'renewalYears', 'sortOrder'],
+    policies: ['title', 'body', 'version', 'sortOrder'],
+};
+
+function pick(obj, keys) {
+    const out = {};
+    for (const k of keys) if (obj[k] !== undefined) out[k] = obj[k];
+    return out;
+}
+
+function update(kind) {
+    return async (req, res, next) => {
+        try {
+            const { model, entity } = MODELS[kind];
+            const id = parseInt(req.params.id);
+            const data = pick(req.body, EDITABLE[kind]);
+            const row = await model().update({ where: { id }, data });
+            audit.logAction({
+                userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+                action: 'UPDATE', entityType: entity, entityId: row.id, entityName: row.label || row.title,
+            });
+            res.json(row);
+        } catch (err) { next(err); }
+    };
+}
+
 module.exports = {
-    listDocuments: list('documents'), createDocument: create('documents'),
-    listCertTypes: list('cert-types'), createCertType: create('cert-types'),
-    listPolicies: list('policies'), createPolicy: create('policies'),
+    listDocuments: list('documents'), createDocument: create('documents'), updateDocument: update('documents'),
+    listCertTypes: list('cert-types'), createCertType: create('cert-types'), updateCertType: update('cert-types'),
+    listPolicies: list('policies'), createPolicy: create('policies'), updatePolicy: update('policies'),
 };
