@@ -590,7 +590,46 @@ body {
 .cert-card--expired { border-left-color: hsl(var(--destructive)); }
 .cert-card__header { display: flex; justify-content: space-between; align-items: center; }
 .cert-card__title { font-size: 14px; font-weight: 700; }
+.cert-card__title-area { flex: 1; min-width: 0; }
 .cert-card__meta { font-size: 12px; color: hsl(var(--muted-foreground)); margin-top: 4px; }
+.cert-card__progress { height: 6px; border-radius: 999px; background: hsl(var(--muted)); overflow: hidden; }
+.cert-card__progress-fill { height: 100%; border-radius: 999px; }
+.cert-card__progress-fill--active { background: #22c55e; }
+.cert-card__progress-fill--expiring { background: #f59e0b; }
+.cert-card__progress-fill--expired { background: #dc2626; }
+.cert-card__progress-fill--notset { background: #8b5cf6; }
+.cert-card__progress-fill--complete { background: #22c55e; }
+.cert-card__renewal { display: flex; align-items: center; justify-content: space-between; margin: 12px 0; font-size: 13px; }
+.cert-card__renewal-label { color: hsl(var(--muted-foreground)); }
+.cert-card__renewal-value { font-weight: 600; }
+.cert-card__actions { display: flex; gap: 8px; }
+.cert-card__actions .btn { flex: 1; justify-content: center; }
+
+/* Upload history (per-card expandable list) */
+.cert-history { margin-top: -4px; margin-bottom: 12px; }
+.cert-history__toggle {
+  background: none;
+  border: none;
+  padding: 8px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(var(--primary));
+  cursor: pointer;
+}
+.cert-history__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.cert-history__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: hsl(var(--card));
+  border: 1.5px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 8px 12px;
+}
+.cert-history__item-info { display: flex; flex-direction: column; min-width: 0; }
+.cert-history__item-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cert-history__item-meta { font-size: 11px; color: hsl(var(--muted-foreground)); }
 
 /* === PAY STUBS === */
 .paystub-card {
