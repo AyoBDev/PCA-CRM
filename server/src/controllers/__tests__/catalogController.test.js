@@ -29,4 +29,16 @@ describe('updateCertType', () => {
     expect(audit.logAction).toHaveBeenCalledWith(expect.objectContaining({ action: 'UPDATE', entityType: 'CertType' }));
     expect(res.json).toHaveBeenCalled();
   });
+
+  test('strips non-allowlisted fields (active/key/id) before update', async () => {
+    prisma.certType.update.mockResolvedValue({ id: 1, label: 'CPR' });
+    const { req, res } = mockReqRes({ id: '1' }, { label: 'CPR', active: false, key: 'hacked', id: 999, renewalYears: 3 });
+    await catalog.updateCertType(req, res);
+    const data = prisma.certType.update.mock.calls[0][0].data;
+    expect(data).toHaveProperty('label', 'CPR');
+    expect(data).toHaveProperty('renewalYears', 3);
+    expect(data).not.toHaveProperty('active');
+    expect(data).not.toHaveProperty('key');
+    expect(data).not.toHaveProperty('id');
+  });
 });
