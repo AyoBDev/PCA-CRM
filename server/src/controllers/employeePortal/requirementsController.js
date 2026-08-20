@@ -1,5 +1,5 @@
 const prisma = require('../../lib/prisma');
-const { uploadFile } = require('../../lib/storage');
+const { uploadFile, downloadFile } = require('../../lib/storage');
 const audit = require('../../services/auditService');
 
 async function getCertifications(req, res) {
@@ -146,4 +146,23 @@ async function createCertification(req, res) {
   res.json({ success: true, certificationId: cert.id, status: 'pending' });
 }
 
-module.exports = { getCertifications, uploadCertification, createCertification };
+async function downloadCertificationUpload(req, res) {
+  const uploadId = parseInt(req.params.uploadId);
+  const upload = await prisma.certificationUpload.findFirst({
+    where: { id: uploadId, certification: { employeeId: req.employee.id } },
+  });
+  if (!upload || !upload.bucketKey) return res.status(404).json({ error: 'File not found' });
+
+  const buffer = await downloadFile(upload.bucketKey);
+  if (!buffer) return res.status(404).json({ error: 'File not found in storage' });
+
+  const isPdf = upload.fileType === 'application/pdf';
+  res.set({
+    'Content-Type': upload.fileType || 'application/octet-stream',
+    'Content-Disposition': `${isPdf ? 'inline' : 'attachment'}; filename="${upload.fileName}"`,
+    'Content-Length': buffer.length,
+  });
+  res.send(buffer);
+}
+
+module.exports = { getCertifications, uploadCertification, createCertification, downloadCertificationUpload };
