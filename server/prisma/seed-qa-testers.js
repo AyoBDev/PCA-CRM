@@ -114,21 +114,47 @@ async function seedActive(employee, client) {
     });
   }
 
-  // Permanent link + a draft timesheet for the current week
-  const link = await prisma.permanentLink.upsert({
+  // Permanent link + a draft timesheet for the current week, WITH real daily
+  // entries (not an empty shell) so the tester sees a filled-in timesheet.
+  await prisma.permanentLink.upsert({
     where: { clientId_pcaName: { clientId: client.id, pcaName: employee.name } },
     update: {},
     create: { clientId: client.id, pcaName: employee.name },
   });
   const weekStart = weekSundayUTC();
+  // Recreate the QA timesheet for a clean, idempotent re-run (cascade removes
+  // its entries). Then build 3 PAS/ADL days (Mon/Wed/Fri, 9:00–12:00 = 3h each).
   const existingTs = await prisma.timesheet.findFirst({
     where: { clientId: client.id, pcaName: employee.name, weekStart },
   });
-  if (!existingTs) {
-    await prisma.timesheet.create({
-      data: { clientId: client.id, pcaName: employee.name, weekStart, status: 'draft' },
-    });
-  }
+  if (existingTs) await prisma.timesheet.delete({ where: { id: existingTs.id } });
+
+  const PAS_DAYS = [1, 3, 5]; // Mon, Wed, Fri
+  const HOURS_PER_DAY = 3;    // 09:00–12:00
+  const ADL_ACTIVITIES = JSON.stringify({ bathing: true, grooming: true, mealPrep: true });
+  const totalPas = PAS_DAYS.length * HOURS_PER_DAY; // 9
+
+  await prisma.timesheet.create({
+    data: {
+      clientId: client.id, pcaName: employee.name, weekStart, status: 'draft',
+      totalPasHours: totalPas, totalHours: totalPas,
+      entries: {
+        create: PAS_DAYS.map((dow) => {
+          const d = dayInThisWeek(dow);
+          return {
+            dayOfWeek: dow,
+            dateOfService: d.toISOString().split('T')[0],
+            adlActivities: ADL_ACTIVITIES,
+            adlTimeIn: '09:00',
+            adlTimeOut: '12:00',
+            adlHours: HOURS_PER_DAY,
+            adlPcaInitials: 'QA',
+            adlClientInitials: 'QA',
+          };
+        }),
+      },
+    },
+  });
 
   // Certifications: active, expiring-soon, expired, no-file — exercises the
   // certification reminder / compliance banner. Ledger-linked so they show on
