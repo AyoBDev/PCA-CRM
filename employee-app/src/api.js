@@ -81,6 +81,12 @@ export const api = {
   getCertifications: () => request('/certifications'),
   uploadCertification: (certId, formData) => request(`/certifications/${certId}/upload`, { method: 'POST', body: formData }),
   createCertification: (formData) => request('/certifications', { method: 'POST', body: formData }),
+  // Raw fetch (not the JSON-parsing request() helper) — returns a Response so
+  // callers can read Content-Type/.blob() themselves, matching the admin app's
+  // fetchBlob contract for file preview/download components.
+  downloadCertUpload: (uploadId) => fetch(`${BASE}/api/employee/certifications/uploads/${uploadId}/download`, {
+    headers: { Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY)}` },
+  }),
   getPayrollSummary: () => request('/payroll/summary'),
   getPaystubs: () => request('/payroll/stubs'),
   getPaystubDownload: (id) => request(`/payroll/stubs/${id}/download`),

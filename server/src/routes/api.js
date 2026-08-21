@@ -491,6 +491,15 @@ router.get('/catalogs/cert-types', requireRole('admin', 'user'), requirePermissi
 router.post('/catalogs/cert-types', requireRole('admin'), requirePermission('employees'), catalog.createCertType);
 router.get('/catalogs/policies', requireRole('admin', 'user'), requirePermission('employees'), catalog.listPolicies);
 router.post('/catalogs/policies', requireRole('admin'), requirePermission('employees'), catalog.createPolicy);
+router.patch('/catalogs/documents/reorder', requireRole('admin'), requirePermission('employees'), catalog.reorderDocuments);
+router.patch('/catalogs/cert-types/reorder', requireRole('admin'), requirePermission('employees'), catalog.reorderCertTypes);
+router.patch('/catalogs/policies/reorder', requireRole('admin'), requirePermission('employees'), catalog.reorderPolicies);
+router.patch('/catalogs/documents/:id', requireRole('admin'), requirePermission('employees'), catalog.updateDocument);
+router.patch('/catalogs/cert-types/:id', requireRole('admin'), requirePermission('employees'), catalog.updateCertType);
+router.patch('/catalogs/policies/:id', requireRole('admin'), requirePermission('employees'), catalog.updatePolicy);
+router.patch('/catalogs/documents/:id/active', requireRole('admin'), requirePermission('employees'), catalog.setDocumentActive);
+router.patch('/catalogs/cert-types/:id/active', requireRole('admin'), requirePermission('employees'), catalog.setCertTypeActive);
+router.patch('/catalogs/policies/:id/active', requireRole('admin'), requirePermission('employees'), catalog.setPolicyActive);
 
 // Employee Attention
 router.get('/admin/employee-attention', requireRole('admin', 'user'), requirePermission('employees'), getEmployeeAttention);

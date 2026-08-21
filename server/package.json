@@ -11,6 +11,8 @@
     "db:generate": "npx prisma generate",
     "db:seed": "node prisma/seed.js",
     "db:seed-requirements": "node prisma/seed-requirements.js",
+    "db:seed-qa-testers": "node prisma/seed-qa-testers.js",
+    "db:clean-qa-testers": "node prisma/seed-qa-testers.js --clean",
     "db:migrate-employees": "node prisma/migrate-employees.js",
     "db:migrate-lifecycle": "node prisma/migrate-lifecycle-statuses.js",
     "db:migrate-data": "node prisma/migrate-data.js",

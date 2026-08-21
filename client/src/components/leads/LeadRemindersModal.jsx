@@ -5,6 +5,7 @@ import * as api from '../../api';
 import { LEAD_CONTACT_OUTCOMES } from '../../utils/leadConstants';
 import { useToast } from '../../hooks/useToast';
 import { useAuth } from '../../hooks/useAuth';
+import Icons from '../common/Icons';
 
 // tone drives the accent color per bucket (see .lead-reminders__bucket--<tone> in index.css)
 const BUCKETS = [
@@ -79,7 +80,7 @@ export default function LeadRemindersModal({ open, onClose, onSnooze, onOpenLead
         <p className="lead-reminders__loading">Loading…</p>
       ) : total === 0 ? (
         <div className="lead-reminders__empty">
-          <span className="lead-reminders__empty-emoji">🎉</span>
+          <span className="lead-reminders__empty-icon" aria-hidden="true">{Icons.checkCircle}</span>
           <p>You're all caught up. Nothing needs attention right now.</p>
         </div>
       ) : (

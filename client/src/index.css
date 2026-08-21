@@ -989,6 +989,22 @@ body {
 }
 .data-table th .th-sort svg { width: 14px; height: 14px; }
 
+/* ─── Catalog Management: inactive rows stay visible but de-emphasized ─── */
+.catalog-row--inactive {
+  opacity: 0.55;
+}
+.catalog-row__inactive-badge {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted));
+  border-radius: 4px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
 /* ─── Client (Parent) Row ─── */
 .row-client {
   cursor: pointer;
@@ -11467,6 +11483,17 @@ button.sdr-section-tag:hover:not(:disabled) {
   gap: 6px;
 }
 
+.pa-auth-inactive-reason__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.pa-auth-inactive-reason__icon svg {
+  width: 14px;
+  height: 14px;
+}
+
 .pa-auth-list {
   max-height: 400px;
   overflow-y: visible;
@@ -16488,8 +16515,13 @@ tr:hover .auth-note-icon--empty {
 }
 
 .lead-history__method-icon {
-    font-size: 13px;
+    display: inline-flex;
     line-height: 1;
+}
+
+.lead-history__method-icon svg {
+    width: 13px;
+    height: 13px;
 }
 
 /* Timestamp pushed to the far right of the header row */
@@ -16595,10 +16627,17 @@ tr:hover .auth-note-icon--empty {
     font-weight: 500;
 }
 
-.lead-reminders__empty-emoji {
-    display: block;
-    font-size: 40px;
-    margin-bottom: 12px;
+.lead-reminders__empty-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 12px;
+    color: hsl(var(--primary));
+}
+
+.lead-reminders__empty-icon svg {
+    width: 40px;
+    height: 40px;
 }
 
 /* Bucket card — full border; the count badge carries the urgency color */
