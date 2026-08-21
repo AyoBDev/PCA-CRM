@@ -2,6 +2,18 @@
 
 A running log of notable build-vs-adopt and design decisions, most recent first.
 
+## 2026-08-21 — Employee Portal v3 Areas 3+4: Visit Care-Plan + Cert/Catalog Management
+
+**Decision:** Build in-house by extending existing modules — no new libraries, no new tables, no migration. Reuse the Area 1 requirement ledger for employee certs, the DB `Service`-style catalog tables for catalog management, and the existing `complianceService` for reminders.
+
+**Options considered:**
+- **Admin catalog CRUD** — considered a generic admin-CRUD/table library (e.g. react-admin). Rejected: the three catalogs (Documents/Certifications/Policies) are small, and the app already has a settings-page + two-tier-toolbar + `InlineEditable` + undo/redo convention every other page follows; a CRUD framework would fight those conventions and add a large dependency for three tables. Built a `CatalogManagementPage` in the house style with PATCH edit/active(soft-delete)/reorder endpoints on the existing `catalogController`.
+- **Employee cert list** — could have kept the hardcoded `CERT_TYPES` list. Rejected: it drifts from what the admin actually assigned. Re-projected the endpoint from the Area 1 ledger (single source of truth) instead.
+- **Reminder tuning** — could have added a new reminder system. Rejected (YAGNI): re-pointed the existing `complianceService` at the `CertType` catalog (`requiresExpiry`/`renewalYears`) so tuning a cert in the admin UI changes reminders everywhere.
+- **Shared `CertCard`** — the spec asked for one shared card across admin + employee apps. Attempted, but `client/` and `employee-app/` are separate Vite build roots with no shared module system, and adopting the compact shared card in the admin employee-detail tab **broke** that tab's richer file-history portfolio (preview/download/records). Reverted the admin adoption; instead the employee cert page was rebuilt to mirror the admin's `.pa-service-card` portfolio design. **Net: the "identical shared component" goal is intentionally dropped** — admin and employee each carry their own copy of the portfolio markup (kept visually consistent by convention), which is the accepted tradeoff for not regressing the working admin tab across two un-shareable build roots.
+
+**Why:** every piece slots into an existing, tested convention; the only cross-app duplication (CertCard) is forced by the two apps being separate build roots, and duplicating ~150 lines of markup is cheaper and safer than a shared-package build step for two screens.
+
 ## 2026-08-14 — Timesheet PDF blowing up to ~43 pages: fix in-house on PDFKit
 
 **Options considered:**
