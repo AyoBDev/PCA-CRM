@@ -4,11 +4,11 @@
 // Purpose: create a small set of clearly-labeled "[QA]" test accounts in ANY
 // environment (including production) so a tester can log into the employee
 // portal and exercise each feature area, in both empty and non-empty states:
-//   • Onboarding flow          → qa-onboarding@nvbestpca.test  (invitation_pending + requirement ledger)
-//   • Shifts / schedule        → qa-active@nvbestpca.test      (active, has shifts this week)
-//   • Timesheet                → qa-active@nvbestpca.test      (has a permanent link + a draft timesheet)
-//   • Certification reminders  → qa-active@nvbestpca.test      (certs with expiring/expired dates)
-//   • Empty states             → qa-empty@nvbestpca.test       (active, nothing assigned)
+//   • Onboarding flow          → onboard@qa.test  (invitation_pending + requirement ledger)
+//   • Shifts / schedule        → active@qa.test   (active, has shifts this week)
+//   • Timesheet                → active@qa.test   (has a permanent link + a draft timesheet)
+//   • Certification reminders  → active@qa.test   (certs with expiring/expired dates)
+//   • Empty states             → empty@qa.test    (active, nothing assigned)
 //
 // SAFETY:
 //   • GATED: only runs when process.env.SEED_QA_TESTERS === 'true'. A normal
@@ -16,7 +16,7 @@
 //   • IDEMPOTENT: every account/client/shift is upsert-or-recreate keyed by a
 //     stable identifier, so re-running on each deploy updates rather than
 //     duplicates.
-//   • LABELED: names/emails are prefixed "[QA]" / "@nvbestpca.test" so no one
+//   • LABELED: names/emails are prefixed "[QA]" / "@qa.test" so no one
 //     mistakes them for real staff, and they're trivial to find + delete.
 //   • SELF-CONTAINED: creates its OWN "[QA] Test Client" — never assigns real
 //     clients to the fake employees.
@@ -37,9 +37,9 @@ const QA_PASSWORD = 'QATest1234!';
 const QA_CLIENT_NAME = '[QA] Test Client';
 
 const TESTERS = [
-  { email: 'qa-onboarding@nvbestpca.test', name: '[QA] Onboarding Tester', onboardingStatus: 'invitation_pending' },
-  { email: 'qa-active@nvbestpca.test',     name: '[QA] Active Tester',     onboardingStatus: 'active' },
-  { email: 'qa-empty@nvbestpca.test',      name: '[QA] Empty-State Tester', onboardingStatus: 'active' },
+  { email: 'onboard@qa.test', name: '[QA] Onboarding Tester',  onboardingStatus: 'invitation_pending' },
+  { email: 'active@qa.test',  name: '[QA] Active Tester',      onboardingStatus: 'active' },
+  { email: 'empty@qa.test',   name: '[QA] Empty-State Tester', onboardingStatus: 'active' },
 ];
 
 function daysFromNow(n) { const d = new Date(); d.setDate(d.getDate() + n); return d; }
@@ -200,15 +200,15 @@ async function main() {
   for (const t of TESTERS) {
     const { employee } = await upsertTester(t);
     results[t.email] = employee.id;
-    if (t.email === 'qa-onboarding@nvbestpca.test') await seedOnboarding(employee);
-    else if (t.email === 'qa-active@nvbestpca.test') await seedActive(employee, client);
-    else if (t.email === 'qa-empty@nvbestpca.test') await seedEmpty(employee);
+    if (t.email === 'onboard@qa.test') await seedOnboarding(employee);
+    else if (t.email === 'active@qa.test') await seedActive(employee, client);
+    else if (t.email === 'empty@qa.test') await seedEmpty(employee);
   }
 
   console.log('✅ [QA] Testers seeded (password for all: ' + QA_PASSWORD + '):');
-  console.log('   • qa-onboarding@nvbestpca.test → onboarding flow (invitation_pending + ledger)');
-  console.log('   • qa-active@nvbestpca.test     → shifts this week, draft timesheet, certs (active/expiring/expired)');
-  console.log('   • qa-empty@nvbestpca.test      → empty states (active, nothing assigned)');
+  console.log('   • onboard@qa.test → onboarding flow (invitation_pending + ledger)');
+  console.log('   • active@qa.test  → shifts this week, draft timesheet, certs (active/expiring/expired)');
+  console.log('   • empty@qa.test   → empty states (active, nothing assigned)');
   console.log('   QA client: ' + QA_CLIENT_NAME + ' (id ' + client.id + ')');
   console.log('   To remove: run this script with --clean or set SEED_QA_TESTERS=clean.');
 }
