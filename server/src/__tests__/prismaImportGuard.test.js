@@ -23,10 +23,13 @@ const ALLOWLIST = new Set([
   // resolves to an agencyId on the owner connection, then enterTokenTenant
   // switches to that agency's req.db for everything else in the handler.
   'src/controllers/replacementController.js',
-  // Called from onboardingController's public-token endpoints (no tenant
-  // context yet — Task 10 wires that). Queries are explicitly scoped by the
-  // already-loaded employee's agencyId instead of req.db/getTenantDb().
+  // Public-token endpoints (no tenant context yet — Task 10 wires that).
+  // Queries are explicitly scoped by the already-loaded employee's agencyId
+  // instead of req.db/getTenantDb(). The admin-authenticated handlers in
+  // onboardingController.js (resendInvite, getOnboardingReviews, etc.) use
+  // req.db, not this import.
   'src/services/onboardingService.js',
+  'src/controllers/onboardingController.js',
   // Cron drivers: enumerate active agencies on the owner connection, then run
   // each job body inside runWithTenant with a per-agency tenantClient.
   'src/jobs/complianceCron.js',

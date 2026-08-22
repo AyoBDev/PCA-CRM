@@ -1,7 +1,7 @@
 const prisma = require('../../lib/prisma');
 const { tenantClient } = require('../../lib/tenantPrisma');
 const ctrl = require('../authorizationController');
-const { enrichAuthorization } = require('../../services/authorizationService');
+const { enrichAuthorization, filterAuthsByWeek } = require('../../services/authorizationService');
 
 function mockRes() {
     return {
@@ -62,6 +62,141 @@ describe('renewAuthorization', () => {
         expect(newAuth.accountNumber).toBe('ACCT-1');
         expect(newAuth.sandataClientId).toBe('SAND-1');
         expect(newAuth.notes).toBe('Hours Increased — 40 to 48');
+    });
+
+    // A renewal whose new start date is in the FUTURE must not retire the current
+    // authorization before that date arrives. The old auth stays `active` (its
+    // end date is moved to the day before the new start), so date-range filtering
+    // keeps showing the current units in the Scheduler / Care Plan until the new
+    // auth's start date, at which point the end date makes it drop out naturally.
+    it('keeps the old auth active when the new start date is in the future', async () => {
+        const future = new Date();
+        future.setDate(future.getDate() + 30);
+        const futureStr = future.toISOString().slice(0, 10);
+        const req = {
+            params: { id: String(oldAuth.id) }, user, db,
+            body: {
+                serviceCode: 'PCS', serviceName: 'Personal Care', authorizationNumber: 'A-NEW',
+                authorizedUnits: 48, authorizationStartDate: futureStr, authorizationEndDate: '2099-05-31',
+            },
+        };
+        const res = mockRes();
+        await ctrl.renewAuthorization(req, res, (e) => { throw e; });
+
+        expect(res.statusCode).toBe(201);
+        const reloadedOld = await prisma.authorization.findUnique({ where: { id: oldAuth.id } });
+        // Still active — must remain visible until the new auth's start date.
+        expect(reloadedOld.manualStatus).toBe('active');
+        // End date moved to the day before the new start so the two never overlap.
+        const expectedEnd = new Date(futureStr + 'T00:00:00');
+        expectedEnd.setDate(expectedEnd.getDate() - 1);
+        expect(reloadedOld.authorizationEndDate.toISOString().slice(0, 10))
+            .toBe(expectedEnd.toISOString().slice(0, 10));
+        // Chain links still recorded so the renewal history is intact.
+        expect(reloadedOld.renewedToId).toBe(res.body.id);
+        expect(reloadedOld.closedAt).not.toBeNull();
+    });
+
+    // A renewal effective today (or in the past) genuinely closes the current
+    // authorization immediately, so it should flip to inactive right away.
+    it('retires the old auth immediately when the new start date is today or earlier', async () => {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const req = {
+            params: { id: String(oldAuth.id) }, user, db,
+            body: {
+                serviceCode: 'PCS', serviceName: 'Personal Care', authorizationNumber: 'A-NEW',
+                authorizedUnits: 48, authorizationStartDate: todayStr, authorizationEndDate: '2099-05-31',
+            },
+        };
+        const res = mockRes();
+        await ctrl.renewAuthorization(req, res, (e) => { throw e; });
+
+        expect(res.statusCode).toBe(201);
+        const reloadedOld = await prisma.authorization.findUnique({ where: { id: oldAuth.id } });
+        expect(reloadedOld.manualStatus).toBe('inactive');
+    });
+
+    // Explicit "Start immediately" override: even with a FUTURE start date, when
+    // the modal chose immediate activation the current auth is retired now.
+    it('retires the old auth now when renewalActivation is "immediate" despite a future start', async () => {
+        const future = new Date();
+        future.setDate(future.getDate() + 30);
+        const req = {
+            params: { id: String(oldAuth.id) }, user, db,
+            body: {
+                serviceCode: 'PCS', serviceName: 'Personal Care', authorizationNumber: 'A-NEW',
+                authorizedUnits: 48, authorizationStartDate: future.toISOString().slice(0, 10),
+                authorizationEndDate: '2099-05-31', renewalActivation: 'immediate',
+            },
+        };
+        const res = mockRes();
+        await ctrl.renewAuthorization(req, res, (e) => { throw e; });
+
+        expect(res.statusCode).toBe(201);
+        const reloadedOld = await prisma.authorization.findUnique({ where: { id: oldAuth.id } });
+        expect(reloadedOld.manualStatus).toBe('inactive');
+    });
+
+    // Explicit "Wait until start date" with a future start keeps the old auth active.
+    it('keeps the old auth active when renewalActivation is "scheduled" and start is future', async () => {
+        const future = new Date();
+        future.setDate(future.getDate() + 30);
+        const req = {
+            params: { id: String(oldAuth.id) }, user, db,
+            body: {
+                serviceCode: 'PCS', serviceName: 'Personal Care', authorizationNumber: 'A-NEW',
+                authorizedUnits: 48, authorizationStartDate: future.toISOString().slice(0, 10),
+                authorizationEndDate: '2099-05-31', renewalActivation: 'scheduled',
+            },
+        };
+        const res = mockRes();
+        await ctrl.renewAuthorization(req, res, (e) => { throw e; });
+
+        expect(res.statusCode).toBe(201);
+        const reloadedOld = await prisma.authorization.findUnique({ where: { id: oldAuth.id } });
+        expect(reloadedOld.manualStatus).toBe('active');
+    });
+
+    // End-to-end guard on the actual Scheduler / Care Plan gate: after a
+    // future-dated renewal, weekly authorization filtering must surface the
+    // CURRENT auth (with its current units) for weeks before the new start, and
+    // switch to the NEW auth for weeks on/after the new start. Reproduces the
+    // reported bug where the current auth vanished (0 units) the moment a future
+    // renewal was entered.
+    it('filterAuthsByWeek shows current auth before the new start and the new auth after', async () => {
+        // Old auth window: 2026-06-01 → 2026-12-31 (40 units). New auth: 2027-01-01 → ...
+        await prisma.authorization.update({
+            where: { id: oldAuth.id },
+            data: {
+                authorizationStartDate: new Date('2026-06-01T00:00:00'),
+                authorizationEndDate: new Date('2026-12-31T00:00:00'),
+                authorizedUnits: 40,
+            },
+        });
+        const req = {
+            params: { id: String(oldAuth.id) }, user, db,
+            body: {
+                serviceCode: 'PCS', serviceName: 'Personal Care', authorizationNumber: 'A-NEW',
+                authorizedUnits: 48, authorizationStartDate: '2027-01-01', authorizationEndDate: '2027-12-31',
+            },
+        };
+        const res = mockRes();
+        await ctrl.renewAuthorization(req, res, (e) => { throw e; });
+        expect(res.statusCode).toBe(201);
+
+        const auths = await prisma.authorization.findMany({ where: { clientId: client.id } });
+
+        // A week in December 2026 (before the new start) → the current 40-unit auth.
+        const beforeWeek = filterAuthsByWeek(auths, '2026-12-06', '2026-12-12');
+        expect(beforeWeek).toHaveLength(1);
+        expect(beforeWeek[0].authorizedUnits).toBe(40);
+        expect(beforeWeek[0].id).toBe(oldAuth.id);
+
+        // A week in January 2027 (on/after the new start) → the new 48-unit auth.
+        const afterWeek = filterAuthsByWeek(auths, '2027-01-03', '2027-01-09');
+        expect(afterWeek).toHaveLength(1);
+        expect(afterWeek[0].authorizedUnits).toBe(48);
+        expect(afterWeek[0].id).toBe(res.body.id);
     });
 });
 

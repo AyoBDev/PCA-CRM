@@ -57,7 +57,10 @@ async function createLead(req, res, next) {
     if (!(firstName || '').trim() && !(lastName || '').trim()) {
       return res.status(400).json({ error: 'firstName or lastName is required' });
     }
-    const lead = await req.db.lead.create({ data: sanitizeLeadBody(req.body) });
+    const data = sanitizeLeadBody(req.body);
+    if (!data.createdBy) data.createdBy = req.user.name;
+    data.stageEnteredAt = new Date();
+    const lead = await req.db.lead.create({ data });
     audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Lead', entityId: lead.id, entityName: leadName(lead) });
     res.status(201).json(lead);
   } catch (err) { next(err); }
@@ -81,6 +84,8 @@ async function setLeadStatus(req, res, next) {
     const existing = await req.db.lead.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Lead not found' });
     const data = { status, archivedAt: status === 'archived' ? new Date() : null };
+    // Reset the stuck-in-stage timer only when the stage actually changes.
+    if (existing.status !== status) data.stageEnteredAt = new Date();
     const lead = await req.db.lead.update({ where: { id }, data });
     audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Lead', entityId: id, entityName: leadName(lead), changes: [{ field: 'status', oldValue: existing.status, newValue: status }] });
     res.json(lead);
@@ -167,4 +172,80 @@ async function getLeadStats(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats };
+async function createLeadContact(req, res, next) {
+  try {
+    const leadId = Number(req.params.id);
+    const { outcome = '', method = 'call', note = '', followUpDate } = req.body;
+    if (!leadService.isTerminalOutcome(outcome) && !followUpDate) {
+      return res.status(400).json({ error: 'followUpDate required unless outcome is terminal' });
+    }
+    const nextDate = followUpDate ? new Date(followUpDate) : null;
+    const contact = await req.db.leadContact.create({
+      data: { leadId, outcome, method, note, followUpDate: nextDate, createdBy: req.user.name },
+    });
+    await req.db.lead.update({
+      where: { id: leadId },
+      data: { updatedAt: new Date(), ...(nextDate ? { followUpDate: nextDate } : {}) },
+    });
+    audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'LeadContact', entityId: contact.id, entityName: `Lead #${leadId} — ${outcome}`, metadata: { leadId } });
+    res.status(201).json(contact);
+  } catch (err) { next(err); }
+}
+
+async function listLeadContacts(req, res, next) {
+  try {
+    const leadId = Number(req.params.id);
+    const contacts = await req.db.leadContact.findMany({ where: { leadId }, orderBy: { createdAt: 'desc' } });
+    res.json(contacts);
+  } catch (err) { next(err); }
+}
+
+async function deleteLeadContact(req, res, next) {
+  try {
+    const contactId = Number(req.params.contactId);
+    const existing = await req.db.leadContact.findUnique({ where: { id: contactId } });
+    if (!existing) return res.json({ ok: true });
+    await req.db.leadContact.delete({ where: { id: contactId } });
+
+    // Revert the lead's followUpDate to the most recent REMAINING contact that
+    // set one, so a deleted contact doesn't leave a phantom follow-up commitment.
+    const leadId = existing.leadId;
+    const remaining = await req.db.leadContact.findMany({
+      where: { leadId, followUpDate: { not: null } },
+      orderBy: { createdAt: 'desc' },
+      take: 1,
+    });
+    const revertedFollowUp = remaining.length ? remaining[0].followUpDate : null;
+    await req.db.lead.update({ where: { id: leadId }, data: { followUpDate: revertedFollowUp } });
+
+    audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'DELETE', entityType: 'LeadContact', entityId: contactId, entityName: `Lead #${leadId} — ${existing.outcome}`, metadata: { leadId } });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+}
+
+async function getLeadReminders(req, res, next) {
+  try {
+    const buckets = await leadService.getReminders(req.db, req.user, new Date());
+    res.json(buckets);
+  } catch (err) { next(err); }
+}
+
+// Follow-up history for a CLIENT that originated from a converted lead.
+// Finds the lead whose convertedClientId matches, then returns its contacts.
+async function getClientLeadContacts(req, res, next) {
+  try {
+    const clientId = Number(req.params.id);
+    const lead = await req.db.lead.findFirst({
+      where: { convertedClientId: clientId },
+      select: { id: true },
+    });
+    if (!lead) return res.json([]);
+    const contacts = await req.db.leadContact.findMany({
+      where: { leadId: lead.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(contacts);
+  } catch (err) { next(err); }
+}
+
+module.exports = { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats, createLeadContact, listLeadContacts, deleteLeadContact, getLeadReminders, getClientLeadContacts };

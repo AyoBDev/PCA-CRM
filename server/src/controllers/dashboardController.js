@@ -53,7 +53,7 @@ async function getDashboardStats(req, res) {
     ]);
 
     const pendingOnboarding = await req.db.employee.count({
-        where: { onboardingStatus: 'submitted' },
+        where: { onboardingStatus: 'pending_review' },
     });
 
     const overdueRaw = await req.db.timesheet.findMany({

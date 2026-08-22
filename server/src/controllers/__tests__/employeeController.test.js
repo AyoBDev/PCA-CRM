@@ -1,12 +1,20 @@
-jest.mock('../../lib/prisma', () => ({
-    employee: {
+jest.mock('../../lib/tenantPrisma', () => {
+    const employee = {
         findMany: jest.fn(),
         findUnique: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
-    },
-}));
+    };
+    return {
+        // createEmployee wraps its create in tenantTransaction; the mock tx just
+        // proxies to the same jest.fn()s so existing per-test mockResolvedValue
+        // calls on prisma.employee.create continue to work unchanged.
+        tenantTransaction: jest.fn((agencyId, fn) => fn({ employee })),
+        __employee: employee,
+    };
+});
+jest.mock('../../services/requirementService', () => ({ assignRequirements: jest.fn().mockResolvedValue([]) }));
 jest.mock('../../services/auditService', () => ({ logAction: jest.fn() }));
 jest.mock('../../services/onboardingService', () => ({
     createOnboardingToken: jest.fn().mockResolvedValue({ token: 'test-token' }),
@@ -14,7 +22,11 @@ jest.mock('../../services/onboardingService', () => ({
 }));
 jest.mock('../../services/geocodeOnWrite', () => ({ geocodeOnWrite: jest.fn() }));
 
-const prisma = require('../../lib/prisma');
+// listEmployees/updateEmployee etc. read via req.db directly (not tenantTransaction) —
+// build a req.db double sharing the SAME employee jest.fn()s as the tenantTransaction
+// mock's tx, so a test that sets up prisma.employee.create.mockResolvedValue(...) works
+// whether the code path under test goes through req.db or the tx.
+const prisma = { employee: require('../../lib/tenantPrisma').__employee };
 const { geocodeOnWrite } = require('../../services/geocodeOnWrite');
 const { listEmployees, createEmployee } = require('../employeeController');
 

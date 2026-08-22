@@ -5,7 +5,7 @@ const { encrypt, decrypt } = require('../services/encryptionService');
 // constraints, so ciphertext at rest is query-safe.
 const PHI_FIELDS = {
     Client: ['medicaidId', 'dob', 'notes', 'pcaNotes'],
-    Employee: ['dob', 'notes'],
+    Employee: ['dob', 'notes', 'ssn'],
     HospitalVisit: ['providerName', 'location', 'purpose', 'notes'],
 };
 

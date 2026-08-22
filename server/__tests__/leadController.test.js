@@ -1,5 +1,6 @@
 jest.mock('../src/lib/prisma', () => ({
-  lead: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+  lead: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+  leadContact: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), delete: jest.fn() },
 }));
 jest.mock('../src/services/authorizationService', () => ({ enrichClient: (c) => c }));
 jest.mock('../src/services/auditService', () => ({ logAction: jest.fn() }));
@@ -142,6 +143,88 @@ describe('reactivateLead', () => {
   });
 });
 
+describe('createLeadContact', () => {
+  test('400 when non-terminal outcome has no followUpDate', async () => {
+    const res = mockRes();
+    await controller.createLeadContact(
+      { ...reqUser, params: { id: '5' }, body: { outcome: 'no_answer', note: 'rang out' } },
+      res, jest.fn()
+    );
+    expect(res.statusCode).toBe(400);
+  });
+  test('creates contact for terminal outcome without followUpDate', async () => {
+    prisma.leadContact.create.mockResolvedValue({ id: 9, leadId: 5, outcome: 'wrong_number' });
+    prisma.lead.update.mockResolvedValue({ id: 5 });
+    const res = mockRes();
+    await controller.createLeadContact(
+      { ...reqUser, params: { id: '5' }, body: { outcome: 'wrong_number', note: 'bad #' } },
+      res, jest.fn()
+    );
+    expect(res.statusCode).toBe(201);
+    expect(prisma.leadContact.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ leadId: 5, outcome: 'wrong_number', createdBy: 'Admin' }) })
+    );
+  });
+  test('writes followUpDate back to the lead when provided', async () => {
+    prisma.leadContact.create.mockResolvedValue({ id: 10, leadId: 5 });
+    prisma.lead.update.mockResolvedValue({ id: 5 });
+    const res = mockRes();
+    await controller.createLeadContact(
+      { ...reqUser, params: { id: '5' }, body: { outcome: 'no_answer', followUpDate: '2026-08-10' } },
+      res, jest.fn()
+    );
+    expect(res.statusCode).toBe(201);
+    expect(prisma.lead.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 5 }, data: expect.objectContaining({ followUpDate: expect.any(Date) }) })
+    );
+  });
+});
+
+describe('createLead sets createdBy from the authenticated user', () => {
+  test('createdBy is req.user.name', async () => {
+    prisma.lead.create.mockResolvedValue({ id: 7, firstName: 'Jane', lastName: 'Doe' });
+    const res = mockRes();
+    await controller.createLead({ ...reqUser, body: { firstName: 'Jane', lastName: 'Doe' } }, res, jest.fn());
+    expect(prisma.lead.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ createdBy: 'Admin' }) })
+    );
+  });
+});
+
+describe('deleteLeadContact', () => {
+  test('returns ok and does not throw when the contact does not exist', async () => {
+    prisma.leadContact.findUnique.mockResolvedValue(null);
+    const res = mockRes();
+    await controller.deleteLeadContact({ ...reqUser, params: { id: '5', contactId: '999' } }, res, jest.fn());
+    expect(res.body.ok).toBe(true);
+    expect(prisma.leadContact.delete).not.toHaveBeenCalled();
+  });
+
+  test('deletes the contact and reverts lead followUpDate to the most recent remaining contact', async () => {
+    prisma.leadContact.findUnique.mockResolvedValue({ id: 10, leadId: 5, followUpDate: new Date('2026-08-10'), outcome: 'no_answer' });
+    prisma.leadContact.delete.mockResolvedValue({});
+    const remainingDate = new Date('2026-08-05');
+    prisma.leadContact.findMany.mockResolvedValue([{ followUpDate: remainingDate }]);
+    prisma.lead.update.mockResolvedValue({ id: 5, followUpDate: remainingDate });
+    const res = mockRes();
+    await controller.deleteLeadContact({ ...reqUser, params: { id: '5', contactId: '10' } }, res, jest.fn());
+    expect(prisma.leadContact.delete).toHaveBeenCalledWith({ where: { id: 10 } });
+    expect(prisma.lead.update).toHaveBeenCalledWith({ where: { id: 5 }, data: { followUpDate: remainingDate } });
+    expect(res.body.ok).toBe(true);
+  });
+
+  test('reverts lead followUpDate to null when no contacts remain', async () => {
+    prisma.leadContact.findUnique.mockResolvedValue({ id: 10, leadId: 5, followUpDate: new Date('2026-08-10'), outcome: 'no_answer' });
+    prisma.leadContact.delete.mockResolvedValue({});
+    prisma.leadContact.findMany.mockResolvedValue([]);
+    prisma.lead.update.mockResolvedValue({ id: 5, followUpDate: null });
+    const res = mockRes();
+    await controller.deleteLeadContact({ ...reqUser, params: { id: '5', contactId: '10' } }, res, jest.fn());
+    expect(prisma.lead.update).toHaveBeenCalledWith({ where: { id: 5 }, data: { followUpDate: null } });
+    expect(res.body.ok).toBe(true);
+  });
+});
+
 describe('getLeadStats', () => {
   test('response includes a dormant count from prisma.lead.count', async () => {
     prisma.lead.findMany.mockResolvedValue([]);
@@ -150,5 +233,52 @@ describe('getLeadStats', () => {
     await controller.getLeadStats({ ...reqUser, query: {} }, res, jest.fn());
     expect(prisma.lead.count).toHaveBeenCalledWith({ where: { dormantAt: { not: null } } });
     expect(res.body.dormant).toBe(7);
+  });
+});
+
+describe('listLeadContacts', () => {
+  test('returns the leadʼs contacts newest-first', async () => {
+    const rows = [{ id: 2, leadId: 5 }, { id: 1, leadId: 5 }];
+    prisma.leadContact.findMany.mockResolvedValue(rows);
+    const res = mockRes();
+    await controller.listLeadContacts({ ...reqUser, params: { id: '5' } }, res, jest.fn());
+    expect(prisma.leadContact.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { leadId: 5 }, orderBy: { createdAt: 'desc' } })
+    );
+    expect(res.body).toBe(rows);
+  });
+});
+
+describe('getLeadReminders', () => {
+  test('returns the four reminder buckets', async () => {
+    prisma.lead.findMany.mockResolvedValue([]); // getReminders queries leads
+    const res = mockRes();
+    await controller.getLeadReminders(reqUser, res, jest.fn());
+    expect(res.body).toEqual({ due: [], stale_soon: [], new_untouched: [], stuck: [] });
+  });
+});
+
+describe('getClientLeadContacts', () => {
+  test('returns [] when no lead was converted into this client', async () => {
+    prisma.lead.findFirst.mockResolvedValue(null);
+    const res = mockRes();
+    await controller.getClientLeadContacts({ ...reqUser, params: { id: '9' } }, res, jest.fn());
+    expect(prisma.lead.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { convertedClientId: 9 } })
+    );
+    expect(res.body).toEqual([]);
+    expect(prisma.leadContact.findMany).not.toHaveBeenCalled();
+  });
+
+  test('returns the originating leadʼs contacts when one exists', async () => {
+    prisma.lead.findFirst.mockResolvedValue({ id: 42 });
+    const rows = [{ id: 1, leadId: 42 }];
+    prisma.leadContact.findMany.mockResolvedValue(rows);
+    const res = mockRes();
+    await controller.getClientLeadContacts({ ...reqUser, params: { id: '9' } }, res, jest.fn());
+    expect(prisma.leadContact.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { leadId: 42 }, orderBy: { createdAt: 'desc' } })
+    );
+    expect(res.body).toBe(rows);
   });
 });

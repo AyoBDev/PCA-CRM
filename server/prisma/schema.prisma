@@ -64,6 +64,13 @@ model Agency {
   ShiftCallout            ShiftCallout[]
   ShiftOffer              ShiftOffer[]
   LeadDocument            LeadDocument[]
+  LeadContact             LeadContact[]
+  DocumentType            DocumentType[]
+  CertType                CertType[]
+  PolicyDocument          PolicyDocument[]
+  EmployeeRequirement     EmployeeRequirement[]
+  EmployeeDocument        EmployeeDocument[]
+  EmployeePolicyAck       EmployeePolicyAck[]
 
   @@map("agencies")
 }
@@ -175,57 +182,69 @@ model EmployeeAvailability {
 }
 
 model Employee {
-  id                     Int                     @id @default(autoincrement())
-  name                   String
-  phone                  String                  @default("") @map("phone")
-  email                  String                  @default("") @map("email")
-  active                 Boolean                 @default(true) @map("active")
-  userId                 Int?                    @unique @map("user_id")
-  archivedAt             DateTime?               @map("archived_at")
-  createdAt              DateTime                @default(now()) @map("created_at")
-  updatedAt              DateTime                @updatedAt @map("updated_at")
-  dob                    String                  @default("") @map("dob")
-  address                String                  @default("") @map("address")
-  clientAssignment       String                  @default("") @map("client_assignment")
-  npi                    String                  @default("") @map("npi")
-  idExpDate              DateTime?               @map("id_exp_date")
-  firstAssignmentDate    DateTime?               @map("first_assignment_date")
-  tbDueDate              DateTime?               @map("tb_due_date")
-  tbType                 String                  @default("") @map("tb_type")
-  cprDueDate             DateTime?               @map("cpr_due_date")
-  trainingDueDate        DateTime?               @map("training_due_date")
-  backgroundCheckDueDate DateTime?               @map("background_check_due_date")
-  dischargeDate          DateTime?               @map("discharge_date")
-  status                 String                  @default("active") @map("status")
-  notes                  String                  @default("") @map("notes")
-  critical               Boolean                 @default(false) @map("critical")
-  complianceStatus       String                  @default("ok") @map("compliance_status")
-  onboardingStatus       String                  @default("active") @map("onboarding_status")
-  availability           Json?                   @map("availability")
-  latitude               Float?                  @map("latitude")
-  longitude              Float?                  @map("longitude")
-  geocodedAt             DateTime?               @map("geocoded_at")
-  geocodeStatus          String                  @default("pending") @map("geocode_status")
-  geocodeAddressHash     String                  @default("") @map("geocode_address_hash")
-  careTeamAssignments    ClientCareTeam[]
-  certifications         EmployeeCertification[]
-  scheduleLink           EmployeeScheduleLink?
-  onboardingToken        OnboardingToken?
-  employeeAvailability   EmployeeAvailability?
-  user                   User?                   @relation(fields: [userId], references: [id])
-  notifications          ScheduleNotification[]
-  shifts                 Shift[]
-  payrollProfile         PayrollProfile?
-  receipts               PayReceipt[]
-  availabilityRequests   AvailabilityRequest[]
-  timeOffRequests        TimeOffRequest[]
-  conversation           Conversation?
-  employeeTasks          EmployeeTask[]
-  portalNotifications    Notification[]
-  shiftOffers            ShiftOffer[]
-  shiftCallouts          ShiftCallout[]          @relation("CalloutEmployee")
-  agencyId               Int                     @map("agency_id")
-  agency                 Agency                  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  id                           Int                     @id @default(autoincrement())
+  name                         String
+  phone                        String                  @default("") @map("phone")
+  email                        String                  @default("") @map("email")
+  active                       Boolean                 @default(true) @map("active")
+  userId                       Int?                    @unique @map("user_id")
+  archivedAt                   DateTime?               @map("archived_at")
+  createdAt                    DateTime                @default(now()) @map("created_at")
+  updatedAt                    DateTime                @updatedAt @map("updated_at")
+  dob                          String                  @default("") @map("dob")
+  address                      String                  @default("") @map("address")
+  clientAssignment             String                  @default("") @map("client_assignment")
+  npi                          String                  @default("") @map("npi")
+  idExpDate                    DateTime?               @map("id_exp_date")
+  firstAssignmentDate          DateTime?               @map("first_assignment_date")
+  tbDueDate                    DateTime?               @map("tb_due_date")
+  tbType                       String                  @default("") @map("tb_type")
+  cprDueDate                   DateTime?               @map("cpr_due_date")
+  trainingDueDate              DateTime?               @map("training_due_date")
+  backgroundCheckDueDate       DateTime?               @map("background_check_due_date")
+  dischargeDate                DateTime?               @map("discharge_date")
+  status                       String                  @default("active") @map("status")
+  notes                        String                  @default("") @map("notes")
+  critical                     Boolean                 @default(false) @map("critical")
+  complianceStatus             String                  @default("ok") @map("compliance_status")
+  onboardingStatus             String                  @default("active") @map("onboarding_status")
+  availability                 Json?                   @map("availability")
+  latitude                     Float?                  @map("latitude")
+  longitude                    Float?                  @map("longitude")
+  geocodedAt                   DateTime?               @map("geocoded_at")
+  geocodeStatus                String                  @default("pending") @map("geocode_status")
+  geocodeAddressHash           String                  @default("") @map("geocode_address_hash")
+  gender                       String                  @default("") @map("gender")
+  preferredLanguage            String                  @default("") @map("preferred_language")
+  ssn                          String                  @default("") @map("ssn")
+  emergencyContactName         String                  @default("") @map("emergency_contact_name")
+  emergencyContactRelationship String                  @default("") @map("emergency_contact_relationship")
+  emergencyContactPhone        String                  @default("") @map("emergency_contact_phone")
+  emergencyContactEmail        String                  @default("") @map("emergency_contact_email")
+  onboardingDraft              Json?                   @map("onboarding_draft")
+  adminReviewNote              String                  @default("") @map("admin_review_note")
+  careTeamAssignments          ClientCareTeam[]
+  certifications               EmployeeCertification[]
+  scheduleLink                 EmployeeScheduleLink?
+  onboardingToken              OnboardingToken?
+  employeeAvailability         EmployeeAvailability?
+  user                         User?                   @relation(fields: [userId], references: [id])
+  notifications                ScheduleNotification[]
+  shifts                       Shift[]
+  payrollProfile               PayrollProfile?
+  receipts                     PayReceipt[]
+  availabilityRequests         AvailabilityRequest[]
+  timeOffRequests              TimeOffRequest[]
+  conversation                 Conversation?
+  employeeTasks                EmployeeTask[]
+  portalNotifications          Notification[]
+  shiftOffers                  ShiftOffer[]
+  shiftCallouts                ShiftCallout[]          @relation("CalloutEmployee")
+  requirements                 EmployeeRequirement[]
+  documents                    EmployeeDocument[]
+  policyAcks                   EmployeePolicyAck[]
+  agencyId                     Int                     @map("agency_id")
+  agency                       Agency                  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([agencyId])
   @@map("employees")
@@ -264,6 +283,10 @@ model CertificationUpload {
   fileType        String                @map("file_type")
   note            String                @default("") @map("note")
   submittedAt     DateTime              @default(now()) @map("submitted_at")
+  uploadedById    Int?                  @map("uploaded_by_id")
+  uploadedByName  String                @default("") @map("uploaded_by_name")
+  effectiveDate   DateTime?             @map("effective_date")
+  expirationDate  DateTime?             @map("expiration_date")
   certification   EmployeeCertification @relation(fields: [certificationId], references: [id], onDelete: Cascade)
   agencyId        Int                   @map("agency_id")
   agency          Agency                @relation(fields: [agencyId], references: [id], onDelete: Cascade)
@@ -606,12 +629,17 @@ model Lead {
   // conversion can restore it to where it was (empty = pre-feature / unknown).
   preConvertStatus  String    @default("") @map("pre_convert_status")
 
-  archivedAt DateTime? @map("archived_at")
-  dormantAt  DateTime? @map("dormant_at")
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
-  agencyId   Int       @map("agency_id")
-  agency     Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  archivedAt     DateTime?     @map("archived_at")
+  dormantAt      DateTime?     @map("dormant_at")
+  // When the lead last entered its current pipeline stage (status). Used by the
+  // "stuck in a stage" reminder so unrelated edits (e.g. logging a contact,
+  // which bumps updatedAt) don't reset the stuck timer. Null = pre-feature rows.
+  stageEnteredAt DateTime?     @map("stage_entered_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  agencyId       Int           @map("agency_id")
+  agency         Agency        @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  contacts       LeadContact[]
 
   documents LeadDocument[]
 
@@ -619,6 +647,24 @@ model Lead {
   @@index([dormantAt])
   @@index([agencyId])
   @@map("leads")
+}
+
+model LeadContact {
+  id           Int       @id @default(autoincrement())
+  leadId       Int       @map("lead_id")
+  outcome      String    @default("")
+  method       String    @default("call")
+  note         String    @default("")
+  followUpDate DateTime? @map("follow_up_date")
+  createdBy    String    @default("") @map("created_by")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  lead         Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  agencyId     Int       @map("agency_id")
+  agency       Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([agencyId])
+  @@map("lead_contacts")
 }
 
 // Files/images attached to a lead at intake (referral scans, forms, photos).
@@ -1331,4 +1377,116 @@ model PermissionGroup {
   @@unique([agencyId, name])
   @@index([agencyId])
   @@map("permission_groups")
+}
+
+model DocumentType {
+  id             Int     @id @default(autoincrement())
+  key            String
+  label          String
+  requiresExpiry Boolean @default(false) @map("requires_expiry")
+  active         Boolean @default(true)
+  sortOrder      Int     @default(0) @map("sort_order")
+  agencyId       Int     @map("agency_id")
+  agency         Agency  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@unique([agencyId, key])
+  @@index([agencyId])
+  @@map("document_types")
+}
+
+model CertType {
+  id             Int     @id @default(autoincrement())
+  key            String
+  label          String
+  renewalYears   Int?    @map("renewal_years")
+  requiresExpiry Boolean @default(true) @map("requires_expiry")
+  active         Boolean @default(true)
+  sortOrder      Int     @default(0) @map("sort_order")
+  agencyId       Int     @map("agency_id")
+  agency         Agency  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@unique([agencyId, key])
+  @@index([agencyId])
+  @@map("cert_types")
+}
+
+model PolicyDocument {
+  id        Int                 @id @default(autoincrement())
+  key       String
+  title     String
+  body      String?
+  fileKey   String?             @map("file_key")
+  version   Int                 @default(1)
+  active    Boolean             @default(true)
+  sortOrder Int                 @default(0) @map("sort_order")
+  acks      EmployeePolicyAck[]
+  agencyId  Int                 @map("agency_id")
+  agency    Agency              @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@unique([agencyId, key])
+  @@index([agencyId])
+  @@map("policy_documents")
+}
+
+model EmployeeRequirement {
+  id              Int       @id @default(autoincrement())
+  employeeId      Int       @map("employee_id")
+  kind            String
+  catalogTypeId   Int       @map("catalog_type_id")
+  status          String    @default("required")
+  // Optional requirements are shown to the employee but do NOT gate onboarding
+  // submission — they can be uploaded later from the app/Profile.
+  optional        Boolean   @default(false)
+  rejectionReason String    @default("") @map("rejection_reason")
+  reviewStatus    String    @default("pending") @map("review_status")
+  dueDate         DateTime? @map("due_date")
+  documentId      Int?      @map("document_id")
+  certificationId Int?      @map("certification_id")
+  policyAckId     Int?      @map("policy_ack_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  employee        Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  agencyId        Int       @map("agency_id")
+  agency          Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, kind])
+  @@index([agencyId])
+  @@map("employee_requirements")
+}
+
+model EmployeeDocument {
+  id             Int       @id @default(autoincrement())
+  employeeId     Int       @map("employee_id")
+  documentTypeId Int       @map("document_type_id")
+  storageKey     String    @map("storage_key")
+  fileName       String    @map("file_name")
+  fileType       String    @map("file_type")
+  fileSize       Int       @map("file_size")
+  expirationDate DateTime? @map("expiration_date")
+  status         String    @default("submitted")
+  uploadedAt     DateTime  @default(now()) @map("uploaded_at")
+  employee       Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  agencyId       Int       @map("agency_id")
+  agency         Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([agencyId])
+  @@map("employee_documents")
+}
+
+model EmployeePolicyAck {
+  id               Int            @id @default(autoincrement())
+  employeeId       Int            @map("employee_id")
+  policyDocumentId Int            @map("policy_document_id")
+  policyVersion    Int            @map("policy_version")
+  acknowledgedAt   DateTime       @default(now()) @map("acknowledged_at")
+  ipAddress        String?        @map("ip_address")
+  employee         Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  policyDocument   PolicyDocument @relation(fields: [policyDocumentId], references: [id], onDelete: Cascade)
+  agencyId         Int            @map("agency_id")
+  agency           Agency         @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([agencyId])
+  @@map("employee_policy_acks")
 }

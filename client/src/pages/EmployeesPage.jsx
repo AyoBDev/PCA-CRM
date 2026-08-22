@@ -11,6 +11,7 @@ import ContextBar from '../components/common/ContextBar';
 import { useUndoStack } from '../hooks/useUndoStack';
 import { getInitials, getAvatarColor } from '../utils/ui';
 import { formatDate as fmtDate } from '../utils/dates';
+import { ONBOARDING_STATUS_LABELS, ONBOARDING_STATUS_BADGE_VARIANT } from '../utils/constants';
 
 const CERT_FIELDS = [
     { key: 'tbDueDate', label: 'TB' },
@@ -138,6 +139,8 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
 
     const handleNext = () => {
         if (!name.trim()) { showToast('Name is required'); return; }
+        // Email is required for new hires — it's how the onboarding invite is sent.
+        if (!employee && !email.trim()) { showToast('Email is required'); return; }
         setStep(2);
     };
 
@@ -151,6 +154,19 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
         }
         data._certDates = certDates;
         data._certFiles = certFiles;
+        if (!employee) {
+            // Certifications the admin did NOT provide (no expiration date and no
+            // attachment) become OPTIONAL onboarding requirements — the new hire can
+            // upload them later from the app. Ones the admin filled are already on file.
+            const certTypeKeys = FORM_CERT_TYPES
+                .filter(c => {
+                    const hasDate = Boolean(certDates[c.type]?.expiration);
+                    const hasFile = Boolean(certFiles[c.type]);
+                    return !hasDate && !hasFile;
+                })
+                .map(c => c.type);
+            data.requirementSelections = { certTypeKeys, optional: true };
+        }
         onSave(data);
     };
 
@@ -195,8 +211,8 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
                                 <input id="empPhone" value={phone} onChange={e => setPhone(e.target.value)} placeholder="(555) 123-4567" />
                             </div>
                             <div className="form-group">
-                                <label htmlFor="empEmail">Email</label>
-                                <input id="empEmail" type="email" value={email} onChange={e => setEmail(e.target.value)} />
+                                <label htmlFor="empEmail">Email {!employee && '*'}</label>
+                                <input id="empEmail" type="email" value={email} onChange={e => setEmail(e.target.value)} required={!employee} />
                             </div>
                         </div>
                         <div className="form-grid-2">
@@ -266,14 +282,15 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
             <div className="wizard-nav">
                 <div>
                     {step > 1 && (
-                        <button type="button" className="btn btn--outline" onClick={() => setStep(1)}>Back</button>
+                        <button type="button" className="btn btn--outline" onClick={() => setStep(step - 1)}>Back</button>
                     )}
                 </div>
                 <div className="wizard-nav__right">
                     <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
-                    {step === 1 ? (
+                    {step === 1 && (
                         <button type="button" className="btn btn--primary" onClick={handleNext}>Next</button>
-                    ) : (
+                    )}
+                    {(step === steps.length) && (
                         <button type="button" className="btn btn--primary" onClick={handleSubmit}>
                             {employee ? 'Save Changes' : 'Add Employee'}
                         </button>
@@ -431,11 +448,20 @@ export default function EmployeesPage() {
     };
 
     const handleToggleActive = async (emp) => {
+        const prev = emp.active;
+        const next = !prev;
+        const apply = (val) => setEmployees(list => list.map(e => e.id === emp.id ? { ...e, active: val } : e));
+        apply(next);
         try {
-            await api.updateEmployee(emp.id, { active: !emp.active });
-            showToast(emp.active ? 'Employee deactivated' : 'Employee activated');
-            fetchData();
+            await api.updateEmployee(emp.id, { active: next });
+            undoState.pushAction(
+                `${next ? 'Activated' : 'Deactivated'} ${emp.name}`,
+                async () => { await api.updateEmployee(emp.id, { active: prev }); apply(prev); },
+                async () => { await api.updateEmployee(emp.id, { active: next }); apply(next); },
+            );
+            showToast(next ? 'Employee activated' : 'Employee deactivated');
         } catch (err) {
+            apply(prev);
             showToast(err.message, 'error');
         }
     };
@@ -727,8 +753,11 @@ export default function EmployeesPage() {
                                                         <div>
                                                             <div style={{ fontWeight: 500, color: 'hsl(var(--primary))', display: 'flex', alignItems: 'center', gap: 6 }}>
                                                                 {emp.name}
-                                                                {emp.onboardingStatus === 'invited' && <span className="ts-badge ts-badge--draft" style={{ fontSize: 10 }}>Invited</span>}
-                                                                {emp.onboardingStatus === 'submitted' && <span className="ts-badge ts-badge--submitted" style={{ fontSize: 10 }}>Pending Review</span>}
+                                                                {ONBOARDING_STATUS_BADGE_VARIANT[emp.onboardingStatus] && (
+                                                                    <span className={`ts-badge ts-badge--${ONBOARDING_STATUS_BADGE_VARIANT[emp.onboardingStatus]}`} style={{ fontSize: 10 }}>
+                                                                        {ONBOARDING_STATUS_LABELS[emp.onboardingStatus]}
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                             {emp.email && <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>{emp.email}</div>}
                                                         </div>
@@ -761,6 +790,9 @@ export default function EmployeesPage() {
                                                                 </button>
                                                                 <button className="btn btn--ghost btn--icon" onClick={() => setModal({ type: 'form', employee: emp })} title="Edit">
                                                                     {Icons.edit}
+                                                                </button>
+                                                                <button className="btn btn--ghost btn--sm" onClick={() => handleToggleActive(emp)} title={emp.active ? 'Set Inactive' : 'Set Active'}>
+                                                                    {emp.active ? 'Deactivate' : 'Activate'}
                                                                 </button>
                                                                 <button className="btn btn--danger-ghost btn--icon" onClick={() => setModal({ type: 'confirmDelete', employee: emp })} title="Delete">
                                                                     {Icons.trash}

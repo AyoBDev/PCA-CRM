@@ -1,6 +1,8 @@
 const audit = require('../services/auditService');
 const onboarding = require('../services/onboardingService');
 const { geocodeOnWrite } = require('../services/geocodeOnWrite');
+const { assignRequirements } = require('../services/requirementService');
+const { tenantTransaction } = require('../lib/tenantPrisma');
 
 async function listEmployees(req, res, next) {
     try {
@@ -30,27 +32,41 @@ async function getEmployee(req, res, next) {
 
 async function createEmployee(req, res, next) {
     try {
-        const { name, phone, email, userId, address } = req.body;
+        const { name, phone, email, userId, address, requirementSelections } = req.body;
         if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
 
-        const employee = await req.db.employee.create({
-            data: {
-                name: name.trim(),
-                phone: phone || '',
-                email: email || '',
-                address: (address || '').trim(),
-                userId: userId || null,
-            },
-            include: { user: { select: { id: true, name: true, email: true, role: true } } },
+        const { employee, requirements } = await tenantTransaction(req.user.agencyId, async (tx) => {
+            const employee = await tx.employee.create({
+                data: {
+                    name: name.trim(),
+                    phone: phone || '',
+                    email: email || '',
+                    address: (address || '').trim(),
+                    userId: userId || null,
+                    agencyId: req.user.agencyId,
+                },
+                include: { user: { select: { id: true, name: true, email: true, role: true } } },
+            });
+
+            let requirements = [];
+            if (requirementSelections) {
+                requirements = await assignRequirements(tx, employee.id, requirementSelections, req.user.agencyId);
+            }
+
+            return { employee, requirements };
         });
+
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name });
+        if (requirements.length) {
+            audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'EmployeeRequirement', entityId: employee.id, entityName: employee.name, metadata: { count: requirements.length } });
+        }
         // Geocode immediately so a new employee has a distance without a later edit.
         geocodeOnWrite('employee', employee.id, { oldAddress: '', newAddress: employee.address });
 
         // Auto-send onboarding invite if email provided and no user account linked
         if (employee.email && !userId) {
-            await req.db.employee.update({ where: { id: employee.id }, data: { onboardingStatus: 'invited' } });
-            employee.onboardingStatus = 'invited';
+            await req.db.employee.update({ where: { id: employee.id }, data: { onboardingStatus: 'invitation_pending' } });
+            employee.onboardingStatus = 'invitation_pending';
             const token = await onboarding.createOnboardingToken(req.db, employee.id);
             onboarding.sendOnboardingEmail(employee, token).catch(err => console.error('Onboarding email failed:', err.message));
             audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'onboarding_invite_sent' } });

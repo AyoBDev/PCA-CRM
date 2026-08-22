@@ -35,13 +35,18 @@ function buildAuthTypeFields(body) {
 }
 
 async function deactivatePreviousAuths(db, clientId, serviceCode, serviceName, excludeId, auditContext) {
+    // `excludeId` may be a single id or an array of ids to leave untouched.
+    // A future-dated renewal passes both the new auth AND the still-active
+    // renewed-from auth here, so the current authorization is not clobbered
+    // before its effective date.
+    const excludeIds = Array.isArray(excludeId) ? excludeId : [excludeId];
     // Program codes allow multiple active auths with different service names
     const where = {
         clientId,
         serviceCode,
         manualStatus: 'active',
         archivedAt: null,
-        id: { not: excludeId },
+        id: { notIn: excludeIds },
     };
     if (MULTI_AUTH_CODES.includes(serviceCode) && serviceName) {
         where.serviceName = serviceName;
@@ -243,11 +248,6 @@ async function updateAccountNumber(req, res, next) {
             where: { id },
             data: { accountNumber: (accountNumber || '').trim() },
         });
-        // Propagate to active shifts for this client + serviceCode
-        await req.db.shift.updateMany({
-            where: { clientId: auth.clientId, serviceCode: auth.serviceCode, archivedAt: null },
-            data: { accountNumber: (accountNumber || '').trim() },
-        });
         res.json(enrichAuthorization(auth));
     } catch (err) {
         if (err.code === 'P2025') return res.status(404).json({ error: 'Authorization not found' });
@@ -262,11 +262,6 @@ async function updateSandataClientId(req, res, next) {
         const { sandataClientId } = req.body;
         const auth = await req.db.authorization.update({
             where: { id },
-            data: { sandataClientId: (sandataClientId || '').trim() },
-        });
-        // Propagate to active shifts for this client + serviceCode
-        await req.db.shift.updateMany({
-            where: { clientId: auth.clientId, serviceCode: auth.serviceCode, archivedAt: null },
             data: { sandataClientId: (sandataClientId || '').trim() },
         });
         res.json(enrichAuthorization(auth));
@@ -317,6 +312,31 @@ async function renewAuthorization(req, res, next) {
         // Server-authoritative close date: the day before the new auth starts.
         const closeDateStr = newStart ? dayBefore(newStart) : null;
 
+        // Renewal activation is an EXPLICIT choice made in the confirmation modal
+        // ("Wait until start date" vs "Start immediately"), not inferred here.
+        // Dates remain the source of truth for what is current; this flag only
+        // decides whether the current authorization is retired now.
+        //
+        //   scheduled  → keep the current auth `active`; its end date is moved to
+        //                the day before the new start, so date-range filtering
+        //                (server `filterAuthsByWeek` + client Scheduler/Care Plan)
+        //                keeps showing the current units until the new start date,
+        //                then hands over automatically. Only valid for a future
+        //                start (a start today/earlier can't be "waited for").
+        //   immediate  → retire the current auth now; the renewal becomes current
+        //                today even if its start date is in the future.
+        //
+        // Back-compat: if the client sends no flag, fall back to date inference
+        // (future start ⇒ scheduled) so older callers keep the fixed behavior.
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const startIsFuture = !!newStart && newStart > todayStr;
+        const activation = req.body.renewalActivation === 'immediate' ? 'immediate'
+            : req.body.renewalActivation === 'scheduled' ? 'scheduled'
+            : (startIsFuture ? 'scheduled' : 'immediate');
+        // A "scheduled" renewal only defers retirement when the start is actually
+        // in the future; otherwise there is nothing to wait for.
+        const deferRetire = activation === 'scheduled' && startIsFuture;
+
         // Both writes must be atomic under RLS; batch $transaction([...]) arrays are
         // not supported on the extended tenant client, so use an interactive transaction.
         const newAuth = await tenantTransaction(req.user.agencyId, async (tx) => {
@@ -344,7 +364,9 @@ async function renewAuthorization(req, res, next) {
             await tx.authorization.update({
                 where: { id: oldId },
                 data: {
-                    manualStatus: 'inactive',
+                    // Future renewal: keep the current auth active until its (moved) end
+                    // date passes. Immediate/backdated renewal: retire it now.
+                    ...(deferRetire ? {} : { manualStatus: 'inactive' }),
                     closedAt: new Date(),
                     renewedToId: created.id,
                     // Parses at local midnight by convention, matching the note in server/src/lib/authDates.js.
@@ -355,9 +377,12 @@ async function renewAuthorization(req, res, next) {
         });
 
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Authorization', entityId: newAuth.id, entityName: `${req.body.serviceCode} (renewal)`, metadata: { renewedFromId: oldId } });
-        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: oldId, entityName: oldAuth.serviceCode, changes: [{ field: 'manualStatus', oldValue: oldAuth.manualStatus, newValue: 'inactive' }], metadata: { reason: 'renewed', renewedToId: newAuth.id } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: oldId, entityName: oldAuth.serviceCode, changes: [{ field: 'manualStatus', oldValue: oldAuth.manualStatus, newValue: deferRetire ? (oldAuth.manualStatus || 'active') : 'inactive' }], metadata: { reason: 'renewed', renewedToId: newAuth.id, effectiveStart: newStart || null, activation } });
 
-        await deactivatePreviousAuths(req.db, clientId, newAuth.serviceCode, (req.body.serviceName || '').trim(), newAuth.id, {
+        // On a scheduled (deferred) renewal, keep the current auth out of the
+        // "superseded" sweep so it stays active until its effective end date.
+        const excludeFromDeactivate = deferRetire ? [newAuth.id, oldId] : newAuth.id;
+        await deactivatePreviousAuths(req.db, clientId, newAuth.serviceCode, (req.body.serviceName || '').trim(), excludeFromDeactivate, {
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
         });
 

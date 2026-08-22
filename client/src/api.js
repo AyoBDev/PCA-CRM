@@ -166,6 +166,16 @@ export const revertLeadConversion = (id) => request(`/leads/${id}/revert-convers
 export const reactivateLead = (id, columnId) =>
   request(`/leads/${id}/reactivate`, { method: 'POST', body: JSON.stringify({ status: columnId }) });
 export const getLeadStats = () => request('/leads/stats');
+export const getLeadReminders = () => request('/leads/reminders');
+// Admin-only: employees who submitted onboarding and await review.
+export const getOnboardingReviews = () => request('/onboarding/reviews');
+export const getOnboardingReviewDetail = (employeeId) => request(`/employees/${employeeId}/onboarding-review`);
+export const listLeadContacts = (leadId) => request(`/leads/${leadId}/contacts`);
+export const listClientLeadContacts = (clientId) => request(`/clients/${clientId}/lead-contacts`);
+export const createLeadContact = (leadId, body) =>
+    request(`/leads/${leadId}/contacts`, { method: 'POST', body: JSON.stringify(body) });
+export const deleteLeadContact = (leadId, contactId) =>
+    request(`/leads/${leadId}/contacts/${contactId}`, { method: 'DELETE' });
 
 // Bulk Import
 export const bulkImport = (file) => {
@@ -316,13 +326,7 @@ export const uploadAuthDocument = (authId, formData) => {
 export const downloadAuthDocument = (id) => {
     const headers = {};
     if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-    return fetch(`${BASE}/auth-documents/${id}/download`, { headers })
-        .then(async res => {
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const contentType = res.headers.get('Content-Type') || 'application/octet-stream';
-            const arrayBuffer = await res.arrayBuffer();
-            return new Blob([arrayBuffer], { type: contentType });
-        });
+    return fetch(`${BASE}/auth-documents/${id}/download`, { headers });
 };
 export const deleteAuthDocument = (id) =>
     request(`/auth-documents/${id}`, { method: 'DELETE' });
@@ -932,9 +936,17 @@ export async function resendOnboardingInvite(employeeId) {
     return request(`/employees/${employeeId}/resend-invite`, { method: 'POST' });
 }
 
-export async function approveOnboarding(employeeId) {
-    return request(`/employees/${employeeId}/approve-onboarding`, { method: 'PATCH' });
-}
+export const reviewRequirementItem = (employeeId, reqId, decision, reason) =>
+  request(`/employees/${employeeId}/requirements/${reqId}/review`, { method: 'PATCH', body: JSON.stringify({ decision, reason }) });
+export const finalizeOnboarding = (employeeId) =>
+  request(`/employees/${employeeId}/onboarding/finalize`, { method: 'POST' });
+// Whole-submission review decisions (the 3 review-modal buttons).
+export const approveOnboardingSubmission = (employeeId) =>
+  request(`/employees/${employeeId}/onboarding/approve`, { method: 'POST' });
+export const sendBackOnboarding = (employeeId, note) =>
+  request(`/employees/${employeeId}/onboarding/send-back`, { method: 'POST', body: JSON.stringify({ note }) });
+export const rejectOnboardingSubmission = (employeeId, note) =>
+  request(`/employees/${employeeId}/onboarding/reject`, { method: 'POST', body: JSON.stringify({ note }) });
 
 export async function getEmployeeAvailability(employeeId) {
     return request(`/employees/${employeeId}/availability`);
@@ -1007,3 +1019,18 @@ export const getHostInfo = () =>
         }
         return res.json();
     });
+
+// ── Onboarding Catalogs ──
+// Pass { all: true } to include inactive rows (admin management page).
+// Default (no arg) stays active-only, e.g. for assign-picker consumers.
+export const getCatalogDocuments = ({ all } = {}) => request(`/catalogs/documents${all ? '?all=1' : ''}`);
+export const getCatalogCertTypes = ({ all } = {}) => request(`/catalogs/cert-types${all ? '?all=1' : ''}`);
+export const getCatalogPolicies = ({ all } = {}) => request(`/catalogs/policies${all ? '?all=1' : ''}`);
+export const createCatalog = (kind, body) =>
+    request(`/catalogs/${kind}`, { method: 'POST', body: JSON.stringify(body) });
+export const updateCatalog = (kind, id, body) =>
+    request(`/catalogs/${kind}/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+export const setCatalogActive = (kind, id, active) =>
+    request(`/catalogs/${kind}/${id}/active`, { method: 'PATCH', body: JSON.stringify({ active }) });
+export const reorderCatalog = (kind, ids) =>
+    request(`/catalogs/${kind}/reorder`, { method: 'PATCH', body: JSON.stringify({ ids }) });

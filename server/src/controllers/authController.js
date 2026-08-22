@@ -8,13 +8,19 @@ const { runWithTenant } = require('../lib/tenantContext');
 
 const TOKEN_EXPIRY = '24h';
 
-function signToken(user, permissions) {
+// `surface` records which app the token was issued for: 'admin' (the office/admin
+// web app, via /auth/login) or 'employee' (the PCA portal, via /auth/employee-login).
+// Route middleware enforces the boundary so an employee-portal token can't be used
+// against admin APIs and vice-versa. Defaults to 'admin' so any pre-existing token
+// minted before this claim keeps working in the admin app.
+function signToken(user, permissions, surface = 'admin') {
     return jwt.sign(
         {
             id: user.id,
             email: user.email,
             name: user.name,
             role: user.role,
+            surface,
             permissionGroupId: user.permissionGroupId ?? null,
             permissions: Array.isArray(permissions) ? permissions : [],
             permissionsVersion: user.permissionsVersion ?? 1,
@@ -56,14 +62,16 @@ async function login(req, res, next) {
         if (!user.active) {
             return res.status(403).json({ error: 'This account has been deactivated. Please contact your administrator.' });
         }
+        // Caregivers belong in the Employee Portal, never the admin app. Check this
+        // BEFORE the pending-status gate so an employee always gets the clear
+        // "use the Employee Portal" message rather than a misleading "pending approval"
+        // one. (Belt-and-suspenders — the token's `surface` claim, enforced by route
+        // middleware, is the primary boundary.)
+        if (user.role === 'pca') {
+            return res.status(403).json({ error: 'Please use the Employee Portal to log in.' });
+        }
         if (user.status === 'pending') {
             return res.status(403).json({ error: 'Your account is pending admin approval. You will receive an email when activated.' });
-        }
-        if (user.role === 'pca') {
-            const employee = await prisma.employee.findUnique({ where: { userId: user.id } });
-            if (employee) {
-                return res.status(403).json({ error: 'Please use the Employee Portal to log in.' });
-            }
         }
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) {
@@ -74,7 +82,7 @@ async function login(req, res, next) {
             : null;
         const permissions = group && Array.isArray(group.permissions) ? group.permissions : [];
         user._agencySlug = req.agency ? req.agency.slug : null;
-        const token = signToken(user, permissions);
+        const token = signToken(user, permissions, 'admin');
         // login fires before tenantMiddleware establishes context; wrap the
         // fire-and-forget audit call so getAgencyId() stamps it correctly.
         runWithTenant({ agencyId: user.agencyId ?? null, db: null }, () => {
@@ -103,11 +111,13 @@ async function getMe(req, res, next) {
         const permissions = user.permissionGroup && Array.isArray(user.permissionGroup.permissions)
             ? user.permissionGroup.permissions
             : [];
+        const employee = await prisma.employee.findUnique({ where: { userId: user.id }, select: { onboardingStatus: true } });
         res.json({
             id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone,
             permissionGroupId: user.permissionGroupId ?? null,
             permissions,
             permissionsVersion: user.permissionsVersion ?? 1,
+            onboardingStatus: employee ? employee.onboardingStatus : null,
         });
     } catch (err) { next(err); }
 }
@@ -232,7 +242,9 @@ async function resetPassword(req, res, next) {
         const user = await req.db.user.findUnique({ where: { id } });
         if (!user) return res.status(404).json({ error: 'User not found' });
         const passwordHash = await bcrypt.hash(password, 10);
-        await req.db.user.update({ where: { id }, data: { passwordHash } });
+        // Bump permissionsVersion so all of the user's existing tokens are
+        // rejected on their next request, forcing a re-login with the new password.
+        await req.db.user.update({ where: { id }, data: { passwordHash, permissionsVersion: { increment: 1 } } });
 
         // Send password reset email (fire-and-forget)
         if (isEmailConfigured()) {
@@ -385,8 +397,10 @@ async function resetPasswordWithToken(req, res, next) {
         }
 
         const passwordHash = await bcrypt.hash(password, 10);
+        // Bump permissionsVersion so all of the user's existing tokens are
+        // rejected on their next request, forcing a re-login with the new password.
         await prisma.$transaction([
-            prisma.user.update({ where: { id: resetToken.userId }, data: { passwordHash } }),
+            prisma.user.update({ where: { id: resetToken.userId }, data: { passwordHash, permissionsVersion: { increment: 1 } } }),
             prisma.passwordResetToken.update({ where: { id: resetToken.id }, data: { usedAt: new Date() } }),
         ]);
 
@@ -412,12 +426,18 @@ async function employeeLogin(req, res, next) {
         if (!user.active) {
             return res.status(403).json({ error: 'This account has been deactivated. Please contact your administrator.' });
         }
-        if (user.status === 'pending') {
-            return res.status(403).json({ error: 'Your account is pending admin approval. You will receive an email when activated.' });
-        }
+        // Fetch the linked employee up front so the pending-status gate below can be
+        // relaxed for employees who are actively onboarding. The portal keeps them on
+        // the onboarding-only screen via employee.onboardingStatus + the App gate; a
+        // pending user.status must NOT lock them out of the very portal they need to
+        // reach to fix things and re-submit.
         const employee = await prisma.employee.findUnique({ where: { userId: user.id } });
         if (!employee) {
-            return res.status(403).json({ error: 'No employee profile is linked to this account.' });
+            return res.status(403).json({ error: 'This account is not an employee account. Please use the admin app to log in.' });
+        }
+        const ONBOARDING_LOGIN_STATUSES = ['pending_review', 'changes_requested'];
+        if (user.status === 'pending' && !ONBOARDING_LOGIN_STATUSES.includes(employee.onboardingStatus)) {
+            return res.status(403).json({ error: 'Your account is pending admin approval. You will receive an email when activated.' });
         }
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) {
@@ -428,7 +448,7 @@ async function employeeLogin(req, res, next) {
             : null;
         const permissions = group && Array.isArray(group.permissions) ? group.permissions : [];
         user._agencySlug = req.agency ? req.agency.slug : null;
-        const token = signToken(user, permissions);
+        const token = signToken(user, permissions, 'employee');
         // employeeLogin fires before tenantMiddleware establishes context; wrap
         // the fire-and-forget audit call so getAgencyId() stamps it correctly.
         runWithTenant({ agencyId: user.agencyId ?? null, db: null }, () => {
@@ -441,6 +461,7 @@ async function employeeLogin(req, res, next) {
                 permissionGroupId: user.permissionGroupId ?? null,
                 permissions,
                 permissionsVersion: user.permissionsVersion ?? 1,
+                onboardingStatus: employee.onboardingStatus,
             },
         });
     } catch (err) { next(err); }

@@ -18,7 +18,7 @@ async function getWeekSchedule(req, res) {
       shiftDate: { gte: weekStart, lt: weekEnd },
       archivedAt: null,
     },
-    include: { client: { select: { clientName: true, address: true, phone: true, gateCode: true } } },
+    include: { client: { select: { clientName: true, address: true, phone: true, gateCode: true, mainServices: true, carePlanSchedule: true, caregiverRequirements: true } } },
     orderBy: [{ shiftDate: 'asc' }, { startTime: 'asc' }],
   });
 

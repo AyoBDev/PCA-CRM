@@ -16,8 +16,13 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-    await prisma.employeeAvailability.deleteMany({});
-    await prisma.onboardingToken.deleteMany({});
+    // Scoped to THIS test's employee only — an unscoped deleteMany({}) here
+    // previously wiped every onboarding token / availability row globally,
+    // racing with any other test file mid-flight against the shared DB.
+    if (testEmployee) {
+        await prisma.employeeAvailability.deleteMany({ where: { employeeId: testEmployee.id } });
+        await prisma.onboardingToken.deleteMany({ where: { employeeId: testEmployee.id } });
+    }
     await prisma.employee.deleteMany({ where: { email: 'newpca@test.com' } });
     await prisma.user.deleteMany({ where: { email: { in: ['onboard-test-admin@test.com', 'newpca@test.com'] } } });
 });
@@ -29,7 +34,7 @@ describe('Onboarding Flow', () => {
             .set('Authorization', `Bearer ${adminToken}`)
             .send({ name: 'New PCA', email: 'newpca@test.com' });
         expect(res.status).toBe(201);
-        expect(res.body.onboardingStatus).toBe('invited');
+        expect(res.body.onboardingStatus).toBe('invitation_pending');
         testEmployee = res.body;
 
         const token = await prisma.onboardingToken.findUnique({ where: { employeeId: testEmployee.id } });
@@ -70,7 +75,7 @@ describe('Onboarding Flow', () => {
         expect(res.body.success).toBe(true);
 
         const employee = await prisma.employee.findUnique({ where: { id: testEmployee.id } });
-        expect(employee.onboardingStatus).toBe('submitted');
+        expect(employee.onboardingStatus).toBe('pending_review');
 
         const user = await prisma.user.findFirst({ where: { email: 'newpca@test.com' } });
         expect(user).not.toBeNull();
@@ -78,17 +83,24 @@ describe('Onboarding Flow', () => {
         expect(user.role).toBe('pca');
     });
 
-    it('pending user cannot log in via employee portal', async () => {
+    // A pending_review employee (user.status 'pending') CAN log into the portal —
+    // the App-level status gate keeps them onboarding-only until 'active'. This is
+    // the Area 2 lifecycle behavior (employeeLogin relaxes the pending gate for
+    // employees whose onboardingStatus is pending_review/changes_requested).
+    it('pending_review employee CAN log in via employee portal (gated to onboarding-only)', async () => {
         const res = await request(app).post('/api/auth/employee-login').set('Host', 'nvbest.localhost').send({ email: 'newpca@test.com', password: 'securepass1' });
-        expect(res.status).toBe(403);
-        expect(res.body.error).toContain('pending');
+        expect(res.status).toBe(200);
+        expect(res.body.token).toBeTruthy();
+        expect(res.body.user.onboardingStatus).toBe('pending_review');
     });
 
-    it('admin approves onboarding', async () => {
+    it('admin finalizes onboarding (no rejected items → approved + active)', async () => {
         const res = await request(app)
-            .patch(`/api/employees/${testEmployee.id}/approve-onboarding`)
-            .set('Authorization', `Bearer ${adminToken}`);
+            .post(`/api/employees/${testEmployee.id}/onboarding/finalize`)
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send();
         expect(res.status).toBe(200);
+        expect(res.body.outcome).toBe('approved');
 
         const employee = await prisma.employee.findUnique({ where: { id: testEmployee.id } });
         expect(employee.onboardingStatus).toBe('active');

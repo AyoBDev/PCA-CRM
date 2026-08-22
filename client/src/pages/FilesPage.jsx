@@ -4,6 +4,7 @@ import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import PreviewModal from '../components/common/PreviewModal';
 import Icons from '../components/common/Icons';
 import { useUndoStack } from '../hooks/useUndoStack';
 import { useToast } from '../hooks/useToast';
@@ -26,9 +27,12 @@ export default function FilesPage() {
     const [conflictModal, setConflictModal] = useState(null);
     const [moveModal, setMoveModal] = useState(null);
     const [trashModal, setTrashModal] = useState(null);
+    const [previewFile, setPreviewFile] = useState(null);
     const [folders, setFolders] = useState([]);
     const [treeRefreshKey, setTreeRefreshKey] = useState(0);
     const [search, setSearch] = useState('');
+    const [split, setSplit] = useState(false);
+    const [selectedFileId, setSelectedFileId] = useState(null);
     const nameInputRef = useRef(null);
 
     const loadFiles = useCallback(async (folder) => {
@@ -74,20 +78,9 @@ export default function FilesPage() {
         }
     }, [searchParams]);
 
-    const handlePreview = useCallback(async (file) => {
-        try {
-            const token = api.getToken();
-            const res = await fetch(`/api/files/${file.id}/download`, {
-                headers: { 'Authorization': `Bearer ${token}` },
-            });
-            if (!res.ok) throw new Error('Preview failed');
-            const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
-            window.open(url, '_blank');
-        } catch (err) {
-            showToast('Preview failed', 'error');
-        }
-    }, [showToast]);
+    const handlePreview = useCallback((file) => {
+        setPreviewFile(file);
+    }, []);
 
     const handleDownload = useCallback(async (file) => {
         try {
@@ -407,6 +400,10 @@ export default function FilesPage() {
                             onDelete={handleDelete}
                             onEditPdf={handleEditPdf}
                             onUpload={handleUpload}
+                            previewOn={split}
+                            onTogglePreview={() => setSplit(s => !s)}
+                            selectedFileId={selectedFileId}
+                            onSelectFile={(id) => { setSelectedFileId(id); setSplit(true); }}
                         />
                     )}
                 </div>
@@ -520,6 +517,18 @@ export default function FilesPage() {
                         <button className="btn btn--outline" onClick={() => setTrashModal(null)}>Close</button>
                     </div>
                 </Modal>
+            )}
+
+            {previewFile && (
+                <PreviewModal
+                    open
+                    fileName={previewFile.name}
+                    onClose={() => setPreviewFile(null)}
+                    onDelete={() => { const f = previewFile; setPreviewFile(null); handleDelete(f); }}
+                    fetchBlob={() => fetch(`/api/files/${previewFile.id}/download`, {
+                        headers: { Authorization: `Bearer ${api.getToken()}` },
+                    })}
+                />
             )}
         </div>
     );

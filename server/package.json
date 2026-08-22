@@ -11,17 +11,17 @@
     "db:migrate": "npx prisma migrate dev",
     "db:generate": "npx prisma generate",
     "db:seed": "node prisma/seed.js",
+    "db:seed-requirements": "node prisma/seed-requirements.js",
+    "db:seed-qa-testers": "node prisma/seed-qa-testers.js",
+    "db:clean-qa-testers": "node prisma/seed-qa-testers.js --clean",
     "db:migrate-employees": "node prisma/migrate-employees.js",
+    "db:migrate-lifecycle": "node prisma/migrate-lifecycle-statuses.js",
     "db:migrate-data": "node prisma/migrate-data.js",
     "db:backfill-auth-required": "node prisma/backfill-authorization-required.js",
     "db:backfill-geocodes": "node prisma/backfill-geocodes.js",
-    "db:encrypt-phi": "node prisma/encrypt-phi.js"
-  },
-  "jest": {
-    "globalSetup": "<rootDir>/jest.globalSetup.js",
-    "setupFiles": [
-      "<rootDir>/jest.setup.js"
-    ]
+    "db:encrypt-phi": "node prisma/encrypt-phi.js",
+    "db:fix-shift-sandata-ids": "node prisma/fix-shift-sandata-ids.js",
+    "db:export-sandata-review": "node prisma/export-sandata-review.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1068.0",
@@ -42,13 +42,13 @@
     "node-cron": "^4.2.1",
     "pdfkit": "^0.18.0",
     "sib-api-v3-sdk": "^8.5.0",
-    "socket.io": "^4.8.3"
+    "socket.io": "^4.8.3",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "better-sqlite3": "^12.9.0",
     "jest": "^29.7.0",
     "prisma": "^6.4.0",
-    "supertest": "^7.2.2",
-    "xlsx": "^0.18.5"
+    "supertest": "^7.2.2"
   }
 }

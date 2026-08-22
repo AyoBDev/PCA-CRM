@@ -77,12 +77,36 @@ Shared components under `client/src/components/`:
 - `common/GlobalToolbar.jsx` — Tier 1 system toolbar (Back, Title, Undo/Redo/History/Activity, Trash, Archive, Overflow)
 - `common/ContextBar.jsx` — Tier 2 page-specific toolbar (compound: `ContextBar.Left` + `ContextBar.Right`)
 - `common/AutocompleteInput.jsx` — Reusable autocomplete text input (used for Service Category, Service Name)
+- `common/InlineEditable.jsx` — **Safe** click-to-edit primitive for inline cell/field editing (see "Inline Editing" section below)
 - `common/HistoryPanel.jsx` — Session history dropdown (shows undo stack)
 - `common/OverflowMenu.jsx` — Three-dot "⋯" overflow menu
 - `common/DropdownMenu.jsx` — Reusable dropdown (trigger + panel)
 - `common/ActivityDrawer.jsx` — `ActivityButton` (page-level) and `EntityActivityButton` (entity-level) audit log viewers
 - `common/Modal.jsx`, `common/ConfirmModal.jsx`, `common/SignaturePad.jsx`
+- `common/DocViewer.jsx` — the shared pdf.js/image **rendering engine**; both `PreviewModal` (full-screen) and `FilePreviewPane` (docked) render it. See "File Preview & Thumbnails" below.
+- `common/FilePreviewPane.jsx` — **docked** split-view alternative to the full-screen `PreviewModal`. See "File Preview & Thumbnails" below.
+- `common/CertViewerPanel.jsx` — **persistent** DocViewer panel for the two-column certification portfolio layout. See "File Preview & Thumbnails" below.
+- `common/ToggleSwitch.jsx` — reusable sliding on/off switch (`role="switch"`, keyboard-toggleable).
+- `common/Tooltip.jsx` — **App-wide tooltip** (see below). Use this for all hover/focus hints; do not add new native `title=` attributes.
 - `layout/Layout.jsx`, `layout/Sidebar.jsx`, `layout/Toast.jsx`
+
+### Tooltip (`common/Tooltip.jsx`) — the standard hover/focus hint
+
+Reusable tooltip that wraps `@radix-ui/react-tooltip` behind our own interface (so the library stays swappable in one file). Radix gives collision-aware positioning (via Floating UI) and full WAI-ARIA a11y (`aria-describedby`, keyboard focus, Escape to dismiss); we only supply styling. **Prefer this over the native `title` attribute** — `title` has a browser-fixed ~1s delay, can't be styled, and doesn't work on keyboard focus.
+
+- **Provider is already mounted once** at the app root (`TooltipProvider` in `client/src/main.jsx`). Do not add another provider — just use `<Tooltip>` anywhere.
+- **Styling** lives in `index.css` (`.tooltip-content`, `.tooltip-arrow`), using the zinc tokens (`--popover`, `--border`, `--radius`). `z-index: 2000` so it renders above modals (`.modal-backdrop` is `z-index: 100`).
+- **Usage** — wrap any focusable/hoverable trigger (`asChild` passes the tooltip to your element, so it keeps its own styles):
+
+```jsx
+import Tooltip from '../components/common/Tooltip';
+
+<Tooltip content="Explains this control">
+  <button className="icon-btn" aria-label="Help">{Icons.helpCircle}</button>
+</Tooltip>
+```
+
+Props: `content` (string/node — if falsy, the trigger renders with no tooltip), `side` (`'top'` default), `align` (`'center'` default), `delayDuration` (ms, default 150), `sideOffset` (default 6). The trigger should be a single focusable element for a11y. Migrate existing native `title=` usages to `<Tooltip>` opportunistically when touching a component.
 
 Hooks under `client/src/hooks/`:
 - `useAuth.js` — auth context with `isAdmin`, `authUser`
@@ -309,7 +333,9 @@ This behavior is implemented via `handleServiceCodeChange` and `handleServiceCat
 The **Client** and **Authorization** tables are the single source of truth for the entire system. All operational modules (Timesheets, Scheduling, Payroll) read from Authorization at query time.
 
 **Key rules:**
-- When `accountNumber` or `sandataClientId` changes on an Authorization, it propagates to all active Shifts for that client + serviceCode
+- **`accountNumber` and `sandataClientId` are owned by the Authorization and resolved LIVE for every shift — the `Shift.account_number` / `Shift.sandata_client_id` columns are dormant (never read or written for display).** New shifts store `''` for both; they are NOT accepted from create/update/bulk request bodies, and there is no auth→shift propagation. To change either value, edit it on the client's authorization (client-details page) — that is the single place.
+- **Resolution** lives in `server/src/lib/sandataResolver.js` (`buildLiveSandataMap` → `resolveShiftAccountNumber` then `resolveShiftSandataId`). Account is derived first by `clientId|serviceCode` (fallback `name|serviceCode`); the Sandata ID is then derived by `clientId|derivedAccount` (fallbacks `clientId|serviceCode`, `name|serviceCode`). There is **no fallback to the shift's stored value** — unresolvable → `''` (renders `—`). Server surfaces enrich shifts via `enrichShiftLive(shift, maps)` in `schedulingService.js` (used by `listShifts` and the shared schedule view); never render the raw `shift.sandataClientId` / `shift.accountNumber`.
+- The Scheduling page shows both values **read-only** (with a copy button + info tooltip pointing to the client's authorization). `server/prisma/fix-shift-sandata-ids.js` remains as a one-time historical cleanup of the now-dormant stored column; it is not part of the live path.
 - The admin timesheet form auto-expands `enabledServices` from active authorizations (not just the stored client field)
 - The PCA form PUT handler also auto-expands `enabledServices` from authorizations (prevents Respite/Companion data from being zeroed on save)
 - Archiving an authorization logs the count of affected shifts in the audit trail
@@ -406,6 +432,43 @@ Client groups themselves are sorted alphabetically, with unknown/numeric names a
 ## Sidebar
 Collapsible: `256px` expanded → `52px` collapsed. State persisted in `localStorage('sidebarCollapsed')`. The `<aside>` element must **not** have an inline `style={{ position: 'relative' }}` — that overrides CSS `position: fixed` and breaks the layout gap. The collapse toggle button uses `position: fixed` tied to `--sidebar-width`/`--sidebar-collapsed-width` CSS variables.
 
+## Inline Editing — `InlineEditable` (safe click-to-edit)
+
+`client/src/components/common/InlineEditable.jsx` is the **single, mandatory primitive for all inline cell/field editing** (editing a value in place, without opening a modal or form). It exists to prevent accidental data loss: the old copy-pasted pattern let a single stray click open edit mode and a blur silently save. **Never hand-roll a click-to-edit `<input>`/`<textarea>` with `onBlur`-to-save — route it through `InlineEditable`.**
+
+### Guaranteed safe behavior
+- **Opens only via an explicit affordance** — read mode shows the value plus a pencil icon that appears on hover (and is keyboard-focusable). Clicking the value text does nothing; only the pencil opens edit mode.
+- **Explicit confirm, blur cancels** — edit mode shows the input with ✓ (save) and ✕ (cancel). **Enter / ✓ save; Escape / ✕ / clicking away (blur) CANCEL.** There is no silent auto-save. (The ✓/✕ buttons use `onMouseDown` + `preventDefault` so they win the race against the input's blur.)
+- **Empty-guard** — a blank value is blocked (✓ disabled + inline reason) unless `allowEmpty`. `type="number"` enforces `min`/`max`. Pass a custom `validate` to override.
+- **Notice + undo** — on a successful save it fires a success toast; if `undoState` + `buildUndo` are supplied it pushes an undo entry onto the page's undo stack.
+- **Re-entrancy guarded** — a rapid double-Enter can't fire two saves.
+
+### Error contract — CRITICAL
+`InlineEditable` detects a failed save by the **`onSave` promise rejecting**. Your `onSave` handler must let API errors **propagate** (throw / reject) — do **not** `try/catch` and swallow them. A handler that catches its own error and returns normally makes a *failed* save show a *success* toast and silently drop the change. If a handler needs its own error toast, it must **rethrow** after showing it (and drop any success toast of its own, since `InlineEditable` owns the success notification — otherwise you get a double toast).
+
+### Interface
+```jsx
+<InlineEditable
+  value={row.employeeName}          // current value (string)
+  displayValue={hhmm12(value)}      // optional formatted read-mode display; falls back to value
+  placeholder="Employee"
+  type="text"                        // 'text' | 'number'
+  multiline={false}                  // true → <textarea> (Shift+Enter = newline, Enter = save)
+  min={0} max={112}                  // number bounds (type='number')
+  allowEmpty={false}                 // true → blank is a valid save
+  validate={(v) => v ? null : 'Required'}  // return error string or null; overrides default guard
+  onSave={async (v) => { /* API call — MUST let errors reject */ }}
+  undoState={undoState}              // optional: from useUndoStack, wires undo
+  buildUndo={(prev, next, result) => ({ description, undo, redo })}  // optional undo entry
+  undoLabel="employee name"          // used in the success toast ("Updated employee name")
+  width={130}                        // read + edit width
+  highlight={false}                  // purple-accent styling for flagged values
+  readOnly={false}                   // render plain value, no affordance
+/>
+```
+
+**Canonical usages** (all migrated to this component): `PayrollEditableText` / `PayrollEditableUnits` / `PayrollEditableNotes` in `PayrollPage.jsx`, `EditableField` in `client-tabs/CarePlanTab.jsx`, and the Client-ID field in `client-tabs/ProgramsAuthTab.jsx`. Tests: `client/src/__tests__/InlineEditable.test.jsx`.
+
 ## UI Design System — Tables
 
 All tables use the `.data-table` class system. **Every new table MUST follow this pattern.**
@@ -452,6 +515,68 @@ All tables use the `.data-table` class system. **Every new table MUST follow thi
 - **Main list pages** (Authorizations, Employees, Timesheets list): `data-table--sheet` or `data-table--dark-header`
 - **Drawer/modal content** (auth detail, employee certs): `data-table--compact`
 - **Settings pages** (Insurance Types, Services): `data-table` (default)
+
+## File Preview & Thumbnails — Reusable Components
+
+**Any feature that previews, thumbnails, or lists a file (PDF or image) MUST reuse these components. Do NOT re-implement `window.open`/`<iframe>` previews, ad-hoc download links, or bespoke thumbnail logic.** They are the single source of truth for the in-app document experience and are already used by the File Manager (`/files`) and employee certifications.
+
+All of them take a **`fetchBlob` function** (not a URL): `() => Promise<Response>` — a raw `fetch` Response the component reads `Content-Type` / `Content-Length` / `.blob()` from. This keeps them auth-agnostic and endpoint-agnostic; each caller passes its own authorized download call (e.g. `() => fetch(url, { headers: { Authorization: \`Bearer ${api.getToken()}\` } })` or an `api.downloadX(id)` helper that returns a `Response`).
+
+| Component / util | File | Purpose |
+|------------------|------|---------|
+| `PreviewModal` | `common/PreviewModal.jsx` | Full-screen in-app **document viewer**. Portals to `<body>`; renders `DocViewer` internally for the actual PDF/image rendering, plus its own modal chrome (backdrop, Esc/←/→ close/page handling, optional delete). Unpreviewable/oversized → download fallback. |
+| `DocViewer` | `common/DocViewer.jsx` | The **single rendering engine** for PDFs/images — both `PreviewModal` (full-screen) and `FilePreviewPane` (docked) render it; never duplicate pdf.js/image rendering elsewhere. Props: `{ fileName, fetchBlob, maxBytes?, showToolbar?, extraToolbarActions? }`. PDFs render via **pdf.js multi-page canvas**, images via `<img>`. Toolbar (when `showToolbar`): zoom −/reset/+, fit-to-width, page ‹ n/total ›, rotate, download, print. `extraToolbarActions` lets a host inject buttons (e.g. "Expand" in the docked pane). |
+| `FilePreviewPane` | `common/FilePreviewPane.jsx` | **Docked** split-view alternative to the full-screen `PreviewModal` — a file list on the left, `DocViewer` rendering the selected file on the right. Props: `{ items, selectedId, onSelect, open, onExpand, onDownload, emptyText }`. Item shape: `{ id, fileName, fileType, fetchBlob, cacheKey?, meta?, badge? }`. The **Preview toggle lives in the host page's toolbar** (not inside the component) — the host owns `open`/`selectedId` state. Uses `useIsWide(900)` to auto-collapse to modal-only (call `onExpand` instead of docking) on narrow screens, so it degrades gracefully without separate mobile logic. |
+| `useIsWide` | `hooks/useIsWide.js` | `(minWidth)` → boolean, tracks `window.innerWidth >= minWidth` via a resize listener. Backs `FilePreviewPane`'s docked/modal-only breakpoint; reusable anywhere a component needs a live viewport-width gate. |
+| `FileThumbnail` | `common/FileThumbnail.jsx` | Inline file thumbnail button (lazy via IntersectionObserver). Renders a first-page PDF / image thumbnail, or a type icon fallback. Hover shows an enlarged **popover portalled to `<body>`** (`position: fixed`, viewport-clamped) so no panel/overflow can clip it (`z-index: 2000`). |
+| `FileThumbnailStrip` | `common/FileThumbnailStrip.jsx` | A row of `FileThumbnail`s with a `+N` overflow gallery. |
+| `CertFileRow` | `files/CertFileRow.jsx` | A **file row** styled like the File Manager list (`.file-row`): thumbnail · name · meta line · Preview + Download. Used for both a current file and history items. Optional `fetchBlob`/`cacheKey`/`badge`/`expiresText`. |
+| `FileRow` | `files/FileRow.jsx` | The File Manager list row (checkbox · thumbnail · name · meta · actions). Reuse for file lists; use `CertFileRow` for lighter, badge-carrying rows. |
+| `CertViewerPanel` | `common/CertViewerPanel.jsx` | **Persistent** (non-modal) DocViewer panel used as the right-hand column of a two-column "certification portfolio" layout — header, a file-bar (filename + status badge), and `DocViewer` underneath. Props: `{ fileName, fetchBlob, status?, statusClass?, onHistory?, onReplace?, emptyText? }`; `onHistory`/`onReplace` are injected into `DocViewer` via `extraToolbarActions`. Renders an empty state when `fetchBlob` is falsy (nothing selected yet). |
+| `CertCard` | `employee/CertCard.jsx` | A selectable card for one certification in the portfolio's cards grid: icon, status badge, expiry date + days-remaining, a status-colored progress bar (via `progressForCert`), and View/Upload/Replace actions. Props: `{ label, icon, colors, status, statusLabel, days, expDate, renewalLabel, hasFile, selected, onSelect, onView, onUpload }`. |
+| `progressForCert` | `utils/certProgress.js` | `({ status, days, renewalYears, hasFile }) → { pct, variant }` — pure function computing a `CertCard`'s progress-bar fill percent and color variant (`expired`/`expiring`/`active`/`complete`/`notset`). Route any cert progress-bar math through this instead of re-deriving inline. |
+| `useFileThumbnail` | `hooks/useFileThumbnail.js` | `(cacheKey, fetchBlob, mimeType, { enabled, maxPdfBytes })` → `{ status, thumbUrl }`. LRU-cached, lazy. Backs `FileThumbnail`. |
+| `renderPdfFirstPage` / `loadPdfDocument` / `getPdfjs` | `lib/pdfThumbnail.js` | pdf.js helpers: first-page thumbnail dataURL; open a doc for the viewer; shared worker setup. **Always** go through these so the pdf.js worker is configured once. |
+| `getFileTypeInfo` / `FileTypeIcon` / `formatFileSize` / `formatUploadDate` | `files/fileTypeUtils.jsx` | File-type label/icon and size/date formatters used by the rows. |
+
+### Usage
+
+```jsx
+import PreviewModal from '../components/common/PreviewModal';
+import * as api from '../api';
+
+const [preview, setPreview] = useState(null);
+// ...
+{preview && (
+  <PreviewModal
+    open
+    fileName={preview.name}
+    fetchBlob={() => fetch(`/api/files/${preview.id}/download`, { headers: { Authorization: `Bearer ${api.getToken()}` } })}
+    onClose={() => setPreview(null)}
+    onDelete={() => { const f = preview; setPreview(null); handleDelete(f); }}  // optional — shows the Delete tool
+  />
+)}
+```
+
+`CertFileRow` for a list of files:
+
+```jsx
+<div className="cert-history__list">
+  {files.map(f => (
+    <CertFileRow key={f.id} upload={f} onPreview={setPreview} onDownload={handleDownload}
+      fetchBlob={() => api.downloadX(f.id)} cacheKey={`x:${f.id}`} />
+  ))}
+</div>
+```
+
+### Rules
+- **`DocViewer` is the only rendering engine for previewing a file in-app** (never open files in a new tab or embed a bare `<iframe>` for preview) — route through either `PreviewModal` (full-screen) or `FilePreviewPane` (docked), which both render `DocViewer`. Don't duplicate pdf.js/image rendering in a new component.
+- Prefer `PreviewModal` for a single ad-hoc preview action; use `FilePreviewPane` when a page wants a persistent, dockable split-view (list + preview side by side) with a toolbar toggle — see `FilesPage.jsx` and the certifications tab for reference usage.
+- **Two-column "certification portfolio" pattern** (`CertificationsTab` in `EmployeeDetailPage.jsx`): a cards grid (`CertCard`, one per certification) on the left plus a persistent `CertViewerPanel` on the right. The viewer column is only rendered on wide viewports — gated by `useIsWide(1024)` — and collapses to the existing full-screen `PreviewModal` on narrow screens (single-column card list; tapping a card opens the modal instead of docking). Each `CertCard`'s progress bar is driven by `progressForCert()` from `utils/certProgress.js`, never ad-hoc math.
+- Pass `onDelete` only where deletion is supported (it renders the Delete tool and should trigger the caller's existing confirm flow).
+- Thumbnails/previews are **lazy** and **cached** (`useFileThumbnail`) — reuse a stable `cacheKey` per file (`file:{id}`, `cert-upload:{id}`, `cert:{id}`).
+- PDF rendering must go through `lib/pdfThumbnail.js` (shared worker). The pdf.js bundle is code-split (`pdf-*.js`) — don't import `pdfjs-dist` directly elsewhere.
+- Row/list markup reuses `.file-row` / `.file-row--cert` / `.cert-history__list` classes for a consistent look across the app.
 
 ## Conventions
 - All API routes under `/api`; admin-only routes use `requireRole('admin')` middleware

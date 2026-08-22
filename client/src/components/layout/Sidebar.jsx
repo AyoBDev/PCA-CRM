@@ -21,6 +21,7 @@ const PATH_TO_PAGE = {
     '/employees': 'employees',
     '/insurance-types': 'insuranceTypes',
     '/services': 'services',
+    '/catalogs': 'catalogs',
     '/users': 'users',
     '/history': 'history',
     '/sandata': 'sandata',
@@ -177,6 +178,11 @@ export default function Sidebar({ onMobileClose }) {
                         {hasPermission('services') && (
                             <button className={`sidebar__nav-item ${activePage === 'services' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/services')} title="Services">
                                 {Icons.settings} Services
+                            </button>
+                        )}
+                        {hasPermission('employees') && (
+                            <button className={`sidebar__nav-item ${activePage === 'catalogs' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/catalogs')} title="Onboarding Catalogs">
+                                {Icons.clipboard} Catalogs
                             </button>
                         )}
                         {hasPermission('users') && (

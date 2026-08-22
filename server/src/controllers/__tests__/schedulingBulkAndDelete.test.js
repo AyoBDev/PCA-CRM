@@ -15,7 +15,7 @@ jest.mock('../../services/authorizationService', () => ({
 }));
 
 // Keep the real schedulingService helpers (computeShiftHours, enrichShift, etc.)
-const { deleteShift, bulkUpdateShiftsPerShift } = require('../schedulingController');
+const { deleteShift, bulkUpdateShiftsPerShift, listShifts, createShift } = require('../schedulingController');
 
 // Controllers read the DB via req.db (tenant-scoped client set by
 // tenantMiddleware), not the owner lib/prisma connection.
@@ -23,11 +23,13 @@ const prisma = {
     shift: {
         findUnique: jest.fn(),
         findMany: jest.fn(),
+        create: jest.fn(),
         update: jest.fn(),
         updateMany: jest.fn(),
     },
     employee: { findUnique: jest.fn() },
     bulkEditBatch: { create: jest.fn() },
+    authorization: { findMany: jest.fn() },
 };
 
 function mockReqRes(overrides = {}) {
@@ -204,5 +206,156 @@ describe('bulkUpdateShiftsPerShift — overlap blocks, never auto-edits (Bug 3)'
         const updatedIds = prisma.shift.update.mock.calls.map(c => c[0].where.id);
         expect(updatedIds).toContain(10);  // future respite updated
         expect(updatedIds).not.toContain(11); // future homemaker left alone
+    });
+
+    test('applyToFuture with NON-grouped shifts propagates to future shifts matched by client+employee+weekday+serviceCode', async () => {
+        // Shifts created week-by-week (no shared recurringGroupId). Editing this
+        // week's Monday PCS shift with "apply to all future recurring weeks" must
+        // still update the same client's PCS shift on future Mondays for the same
+        // employee — the feature can't rely on a recurring group existing.
+        const editedMon = {
+            id: 1, clientId: 3, employeeId: 7, serviceCode: 'PCS',
+            shiftDate: new Date('2026-08-10T00:00:00.000Z'), // Monday
+            startTime: '09:00', endTime: '13:00', recurringGroupId: '',
+            employee: { id: 7, name: 'Jane' }, client: { id: 3, clientName: 'Bob' },
+        };
+        const futureMonWk2 = { ...editedMon, id: 10, shiftDate: new Date('2026-08-17T00:00:00.000Z') };
+        const futureMonWk3 = { ...editedMon, id: 11, shiftDate: new Date('2026-08-24T00:00:00.000Z') };
+        // A future TUESDAY shift (wrong weekday) must be left untouched.
+        const futureTue = { ...editedMon, id: 12, shiftDate: new Date('2026-08-18T00:00:00.000Z') };
+        // A future Monday shift with a DIFFERENT service code must be left untouched.
+        const futureMonOtherSvc = { ...editedMon, id: 13, serviceCode: 'S5130', shiftDate: new Date('2026-08-17T00:00:00.000Z') };
+
+        prisma.shift.findMany.mockImplementation(({ where }) => {
+            // 1) load the edited shifts by id
+            if (where.id && where.id.in && !where.recurringGroupId && !where.OR) {
+                return Promise.resolve([editedMon]);
+            }
+            // 2) recurring-group future lookup — none exist here
+            if (where.recurringGroupId) return Promise.resolve([]);
+            // 3) fallback future lookup by client+employee (server filters weekday/service in JS)
+            if (where.OR) {
+                return Promise.resolve([futureMonWk2, futureMonWk3, futureTue, futureMonOtherSvc]);
+            }
+            // overlap sibling lookups: return only the shift itself (no conflict)
+            if (where.employeeId) return Promise.resolve([editedMon]);
+            return Promise.resolve([]);
+        });
+        prisma.shift.update.mockImplementation(({ where }) => Promise.resolve({ id: where.id, employee: { id: 7, name: 'Jane' } }));
+
+        const { req, res } = mockReqRes({
+            body: { perShiftUpdates: { 1: { startTime: '08:00' } }, applyToFuture: true },
+        });
+        await bulkUpdateShiftsPerShift(req, res);
+
+        const updatedIds = prisma.shift.update.mock.calls.map(c => c[0].where.id);
+        expect(updatedIds).toContain(1);   // current week edited
+        expect(updatedIds).toContain(10);  // future Monday, same service → updated
+        expect(updatedIds).toContain(11);  // future Monday, same service → updated
+        expect(updatedIds).not.toContain(12); // future Tuesday → untouched
+        expect(updatedIds).not.toContain(13); // future Monday, different service → untouched
+    });
+});
+
+describe('createShift — does not persist accountNumber/sandataClientId from request body (Task 5)', () => {
+    beforeEach(() => jest.clearAllMocks());
+
+    test('single-shift create stores accountNumber="" and sandataClientId="" regardless of request body values', async () => {
+        // Mock getAuthorizedServiceCodes: no authorizations → hasAuthorizations=false → skips validation
+        prisma.authorization.findMany.mockResolvedValue([]);
+
+        // Mock overlap check: no conflicts
+        prisma.shift.findMany.mockResolvedValue([]);
+
+        // Mock employee lookup (used only if there's an overlap conflict; won't be called here)
+        prisma.employee.findUnique.mockResolvedValue({ id: 7, name: 'Jane' });
+
+        const createdShift = {
+            id: 10,
+            clientId: 1,
+            employeeId: 7,
+            serviceCode: 'PCS',
+            shiftDate: new Date('2026-08-10T00:00:00.000Z'),
+            startTime: '09:00',
+            endTime: '13:00',
+            hours: 4,
+            units: 16,
+            notes: '',
+            accountNumber: '',
+            sandataClientId: '',
+            recurringGroupId: '',
+            status: 'scheduled',
+            archivedAt: null,
+            client: { id: 1, clientName: 'Test Client', address: '', phone: '', gateCode: '' },
+            employee: { id: 7, name: 'Jane', email: '', phone: '' },
+        };
+        prisma.shift.create.mockResolvedValue(createdShift);
+
+        const { req, res } = mockReqRes({
+            body: {
+                clientId: 1,
+                employeeId: 7,
+                serviceCode: 'PCS',
+                shiftDate: '2026-08-10',
+                startTime: '09:00',
+                endTime: '13:00',
+                accountNumber: '71040',    // valid account number — should NOT be persisted
+                sandataClientId: '955054', // should NOT be persisted
+            },
+        });
+        await createShift(req, res);
+
+        // The shift.create mock must have been called
+        expect(prisma.shift.create).toHaveBeenCalledTimes(1);
+        const callData = prisma.shift.create.mock.calls[0][0].data;
+        expect(callData.accountNumber).toBe('');
+        expect(callData.sandataClientId).toBe('');
+    });
+
+
+});
+
+describe('listShifts — live account/Sandata resolution (Task 3)', () => {
+    beforeEach(() => jest.clearAllMocks());
+
+    test('returns resolved accountNumber and sandataClientId from authorization, not stale stored values', async () => {
+        const clientId = 99;
+
+        // Shift has STALE stored values that differ from the live authorization
+        prisma.shift.findMany.mockResolvedValue([{
+            id: 1,
+            clientId,
+            employeeId: 7,
+            serviceCode: 'PCS',
+            shiftDate: new Date('2026-08-10T00:00:00.000Z'),
+            startTime: '09:00',
+            endTime: '13:00',
+            status: 'scheduled',
+            archivedAt: null,
+            recurringGroupId: null,
+            notes: '',
+            accountNumber: 'STALE',
+            sandataClientId: 'STALE',
+            client: { id: clientId, clientName: 'John Smith', address: '', phone: '', gateCode: '' },
+            employee: { id: 7, name: 'Jane Doe', email: '', phone: '' },
+        }]);
+
+        // Live authorization has the correct values
+        prisma.authorization.findMany.mockResolvedValue([{
+            clientId,
+            serviceCode: 'PCS',
+            accountNumber: '71040',
+            sandataClientId: '955054',
+            manualStatus: 'active',
+        }]);
+
+        const { req, res } = mockReqRes({ query: { weekStart: '2026-08-09' } });
+        await listShifts(req, res);
+
+        expect(res.json).toHaveBeenCalledTimes(1);
+        const body = res.json.mock.calls[0][0];
+        expect(body.shifts).toHaveLength(1);
+        expect(body.shifts[0].accountNumber).toBe('71040');
+        expect(body.shifts[0].sandataClientId).toBe('955054');
     });
 });

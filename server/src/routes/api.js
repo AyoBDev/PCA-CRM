@@ -2,6 +2,7 @@ const express = require('express');
 const { tenantMiddleware } = require('../middleware/tenantMiddleware');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+const onbUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const {
     listClients,
     getClient,
@@ -181,9 +182,11 @@ const { getPayrollProfile, upsertPayrollProfile, revealSensitiveField } = requir
 const { listReceipts, previewReceipts, generateReceipts, updateReceipt, finalizeReceipts, sendReceipts, downloadReceiptPdf } = require('../controllers/receiptController');
 const { previewSandata, applySandata, undoSandata } = require('../controllers/sandataController');
 const { listConversations, getConversationMessages, adminSendMessage, markConversationRead, getUnreadSummary } = require('../controllers/employeePortal/adminChatController');
-const { getOnboardingInfo, completeOnboarding, resendInvite, approveOnboarding, getOnboardingLink } = require('../controllers/onboardingController');
+const { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, getOnboardingLink, getOnboardingReviews, getOnboardingReviewDetail, reviewRequirementItem, finalizeOnboarding, approveOnboardingSubmission, sendBackOnboarding, rejectOnboardingSubmission } = require('../controllers/onboardingController');
+const { savePersonal, saveEmergency, uploadDocument: uploadOnboardingDocument, ackPolicy } = require('../controllers/employeePortal/onboardingRequirementsController');
+const catalog = require('../controllers/catalogController');
 const { agencyInfo, hostInfo } = require('../controllers/platformController');
-const { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats } = require('../controllers/leadController');
+const { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats, createLeadContact, listLeadContacts, deleteLeadContact, getLeadReminders, getClientLeadContacts } = require('../controllers/leadController');
 const {
     listPermissionGroups,
     getPermissionGroup,
@@ -193,7 +196,7 @@ const {
     getPermissionKeys,
     assignUserPermissionGroup,
 } = require('../controllers/permissionGroupController');
-const { authenticate, requireRole } = require('../middleware/authMiddleware');
+const { authenticate, requireRole, requireSurface } = require('../middleware/authMiddleware');
 const { requirePermission } = require('../middleware/permissionMiddleware');
 const rateLimit = require('express-rate-limit');
 const employeeRoutes = require('./employee');
@@ -232,8 +235,20 @@ router.get('/pca-form/:token', getPcaForm);
 router.put('/pca-form/:token', updatePcaForm);
 router.get('/shift-offers/:token', getOffer);
 router.post('/shift-offers/:token/respond', respondToOffer);
+// Admin-only onboarding review list. Registered BEFORE the public '/onboarding/:token'
+// route so 'reviews' isn't swallowed as a token, and gated inline (authenticate +
+// tenantMiddleware + admin) since it sits above the global authenticate middleware.
+// tenantMiddleware is required here too — the controller reads via req.db. Not
+// visible to other roles.
+router.get('/onboarding/reviews', authenticate, tenantMiddleware, requireRole('admin'), getOnboardingReviews);
 router.get('/onboarding/:token', getOnboardingInfo);
 router.post('/onboarding/:token/complete', completeOnboarding);
+router.patch('/onboarding/:token/personal', savePersonal);
+router.patch('/onboarding/:token/emergency', saveEmergency);
+router.patch('/onboarding/:token/availability-draft', saveAvailabilityDraft);
+router.post('/onboarding/:token/documents/:reqId', onbUpload.single('file'), uploadOnboardingDocument);
+router.post('/onboarding/:token/policies/:reqId/ack', ackPolicy);
+router.post('/onboarding/:token/submit', submitOnboarding);
 router.get('/agency-info', agencyInfo);
 router.get('/host-info', hostInfo);
 
@@ -271,8 +286,16 @@ router.use('/platform', require('./platform'));
 
 router.use(tenantMiddleware);
 
-// Auth (authenticated)
+// Auth (authenticated). `/auth/me` is surface-agnostic — BOTH the admin app and the
+// employee portal call it to refresh the current user, so it must accept either
+// surface. It stays ABOVE the admin-surface guard for that reason.
 router.get('/auth/me', getMe);
+
+// ── Everything below is the ADMIN/office surface ──
+// An employee-portal token (surface: 'employee') must not reach admin APIs. The
+// employee portal has its own routes mounted at '/employee' (above the global
+// authenticate), so this guard does not affect it.
+router.use(requireSurface('admin'));
 
 // Auth — user management (admin only)
 router.post('/auth/register', requireRole('admin'), requirePermission('users'), register);
@@ -302,6 +325,7 @@ router.get('/clients/archived', requireRole('admin', 'user'), requirePermission(
 router.post('/clients/restore', requireRole('admin', 'user'), requirePermission('clients'), restoreClients);
 router.delete('/clients/bulk-permanent', requireRole('admin'), requirePermission('clients'), bulkPermanentlyDeleteClients);
 router.get('/clients/:id', requireRole('admin', 'user'), requirePermission('clients'), getClient);
+router.get('/clients/:id/lead-contacts', requireRole('admin', 'user'), requirePermission('clients'), getClientLeadContacts);
 router.post('/clients', requireRole('admin', 'user'), requirePermission('clients'), createClient);
 router.post('/clients/bulk-import', requireRole('admin'), requirePermission('clients'), upload.single('file'), bulkImport);
 router.post('/clients/bulk-delete', requireRole('admin', 'user'), requirePermission('clients'), bulkDelete);
@@ -312,8 +336,9 @@ router.delete('/clients/:id', requireRole('admin', 'user'), requirePermission('c
 router.delete('/clients/:id/permanent', requireRole('admin'), requirePermission('clients'), permanentlyDeleteClient);
 router.post('/clients/:id/merge', requireRole('admin'), requirePermission('clients'), mergeClients);
 
-// Lead routes (place /leads/stats BEFORE /leads/:id so 'stats' isn't captured as an id)
+// Lead routes (place /leads/stats and /leads/reminders BEFORE /leads/:id so they aren't captured as an id)
 router.get('/leads/stats', requireRole('admin', 'user'), requirePermission('leads'), getLeadStats);
+router.get('/leads/reminders', requireRole('admin', 'user'), requirePermission('leads'), getLeadReminders);
 router.get('/leads', requireRole('admin', 'user'), requirePermission('leads'), listLeads);
 router.post('/leads', requireRole('admin', 'user'), requirePermission('leads'), createLead);
 router.get('/leads/:id', requireRole('admin', 'user'), requirePermission('leads'), getLead);
@@ -324,6 +349,9 @@ router.post('/leads/:id/restore', requireRole('admin', 'user'), requirePermissio
 router.post('/leads/:id/convert', requireRole('admin', 'user'), requirePermission('leads'), convertLead);
 router.post('/leads/:id/revert-conversion', requireRole('admin', 'user'), requirePermission('leads'), revertConversion);
 router.post('/leads/:id/reactivate', requireRole('admin', 'user'), requirePermission('leads'), reactivateLead);
+router.get('/leads/:id/contacts', requireRole('admin', 'user'), requirePermission('leads'), listLeadContacts);
+router.post('/leads/:id/contacts', requireRole('admin', 'user'), requirePermission('leads'), createLeadContact);
+router.delete('/leads/:id/contacts/:contactId', requireRole('admin', 'user'), requirePermission('leads'), deleteLeadContact);
 // Lead attachments (images / PDFs / docs)
 router.get('/leads/:leadId/documents', requireRole('admin', 'user'), requirePermission('leads'), listLeadDocuments);
 router.post('/leads/:leadId/documents', requireRole('admin', 'user'), requirePermission('leads'), upload.single('file'), uploadLeadDocument);
@@ -455,7 +483,12 @@ router.put('/employees/:id',   requireRole('admin', 'user'), requirePermission('
 router.delete('/employees/:id', requireRole('admin', 'user'), requirePermission('employees'), deleteEmployee);
 router.delete('/employees/:id/permanent', requireRole('admin'), requirePermission('employees'), permanentlyDeleteEmployee);
 router.post('/employees/:id/resend-invite', requireRole('admin'), requirePermission('employees'), resendInvite);
-router.patch('/employees/:id/approve-onboarding', requireRole('admin'), requirePermission('employees'), approveOnboarding);
+router.get('/employees/:id/onboarding-review', requireRole('admin'), requirePermission('employees'), getOnboardingReviewDetail);
+router.patch('/employees/:id/requirements/:reqId/review', requireRole('admin'), requirePermission('employees'), reviewRequirementItem);
+router.post('/employees/:id/onboarding/finalize', requireRole('admin'), requirePermission('employees'), finalizeOnboarding);
+router.post('/employees/:id/onboarding/approve', requireRole('admin'), requirePermission('employees'), approveOnboardingSubmission);
+router.post('/employees/:id/onboarding/send-back', requireRole('admin'), requirePermission('employees'), sendBackOnboarding);
+router.post('/employees/:id/onboarding/reject', requireRole('admin'), requirePermission('employees'), rejectOnboardingSubmission);
 router.get('/employees/:id/onboarding-link', requireRole('admin'), requirePermission('employees'), getOnboardingLink);
 router.get('/employees/:id/availability', requireRole('admin', 'user'), requirePermission('employees'), getEmployeeAvailability);
 
@@ -469,6 +502,23 @@ router.put('/certifications/:id', requireRole('admin', 'user'), requirePermissio
 router.delete('/certifications/:id', requireRole('admin', 'user'), requirePermission('employees'), deleteCertification);
 router.get('/certifications/:id/download', requireRole('admin', 'user'), requirePermission('employees'), downloadCertification);
 router.get('/certification-uploads/:id/download', requireRole('admin', 'user'), requirePermission('employees'), downloadCertificationUpload);
+
+// Onboarding Catalogs (documents / cert types / policies) — gated under the employees permission
+router.get('/catalogs/documents', requireRole('admin', 'user'), requirePermission('employees'), catalog.listDocuments);
+router.post('/catalogs/documents', requireRole('admin'), requirePermission('employees'), catalog.createDocument);
+router.get('/catalogs/cert-types', requireRole('admin', 'user'), requirePermission('employees'), catalog.listCertTypes);
+router.post('/catalogs/cert-types', requireRole('admin'), requirePermission('employees'), catalog.createCertType);
+router.get('/catalogs/policies', requireRole('admin', 'user'), requirePermission('employees'), catalog.listPolicies);
+router.post('/catalogs/policies', requireRole('admin'), requirePermission('employees'), catalog.createPolicy);
+router.patch('/catalogs/documents/reorder', requireRole('admin'), requirePermission('employees'), catalog.reorderDocuments);
+router.patch('/catalogs/cert-types/reorder', requireRole('admin'), requirePermission('employees'), catalog.reorderCertTypes);
+router.patch('/catalogs/policies/reorder', requireRole('admin'), requirePermission('employees'), catalog.reorderPolicies);
+router.patch('/catalogs/documents/:id', requireRole('admin'), requirePermission('employees'), catalog.updateDocument);
+router.patch('/catalogs/cert-types/:id', requireRole('admin'), requirePermission('employees'), catalog.updateCertType);
+router.patch('/catalogs/policies/:id', requireRole('admin'), requirePermission('employees'), catalog.updatePolicy);
+router.patch('/catalogs/documents/:id/active', requireRole('admin'), requirePermission('employees'), catalog.setDocumentActive);
+router.patch('/catalogs/cert-types/:id/active', requireRole('admin'), requirePermission('employees'), catalog.setCertTypeActive);
+router.patch('/catalogs/policies/:id/active', requireRole('admin'), requirePermission('employees'), catalog.setPolicyActive);
 
 // Employee Attention
 router.get('/admin/employee-attention', requireRole('admin', 'user'), requirePermission('employees'), getEmployeeAttention);

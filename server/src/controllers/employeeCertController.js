@@ -1,5 +1,31 @@
 const audit = require('../services/auditService');
-const { downloadFile } = require('../lib/storage');
+const { uploadFile, downloadFile } = require('../lib/storage');
+const { tenantKey } = require('../services/storageService');
+
+// Upload the file to the bucket BEFORE any cert record is written, so a bucket
+// failure aborts the request without persisting a partial/orphaned cert row.
+async function uploadFileToBucket(employeeId, certType, file) {
+    const timestamp = Date.now();
+    const bucketKey = tenantKey(`certs/${employeeId}/${certType}/${timestamp}-${file.originalname}`);
+    await uploadFile(bucketKey, file.buffer, file.mimetype || 'application/octet-stream');
+    return bucketKey;
+}
+
+async function writeUploadRow(db, cert, file, user, bucketKey) {
+    await db.certificationUpload.create({
+        data: {
+            certificationId: cert.id,
+            bucketKey,
+            fileName: file.originalname,
+            fileSize: file.size,
+            fileType: file.mimetype || 'application/octet-stream',
+            uploadedById: user?.id ?? null,
+            uploadedByName: user?.name || '',
+            effectiveDate: new Date(),
+            expirationDate: cert.expirationDate || null,
+        },
+    });
+}
 
 async function listCertifications(req, res, next) {
     try {
@@ -20,7 +46,7 @@ async function listCertifications(req, res, next) {
                 createdAt: true,
                 updatedAt: true,
                 uploads: {
-                    select: { id: true, fileName: true, fileSize: true, fileType: true, note: true, submittedAt: true },
+                    select: { id: true, fileName: true, fileSize: true, fileType: true, note: true, submittedAt: true, uploadedByName: true, effectiveDate: true, expirationDate: true },
                     orderBy: { submittedAt: 'desc' },
                 },
             },
@@ -43,14 +69,18 @@ async function createCertification(req, res, next) {
             notes: notes || '',
         };
 
+        let bucketKey = null;
         if (file) {
             data.fileName = file.originalname;
             data.fileSize = file.size;
             data.fileType = file.mimetype;
             data.fileData = file.buffer;
+            bucketKey = await uploadFileToBucket(employeeId, certType, file);
         }
 
         const cert = await req.db.employeeCertification.create({ data });
+
+        if (file) await writeUploadRow(req.db, cert, file, req.user, bucketKey);
 
         const employee = await req.db.employee.findUnique({ where: { id: employeeId } });
         audit.logAction(
@@ -78,14 +108,18 @@ async function updateCertification(req, res, next) {
         if (status !== undefined) data.status = status;
         if (notes !== undefined) data.notes = notes;
 
+        let bucketKey = null;
         if (file) {
             data.fileName = file.originalname;
             data.fileSize = file.size;
             data.fileType = file.mimetype;
             data.fileData = file.buffer;
+            bucketKey = await uploadFileToBucket(old.employeeId, old.certType, file);
         }
 
         const cert = await req.db.employeeCertification.update({ where: { id }, data });
+
+        if (file) await writeUploadRow(req.db, cert, file, req.user, bucketKey);
 
         const changes = audit.diffFields(old, cert, ['expirationDate', 'status', 'notes', 'fileName']);
         audit.logAction(

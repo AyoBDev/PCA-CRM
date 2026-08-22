@@ -5,6 +5,52 @@ const { processPayrollRows, parseTimeToMinutes, minutesToHHMM, applyTimeRules, c
 const { filterAuthsByWeek } = require('../services/authorizationService');
 const audit = require('../services/auditService');
 
+/**
+ * Build the client→authorized-units map used by the payroll banner, honoring the
+ * single source of truth: an authorization counts only when it is EFFECTIVE for
+ * the run's pay period (date-range overlap) and not manually inactive/archived.
+ *
+ * This uses the same `filterAuthsByWeek` overlap+dedupe logic as the Scheduler
+ * and PCA form, so a future-dated renewal (scheduled to start after the period)
+ * is NOT summed on top of the current authorization — preventing a doubled
+ * authorized total (e.g. SDPC 28 + 28 = 56) on the banner.
+ *
+ * When the run has no period set (older runs), it falls back to "effective
+ * today" so a not-yet-started renewal is still excluded.
+ *
+ * @param {Array} clients  clients with `authorizations` included
+ * @param {Date|string|null} periodStart
+ * @param {Date|string|null} periodEnd
+ * @returns {Object} normalizedName → { _records: [...], [serviceCode]: units }
+ */
+function buildClientAuthMap(clients, periodStart, periodEnd) {
+    const start = periodStart || new Date();
+    const end = periodEnd || periodStart || new Date();
+    const map = {};
+    for (const client of clients) {
+        // Skip archived clients — a duplicate/archived client record sharing the
+        // same normalized name would otherwise double-count its auth units (#60).
+        if (client.archivedAt) continue;
+        const norm = normalizeName(client.clientName);
+        if (!map[norm]) map[norm] = { _records: [] };
+        // Effective-for-period auths only (date overlap + active + deduped per code).
+        const effective = filterAuthsByWeek(client.authorizations || [], start, end);
+        for (const auth of effective) {
+            const code = auth.serviceCode || auth.service || '';
+            if (!code) continue;
+            map[norm]._records.push({
+                serviceCode: code,
+                authorizedUnits: auth.authorizedUnits || 0,
+                startDate: auth.authorizationStartDate ? new Date(auth.authorizationStartDate).toISOString().split('T')[0] : null,
+                endDate: auth.authorizationEndDate ? new Date(auth.authorizationEndDate).toISOString().split('T')[0] : null,
+            });
+            if (!map[norm][code]) map[norm][code] = 0;
+            map[norm][code] += (auth.authorizedUnits || 0);
+        }
+    }
+    return map;
+}
+
 // ── Column aliases accepted from the XLSX header row ──────
 const HEADER_ALIASES = {
     clientName:   ['client', 'client name', 'clientname', 'client_name', 'patient', 'patient name'],
@@ -218,25 +264,10 @@ async function uploadPayrollRun(req, res, next) {
         });
 
         // ── Snapshot authorization data at upload time ────────
-        // Only include active (manualStatus === 'active') non-archived authorizations.
-        const authSnapshot = {};
-        for (const client of clientsWithAuths) {
-            const norm = normalizeName(client.clientName);
-            if (!authSnapshot[norm]) authSnapshot[norm] = { _records: [] };
-            const activeAuths = client.authorizations.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt);
-            for (const auth of activeAuths) {
-                const code = auth.serviceCode || auth.service || '';
-                if (!code) continue;
-                authSnapshot[norm]._records.push({
-                    serviceCode: code,
-                    authorizedUnits: auth.authorizedUnits || 0,
-                    startDate: auth.authorizationStartDate ? new Date(auth.authorizationStartDate).toISOString().split('T')[0] : null,
-                    endDate: auth.authorizationEndDate ? new Date(auth.authorizationEndDate).toISOString().split('T')[0] : null,
-                });
-                if (!authSnapshot[norm][code]) authSnapshot[norm][code] = 0;
-                authSnapshot[norm][code] += (auth.authorizedUnits || 0);
-            }
-        }
+        // Effective-for-period auths only (date overlap + active), so a future
+        // renewal isn't summed on top of the current authorization. Archived
+        // clients are skipped inside buildClientAuthMap (see #60).
+        const authSnapshot = buildClientAuthMap(clientsWithAuths, periodStart, periodEnd);
 
         // ── Run processing pipeline ──────────────────────────
         const processed = processPayrollRows(rawRows, clientsWithAuths);
@@ -452,26 +483,11 @@ async function getPayrollRun(req, res, next) {
             // Old format is just { normalizedClient: { serviceCode: units } } — keep as-is.
             authMap = parsed;
         } else {
-            // Fallback for runs created before the snapshot feature — use live data
-            // Only include active (manualStatus === 'active') non-archived authorizations
+            // Fallback for runs created before the snapshot feature — use live data,
+            // effective for the run's period (date overlap + active), so a future
+            // renewal isn't summed on top of the current authorization.
             const allClients = await req.db.client.findMany({ include: { authorizations: true } });
-            for (const client of allClients) {
-                const norm = normalizeName(client.clientName);
-                if (!authMap[norm]) authMap[norm] = { _records: [] };
-                const activeAuths = client.authorizations.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt);
-                for (const auth of activeAuths) {
-                    const code = auth.serviceCode || auth.service || '';
-                    if (!code) continue;
-                    authMap[norm]._records.push({
-                        serviceCode: code,
-                        authorizedUnits: auth.authorizedUnits || 0,
-                        startDate: auth.authorizationStartDate ? new Date(auth.authorizationStartDate).toISOString().split('T')[0] : null,
-                        endDate: auth.authorizationEndDate ? new Date(auth.authorizationEndDate).toISOString().split('T')[0] : null,
-                    });
-                    if (!authMap[norm][code]) authMap[norm][code] = 0;
-                    authMap[norm][code] += (auth.authorizedUnits || 0);
-                }
-            }
+            authMap = buildClientAuthMap(allClients, run.periodStart, run.periodEnd);
         }
 
         const { authorizationSnapshot: _snap, ...runData } = run;
@@ -831,4 +847,5 @@ module.exports = {
     exportPayrollRun,
     updatePayrollVisit,
     updatePayrollVisitNotes,
+    buildClientAuthMap,
 };

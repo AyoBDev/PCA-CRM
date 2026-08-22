@@ -1,23 +1,17 @@
 const { getTenantDb, getAgencyId } = require('../lib/tenantContext');
 const { emitToEmployee } = require('../socket');
 
-const RENEWAL_YEARS = {
-  tb_test: 1,
-  cpr: 2,
-  annual_training: 1,
-  cultural_competency: 2,
-  infection_control: 1,
-  background_check: 5,
-};
-
 async function evaluateCompliance(employeeId) {
   const db = getTenantDb();
   const now = new Date();
-  const certs = await db.employeeCertification.findMany({
-    where: { employeeId },
-  });
+  const [certs, certTypes] = await Promise.all([
+    db.employeeCertification.findMany({ where: { employeeId } }),
+    db.certType.findMany(),
+  ]);
+  const requiresExpiry = Object.fromEntries(certTypes.map(t => [t.key, Boolean(t.requiresExpiry)]));
 
   const hasExpired = certs.some(c =>
+    (requiresExpiry[c.certType] ?? true) &&   // unknown type defaults to gated
     c.expirationDate && c.expirationDate < now && c.status !== 'pending'
   );
 
@@ -60,4 +54,4 @@ async function resolveComplianceTasks(certId) {
   });
 }
 
-module.exports = { evaluateCompliance, createComplianceTask, createNotification, resolveComplianceTasks, RENEWAL_YEARS };
+module.exports = { evaluateCompliance, createComplianceTask, createNotification, resolveComplianceTasks };

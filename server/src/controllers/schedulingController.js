@@ -4,6 +4,8 @@ const {
     computeUnitSummary,
     getWeekRange,
     enrichShift,
+    enrichShiftLive,
+    buildLiveSandataMap,
     getEmployeeDisplayName,
 } = require('../services/schedulingService');
 // Imported as a namespace rather than destructured: destructuring binds the
@@ -12,8 +14,6 @@ const {
 const notifications = require('../services/notificationService');
 const audit = require('../services/auditService');
 const { filterAuthsByWeek } = require('../services/authorizationService');
-
-const VALID_ACCOUNT_NUMBERS = ['71040', '71119', '71120', '71635'];
 
 // Derive a scheduling service code from a service name (handles TIMESHEETS rows)
 function deriveCodeFromName(name) {
@@ -276,13 +276,19 @@ async function listShifts(req, res, next) {
             orderBy: [{ shiftDate: 'asc' }, { startTime: 'asc' }],
         });
 
-        const enriched = shifts.map(enrichShift);
+        // Fetch live authorizations for all clients in this result set and resolve
+        // account number + Sandata Client ID from the authorization (never stored shift copies).
+        const clientIds = [...new Set(shifts.map(s => s.clientId).filter(Boolean))];
+        const liveAuths = clientIds.length
+            ? await req.db.authorization.findMany({ where: { clientId: { in: clientIds }, archivedAt: null } })
+            : [];
+        const liveMaps = buildLiveSandataMap(liveAuths);
+        const enriched = shifts.map(s => enrichShiftLive(s, liveMaps));
         const overlaps = detectOverlaps(shifts);
 
         // Unit summaries per client — skip for custom date ranges (non-weekly)
         let unitSummaries = {};
         if (!skipUnitSummaries) {
-            const clientIds = [...new Set(shifts.map(s => s.clientId))];
             const auths = await req.db.authorization.findMany({
                 where: { clientId: { in: clientIds } },
             });
@@ -311,15 +317,12 @@ async function listShifts(req, res, next) {
 // POST /api/shifts
 async function createShift(req, res, next) {
     try {
-        const { clientId, employeeId, serviceCode, shiftDate, startTime, endTime, notes, repeatUntil, accountNumber, sandataClientId, shifts: bulkShifts } = req.body;
+        const { clientId, employeeId, serviceCode, shiftDate, startTime, endTime, notes, repeatUntil, shifts: bulkShifts } = req.body;
 
         // Bulk mode: array of { serviceCode, shiftDate, startTime, endTime } entries
         if (Array.isArray(bulkShifts) && bulkShifts.length > 0) {
             if (!clientId || !employeeId) {
                 return res.status(400).json({ error: 'clientId and employeeId are required' });
-            }
-            if (accountNumber && !VALID_ACCOUNT_NUMBERS.includes(accountNumber)) {
-                return res.status(400).json({ error: `Invalid account number. Must be one of: ${VALID_ACCOUNT_NUMBERS.join(', ')}` });
             }
 
             // Validate all service codes are authorized for this client (check each shift's date)
@@ -376,10 +379,6 @@ async function createShift(req, res, next) {
             const created = [];
             for (const entry of bulkShifts) {
                 const { hours, units } = computeShiftHours(entry.startTime, entry.endTime);
-                const entryAccount = entry.accountNumber || accountNumber || '';
-                if (entryAccount && !VALID_ACCOUNT_NUMBERS.includes(entryAccount)) {
-                    return res.status(400).json({ error: `Invalid account number: ${entryAccount}. Must be one of: ${VALID_ACCOUNT_NUMBERS.join(', ')}` });
-                }
                 const shift = await req.db.shift.create({
                     data: {
                         clientId: Number(clientId),
@@ -391,8 +390,8 @@ async function createShift(req, res, next) {
                         hours,
                         units,
                         notes: notes || '',
-                        accountNumber: entryAccount,
-                        sandataClientId: entry.sandataClientId || sandataClientId || '',
+                        accountNumber: '',
+                        sandataClientId: '',
                         recurringGroupId: groupId,
                     },
                     include: shiftInclude,
@@ -414,9 +413,6 @@ async function createShift(req, res, next) {
         if (!clientId || !employeeId || !serviceCode || !shiftDate || !startTime || !endTime) {
             return res.status(400).json({ error: 'clientId, employeeId, serviceCode, shiftDate, startTime, and endTime are required' });
         }
-        if (accountNumber && !VALID_ACCOUNT_NUMBERS.includes(accountNumber)) {
-            return res.status(400).json({ error: `Invalid account number. Must be one of: ${VALID_ACCOUNT_NUMBERS.join(', ')}` });
-        }
 
         const { hours, units } = computeShiftHours(startTime, endTime);
         const baseData = {
@@ -428,8 +424,8 @@ async function createShift(req, res, next) {
             hours,
             units,
             notes: notes || '',
-            accountNumber: accountNumber || '',
-            sandataClientId: sandataClientId || '',
+            accountNumber: '',
+            sandataClientId: '',
         };
 
         // Build list of dates (single or recurring weekly)
@@ -530,7 +526,7 @@ async function createShift(req, res, next) {
 async function updateShift(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const { clientId, employeeId, serviceCode, shiftDate, startTime, endTime, notes, status, accountNumber, sandataClientId } = req.body;
+        const { clientId, employeeId, serviceCode, shiftDate, startTime, endTime, notes, status } = req.body;
 
         const existing = await req.db.shift.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Shift not found' });
@@ -544,13 +540,6 @@ async function updateShift(req, res, next) {
         if (endTime !== undefined) data.endTime = endTime;
         if (notes !== undefined) data.notes = notes;
         if (status !== undefined) data.status = status;
-        if (accountNumber !== undefined) {
-            if (accountNumber && !VALID_ACCOUNT_NUMBERS.includes(accountNumber)) {
-                return res.status(400).json({ error: `Invalid account number. Must be one of: ${VALID_ACCOUNT_NUMBERS.join(', ')}` });
-            }
-            data.accountNumber = accountNumber;
-        }
-        if (sandataClientId !== undefined) data.sandataClientId = sandataClientId;
 
         // Recompute hours/units if times changed
         const st = startTime !== undefined ? startTime : existing.startTime;
@@ -613,7 +602,7 @@ async function updateShift(req, res, next) {
 
         // No auto-notify on updates — scheduler sends manually via "Send Schedule"
 
-        const changes = audit.diffFields(existing, shift, ['serviceCode', 'startTime', 'endTime', 'status', 'notes', 'employeeId', 'clientId', 'accountNumber', 'sandataClientId']);
+        const changes = audit.diffFields(existing, shift, ['serviceCode', 'startTime', 'endTime', 'status', 'notes', 'employeeId', 'clientId']);
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             action: 'UPDATE', entityType: 'Shift', entityId: shift.id,
@@ -830,7 +819,11 @@ async function getClientSchedule(req, res, next) {
             orderBy: [{ shiftDate: 'asc' }, { startTime: 'asc' }],
         });
 
-        const enriched = shifts.map(enrichShift);
+        // Resolve account number + Sandata Client ID LIVE from the client's
+        // authorizations (never the dormant stored copy on the shift) — same
+        // contract as listShifts, so the Client-card schedule PDF is correct.
+        const liveMaps = buildLiveSandataMap((client.authorizations || []).filter(a => !a.archivedAt));
+        const enriched = shifts.map(s => enrichShiftLive(s, liveMaps));
         const activeAuths = filterAuthsByWeek(client.authorizations, range.weekStart, range.weekEnd);
         const unitSummary = computeUnitSummary(shifts, activeAuths);
 
@@ -888,7 +881,15 @@ async function getEmployeeSchedule(req, res, next) {
             orderBy: [{ shiftDate: 'asc' }, { startTime: 'asc' }],
         });
 
-        const enriched = shifts.map(enrichShift);
+        // Resolve account number + Sandata Client ID LIVE from each client's
+        // authorizations (never the dormant stored copy on the shift) — same
+        // contract as listShifts, so the Employee-card schedule PDF is correct.
+        const clientIds = [...new Set(shifts.map(s => s.clientId).filter(Boolean))];
+        const liveAuths = clientIds.length
+            ? await req.db.authorization.findMany({ where: { clientId: { in: clientIds }, archivedAt: null } })
+            : [];
+        const liveMaps = buildLiveSandataMap(liveAuths);
+        const enriched = shifts.map(s => enrichShiftLive(s, liveMaps));
         const overlaps = detectOverlaps(shifts);
 
         const response = {
@@ -969,11 +970,7 @@ async function bulkUpdateShifts(req, res, next) {
             return res.status(400).json({ error: 'updates object is required' });
         }
 
-        const { startTime, endTime, employeeId, serviceCode, status, notes, accountNumber, sandataClientId } = updates;
-
-        if (accountNumber && !VALID_ACCOUNT_NUMBERS.includes(accountNumber)) {
-            return res.status(400).json({ error: `Invalid account number. Must be one of: ${VALID_ACCOUNT_NUMBERS.join(', ')}` });
-        }
+        const { startTime, endTime, employeeId, serviceCode, status, notes } = updates;
 
         const shifts = await req.db.shift.findMany({
             where: { id: { in: shiftIds.map(Number) }, archivedAt: null },
@@ -1014,8 +1011,6 @@ async function bulkUpdateShifts(req, res, next) {
             if (serviceCode !== undefined) data.serviceCode = serviceCode;
             if (status !== undefined) data.status = status;
             if (notes !== undefined) data.notes = notes;
-            if (accountNumber !== undefined) data.accountNumber = accountNumber;
-            if (sandataClientId !== undefined) data.sandataClientId = sandataClientId;
 
             // Recompute hours/units if times changed
             const st = startTime !== undefined ? startTime : existing.startTime;
@@ -1034,7 +1029,7 @@ async function bulkUpdateShifts(req, res, next) {
                 });
                 updated.push(enrichShift(shift));
 
-                const changes = audit.diffFields(existing, shift, ['serviceCode', 'startTime', 'endTime', 'status', 'notes', 'employeeId', 'accountNumber', 'sandataClientId']);
+                const changes = audit.diffFields(existing, shift, ['serviceCode', 'startTime', 'endTime', 'status', 'notes', 'employeeId']);
                 audit.logAction({
                     userId: req.user.id, userName: req.user.name, userRole: req.user.role,
                     action: 'UPDATE', entityType: 'Shift', entityId: shift.id,
@@ -1111,15 +1106,25 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
             }
         }));
 
-        // Collect future shifts for recurring propagation
+        // Collect future shifts for recurring propagation.
+        // Two sources, deduped by id:
+        //  1. Shifts in the same recurringGroupId (shifts created via "repeat weekly").
+        //  2. Fallback for week-by-week shifts that share no group: future shifts for the
+        //     same client + employee. The propagation loop below then filters these down
+        //     to the matching weekday + old service code, so only the "same" recurring
+        //     slot is touched. Without this, "apply to all future recurring weeks" would
+        //     silently update only the current week whenever the shifts weren't created
+        //     as a linked series.
         let futureSnapshot = [];
         let futureShifts = [];
         if (applyToFuture) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const byId = new Map();
+
             const recurringGroupIds = [...new Set(shifts.map(s => s.recurringGroupId).filter(Boolean))];
             if (recurringGroupIds.length > 0) {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                futureShifts = await req.db.shift.findMany({
+                const grouped = await req.db.shift.findMany({
                     where: {
                         recurringGroupId: { in: recurringGroupIds },
                         archivedAt: null,
@@ -1128,16 +1133,39 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
                     },
                     include: shiftInclude,
                 });
-                futureSnapshot = futureShifts.map(s => ({
-                    shiftId: s.id,
-                    oldValues: {
-                        startTime: s.startTime, endTime: s.endTime,
-                        serviceCode: s.serviceCode, accountNumber: s.accountNumber,
-                        sandataClientId: s.sandataClientId, employeeId: s.employeeId,
-                        hours: s.hours, units: s.units,
-                    }
-                }));
+                for (const s of grouped) byId.set(s.id, s);
             }
+
+            // Fallback: for edited shifts with no recurring group, match future shifts by
+            // client + employee (weekday + service code are matched in the propagation loop).
+            const ungroupedPairs = [...new Map(
+                shifts
+                    .filter(s => !s.recurringGroupId && s.clientId && s.employeeId)
+                    .map(s => [`${s.clientId}:${s.employeeId}`, { clientId: s.clientId, employeeId: s.employeeId }])
+            ).values()];
+            if (ungroupedPairs.length > 0) {
+                const ungrouped = await req.db.shift.findMany({
+                    where: {
+                        OR: ungroupedPairs.map(p => ({ clientId: p.clientId, employeeId: p.employeeId })),
+                        archivedAt: null,
+                        shiftDate: { gt: today },
+                        id: { notIn: shiftIds },
+                    },
+                    include: shiftInclude,
+                });
+                for (const s of ungrouped) byId.set(s.id, s);
+            }
+
+            futureShifts = [...byId.values()];
+            futureSnapshot = futureShifts.map(s => ({
+                shiftId: s.id,
+                oldValues: {
+                    startTime: s.startTime, endTime: s.endTime,
+                    serviceCode: s.serviceCode, accountNumber: s.accountNumber,
+                    sandataClientId: s.sandataClientId, employeeId: s.employeeId,
+                    hours: s.hours, units: s.units,
+                }
+            }));
         }
 
         const batch = await req.db.bulkEditBatch.create({
@@ -1160,8 +1188,6 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
             if (updates.startTime !== undefined) data.startTime = updates.startTime;
             if (updates.endTime !== undefined) data.endTime = updates.endTime;
             if (updates.serviceCode !== undefined) data.serviceCode = updates.serviceCode;
-            if (updates.accountNumber !== undefined) data.accountNumber = updates.accountNumber;
-            if (updates.sandataClientId !== undefined) data.sandataClientId = updates.sandataClientId;
             if (updates.employeeId !== undefined) {
                 const empId = updates.employeeId ? Number(updates.employeeId) : null;
                 if (empId) {
@@ -1169,11 +1195,6 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
                     if (!empExists) { errors.push({ id: existing.id, error: 'Employee not found' }); continue; }
                 }
                 data.employeeId = empId;
-            }
-
-            if (updates.accountNumber && !VALID_ACCOUNT_NUMBERS.includes(updates.accountNumber)) {
-                errors.push({ id: existing.id, error: 'Invalid account number' });
-                continue;
             }
 
             // Recompute hours/units if times changed
@@ -1196,7 +1217,7 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
                 audit.logAction({
                     userId: req.user.id, userName: req.user.name, userRole: req.user.role,
                     action: 'UPDATE', entityType: 'Shift', entityId: shift.id,
-                    changes: audit.diffFields(existing, shift, ['serviceCode', 'startTime', 'endTime', 'accountNumber', 'employeeId']),
+                    changes: audit.diffFields(existing, shift, ['serviceCode', 'startTime', 'endTime', 'employeeId']),
                     metadata: { bulkEdit: true, batchId: batch.id, perShift: true },
                 });
             } catch (err) {
@@ -1207,7 +1228,10 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
         // Propagate to future recurring shifts
         let futureUpdated = 0;
         if (applyToFuture && futureShifts.length > 0) {
-            // Build a day-of-week → updates mapping from the selected shifts
+            // Build a day-of-week → updates mapping from the selected shifts.
+            // Rules are scoped to the edited shift's client+employee so that when the
+            // future set is broadened for non-grouped shifts, one client's edit can
+            // never bleed onto a different client/employee sharing the same weekday.
             const dowUpdates = {};
             for (const existing of shifts) {
                 const updates = perShiftUpdates[String(existing.id)];
@@ -1215,6 +1239,8 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
                 const dow = new Date(existing.shiftDate).getDay();
                 if (!dowUpdates[dow]) dowUpdates[dow] = [];
                 dowUpdates[dow].push({
+                    clientId: existing.clientId,
+                    employeeId: existing.employeeId,
                     oldServiceCode: existing.serviceCode,
                     updates: { ...updates },
                 });
@@ -1225,20 +1251,22 @@ async function bulkUpdateShiftsPerShift(req, res, next) {
                 const dayRules = dowUpdates[dow];
                 if (!dayRules) continue;
 
-                // Match by day-of-week AND old service code only. No fallback to
-                // dayRules[0] — a future shift that doesn't match a specific edited
-                // shift must be left untouched (Bug 3: never silently rewrite a
-                // shift the user didn't edit, e.g. propagating a Respite time change
-                // onto a Homemaker shift).
-                const match = dayRules.find(r => r.oldServiceCode === futureShift.serviceCode);
+                // Match by day-of-week AND old service code AND same client+employee.
+                // No fallback to dayRules[0] — a future shift that doesn't match a
+                // specific edited shift must be left untouched (Bug 3: never silently
+                // rewrite a shift the user didn't edit, e.g. propagating a Respite time
+                // change onto a Homemaker shift).
+                const match = dayRules.find(r =>
+                    r.oldServiceCode === futureShift.serviceCode &&
+                    r.clientId === futureShift.clientId &&
+                    r.employeeId === futureShift.employeeId
+                );
                 if (!match) continue;
 
                 const data = {};
                 if (match.updates.startTime) data.startTime = match.updates.startTime;
                 if (match.updates.endTime) data.endTime = match.updates.endTime;
                 if (match.updates.serviceCode) data.serviceCode = match.updates.serviceCode;
-                if (match.updates.accountNumber !== undefined) data.accountNumber = match.updates.accountNumber;
-                if (match.updates.sandataClientId !== undefined) data.sandataClientId = match.updates.sandataClientId;
                 if (match.updates.employeeId !== undefined) data.employeeId = match.updates.employeeId ? Number(match.updates.employeeId) : null;
 
                 if (Object.keys(data).length === 0) continue;

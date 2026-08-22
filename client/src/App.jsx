@@ -18,6 +18,7 @@ const PcaFormPage = lazy(() => import('./pages/PcaFormPage'));
 const PermanentLinksPage = lazy(() => import('./pages/PermanentLinksPage'));
 const InsuranceTypesPage = lazy(() => import('./pages/InsuranceTypesPage'));
 const ServicesPage = lazy(() => import('./pages/ServicesPage'));
+const CatalogManagementPage = lazy(() => import('./pages/CatalogManagementPage'));
 const UsersPage = lazy(() => import('./pages/UsersPage'));
 const PayrollPage = lazy(() => import('./pages/PayrollPage'));
 const ReceiptsPage = lazy(() => import('./pages/ReceiptsPage'));
@@ -90,6 +91,7 @@ function AppRoutes() {
                 <Route path="/receipts" element={<ProtectedRoute adminOnly permission="receipts"><Layout><ReceiptsPage /></Layout></ProtectedRoute>} />
                 <Route path="/insurance-types" element={<ProtectedRoute staffOnly permission="insurance-types"><Layout><InsuranceTypesPage /></Layout></ProtectedRoute>} />
                 <Route path="/services" element={<ProtectedRoute staffOnly permission="services"><Layout><ServicesPage /></Layout></ProtectedRoute>} />
+                <Route path="/catalogs" element={<ProtectedRoute staffOnly permission="employees"><Layout><CatalogManagementPage /></Layout></ProtectedRoute>} />
                 <Route path="/employees" element={<ProtectedRoute staffOnly permission="employees"><Layout><EmployeesPage /></Layout></ProtectedRoute>} />
                 <Route path="/employees/:employeeId" element={<ProtectedRoute staffOnly permission="employees"><Layout><EmployeeDetailPage /></Layout></ProtectedRoute>} />
                 <Route path="/users" element={<ProtectedRoute adminOnly permission="users"><Layout><UsersPage /></Layout></ProtectedRoute>} />

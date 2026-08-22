@@ -21,6 +21,8 @@ import { SERVICE_COLORS, DAY_NAMES_SHORT } from '../utils/constants';
 import { CLIENT_COLORS } from '../utils/ui';
 import { deriveServiceCode } from '../utils/serviceCodes';
 import { toLocalDateStr } from '../utils/dates';
+import { isAuthEffectiveOn, currentAuthForCode } from '../utils/authorizations';
+import Tooltip from '../components/common/Tooltip';
 
 function buildClientColorMap(shifts) {
     const names = [...new Set(shifts.map(s => s.client?.clientName).filter(Boolean))].sort();
@@ -31,6 +33,36 @@ function buildClientColorMap(shifts) {
     return map;
 }
 
+/** Read-only field displaying a value resolved from the client's authorization,
+ *  with a one-click copy button and an info tooltip explaining where to edit it. */
+function ResolvedIdField({ value, label }) {
+    const [copied, setCopied] = React.useState(false);
+    const display = value || '—';
+    const tip = `To change the ${label}, edit it on the client's authorization (client-details page).`;
+    const copy = async () => {
+        if (!value) return;
+        try {
+            await navigator.clipboard.writeText(value);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1200);
+        } catch { /* clipboard unavailable */ }
+    };
+    return (
+        <span className="resolved-id">
+            <span className="resolved-id__value">{display}</span>
+            {value ? (
+                <Tooltip content={`Copy ${label}`}>
+                    <button type="button" className="resolved-id__copy" onClick={copy} aria-label={`Copy ${label}`}>
+                        {copied ? '✓' : Icons.clipboard}
+                    </button>
+                </Tooltip>
+            ) : null}
+            <Tooltip content={tip}>
+                <span className="resolved-id__info" role="img" tabIndex={0} aria-label={tip}>{Icons.helpCircle}</span>
+            </Tooltip>
+        </span>
+    );
+}
 
 // Reusable searchable dropdown for Client/Employee selection
 import SearchableSelect from '../components/common/SearchableSelect';
@@ -84,9 +116,11 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
         const now = new Date();
         const map = {};
         for (const auth of selectedClient.authorizations) {
-            if ((auth.manualStatus || 'active') !== 'active') continue;
-            if (auth.archivedAt) continue;
-            if (auth.authorizationEndDate && new Date(auth.authorizationEndDate) < now) continue;
+            // Single source of truth: an auth is current only when it is in effect
+            // TODAY (date window) and not manually inactivated/archived. This
+            // excludes a not-yet-effective scheduled renewal, so its future units
+            // don't get summed alongside the current auth during the pre-start gap.
+            if (!isAuthEffectiveOn(auth, now)) continue;
             const code = deriveCode(auth);
             if (!code) continue;
             if (!map[code]) map[code] = { units: 0, category: '', accountNumber: '', sandataClientId: '' };
@@ -142,7 +176,10 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
         weekDates.push(toLocalDateStr(d));
     }
 
-    const defaultShift = () => ({ serviceCode: 'PCS', startTime: defaultStartTime || '09:00', endTime: '13:00', accountNumber: accountNumber || '', sandataClientId: '' });
+    const defaultShift = () => {
+        const info = authorizedServiceMap['PCS'] || {};
+        return { serviceCode: 'PCS', startTime: defaultStartTime || '09:00', endTime: '13:00', accountNumber: info.accountNumber || accountNumber || '', sandataClientId: info.sandataClientId || '' };
+    };
     const [dayEntries, setDayEntries] = useState(() =>
         d?.dayEntries || DAY_NAMES.map((_, i) => ({
             enabled: defaultDate ? weekDates[i] === defaultDate : false,
@@ -165,7 +202,16 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
     const updateDayShift = (dayIdx, shiftIdx, field, value) => {
         setDayEntries(prev => prev.map((day, i) => {
             if (i !== dayIdx) return day;
-            const newShifts = day.shifts.map((s, si) => si === shiftIdx ? { ...s, [field]: value } : s);
+            const newShifts = day.shifts.map((s, si) => {
+                if (si !== shiftIdx) return s;
+                const updated = { ...s, [field]: value };
+                if (field === 'serviceCode') {
+                    const info = authorizedServiceMap[value] || {};
+                    updated.accountNumber = info.accountNumber || '';
+                    updated.sandataClientId = info.sandataClientId || '';
+                }
+                return updated;
+            });
             return { ...day, shifts: newShifts };
         }));
     };
@@ -209,20 +255,45 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
         }
     }, [clientId, clients]);
 
+    // When the selected client's authorizations become available (or change), do a
+    // single atomic pass over the create-mode day rows: (1) normalize each shift's
+    // serviceCode to an authorized one, then (2) derive accountNumber/sandataClientId
+    // from the authorization for that (possibly-normalized) code. Doing both in one
+    // updater avoids a race between two effects both writing dayEntries — the reason a
+    // client picked AFTER a day was chosen previously left account/Sandata blank.
     useEffect(() => {
-        if (authorizedServices.length > 0 && !authorizedServices.includes(serviceCode)) {
+        if (authorizedServices.length === 0) return;
+        if (!authorizedServices.includes(serviceCode)) {
             setServiceCode(authorizedServices[0]);
         }
-        if (authorizedServices.length > 0) {
-            setDayEntries(prev => prev.map(day => ({
-                ...day,
-                shifts: day.shifts.map(s => ({
-                    ...s,
-                    serviceCode: authorizedServices.includes(s.serviceCode) ? s.serviceCode : authorizedServices[0],
-                })),
-            })));
+        // Edit mode: fill the top-level fields (day rows are create-mode only).
+        if (isEdit) {
+            const info = authorizedServiceMap[authorizedServices.includes(serviceCode) ? serviceCode : authorizedServices[0]];
+            if (info) {
+                setAccountNumber(prev => prev || info.accountNumber || '');
+                setSandataClientId(prev => prev || info.sandataClientId || '');
+            }
+            return;
         }
-    }, [authorizedServices]);
+        setDayEntries(prev => {
+            let changed = false;
+            const nextDays = prev.map(day => {
+                const nextShifts = day.shifts.map(sh => {
+                    const code = authorizedServices.includes(sh.serviceCode) ? sh.serviceCode : authorizedServices[0];
+                    const info = authorizedServiceMap[code] || {};
+                    const nextAcct = sh.accountNumber || info.accountNumber || '';
+                    const nextSid = sh.sandataClientId || info.sandataClientId || '';
+                    if (code !== sh.serviceCode || nextAcct !== sh.accountNumber || nextSid !== sh.sandataClientId) {
+                        changed = true;
+                        return { ...sh, serviceCode: code, accountNumber: nextAcct, sandataClientId: nextSid };
+                    }
+                    return sh;
+                });
+                return { ...day, shifts: nextShifts };
+            });
+            return changed ? nextDays : prev;
+        });
+    }, [authorizedServices, authorizedServiceMap]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -617,19 +688,16 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                     </table>
                 )}
 
-                {/* Account + Sandata row */}
+                {/* Account + Sandata row — read-only, resolved live from authorization */}
                 {isEdit ? (
                     <div className="form-grid-2">
                         <div className="form-group">
-                            <label htmlFor="shiftAccountNumber">Account Number</label>
-                            <select id="shiftAccountNumber" value={accountNumber} onChange={e => setAccountNumber(e.target.value)}>
-                                <option value="">Select account…</option>
-                                {ACCOUNT_NUMBER_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
-                            </select>
+                            <label>Account Number</label>
+                            <ResolvedIdField value={accountNumber} label="account number" />
                         </div>
                         <div className="form-group">
-                            <label htmlFor="shiftSandataId">Sandata Client ID</label>
-                            <input id="shiftSandataId" value={sandataClientId} onChange={e => setSandataClientId(e.target.value)} placeholder="Optional…" />
+                            <label>Sandata Client ID</label>
+                            <ResolvedIdField value={sandataClientId} label="Sandata Client ID" />
                         </div>
                     </div>
                 ) : null}
@@ -789,14 +857,11 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                                                     </div>
                                                     <div className="sched-day-row__field">
                                                         <label className="sched-day-row__field-label">Account</label>
-                                                        <select value={sh.accountNumber} onChange={e => updateDayShift(i, si, 'accountNumber', e.target.value)} className="sched-day-row__input">
-                                                            <option value="">—</option>
-                                                            {ACCOUNT_NUMBER_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
-                                                        </select>
+                                                        <ResolvedIdField value={sh.accountNumber} label="account number" />
                                                     </div>
                                                     <div className="sched-day-row__field">
                                                         <label className="sched-day-row__field-label">Sandata Client ID</label>
-                                                        <input value={sh.sandataClientId} onChange={e => updateDayShift(i, si, 'sandataClientId', e.target.value)} className="sched-day-row__input" placeholder="—" />
+                                                        <ResolvedIdField value={sh.sandataClientId} label="Sandata Client ID" />
                                                     </div>
                                                     {si === 0 && enabledCount > 1 && (
                                                         <button type="button" className="sched-day-row__apply" title="Apply this day's shifts to all selected days" onClick={() => applyToAll(i)}>
@@ -1441,19 +1506,37 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
         const end = (h + 1) % 24;
         return `${String(end).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     };
+
+    // Shared helper: look up accountNumber + sandataClientId from the selected
+    // client's active authorization for a given serviceCode.  Used by both
+    // seedRowForDay (new-day case) and updateNewRow (service-code change).
+    const deriveAcctSandata = (svcCode) => {
+        if (!filterClientId) return { accountNumber: '', sandataClientId: '' };
+        const client = clients.find(c => String(c.id) === String(filterClientId));
+        const auth = currentAuthForCode(client?.authorizations, svcCode);
+        return { accountNumber: auth?.accountNumber || '', sandataClientId: auth?.sandataClientId || '' };
+    };
+
     const seedRowForDay = (dateStr) => {
         // Seed from the last existing/new row on that day for convenience.
         const existing = (shiftsByDay.find(([d]) => d === dateStr)?.[1] || []).filter(s => !removedIds.has(s.id));
         const days = newRows[dateStr] || [];
         const last = days.length ? days[days.length - 1] : (existing.length ? edits[existing[existing.length - 1].id] : null);
         const startTime = last?.endTime || '09:00';
+        const seededServiceCode = last?.serviceCode || 'PCS';
+        // For a brand-new day (last === null), derive account/Sandata from the client's
+        // active authorization for the seeded service code.  When last exists, copy its
+        // values so the existing-day case is unchanged.
+        const derived = (last?.accountNumber || last?.sandataClientId)
+            ? { accountNumber: last.accountNumber || '', sandataClientId: last.sandataClientId || '' }
+            : deriveAcctSandata(seededServiceCode);
         return {
             _key: `new_${++newRowSeq.current}`,
-            serviceCode: last?.serviceCode || 'PCS',
+            serviceCode: seededServiceCode,
             startTime,
             endTime: addHour(startTime),
-            accountNumber: last?.accountNumber || '',
-            sandataClientId: last?.sandataClientId || '',
+            accountNumber: derived.accountNumber,
+            sandataClientId: derived.sandataClientId,
             employeeId: last?.employeeId || (filterEmployeeId ? String(filterEmployeeId) : ''),
         };
     };
@@ -1462,10 +1545,19 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
         setNewRows(prev => ({ ...prev, [dateStr]: [...(prev[dateStr] || []), seedRowForDay(dateStr)] }));
     };
     const updateNewRow = (dateStr, key, field, value) => {
-        setNewRows(prev => ({
-            ...prev,
-            [dateStr]: (prev[dateStr] || []).map(r => r._key === key ? { ...r, [field]: value } : r),
-        }));
+        setNewRows(prev => {
+            const updated = (prev[dateStr] || []).map(r => {
+                if (r._key !== key) return r;
+                const next = { ...r, [field]: value };
+                if (field === 'serviceCode') {
+                    const derived = deriveAcctSandata(value);
+                    next.accountNumber = derived.accountNumber;
+                    next.sandataClientId = derived.sandataClientId;
+                }
+                return next;
+            });
+            return { ...prev, [dateStr]: updated };
+        });
     };
     const removeNewRow = (dateStr, key) => {
         setNewRows(prev => ({ ...prev, [dateStr]: (prev[dateStr] || []).filter(r => r._key !== key) }));
@@ -1482,13 +1574,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
             const next = { ...prev, [shiftId]: { ...prev[shiftId], [field]: value } };
             if (field === 'serviceCode' && filterClientId) {
                 const client = clients.find(c => String(c.id) === String(filterClientId));
-                const now = new Date();
-                const auth = client?.authorizations?.find(a =>
-                    a.serviceCode === value &&
-                    (a.manualStatus || 'active') === 'active' &&
-                    !a.archivedAt &&
-                    (!a.authorizationEndDate || new Date(a.authorizationEndDate) >= now)
-                );
+                const auth = currentAuthForCode(client?.authorizations, value);
                 if (auth) {
                     const current = next[shiftId];
                     if (auth.accountNumber && (!current.accountNumber || ACCOUNT_NUMBER_OPTIONS.includes(current.accountNumber))) {
@@ -1579,6 +1665,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
     // Incomplete new rows block the save (validation surfaced via rowErrors).
     const [rowErrors, setRowErrors] = useState({}); // { newRowKey: message }
     const validateNewRow = (r) => {
+        if (!filterClientId) return 'Select a client above to add a shift';
         if (!r.serviceCode) return 'Select a service';
         if (!r.startTime || !r.endTime) return 'Set start and end time';
         if (!r.employeeId) return 'Assign an employee';
@@ -1635,7 +1722,11 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
 
         const removeIds = [...removedIds];
         if (Object.keys(updates).length === 0 && creates.length === 0 && removeIds.length === 0) return;
-        onSave({ updates, creates, removeIds }, applyToFuture && hasRecurringShifts);
+        // Send applyToFuture whenever the user picked it. The server propagates to
+        // future weeks via the recurring group when one exists, and otherwise falls
+        // back to matching future shifts by client + employee + weekday + service code
+        // — so week-by-week shifts (no shared group) still get updated.
+        onSave({ updates, creates, removeIds }, applyToFuture);
     };
 
     // Client/employee options for SearchableSelect
@@ -1659,8 +1750,8 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
         const now = new Date();
         const map = {};
         for (const auth of selectedClient.authorizations) {
-            if ((auth.manualStatus || 'active') !== 'active' || auth.archivedAt) continue;
-            if (auth.authorizationEndDate && new Date(auth.authorizationEndDate) < now) continue;
+            // Current = in effect today (dates) and not manually inactive/archived.
+            if (!isAuthEffectiveOn(auth, now)) continue;
             const code = auth.serviceCode;
             if (!map[code]) map[code] = { units: 0, category: auth.serviceCategory };
             map[code].units += (auth.authorizedUnits || 0);
@@ -1771,10 +1862,16 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                         </div>
 
                         <div className="sched-day-grid">
-                            {shiftsByDay.map(([dateStr, dayShifts]) => {
+                            {/* Render every weekday so a shift can be added to any day —
+                                including days that currently have no shifts. Days with
+                                existing shifts pull them from the selected-shift grouping;
+                                empty days still render with just an "+ Add shift" button. */}
+                            {weekDates.map((dateStr) => {
+                                const dayShifts = shiftsByDay.find(([d]) => d === dateStr)?.[1] || [];
                                 const liveDayShifts = dayShifts.filter(s => !removedIds.has(s.id));
                                 const dayNewRows = newRows[dateStr] || [];
                                 const rowCount = liveDayShifts.length + dayNewRows.length;
+                                const isEmpty = rowCount === 0;
                                 const dateObj = new Date(dateStr + 'T12:00:00');
                                 const dayName = DAY_NAMES[dateObj.getDay()];
                                 const dayTotalHrs = liveDayShifts.reduce((s, sh) => s + computeHrs(edits[sh.id]?.startTime, edits[sh.id]?.endTime).hours, 0)
@@ -1784,16 +1881,18 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                 const firstEdit = liveDayShifts.length ? edits[liveDayShifts[0].id] : dayNewRows[0];
                                 const firstColor = SERVICE_COLORS[firstEdit?.serviceCode] || { color: '#6B7280' };
                                 return (
-                                    <div key={dateStr} className="sched-day-row sched-day-row--active">
+                                    <div key={dateStr} className={`sched-day-row ${isEmpty ? 'sched-day-row--empty' : 'sched-day-row--active'}`}>
                                         <div className="sched-day-row__header">
                                             <label className="sched-day-row__toggle">
                                                 <span className="sched-day-row__day">{dayName}</span>
                                                 <span className="sched-day-row__date">{dateStr.slice(5)}</span>
                                             </label>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                <span className="sched-day-row__badge" style={{ background: `color-mix(in srgb, ${firstColor.color} 15%, white)`, color: firstColor.color }}>
-                                                    {dayTotalHrs}h / {dayTotalUnits}u
-                                                </span>
+                                                {!isEmpty && (
+                                                    <span className="sched-day-row__badge" style={{ background: `color-mix(in srgb, ${firstColor.color} 15%, white)`, color: firstColor.color }}>
+                                                        {dayTotalHrs}h / {dayTotalUnits}u
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                         {liveDayShifts.map((shift, si) => {
@@ -1830,10 +1929,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                     <div className="sched-day-row__row">
                                                         <div className="sched-day-row__field">
                                                             <label className="sched-day-row__field-label">Account</label>
-                                                            <select value={edit.accountNumber} onChange={e => updateShiftField(shift.id, 'accountNumber', e.target.value)} className="sched-day-row__input">
-                                                                <option value="">—</option>
-                                                                {ACCOUNT_NUMBER_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
-                                                            </select>
+                                                            <ResolvedIdField value={edit.accountNumber} label="account number" />
                                                         </div>
                                                         <div className="sched-day-row__field">
                                                             <label className="sched-day-row__field-label">Employee</label>
@@ -1847,7 +1943,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                         </div>
                                                         <div className="sched-day-row__field">
                                                             <label className="sched-day-row__field-label">Client ID</label>
-                                                            <input value={edit.sandataClientId} onChange={e => updateShiftField(shift.id, 'sandataClientId', e.target.value)} className="sched-day-row__input" placeholder="—" />
+                                                            <ResolvedIdField value={edit.sandataClientId} label="Sandata Client ID" />
                                                         </div>
                                                     </div>
                                                     {si === 0 && shiftsByDay.length > 1 && (
@@ -1865,7 +1961,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                 <div key={r._key} className="sched-day-row__fields sched-day-row__fields--new">
                                                     <div className="sched-day-row__shift-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                         <span>New shift</span>
-                                                        <button type="button" className="sched-day-row__remove" title="Remove this shift" onClick={() => removeNewRow(dateStr, r._key)}>{Icons.x}</button>
+                                                        <button type="button" className="sched-day-row__remove-shift" title="Remove this shift" onClick={() => removeNewRow(dateStr, r._key)}>&times;</button>
                                                     </div>
                                                     <div className="sched-day-row__row">
                                                         <div className="sched-day-row__field">
@@ -1891,10 +1987,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                     <div className="sched-day-row__row">
                                                         <div className="sched-day-row__field">
                                                             <label className="sched-day-row__field-label">Account</label>
-                                                            <select value={r.accountNumber} onChange={e => updateNewRow(dateStr, r._key, 'accountNumber', e.target.value)} className="sched-day-row__input">
-                                                                <option value="">—</option>
-                                                                {ACCOUNT_NUMBER_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
-                                                            </select>
+                                                            <ResolvedIdField value={r.accountNumber} label="account number" />
                                                         </div>
                                                         <div className="sched-day-row__field">
                                                             <label className="sched-day-row__field-label">Employee</label>
@@ -1908,7 +2001,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                         </div>
                                                         <div className="sched-day-row__field">
                                                             <label className="sched-day-row__field-label">Client ID</label>
-                                                            <input value={r.sandataClientId} onChange={e => updateNewRow(dateStr, r._key, 'sandataClientId', e.target.value)} className="sched-day-row__input" placeholder="—" />
+                                                            <ResolvedIdField value={r.sandataClientId} label="Sandata Client ID" />
                                                         </div>
                                                     </div>
                                                     {err && <div className="sched-day-row__error">{err}</div>}
@@ -1949,8 +2042,8 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                 </div>
                             )}
                             {applyToFuture && !hasRecurringShifts && (
-                                <div className="sched-recurring__preview" style={{ color: '#f59e0b' }}>
-                                    No recurring group found — changes will apply to selected shifts only.
+                                <div className="sched-recurring__preview">
+                                    Changes will update matching future shifts — same client, employee, weekday and service — on upcoming weeks.
                                 </div>
                             )}
                             {showDateSelect && futureSeriesShifts.length > 0 && (
