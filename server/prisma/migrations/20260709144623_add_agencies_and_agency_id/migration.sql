@@ -446,10 +446,16 @@ DECLARE
   default_agency int;
 BEGIN
   SELECT id INTO default_agency FROM "agencies" WHERE slug = 'nvbest';
+  -- Only backfill tables that actually have an agency_id column at this point.
+  -- A later migration may create a table (e.g. lead_documents) whose agency_id
+  -- column is added by a still-later migration; on a fresh sequential deploy
+  -- that table exists here without the column, so joining on columns (not just
+  -- tables) is required — otherwise this UPDATE fails with "column does not exist".
   FOR t IN
-    SELECT table_name FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-      AND table_name NOT IN ('agencies', '_prisma_migrations')
+    SELECT c.table_name FROM information_schema.columns c
+    WHERE c.table_schema = 'public'
+      AND c.column_name = 'agency_id'
+      AND c.table_name NOT IN ('agencies', '_prisma_migrations')
   LOOP
     EXECUTE format('UPDATE %I SET agency_id = %s WHERE agency_id IS NULL', t, default_agency);
   END LOOP;
