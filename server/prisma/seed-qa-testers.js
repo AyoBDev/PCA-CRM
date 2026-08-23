@@ -10,6 +10,12 @@
 //   • Certification reminders  → active@qa.test   (certs with expiring/expired dates)
 //   • Empty states             → empty@qa.test    (active, nothing assigned)
 //
+// MULTI-TENANCY: all QA data is scoped to agency #1 (the default agency). The
+//   agency is resolved on the OWNER connection first (a pre-context bootstrap
+//   step, mirroring seed.js), then every seed/clean operation runs inside
+//   runWithTenant() using a tenant-scoped client so RLS applies and agencyId is
+//   auto-stamped on all creates.
+//
 // SAFETY:
 //   • GATED: only runs when process.env.SEED_QA_TESTERS === 'true'. A normal
 //     deploy skips it entirely — no surprise test data in prod.
@@ -31,7 +37,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
-const prisma = new PrismaClient();
+const { runWithTenant, getTenantDb, getAgencyId } = require('../src/lib/tenantContext');
+const { tenantClient, tenantTransaction } = require('../src/lib/tenantPrisma');
+
+// Owner connection — used ONLY to resolve the default agency before we enter a
+// tenant context (a pre-context bootstrap step, exactly as seed.js does).
+const ownerPrisma = new PrismaClient();
 
 const QA_PASSWORD = 'QATest1234!';
 const QA_CLIENT_NAME = '[QA] Test Client';
@@ -50,9 +61,11 @@ function dayInThisWeek(offset) { const s = weekSundayUTC(); s.setUTCDate(s.getUT
 
 // Create (or refresh) a User + linked Employee for a tester. Returns the employee.
 async function upsertTester(t) {
+  const prisma = getTenantDb();
+  const agencyId = getAgencyId();
   const passwordHash = await bcrypt.hash(QA_PASSWORD, 10);
   const user = await prisma.user.upsert({
-    where: { email: t.email },
+    where: { agencyId_email: { agencyId, email: t.email } },
     update: { passwordHash, name: t.name, role: 'pca', active: true, status: 'active', archivedAt: null },
     create: { email: t.email, passwordHash, name: t.name, role: 'pca', active: true, status: 'active' },
   });
@@ -71,6 +84,7 @@ async function upsertTester(t) {
 }
 
 async function ensureQaClient() {
+  const prisma = getTenantDb();
   const existing = await prisma.client.findFirst({ where: { clientName: QA_CLIENT_NAME } });
   const data = {
     mainServices: 'Light Housekeeping\nGrooming\nMedication Reminders\nMeal Preparation\nCompanionship',
@@ -87,24 +101,29 @@ async function ensureQaClient() {
 //    wizard has documents/certs/policies to complete. Uses assignRequirements
 //    from the same service the real onboarding flow uses.
 async function seedOnboarding(employee) {
+  const prisma = getTenantDb();
+  const agencyId = getAgencyId();
   const { assignRequirements } = require('../src/services/requirementService');
   // Clear any prior ledger for a clean re-run, then assign a representative set.
   await prisma.employeeRequirement.deleteMany({ where: { employeeId: employee.id } });
   const certTypes = await prisma.certType.findMany({ where: { active: true }, take: 3 });
   const docTypes = await prisma.documentType.findMany({ where: { active: true }, take: 2 });
   const policies = await prisma.policyDocument.findMany({ where: { active: true }, take: 1 });
-  await prisma.$transaction(async (tx) => {
+  // assignRequirements uses `tx` from tenantTransaction, which does NOT
+  // auto-stamp creates — so it takes an explicit agencyId (its own contract).
+  await tenantTransaction(agencyId, async (tx) => {
     await assignRequirements(tx, employee.id, {
       documentTypeIds: docTypes.map(d => d.id),
       certTypeIds: certTypes.map(c => c.id),
       policyDocumentIds: policies.map(p => p.id),
-    });
+    }, agencyId);
   });
 }
 
 // ── ACTIVE tester: shifts this week + a permanent link & draft timesheet +
 //    certifications with a spread of expiry dates (drives the reminder banner).
 async function seedActive(employee, client) {
+  const prisma = getTenantDb();
   // Shifts (Thu + Fri of the current week)
   await prisma.shift.deleteMany({ where: { employeeId: employee.id, clientId: client.id } });
   for (const offset of [4, 5]) {
@@ -159,13 +178,16 @@ async function seedActive(employee, client) {
 
 // ── EMPTY tester: active with NOTHING assigned — for verifying empty states.
 async function seedEmpty(employee) {
+  const prisma = getTenantDb();
   await prisma.shift.deleteMany({ where: { employeeId: employee.id } });
   await prisma.employeeRequirement.deleteMany({ where: { employeeId: employee.id } });
   await prisma.employeeCertification.deleteMany({ where: { employeeId: employee.id } });
 }
 
 async function clean() {
+  const prisma = getTenantDb();
   const emails = TESTERS.map(t => t.email);
+  // Tenant client scopes these filters to agency #1 automatically via RLS.
   const users = await prisma.user.findMany({ where: { email: { in: emails } }, select: { id: true } });
   const employees = await prisma.employee.findMany({ where: { userId: { in: users.map(u => u.id) } }, select: { id: true } });
   const empIds = employees.map(e => e.id);
@@ -185,16 +207,7 @@ async function clean() {
   console.log('🧹 [QA] Removed all QA tester accounts, the QA client, and their data.');
 }
 
-async function main() {
-  const mode = process.env.SEED_QA_TESTERS;
-  const cleanRequested = process.argv.includes('--clean') || mode === 'clean';
-
-  if (cleanRequested) { await clean(); return; }
-  if (mode !== 'true') {
-    console.log('⏭️  [QA] SEED_QA_TESTERS is not "true" — skipping QA tester seed.');
-    return;
-  }
-
+async function seed() {
   const client = await ensureQaClient();
   const results = {};
   for (const t of TESTERS) {
@@ -213,6 +226,34 @@ async function main() {
   console.log('   To remove: run this script with --clean or set SEED_QA_TESTERS=clean.');
 }
 
+async function main() {
+  const mode = process.env.SEED_QA_TESTERS;
+  const cleanRequested = process.argv.includes('--clean') || mode === 'clean';
+
+  if (!cleanRequested && mode !== 'true') {
+    console.log('⏭️  [QA] SEED_QA_TESTERS is not "true" — skipping QA tester seed.');
+    return;
+  }
+
+  // Resolve the default agency on the OWNER connection (pre-context bootstrap),
+  // mirroring seed.js: prefer NVBEST_AGENCY_SLUG, else the oldest agency.
+  const slug = process.env.NVBEST_AGENCY_SLUG;
+  const agency = slug
+    ? await ownerPrisma.agency.findFirst({ where: { slug }, orderBy: { id: 'asc' } })
+      || await ownerPrisma.agency.findFirst({ orderBy: { id: 'asc' } })
+    : await ownerPrisma.agency.findFirst({ orderBy: { id: 'asc' } });
+  if (!agency) {
+    throw new Error('[QA] No agency found — run `npm run db:seed` first to create the default agency.');
+  }
+
+  // Everything else runs inside agency #1's tenant context: RLS applies and
+  // top-level creates auto-stamp agencyId.
+  await runWithTenant({ agencyId: agency.id, db: tenantClient(agency.id) }, async () => {
+    if (cleanRequested) { await clean(); return; }
+    await seed();
+  });
+}
+
 main()
   .catch((e) => { console.error('[QA] Seed failed:', e); process.exit(1); })
-  .finally(() => prisma.$disconnect());
+  .finally(() => ownerPrisma.$disconnect());
