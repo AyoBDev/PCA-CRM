@@ -11,13 +11,6 @@
 // Both endpoints must resolve account + Sandata LIVE from the client's
 // authorization, exactly like listShifts.
 
-jest.mock('../../lib/prisma', () => ({
-    client: { findUnique: jest.fn() },
-    employee: { findUnique: jest.fn() },
-    shift: { findMany: jest.fn() },
-    authorization: { findMany: jest.fn() },
-}));
-
 jest.mock('../../services/auditService', () => ({
     logAction: jest.fn(),
     diffFields: jest.fn(() => []),
@@ -32,8 +25,16 @@ jest.mock('../../services/notificationService', () => ({
 
 // Keep the real schedulingService / sandataResolver / authorizationService so
 // live resolution actually runs.
-const prisma = require('../../lib/prisma');
 const { getClientSchedule, getEmployeeSchedule } = require('../schedulingController');
+
+function mockDb() {
+    return {
+        client: { findUnique: jest.fn() },
+        employee: { findUnique: jest.fn() },
+        shift: { findMany: jest.fn() },
+        authorization: { findMany: jest.fn() },
+    };
+}
 
 function mockRes() {
     return {
@@ -71,15 +72,16 @@ beforeEach(() => jest.clearAllMocks());
 
 describe('getClientSchedule — live account/Sandata resolution', () => {
     test('returned shifts carry account + Sandata resolved from the authorization', async () => {
-        prisma.client.findUnique.mockResolvedValue({
+        const db = mockDb();
+        db.client.findUnique.mockResolvedValue({
             id: 42, clientName: 'Heidi Martinez', address: '', phone: '', gateCode: '', notes: '',
             authorizations: [liveAuth],
         });
-        prisma.shift.findMany.mockResolvedValue([shiftRow()]);
+        db.shift.findMany.mockResolvedValue([shiftRow()]);
 
         const res = mockRes();
         await getClientSchedule(
-            { params: { clientId: '42' }, query: { weekStart: '2026-08-09' } },
+            { params: { clientId: '42' }, query: { weekStart: '2026-08-09' }, db },
             res,
             (err) => { throw err; },
         );
@@ -92,15 +94,16 @@ describe('getClientSchedule — live account/Sandata resolution', () => {
 
 describe('getEmployeeSchedule — live account/Sandata resolution', () => {
     test('returned shifts carry account + Sandata resolved from the authorization', async () => {
-        prisma.employee.findUnique.mockResolvedValue({
+        const db = mockDb();
+        db.employee.findUnique.mockResolvedValue({
             id: 7, name: 'Maria PCA', email: '', phone: '', address: '',
         });
-        prisma.shift.findMany.mockResolvedValue([shiftRow()]);
-        prisma.authorization.findMany.mockResolvedValue([liveAuth]);
+        db.shift.findMany.mockResolvedValue([shiftRow()]);
+        db.authorization.findMany.mockResolvedValue([liveAuth]);
 
         const res = mockRes();
         await getEmployeeSchedule(
-            { params: { employeeId: '7' }, query: { weekStart: '2026-08-09' } },
+            { params: { employeeId: '7' }, query: { weekStart: '2026-08-09' }, db },
             res,
             (err) => { throw err; },
         );

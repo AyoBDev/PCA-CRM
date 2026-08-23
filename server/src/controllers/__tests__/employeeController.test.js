@@ -1,4 +1,4 @@
-jest.mock('../../lib/prisma', () => {
+jest.mock('../../lib/tenantPrisma', () => {
     const employee = {
         findMany: jest.fn(),
         findUnique: jest.fn(),
@@ -7,11 +7,11 @@ jest.mock('../../lib/prisma', () => {
         delete: jest.fn(),
     };
     return {
-        employee,
-        // createEmployee wraps its create in a transaction; the mock tx just
+        // createEmployee wraps its create in tenantTransaction; the mock tx just
         // proxies to the same jest.fn()s so existing per-test mockResolvedValue
         // calls on prisma.employee.create continue to work unchanged.
-        $transaction: jest.fn((cb) => cb({ employee })),
+        tenantTransaction: jest.fn((agencyId, fn) => fn({ employee })),
+        __employee: employee,
     };
 });
 jest.mock('../../services/requirementService', () => ({ assignRequirements: jest.fn().mockResolvedValue([]) }));
@@ -22,12 +22,16 @@ jest.mock('../../services/onboardingService', () => ({
 }));
 jest.mock('../../services/geocodeOnWrite', () => ({ geocodeOnWrite: jest.fn() }));
 
-const prisma = require('../../lib/prisma');
+// listEmployees/updateEmployee etc. read via req.db directly (not tenantTransaction) —
+// build a req.db double sharing the SAME employee jest.fn()s as the tenantTransaction
+// mock's tx, so a test that sets up prisma.employee.create.mockResolvedValue(...) works
+// whether the code path under test goes through req.db or the tx.
+const prisma = { employee: require('../../lib/tenantPrisma').__employee };
 const { geocodeOnWrite } = require('../../services/geocodeOnWrite');
 const { listEmployees, createEmployee } = require('../employeeController');
 
 function mockReqRes(overrides = {}) {
-    const req = { query: {}, params: {}, body: {}, user: { id: 1, name: 'Admin', role: 'admin' }, ...overrides };
+    const req = { query: {}, params: {}, body: {}, user: { id: 1, name: 'Admin', role: 'admin', agencyId: 1 }, db: prisma, ...overrides };
     const res = {
         json: jest.fn(),
         status: jest.fn().mockReturnThis(),

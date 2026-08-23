@@ -6,7 +6,12 @@
 // already booked at that hour must never appear above one who is free, or a
 // scheduler skimming the list will double-book them.
 
-jest.mock('../../lib/prisma', () => ({
+// rankCandidates takes `db` (a tenant-scoped Prisma client) as its first
+// argument — see its JSDoc in candidateRankingService.js. So the mock plays
+// the role of that db and is passed explicitly into every call below, rather
+// than being installed via jest.mock('../../lib/prisma') (the service does
+// not import lib/prisma at all).
+const prisma = {
     client: { findUnique: jest.fn() },
     employee: { findMany: jest.fn() },
     shift: { findMany: jest.fn() },
@@ -14,9 +19,8 @@ jest.mock('../../lib/prisma', () => ({
     clientCareTeam: { findMany: jest.fn() },
     employeeCertification: { findMany: jest.fn() },
     $queryRaw: jest.fn(),
-}));
+};
 
-const prisma = require('../../lib/prisma');
 const geocodingService = require('../geocodingService');
 const ranking = require('../candidateRankingService');
 
@@ -91,7 +95,7 @@ describe('input validation', () => {
         ['startTime', { startTime: undefined }],
         ['endTime', { endTime: undefined }],
     ])('returns insufficient_input when %s is missing', async (_field, patch) => {
-        const result = await ranking.rankCandidates({ ...REQUEST, ...patch });
+        const result = await ranking.rankCandidates(prisma, { ...REQUEST, ...patch });
 
         // Without a full time window the engine cannot say who is free. Ranking
         // anyway would present a confident order built on unestablished facts.
@@ -104,7 +108,7 @@ describe('input validation', () => {
     test('returns missing_client when the client does not exist', async () => {
         prisma.client.findUnique.mockResolvedValue(null);
 
-        const result = await ranking.rankCandidates(REQUEST);
+        const result = await ranking.rankCandidates(prisma, REQUEST);
 
         expect(result.status).toBe('missing_client');
     });
@@ -122,7 +126,7 @@ describe('availability outranks proximity', () => {
             { id: 90, employeeId: 1, shiftDate: new Date('2026-08-03T00:00:00Z'), startTime: '08:00', endTime: '12:00', status: 'scheduled' },
         ]);
 
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'soft' });
 
         expect(result.eligible.map(c => c.employeeId)).toEqual([2]);
         expect(result.ineligible.map(c => c.employeeId)).toEqual([1]);
@@ -143,7 +147,7 @@ describe('availability outranks proximity', () => {
             { id: 91, employeeId: 2, shiftDate: new Date('2026-08-03T00:00:00Z'), startTime: '08:00', endTime: '12:00', status: 'scheduled' },
         ]);
 
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'soft' });
 
         expect(result.eligible).toEqual([]);
         // Both are unavailable; proximity must not order them.
@@ -157,7 +161,7 @@ describe('hard filters', () => {
         setEmployees([employee(2, 'Other')]);
         mockDistances({ 2: 2 });
 
-        const result = await ranking.rankCandidates({ ...REQUEST, excludeEmployeeId: 1 }, { mode: 'soft' });
+        const result = await ranking.rankCandidates(prisma, { ...REQUEST, excludeEmployeeId: 1 }, { mode: 'soft' });
 
         // The exclusion happens in the query, so assert the query — the mocked
         // findMany returns a fixed array and cannot honour a where clause.
@@ -176,7 +180,7 @@ describe('hard filters', () => {
             { id: 5, employeeId: 1, status: 'approved', dateFrom: new Date('2026-08-01'), dateTo: new Date('2026-08-05') },
         ]);
 
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'soft' });
 
         expect(result.eligible).toEqual([]);
         expect(result.ineligible[0].conflicts).toContain('time_off');
@@ -187,7 +191,7 @@ describe('hard filters', () => {
         mockDistances({ 1: 0.5 });
         prisma.timeOffRequest.findMany.mockResolvedValue([]); // service filters to approved
 
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'soft' });
 
         expect(prisma.timeOffRequest.findMany).toHaveBeenCalledWith(
             expect.objectContaining({ where: expect.objectContaining({ status: 'approved' }) }),
@@ -202,7 +206,7 @@ describe('hard filters', () => {
             { employeeId: 1, certType: 'cpr', expirationDate: new Date('2026-01-01'), status: 'active' },
         ]);
 
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'soft' });
 
         // Service-type qualification does not exist in this data model, so
         // compliance is what actually gates eligibility.
@@ -217,7 +221,7 @@ describe('hard filters', () => {
             { employeeId: 1, certType: 'cpr', expirationDate: new Date('2027-01-01'), status: 'active' },
         ]);
 
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'soft' });
 
         expect(result.eligible.map(c => c.employeeId)).toEqual([1]);
     });
@@ -230,7 +234,7 @@ describe('hard filters', () => {
         ]);
         mockDistances({ 1: 0.5 });
 
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'soft' });
 
         expect(result.ineligible[0].conflicts).toContain('blackout_date');
     });
@@ -246,7 +250,7 @@ describe('hard filters', () => {
         ]);
         mockDistances({ 1: 95.0 });
 
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'soft' });
 
         expect(result.eligible.map(c => c.employeeId)).toEqual([1]);
     });
@@ -262,14 +266,14 @@ describe('strict vs soft mode', () => {
     });
 
     test('strict mode omits ineligible candidates entirely', async () => {
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'strict' });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'strict' });
 
         expect(result.eligible.map(c => c.employeeId)).toEqual([2]);
         expect(result.ineligible).toEqual([]);
     });
 
     test('soft mode returns ineligible candidates so they stay selectable', async () => {
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'soft' });
 
         expect(result.eligible.map(c => c.employeeId)).toEqual([2]);
         expect(result.ineligible.map(c => c.employeeId)).toEqual([1]);
@@ -280,7 +284,7 @@ describe('strict vs soft mode', () => {
         mockDistances(Object.fromEntries([1, 2, 3, 4, 5, 6, 7].map(i => [i, i])));
         prisma.shift.findMany.mockResolvedValue([]);
 
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'strict', limit: 5 });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'strict', limit: 5 });
 
         expect(result.eligible).toHaveLength(5);
     });
@@ -295,7 +299,7 @@ describe('scoring', () => {
         mockDistances({ 1: 0.5, 2: 6.0 });
         prisma.clientCareTeam.findMany.mockResolvedValue([{ clientId: 1, employeeId: 2 }]);
 
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'soft' });
 
         // Continuity of care matters more to a client than a few miles.
         expect(result.eligible[0].employeeId).toBe(2);
@@ -306,7 +310,7 @@ describe('scoring', () => {
         setEmployees([employee(1, 'Far'), employee(2, 'Near')]);
         mockDistances({ 1: 9.0, 2: 1.0 });
 
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'soft' });
 
         expect(result.eligible.map(c => c.employeeId)).toEqual([2, 1]);
     });
@@ -315,7 +319,7 @@ describe('scoring', () => {
         setEmployees([employee(1, 'Someone')]);
         mockDistances({ 1: 2.0 });
 
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'soft' });
 
         // scoreBreakdown is persisted on ShiftOffer so a past ranking stays
         // explainable long after the inputs have changed.
@@ -338,7 +342,7 @@ describe('scoring', () => {
             { id: 91, employeeId: 1, shiftDate: new Date('2026-08-05T00:00:00Z'), startTime: '09:00', endTime: '17:00', status: 'scheduled', hours: 8 },
         ]);
 
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'soft' });
 
         expect(result.eligible[0].employeeId).toBe(2);
     });
@@ -352,7 +356,7 @@ describe('un-geocoded candidates', () => {
         ]);
         mockDistances({ 2: 8.0 }); // employee 1 absent from the distance query
 
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'soft' });
 
         expect(result.eligible.map(c => c.employeeId)).toEqual([2, 1]);
         const unGeocoded = result.eligible.find(c => c.employeeId === 1);
@@ -366,7 +370,7 @@ describe('un-geocoded candidates', () => {
         prisma.client.findUnique.mockResolvedValue({ ...CLIENT, latitude: null, longitude: null });
         setEmployees([employee(1, 'A'), employee(2, 'B')]);
 
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'soft' });
 
         expect(result.status).toBe('ok');
         expect(result.eligible).toHaveLength(2);
@@ -383,7 +387,7 @@ describe('contact details', () => {
         ]);
         mockDistances({ 1: 1.0 });
 
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'soft' });
 
         // Most callouts are handled by phone; the ranked list is useless for
         // that if the admin has to go and look the number up elsewhere.
@@ -397,7 +401,7 @@ describe('contact details', () => {
         setEmployees([employee(1, 'No Contact', { phone: '', email: '' })]);
         mockDistances({ 1: 1.0 });
 
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'soft' });
 
         expect(result.eligible[0].phone).toBe('');
         expect(result.eligible[0].email).toBe('');
@@ -409,7 +413,7 @@ describe('distance computation', () => {
         setEmployees([employee(1, 'A'), employee(2, 'B')]);
         mockDistances({ 1: 1.0, 2: 2.0 });
 
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'soft' });
 
         // Distances are now computed in JS from lat/lng — no raw query to build,
         // and therefore no $queryRaw call. The values must still be correct.
@@ -428,7 +432,7 @@ describe('cost invariant', () => {
             employee(1, 'No Coords', { latitude: null, longitude: null }),
         ]);
 
-        await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        await ranking.rankCandidates(prisma, REQUEST, { mode: 'soft' });
 
         // Geocoding on the request path is what would turn a free integration
         // into a metered one. Un-geocoded candidates stay un-geocoded here.
@@ -445,7 +449,7 @@ describe('overlap detection', () => {
             { id: 90, employeeId: 1, shiftDate: new Date('2026-08-03T00:00:00Z'), startTime: '08:00', endTime: '12:00', status: 'cancelled' },
         ]);
 
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'soft' });
 
         expect(result.eligible.map(c => c.employeeId)).toEqual([1]);
     });
@@ -457,7 +461,7 @@ describe('overlap detection', () => {
             { id: 90, employeeId: 1, shiftDate: new Date('2026-08-03T00:00:00Z'), startTime: '05:00', endTime: '09:00', status: 'scheduled' },
         ]);
 
-        const result = await ranking.rankCandidates(REQUEST, { mode: 'soft' });
+        const result = await ranking.rankCandidates(prisma, REQUEST, { mode: 'soft' });
 
         // Shift ends exactly when the new one starts — adjacent, not overlapping.
         expect(result.eligible.map(c => c.employeeId)).toEqual([1]);

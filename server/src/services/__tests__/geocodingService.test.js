@@ -5,13 +5,21 @@
 // anything ever calls the provider on the request path, a free integration
 // turns into a metered one. Several tests below exist purely to pin that down.
 
-jest.mock('../../lib/prisma', () => ({
+const mockTenantDb = {
     client: { findUnique: jest.fn(), update: jest.fn() },
     employee: { findUnique: jest.fn(), update: jest.fn() },
     $executeRaw: jest.fn(),
+};
+
+// geocodingService reads its Prisma delegate via getTenantDb() (ambient
+// AsyncLocalStorage tenant context set by tenantMiddleware/runWithTenant in
+// real requests) rather than the owner lib/prisma connection — mock that
+// instead of lib/prisma so the tests exercise the actual code path.
+jest.mock('../../lib/tenantContext', () => ({
+    getTenantDb: jest.fn(() => mockTenantDb),
 }));
 
-const prisma = require('../../lib/prisma');
+const prisma = mockTenantDb;
 const geocoding = require('../geocodingService');
 
 const ORIGINAL_ENV = process.env;

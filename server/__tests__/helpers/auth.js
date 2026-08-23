@@ -11,12 +11,14 @@ async function employeeAuthHeader(overrides = {}) {
   const unique = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const passwordHash = await bcrypt.hash('Password123!', 10);
 
+  // agencyId: 1 — the default agency created by jest.globalSetup's seed run.
   const user = await prisma.user.create({
     data: {
       email: `portal-test-${unique}@example.com`,
       passwordHash,
       name: 'Portal Test User',
       role: 'pca',
+      agencyId: 1,
       ...overrides.user,
     },
   });
@@ -26,6 +28,7 @@ async function employeeAuthHeader(overrides = {}) {
       name: 'Portal Test Employee',
       email: `portal-employee-${unique}@example.com`,
       userId: user.id,
+      agencyId: 1,
       ...overrides.employee,
     },
   });
@@ -33,7 +36,7 @@ async function employeeAuthHeader(overrides = {}) {
   const token = jwt.sign(
     // surface: 'employee' — the portal routes now enforce the token surface via
     // requireSurface('employee'), matching a real employee-login token.
-    { id: user.id, surface: 'employee', permissionsVersion: user.permissionsVersion ?? 1 },
+    { id: user.id, surface: 'employee', permissionsVersion: user.permissionsVersion ?? 1, agencyId: user.agencyId },
     JWT_SECRET
   );
 

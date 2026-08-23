@@ -5,18 +5,6 @@
  * authorization record and NEVER call `prisma.shift.updateMany`.
  */
 
-jest.mock('../../lib/prisma', () => ({
-    authorization: {
-        update: jest.fn(),
-        findUnique: jest.fn(),
-        findMany: jest.fn(),
-        updateMany: jest.fn(),
-    },
-    shift: {
-        updateMany: jest.fn(),
-    },
-}));
-
 jest.mock('../../services/auditService', () => ({
     logAction: jest.fn(),
     diffFields: jest.fn(() => []),
@@ -39,7 +27,6 @@ jest.mock('../../services/serviceRegistry', () => ({
     sectionEnforcesLimit: jest.fn(() => true),
 }));
 
-const prisma = require('../../lib/prisma');
 const { updateAccountNumber, updateSandataClientId } = require('../authorizationController');
 
 // A plausible authorization object returned by prisma.authorization.update.
@@ -64,11 +51,26 @@ const MOCK_AUTH = {
     updatedAt: new Date(),
 };
 
-function mockReqRes({ params = {}, body = {} } = {}) {
+function mockDb() {
+    return {
+        authorization: {
+            update: jest.fn(),
+            findUnique: jest.fn(),
+            findMany: jest.fn(),
+            updateMany: jest.fn(),
+        },
+        shift: {
+            updateMany: jest.fn(),
+        },
+    };
+}
+
+function mockReqRes({ params = {}, body = {}, db } = {}) {
     const req = {
         params,
         body,
-        user: { id: 1, name: 'Admin', role: 'admin' },
+        user: { id: 1, name: 'Admin', role: 'admin', agencyId: 1 },
+        db,
     };
     const res = {
         json: jest.fn(),
@@ -81,46 +83,50 @@ describe('auth→shift propagation removal (Task 5 regression)', () => {
     beforeEach(() => jest.clearAllMocks());
 
     test('updateAccountNumber updates the authorization and does NOT call shift.updateMany', async () => {
-        prisma.authorization.update.mockResolvedValue({ ...MOCK_AUTH, accountNumber: '71040' });
+        const db = mockDb();
+        db.authorization.update.mockResolvedValue({ ...MOCK_AUTH, accountNumber: '71040' });
 
         const { req, res } = mockReqRes({
             params: { id: '5' },
             body: { accountNumber: '71040' },
+            db,
         });
 
         await updateAccountNumber(req, res);
 
         // authorization.update must be called with the new account number
-        expect(prisma.authorization.update).toHaveBeenCalledTimes(1);
-        const callArg = prisma.authorization.update.mock.calls[0][0];
+        expect(db.authorization.update).toHaveBeenCalledTimes(1);
+        const callArg = db.authorization.update.mock.calls[0][0];
         expect(callArg.where).toEqual({ id: 5 });
         expect(callArg.data.accountNumber).toBe('71040');
 
         // shift.updateMany must NOT be called (propagation was removed)
-        expect(prisma.shift.updateMany).not.toHaveBeenCalled();
+        expect(db.shift.updateMany).not.toHaveBeenCalled();
 
         // Response must be sent
         expect(res.json).toHaveBeenCalledTimes(1);
     });
 
     test('updateSandataClientId updates the authorization and does NOT call shift.updateMany', async () => {
-        prisma.authorization.update.mockResolvedValue({ ...MOCK_AUTH, sandataClientId: '955054' });
+        const db = mockDb();
+        db.authorization.update.mockResolvedValue({ ...MOCK_AUTH, sandataClientId: '955054' });
 
         const { req, res } = mockReqRes({
             params: { id: '5' },
             body: { sandataClientId: '955054' },
+            db,
         });
 
         await updateSandataClientId(req, res);
 
         // authorization.update must be called with the new sandata client id
-        expect(prisma.authorization.update).toHaveBeenCalledTimes(1);
-        const callArg = prisma.authorization.update.mock.calls[0][0];
+        expect(db.authorization.update).toHaveBeenCalledTimes(1);
+        const callArg = db.authorization.update.mock.calls[0][0];
         expect(callArg.where).toEqual({ id: 5 });
         expect(callArg.data.sandataClientId).toBe('955054');
 
         // shift.updateMany must NOT be called (propagation was removed)
-        expect(prisma.shift.updateMany).not.toHaveBeenCalled();
+        expect(db.shift.updateMany).not.toHaveBeenCalled();
 
         // Response must be sent
         expect(res.json).toHaveBeenCalledTimes(1);

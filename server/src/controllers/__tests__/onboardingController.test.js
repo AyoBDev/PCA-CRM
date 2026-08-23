@@ -9,15 +9,20 @@ let testEmployee;
 beforeAll(async () => {
     const passwordHash = await bcrypt.hash('admin123', 10);
     const admin = await prisma.user.create({
-        data: { email: 'onboard-test-admin@test.com', passwordHash, name: 'Test Admin', role: 'admin' },
+        data: { email: 'onboard-test-admin@test.com', passwordHash, name: 'Test Admin', role: 'admin', agencyId: 1 },
     });
-    const loginRes = await request(app).post('/api/auth/login').send({ email: 'onboard-test-admin@test.com', password: 'admin123' });
+    const loginRes = await request(app).post('/api/auth/login').set('Host', 'nvbest.localhost').send({ email: 'onboard-test-admin@test.com', password: 'admin123' });
     adminToken = loginRes.body.token;
 });
 
 afterAll(async () => {
-    await prisma.employeeAvailability.deleteMany({});
-    await prisma.onboardingToken.deleteMany({});
+    // Scoped to THIS test's employee only — an unscoped deleteMany({}) here
+    // previously wiped every onboarding token / availability row globally,
+    // racing with any other test file mid-flight against the shared DB.
+    if (testEmployee) {
+        await prisma.employeeAvailability.deleteMany({ where: { employeeId: testEmployee.id } });
+        await prisma.onboardingToken.deleteMany({ where: { employeeId: testEmployee.id } });
+    }
     await prisma.employee.deleteMany({ where: { email: 'newpca@test.com' } });
     await prisma.user.deleteMany({ where: { email: { in: ['onboard-test-admin@test.com', 'newpca@test.com'] } } });
 });
@@ -72,7 +77,7 @@ describe('Onboarding Flow', () => {
         const employee = await prisma.employee.findUnique({ where: { id: testEmployee.id } });
         expect(employee.onboardingStatus).toBe('pending_review');
 
-        const user = await prisma.user.findUnique({ where: { email: 'newpca@test.com' } });
+        const user = await prisma.user.findFirst({ where: { email: 'newpca@test.com' } });
         expect(user).not.toBeNull();
         expect(user.status).toBe('pending');
         expect(user.role).toBe('pca');
@@ -83,7 +88,7 @@ describe('Onboarding Flow', () => {
     // the Area 2 lifecycle behavior (employeeLogin relaxes the pending gate for
     // employees whose onboardingStatus is pending_review/changes_requested).
     it('pending_review employee CAN log in via employee portal (gated to onboarding-only)', async () => {
-        const res = await request(app).post('/api/auth/employee-login').send({ email: 'newpca@test.com', password: 'securepass1' });
+        const res = await request(app).post('/api/auth/employee-login').set('Host', 'nvbest.localhost').send({ email: 'newpca@test.com', password: 'securepass1' });
         expect(res.status).toBe(200);
         expect(res.body.token).toBeTruthy();
         expect(res.body.user.onboardingStatus).toBe('pending_review');
@@ -100,18 +105,18 @@ describe('Onboarding Flow', () => {
         const employee = await prisma.employee.findUnique({ where: { id: testEmployee.id } });
         expect(employee.onboardingStatus).toBe('active');
 
-        const user = await prisma.user.findUnique({ where: { email: 'newpca@test.com' } });
+        const user = await prisma.user.findFirst({ where: { email: 'newpca@test.com' } });
         expect(user.status).toBe('active');
     });
 
     it('approved user can log in via employee login', async () => {
-        const res = await request(app).post('/api/auth/employee-login').send({ email: 'newpca@test.com', password: 'securepass1' });
+        const res = await request(app).post('/api/auth/employee-login').set('Host', 'nvbest.localhost').send({ email: 'newpca@test.com', password: 'securepass1' });
         expect(res.status).toBe(200);
         expect(res.body.token).toBeDefined();
     });
 
     it('approved PCA user is blocked from admin login', async () => {
-        const res = await request(app).post('/api/auth/login').send({ email: 'newpca@test.com', password: 'securepass1' });
+        const res = await request(app).post('/api/auth/login').set('Host', 'nvbest.localhost').send({ email: 'newpca@test.com', password: 'securepass1' });
         expect(res.status).toBe(403);
         expect(res.body.error).toContain('Employee Portal');
     });

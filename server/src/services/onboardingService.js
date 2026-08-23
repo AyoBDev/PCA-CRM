@@ -7,11 +7,15 @@ const { projectLedger, reviewSummary } = require('./requirementService');
 const ONBOARDING_EXPIRY_DAYS = 7;
 const EMPLOYEE_APP_URL = process.env.EMPLOYEE_APP_URL || 'http://localhost:4000/employee';
 
-async function createOnboardingToken(employeeId) {
-    await prisma.onboardingToken.deleteMany({ where: { employeeId } });
+async function createOnboardingToken(db, employeeId) {
+    // Owner-connection client does not auto-stamp agencyId — derive it from
+    // the employee row so the token lands in the right tenant.
+    const employee = await db.employee.findUnique({ where: { id: employeeId }, select: { agencyId: true } });
+    if (!employee) throw new Error('Employee not found');
+    await db.onboardingToken.deleteMany({ where: { employeeId } });
     const expiresAt = new Date(Date.now() + ONBOARDING_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
-    return prisma.onboardingToken.create({
-        data: { employeeId, expiresAt },
+    return db.onboardingToken.create({
+        data: { employeeId, expiresAt, agencyId: employee.agencyId },
     });
 }
 
@@ -66,7 +70,10 @@ async function completeOnboarding(tokenStr, { password, availability }) {
     if (!valid) throw new Error(reason);
 
     const email = employee.email.toLowerCase().trim();
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+
+    // Runs on public token paths without tenant context (Task 10 wires that).
+    // Scope explicitly by the already-loaded employee's agencyId instead.
+    const existingUser = await prisma.user.findFirst({ where: { email, agencyId: employee.agencyId } });
     // A returning employee (already has a login account, e.g. re-submitting after
     // changes_requested) keeps their existing password — they were NOT asked for one.
     // Only a brand-new account requires a password to be set here.
@@ -91,7 +98,7 @@ async function completeOnboarding(tokenStr, { password, availability }) {
         skipApproval = !isOwnMintedUser;
     } else {
         user = await prisma.user.create({
-            data: { email, passwordHash, name: employee.name, role: 'pca', status: 'pending' },
+            data: { email, passwordHash, name: employee.name, role: 'pca', status: 'pending', agencyId: employee.agencyId },
         });
     }
 
@@ -123,7 +130,7 @@ async function completeOnboarding(tokenStr, { password, availability }) {
         }),
         prisma.employeeAvailability.upsert({
             where: { employeeId: employee.id },
-            create: { employeeId: employee.id, ...availabilityData },
+            create: { employeeId: employee.id, agencyId: employee.agencyId, ...availabilityData },
             update: availabilityData,
         }),
     ]);
@@ -175,7 +182,7 @@ async function finalizeOnboarding(employeeId, actor = {}) {
     if (!employee) throw new Error('Employee not found');
     if (employee.onboardingStatus !== 'pending_review') throw new Error('Employee is not pending review');
 
-    const ledger = await projectLedger(employeeId);
+    const ledger = await projectLedger(prisma, employeeId);
     const { outcome } = reviewSummary(ledger);
     const meta = { userId: actor.userId, userName: actor.userName, userRole: actor.userRole };
 
@@ -206,7 +213,7 @@ async function finalizeOnboarding(employeeId, actor = {}) {
     });
     const active = await prisma.onboardingToken.findFirst({ where: { employeeId, status: 'pending', expiresAt: { gt: new Date() } } });
     if (!active) {
-        const token = await createOnboardingToken(employeeId);
+        const token = await createOnboardingToken(prisma, employeeId);
         sendOnboardingEmail(employee, token).catch(err => console.error('Onboarding re-invite email failed:', err.message));
     }
     return { outcome, employee };
@@ -247,7 +254,7 @@ async function sendBackOnboarding(employeeId, actor = {}, note = '') {
     });
     const active = await prisma.onboardingToken.findFirst({ where: { employeeId, status: 'pending', expiresAt: { gt: new Date() } } });
     if (!active) {
-        const token = await createOnboardingToken(employeeId);
+        const token = await createOnboardingToken(prisma, employeeId);
         sendOnboardingEmail(employee, token).catch(err => console.error('Onboarding re-invite email failed:', err.message));
     }
     return { employee };

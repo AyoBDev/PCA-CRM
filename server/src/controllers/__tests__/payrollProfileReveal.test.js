@@ -23,7 +23,8 @@ function mockRes() {
 }
 
 const baseReq = {
-    user: { id: 9, name: 'Admin A', role: 'admin' },
+    user: { id: 9, name: 'Admin A', role: 'admin', agencyId: 1 },
+    db: prisma,
     params: { employeeId: '42' },
     query: { field: 'ssn' },
 };

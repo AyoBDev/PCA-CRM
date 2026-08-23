@@ -1,5 +1,3 @@
-const prisma = require('../lib/prisma');
-
 // POST /api/permanent-links
 async function createPermanentLink(req, res, next) {
   try {
@@ -8,7 +6,7 @@ async function createPermanentLink(req, res, next) {
       return res.status(400).json({ error: 'clientId and pcaName are required' });
     }
 
-    const link = await prisma.permanentLink.create({
+    const link = await req.db.permanentLink.create({
       data: { clientId: Number(clientId), pcaName: pcaName.trim() },
       include: { client: true },
     });
@@ -26,7 +24,7 @@ async function createPermanentLink(req, res, next) {
 // GET /api/permanent-links
 async function listPermanentLinks(req, res, next) {
   try {
-    const links = await prisma.permanentLink.findMany({
+    const links = await req.db.permanentLink.findMany({
       include: { client: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -40,7 +38,7 @@ async function listPermanentLinks(req, res, next) {
 async function deletePermanentLink(req, res, next) {
   try {
     const id = Number(req.params.id);
-    await prisma.permanentLink.update({
+    await req.db.permanentLink.update({
       where: { id },
       data: { active: false },
     });

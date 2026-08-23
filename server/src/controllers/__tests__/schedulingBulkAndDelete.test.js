@@ -1,16 +1,3 @@
-jest.mock('../../lib/prisma', () => ({
-    shift: {
-        findUnique: jest.fn(),
-        findMany: jest.fn(),
-        create: jest.fn(),
-        update: jest.fn(),
-        updateMany: jest.fn(),
-    },
-    employee: { findUnique: jest.fn() },
-    bulkEditBatch: { create: jest.fn() },
-    authorization: { findMany: jest.fn() },
-}));
-
 jest.mock('../../services/auditService', () => ({
     logAction: jest.fn(),
     diffFields: jest.fn(() => []),
@@ -28,13 +15,28 @@ jest.mock('../../services/authorizationService', () => ({
 }));
 
 // Keep the real schedulingService helpers (computeShiftHours, enrichShift, etc.)
-const prisma = require('../../lib/prisma');
 const { deleteShift, bulkUpdateShiftsPerShift, listShifts, createShift } = require('../schedulingController');
+
+// Controllers read the DB via req.db (tenant-scoped client set by
+// tenantMiddleware), not the owner lib/prisma connection.
+const prisma = {
+    shift: {
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        updateMany: jest.fn(),
+    },
+    employee: { findUnique: jest.fn() },
+    bulkEditBatch: { create: jest.fn() },
+    authorization: { findMany: jest.fn() },
+};
 
 function mockReqRes(overrides = {}) {
     const req = {
         params: {}, query: {}, body: {},
-        user: { id: 1, name: 'Admin', role: 'admin' },
+        user: { id: 1, name: 'Admin', role: 'admin', agencyId: 1 },
+        db: prisma,
         ...overrides,
     };
     const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
@@ -55,7 +57,7 @@ describe('deleteShift — scope param (Bug 1)', () => {
         prisma.shift.updateMany.mockResolvedValue({ count: 3 });
 
         const { req, res } = mockReqRes({ params: { id: '42' }, query: { scope: 'future' } });
-        await deleteShift(req, res);
+        await deleteShift(req, res, (e) => { throw e; });
 
         expect(prisma.shift.updateMany).toHaveBeenCalledTimes(1);
         const call = prisma.shift.updateMany.mock.calls[0][0];
@@ -74,7 +76,7 @@ describe('deleteShift — scope param (Bug 1)', () => {
         prisma.shift.updateMany.mockResolvedValue({ count: 8 });
 
         const { req, res } = mockReqRes({ params: { id: '42' }, query: { scope: 'all' } });
-        await deleteShift(req, res);
+        await deleteShift(req, res, (e) => { throw e; });
 
         const call = prisma.shift.updateMany.mock.calls[0][0];
         expect(call.where.recurringGroupId).toBe('rg_abc');
@@ -88,7 +90,7 @@ describe('deleteShift — scope param (Bug 1)', () => {
         prisma.shift.update.mockResolvedValue({ id: 42 });
 
         const { req, res } = mockReqRes({ params: { id: '42' }, query: { scope: 'this' } });
-        await deleteShift(req, res);
+        await deleteShift(req, res, (e) => { throw e; });
 
         expect(prisma.shift.updateMany).not.toHaveBeenCalled();
         expect(prisma.shift.update).toHaveBeenCalledWith(
@@ -104,7 +106,7 @@ describe('deleteShift — scope param (Bug 1)', () => {
         prisma.shift.updateMany.mockResolvedValue({ count: 8 });
 
         const { req, res } = mockReqRes({ params: { id: '42' }, query: { group: 'true' } });
-        await deleteShift(req, res);
+        await deleteShift(req, res, (e) => { throw e; });
 
         const call = prisma.shift.updateMany.mock.calls[0][0];
         expect(call.where.recurringGroupId).toBe('rg_abc');
@@ -147,7 +149,7 @@ describe('bulkUpdateShiftsPerShift — overlap blocks, never auto-edits (Bug 3)'
         const { req, res } = mockReqRes({
             body: { perShiftUpdates: { 1: { endTime: '12:00' } }, applyToFuture: false },
         });
-        await bulkUpdateShiftsPerShift(req, res);
+        await bulkUpdateShiftsPerShift(req, res, (e) => { throw e; });
 
         expect(res.status).toHaveBeenCalledWith(409);
         expect(res.json).toHaveBeenCalledWith(
@@ -199,7 +201,7 @@ describe('bulkUpdateShiftsPerShift — overlap blocks, never auto-edits (Bug 3)'
         const { req, res } = mockReqRes({
             body: { perShiftUpdates: { 1: { startTime: '08:00' } }, applyToFuture: true },
         });
-        await bulkUpdateShiftsPerShift(req, res);
+        await bulkUpdateShiftsPerShift(req, res, (e) => { throw e; });
 
         const updatedIds = prisma.shift.update.mock.calls.map(c => c[0].where.id);
         expect(updatedIds).toContain(10);  // future respite updated

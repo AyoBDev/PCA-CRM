@@ -1,4 +1,3 @@
-const prisma = require('../../lib/prisma');
 const audit = require('../../services/auditService');
 
 // Fields a logged-in employee may read/edit on their own profile. `ssn` is
@@ -13,7 +12,7 @@ const PROFILE_SELECT = {
 };
 
 async function getProfile(req, res) {
-  const emp = await prisma.employee.findUnique({
+  const emp = await req.db.employee.findUnique({
     where: { id: req.employee.id },
     select: PROFILE_SELECT,
   });
@@ -39,7 +38,7 @@ async function updateProfile(req, res) {
     ...(emergencyContactPhone !== undefined && { emergencyContactPhone }),
     ...(emergencyContactEmail !== undefined && { emergencyContactEmail }),
   };
-  const updated = await prisma.employee.update({
+  const updated = await req.db.employee.update({
     where: { id: req.employee.id },
     data,
     select: PROFILE_SELECT,

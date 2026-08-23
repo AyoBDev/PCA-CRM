@@ -6,6 +6,7 @@ jest.mock('../../../lib/prisma', () => ({
   $transaction: jest.fn(async (ops) => Array.isArray(ops) ? Promise.all(ops.map(o => typeof o === 'function' ? o() : o)) : ops),
 }));
 jest.mock('../../../lib/storage', () => ({ uploadFile: jest.fn().mockResolvedValue(), downloadFile: jest.fn() }));
+jest.mock('../../../services/storageService', () => ({ tenantKey: jest.fn((k) => k) }));
 jest.mock('../../../services/auditService', () => ({ logAction: jest.fn() }));
 
 const prisma = require('../../../lib/prisma');
@@ -15,8 +16,9 @@ const { createCertification } = require('../requirementsController');
 
 function mockReqRes(file, body = {}) {
   const req = {
-    employee: { id: 7 },
-    user: { id: 11, name: 'Tester', role: 'pca' },
+    employee: { id: 7, agencyId: 1 },
+    user: { id: 11, name: 'Tester', role: 'pca', agencyId: 1 },
+    db: prisma,
     file,
     body,
   };
@@ -87,7 +89,7 @@ describe('getCertifications (ledger-driven)', () => {
         uploads: [{ id: 500, fileName: 'cpr.pdf', fileType: 'application/pdf', fileSize: 10, submittedAt: new Date('2026-08-01') }] },
     ]);
     const res = mockReqRes().res;
-    await getCertifications({ employee: { id: 7 } }, res);
+    await getCertifications({ employee: { id: 7 }, db: prisma }, res);
 
     const payload = res.json.mock.calls[0][0];
     expect(payload.certifications).toHaveLength(1);
@@ -104,7 +106,7 @@ describe('getCertifications (ledger-driven)', () => {
     prisma.certType.findMany.mockResolvedValue([]);
     prisma.employeeCertification.findMany.mockResolvedValue([]);
     const res = mockReqRes().res;
-    await getCertifications({ employee: { id: 7 } }, res);
+    await getCertifications({ employee: { id: 7 }, db: prisma }, res);
     expect(prisma.employeeRequirement.findMany.mock.calls[0][0].where).toMatchObject({ employeeId: 7, kind: 'certification' });
     expect(prisma.employeeCertification.findMany.mock.calls[0][0].where).toMatchObject({ employeeId: 7 });
   });
@@ -119,7 +121,7 @@ describe('downloadCertificationUpload (employee-scoped)', () => {
   test('404 when the upload is not the caller employee\'s', async () => {
     prisma.certificationUpload.findFirst.mockResolvedValue(null);
     const r = res();
-    await downloadCertificationUpload({ employee: { id: 7 }, params: { uploadId: '500' } }, r);
+    await downloadCertificationUpload({ employee: { id: 7 }, params: { uploadId: '500' }, db: prisma }, r);
     expect(r.status).toHaveBeenCalledWith(404);
     // and the scoping predicate reaches into the parent certification's employeeId
     expect(prisma.certificationUpload.findFirst.mock.calls[0][0].where.certification.employeeId).toBe(7);
@@ -129,7 +131,7 @@ describe('downloadCertificationUpload (employee-scoped)', () => {
     prisma.certificationUpload.findFirst.mockResolvedValue({ id: 500, bucketKey: 'k', fileName: 'cpr.pdf', fileType: 'application/pdf' });
     downloadFile.mockResolvedValue(Buffer.from('pdf'));
     const r = res();
-    await downloadCertificationUpload({ employee: { id: 7 }, params: { uploadId: '500' } }, r);
+    await downloadCertificationUpload({ employee: { id: 7 }, params: { uploadId: '500' }, db: prisma }, r);
     expect(downloadFile).toHaveBeenCalledWith('k');
     expect(r.send).toHaveBeenCalled();
   });

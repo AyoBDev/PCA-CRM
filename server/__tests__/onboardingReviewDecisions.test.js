@@ -12,14 +12,14 @@ let seq = 0;
 function uniq(p) { return `${p}-${Date.now()}-${seq++}-${Math.random().toString(36).slice(2)}`; }
 
 async function adminHeader() {
-  const u = await prisma.user.create({ data: { email: `${uniq('rd-admin')}@t.co`, passwordHash: await bcrypt.hash('x', 4), name: 'admin', role: 'admin' } });
-  return { Authorization: `Bearer ${jwt.sign({ id: u.id, role: 'admin', permissionsVersion: u.permissionsVersion ?? 1 }, JWT_SECRET)}` };
+  const u = await prisma.user.create({ data: { email: `${uniq('rd-admin')}@t.co`, passwordHash: await bcrypt.hash('x', 4), name: 'admin', role: 'admin', agencyId: 1 } });
+  return { Authorization: `Bearer ${jwt.sign({ id: u.id, role: 'admin', permissionsVersion: u.permissionsVersion ?? 1, agencyId: u.agencyId }, JWT_SECRET)}` };
 }
 
 // A pending_review employee with a linked login user and NO requirements (the legacy case).
 async function pendingReviewEmployee() {
-  const user = await prisma.user.create({ data: { email: `${uniq('rd-u')}@t.co`, passwordHash: await bcrypt.hash('x', 4), name: 'Rd', role: 'pca', status: 'pending' } });
-  const emp = await prisma.employee.create({ data: { name: 'Rd EE', email: `${uniq('rd-e')}@t.co`, onboardingStatus: 'pending_review', userId: user.id } });
+  const user = await prisma.user.create({ data: { email: `${uniq('rd-u')}@t.co`, passwordHash: await bcrypt.hash('x', 4), name: 'Rd', role: 'pca', status: 'pending', agencyId: 1 } });
+  const emp = await prisma.employee.create({ data: { name: 'Rd EE', email: `${uniq('rd-e')}@t.co`, onboardingStatus: 'pending_review', userId: user.id, agencyId: 1 } });
   return { emp, user };
 }
 

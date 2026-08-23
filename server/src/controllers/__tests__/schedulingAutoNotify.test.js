@@ -16,18 +16,19 @@
 // controller tests — a mock that exports the functions proves nothing about the
 // real module. We inject the real module and spy on it instead.
 
-jest.mock('../../lib/prisma', () => ({
-    employee: { findUnique: jest.fn() },
-    employeeScheduleLink: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
-    scheduleNotification: { create: jest.fn(), update: jest.fn() },
-}));
-
-const prisma = require('../../lib/prisma');
 const notificationService = require('../../services/notificationService');
 const { autoNotify } = require('../schedulingController');
 
+// Controllers read the DB via req.db (tenant-scoped client set by
+// tenantMiddleware), not the owner lib/prisma connection.
+const prisma = {
+    employee: { findUnique: jest.fn() },
+    employeeScheduleLink: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
+    scheduleNotification: { create: jest.fn(), update: jest.fn() },
+};
+
 function mockReq() {
-    return { protocol: 'https', get: jest.fn(() => 'app.example.com') };
+    return { protocol: 'https', get: jest.fn(() => 'app.example.com'), db: prisma };
 }
 
 describe('autoNotify', () => {

@@ -988,6 +988,38 @@ export const markAttentionSeen = (keys) => {
     return request('/admin/employee-attention/mark-seen', { method: 'POST', body: JSON.stringify(body) });
 };
 
+// ── Platform Console (superadmin only) ──
+export const listPlatformAgencies = () => request('/platform/agencies');
+export const createPlatformAgency = (payload) => request('/platform/agencies', { method: 'POST', body: JSON.stringify(payload) });
+export const suspendAgency = (id) => request(`/platform/agencies/${id}/suspend`, { method: 'PUT' });
+export const reactivateAgency = (id) => request(`/platform/agencies/${id}/reactivate`, { method: 'PUT' });
+export const impersonateAgency = (id) => request(`/platform/agencies/${id}/impersonate`, { method: 'POST', body: JSON.stringify({}) });
+
+// ── Agency Info (public — resolves current subdomain, no auth token) ──
+export const getAgencyInfo = () =>
+    fetch(`${BASE}/agency-info`).then(async (res) => {
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            const err = new Error(body.error || `HTTP ${res.status}`);
+            err.status = res.status;
+            throw err;
+        }
+        return res.json();
+    });
+
+// ── Host Info (public — tells the client what kind of host it's on:
+// platform console, agency login, or the public landing page) ──
+export const getHostInfo = () =>
+    fetch(`${BASE}/host-info`).then(async (res) => {
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            const err = new Error(body.error || `HTTP ${res.status}`);
+            err.status = res.status;
+            throw err;
+        }
+        return res.json();
+    });
+
 // ── Onboarding Catalogs ──
 // Pass { all: true } to include inactive rows (admin management page).
 // Default (no arg) stays active-only, e.g. for assign-picker consumers.

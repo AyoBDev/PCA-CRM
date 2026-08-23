@@ -36,7 +36,7 @@ describe('onboardingLifecycle transition table (pure)', () => {
 
 describe('transition() persistence', () => {
   it('updates status and logs an audit entry for a legal transition', async () => {
-    const emp = await prisma.employee.create({ data: { name: 'LC', email: `lc-${Date.now()}@t.co`, onboardingStatus: 'pending_review' } });
+    const emp = await prisma.employee.create({ data: { name: 'LC', email: `lc-${Date.now()}@t.co`, onboardingStatus: 'pending_review', agencyId: 1 } });
     const updated = await lifecycle.transition(prisma, emp.id, 'approved', { reason: 'test' });
     expect(updated.onboardingStatus).toBe('approved');
     const log = await prisma.auditLog.findFirst({ where: { entityType: 'Employee', entityId: emp.id }, orderBy: { id: 'desc' } });
@@ -44,7 +44,7 @@ describe('transition() persistence', () => {
   });
 
   it('throws on an illegal transition and leaves status unchanged', async () => {
-    const emp = await prisma.employee.create({ data: { name: 'LC2', email: `lc2-${Date.now()}@t.co`, onboardingStatus: 'invitation_pending' } });
+    const emp = await prisma.employee.create({ data: { name: 'LC2', email: `lc2-${Date.now()}@t.co`, onboardingStatus: 'invitation_pending', agencyId: 1 } });
     await expect(lifecycle.transition(prisma, emp.id, 'active')).rejects.toThrow('Illegal onboarding transition: invitation_pending → active');
     const still = await prisma.employee.findUnique({ where: { id: emp.id } });
     expect(still.onboardingStatus).toBe('invitation_pending');

@@ -4,5 +4,6 @@ module.exports = {
   // that export functions but contain no tests themselves.
   testPathIgnorePatterns: ['/node_modules/', '/__tests__/helpers/'],
   // Test DB / env setup (merged from main's previously-inline package.json config).
+  globalSetup: '<rootDir>/jest.globalSetup.js',
   setupFiles: ['<rootDir>/jest.setup.js'],
 };

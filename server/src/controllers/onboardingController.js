@@ -1,7 +1,11 @@
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 const onboarding = require('../services/onboardingService');
 const { isOnboardingComplete, projectLedger } = require('../services/requirementService');
+// Public-token endpoints (getOnboardingInfo/saveAvailabilityDraft/submitOnboarding)
+// run before tenant context exists — same allowlisted pattern as onboardingService.js
+// (needs the PHI-decrypting owner client, not the raw basePrisma). Admin-authenticated
+// endpoints below use req.db instead.
+const prisma = require('../lib/prisma');
 
 async function getOnboardingInfo(req, res, next) {
     try {
@@ -14,7 +18,10 @@ async function getOnboardingInfo(req, res, next) {
             };
             return res.status(400).json({ error: messages[reason] || 'Invalid link' });
         }
-        const requirements = await projectLedger(employee.id);
+        if (req.agency && employee.agencyId !== req.agency.id) {
+            return res.status(404).json({ error: 'Invalid onboarding link.' });
+        }
+        const requirements = await projectLedger(prisma, employee.id);
         const draft = employee.onboardingDraft || null;
         res.json({
             employeeName: employee.name,
@@ -85,6 +92,11 @@ async function completeOnboarding(req, res, next) {
             return res.status(400).json({ error: 'Travel information is required' });
         }
 
+        const { valid, employee: tokenEmployee } = await onboarding.validateToken(req.params.token);
+        if (valid && req.agency && tokenEmployee.agencyId !== req.agency.id) {
+            return res.status(400).json({ error: 'This onboarding link is no longer valid.' });
+        }
+
         const { employee, skipApproval } = await onboarding.completeOnboarding(req.params.token, { password, availability });
         audit.logAction({ userId: 0, userName: employee.name, userRole: 'pca', action: 'SUBMIT', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'onboarding_completed', skipApproval } });
         res.json({ success: true, message: skipApproval ? 'Onboarding complete. You can now log in.' : 'Onboarding complete. Your admin will review and activate your account.' });
@@ -131,7 +143,7 @@ async function submitOnboarding(req, res, next) {
 async function resendInvite(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const employee = await prisma.employee.findUnique({ where: { id } });
+        const employee = await req.db.employee.findUnique({ where: { id } });
         if (!employee) return res.status(404).json({ error: 'Employee not found' });
         if (employee.onboardingStatus !== 'invitation_pending') {
             return res.status(400).json({ error: 'Can only resend invite for employees who have not yet started onboarding' });
@@ -140,7 +152,7 @@ async function resendInvite(req, res, next) {
             return res.status(400).json({ error: 'Employee has no email address' });
         }
 
-        const token = await onboarding.createOnboardingToken(employee.id);
+        const token = await onboarding.createOnboardingToken(req.db, employee.id);
         onboarding.sendOnboardingEmail(employee, token).catch(err => console.error('Resend invite email failed:', err.message));
 
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'resend_onboarding_invite' } });
@@ -151,7 +163,7 @@ async function resendInvite(req, res, next) {
 async function getOnboardingLink(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const token = await prisma.onboardingToken.findUnique({ where: { employeeId: id } });
+        const token = await req.db.onboardingToken.findUnique({ where: { employeeId: id } });
         if (!token || token.status !== 'pending') {
             return res.status(404).json({ error: 'No active onboarding link for this employee' });
         }
@@ -164,7 +176,7 @@ async function getOnboardingLink(req, res, next) {
 async function getOnboardingReviewDetail(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const employee = await prisma.employee.findUnique({
+        const employee = await req.db.employee.findUnique({
             where: { id },
             select: {
                 id: true, name: true, email: true, phone: true, address: true, dob: true,
@@ -175,8 +187,8 @@ async function getOnboardingReviewDetail(req, res, next) {
         });
         if (!employee) return res.status(404).json({ error: 'Employee not found' });
         const [requirements, availability] = await Promise.all([
-            projectLedger(id),
-            prisma.employeeAvailability.findUnique({ where: { employeeId: id } }),
+            projectLedger(req.db, id),
+            req.db.employeeAvailability.findUnique({ where: { employeeId: id } }),
         ]);
         res.json({ employee, requirements, availability });
     } catch (err) { next(err); }
@@ -186,16 +198,16 @@ async function getOnboardingReviewDetail(req, res, next) {
 // Admin-only (gated at the route) — this list is not visible to other roles.
 async function getOnboardingReviews(req, res, next) {
     try {
-        const employees = await prisma.employee.findMany({
+        const employees = await req.db.employee.findMany({
             where: { onboardingStatus: 'pending_review' },
             select: { id: true, name: true, email: true, phone: true, updatedAt: true },
             orderBy: { updatedAt: 'asc' }, // oldest submissions first
         });
         const reviews = await Promise.all(employees.map(async (e) => {
             const [required, satisfied, optionalPending] = await Promise.all([
-                prisma.employeeRequirement.count({ where: { employeeId: e.id, optional: false } }),
-                prisma.employeeRequirement.count({ where: { employeeId: e.id, optional: false, status: { in: ['submitted', 'approved'] } } }),
-                prisma.employeeRequirement.count({ where: { employeeId: e.id, optional: true, status: 'required' } }),
+                req.db.employeeRequirement.count({ where: { employeeId: e.id, optional: false } }),
+                req.db.employeeRequirement.count({ where: { employeeId: e.id, optional: false, status: { in: ['submitted', 'approved'] } } }),
+                req.db.employeeRequirement.count({ where: { employeeId: e.id, optional: true, status: 'required' } }),
             ]);
             return { id: e.id, name: e.name, email: e.email, phone: e.phone, submittedAt: e.updatedAt, requiredTotal: required, requiredDone: satisfied, optionalPending };
         }));

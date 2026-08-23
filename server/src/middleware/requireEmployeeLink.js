@@ -1,7 +1,6 @@
-const prisma = require('../lib/prisma');
-
+// Runs after tenantMiddleware, so the lookup is tenant-scoped via req.db.
 async function requireEmployeeLink(req, res, next) {
-  const employee = await prisma.employee.findUnique({
+  const employee = await req.db.employee.findUnique({
     where: { userId: req.user.id },
   });
   if (!employee) {

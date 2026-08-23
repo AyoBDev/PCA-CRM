@@ -5,6 +5,7 @@ const {
     sendEmail,
     formatScheduleEmailHtml,
 } = require('../services/notificationService');
+const { enterTokenTenant } = require('../lib/tokenTenant');
 
 const NOTE_REQUIRED_RESPONSES = ['rejected', 'changes_requested'];
 const MIN_NOTE_LENGTH = 5;
@@ -24,7 +25,7 @@ async function sendSchedules(req, res) {
     };
     if (employeeIds?.length) where.employeeId = { in: employeeIds };
 
-    const shifts = await prisma.shift.findMany({
+    const shifts = await req.db.shift.findMany({
         where,
         include: {
             client: { select: { clientName: true, address: true, phone: true, gateCode: true, notes: true } },
@@ -55,17 +56,17 @@ async function sendSchedules(req, res) {
         }
 
         // Auto-generate permanent schedule link if one doesn't exist
-        let scheduleLink = await prisma.employeeScheduleLink.findUnique({ where: { employeeId: empId } });
+        let scheduleLink = await req.db.employeeScheduleLink.findUnique({ where: { employeeId: empId } });
         if (!scheduleLink) {
-            scheduleLink = await prisma.employeeScheduleLink.create({ data: { employeeId: empId } });
+            scheduleLink = await req.db.employeeScheduleLink.create({ data: { employeeId: empId } });
         } else if (!scheduleLink.active) {
-            scheduleLink = await prisma.employeeScheduleLink.update({ where: { id: scheduleLink.id }, data: { active: true } });
+            scheduleLink = await req.db.employeeScheduleLink.update({ where: { id: scheduleLink.id }, data: { active: true } });
         }
         const scheduleUrl = `${baseUrl}/schedule/view/${scheduleLink.token}`;
 
         // Create notification record and send
         if (hasEmail) {
-            const notification = await prisma.scheduleNotification.create({
+            const notification = await req.db.scheduleNotification.create({
                 data: {
                     employeeId: empId,
                     weekStart: new Date(ws),
@@ -79,13 +80,13 @@ async function sendSchedules(req, res) {
                 const html = formatScheduleEmailHtml(employee.name, empShifts, weekLabel, scheduleUrl, message);
                 const text = `Schedule for ${weekLabel}. View: ${scheduleUrl}`;
                 await sendEmail(employee.email, `Your Schedule - ${weekLabel}`, html, text);
-                await prisma.scheduleNotification.update({
+                await req.db.scheduleNotification.update({
                     where: { id: notification.id },
                     data: { status: 'sent', sentAt: new Date() },
                 });
                 results.push({ employeeId: empId, name: employee.name, method: 'email', status: 'sent' });
             } catch (err) {
-                await prisma.scheduleNotification.update({
+                await req.db.scheduleNotification.update({
                     where: { id: notification.id },
                     data: { status: 'failed', failureReason: err.message },
                 });
@@ -103,7 +104,7 @@ async function getNotificationStatus(req, res) {
 
     const { weekStart: ws } = getWeekRange(weekStart);
 
-    const notifications = await prisma.scheduleNotification.findMany({
+    const notifications = await req.db.scheduleNotification.findMany({
         where: { weekStart: new Date(ws) },
         include: {
             employee: { select: { id: true, name: true } },
@@ -122,29 +123,32 @@ async function getScheduleConfirm(req, res) {
     });
     if (!notification) return res.status(404).json({ error: 'Invalid or expired link' });
 
-    const { weekStart: ws, weekEnd: we } = getWeekRange(
-        notification.weekStart.toISOString().split('T')[0]
-    );
+    await enterTokenTenant(req, res, notification.agencyId, async () => {
+        const db = req.db;
+        const { weekStart: ws, weekEnd: we } = getWeekRange(
+            notification.weekStart.toISOString().split('T')[0]
+        );
 
-    const shifts = await prisma.shift.findMany({
-        where: {
-            employeeId: notification.employeeId,
-            shiftDate: { gte: new Date(ws + 'T00:00:00.000Z'), lte: new Date(we + 'T23:59:59.999Z') },
-            status: { not: 'cancelled' },
-        },
-        include: {
-            client: { select: { clientName: true, address: true, phone: true, gateCode: true, notes: true } },
-        },
-        orderBy: [{ shiftDate: 'asc' }, { startTime: 'asc' }],
-    });
+        const shifts = await db.shift.findMany({
+            where: {
+                employeeId: notification.employeeId,
+                shiftDate: { gte: new Date(ws + 'T00:00:00.000Z'), lte: new Date(we + 'T23:59:59.999Z') },
+                status: { not: 'cancelled' },
+            },
+            include: {
+                client: { select: { clientName: true, address: true, phone: true, gateCode: true, notes: true } },
+            },
+            orderBy: [{ shiftDate: 'asc' }, { startTime: 'asc' }],
+        });
 
-    res.json({
-        employee: notification.employee,
-        weekStart: ws,
-        weekEnd: we,
-        shifts,
-        confirmed: !!notification.confirmedAt,
-        confirmedAt: notification.confirmedAt,
+        res.json({
+            employee: notification.employee,
+            weekStart: ws,
+            weekEnd: we,
+            shifts,
+            confirmed: !!notification.confirmedAt,
+            confirmedAt: notification.confirmedAt,
+        });
     });
 }
 
@@ -154,14 +158,17 @@ async function confirmSchedule(req, res) {
     });
     if (!notification) return res.status(404).json({ error: 'Invalid or expired link' });
 
-    if (!notification.confirmedAt) {
-        await prisma.scheduleNotification.update({
-            where: { id: notification.id },
-            data: { confirmedAt: new Date(), status: 'confirmed' },
-        });
-    }
+    await enterTokenTenant(req, res, notification.agencyId, async () => {
+        const db = req.db;
+        if (!notification.confirmedAt) {
+            await db.scheduleNotification.update({
+                where: { id: notification.id },
+                data: { confirmedAt: new Date(), status: 'confirmed' },
+            });
+        }
 
-    res.json({ success: true });
+        res.json({ success: true });
+    });
 }
 
 async function respondToSchedule(req, res) {
@@ -185,24 +192,27 @@ async function respondToSchedule(req, res) {
     });
     if (!notification) return res.status(404).json({ error: 'Invalid or expired link' });
 
-    const data = {
-        response,
-        responseNotes: notes || '',
-        respondedAt: new Date(),
-    };
-    if (response === 'accepted') {
-        data.confirmedAt = new Date();
-        data.status = 'confirmed';
-    } else {
-        data.status = response;
-    }
+    await enterTokenTenant(req, res, notification.agencyId, async () => {
+        const db = req.db;
+        const data = {
+            response,
+            responseNotes: notes || '',
+            respondedAt: new Date(),
+        };
+        if (response === 'accepted') {
+            data.confirmedAt = new Date();
+            data.status = 'confirmed';
+        } else {
+            data.status = response;
+        }
 
-    await prisma.scheduleNotification.update({
-        where: { id: notification.id },
-        data,
+        await db.scheduleNotification.update({
+            where: { id: notification.id },
+            data,
+        });
+
+        res.json({ success: true, response });
     });
-
-    res.json({ success: true, response });
 }
 
 async function getScheduleResponses(req, res) {
@@ -211,7 +221,7 @@ async function getScheduleResponses(req, res) {
 
     const { weekStart: ws } = getWeekRange(weekStart);
 
-    const notifications = await prisma.scheduleNotification.findMany({
+    const notifications = await req.db.scheduleNotification.findMany({
         where: {
             weekStart: new Date(ws),
             response: { not: '' },
@@ -230,25 +240,28 @@ async function recordOpen(req, res) {
     const link = await prisma.employeeScheduleLink.findUnique({ where: { token } });
     if (!link || !link.active) return res.status(404).json({ error: 'Invalid link' });
 
-    const { weekStart: ws } = getWeekRange(weekStart || new Date().toISOString().slice(0, 10));
+    await enterTokenTenant(req, res, link.agencyId, async () => {
+        const db = req.db;
+        const { weekStart: ws } = getWeekRange(weekStart || new Date().toISOString().slice(0, 10));
 
-    const notification = await prisma.scheduleNotification.findFirst({
-        where: {
-            employeeId: link.employeeId,
-            weekStart: new Date(ws),
-            openedAt: null,
-        },
-        orderBy: { createdAt: 'desc' },
-    });
-
-    if (notification) {
-        await prisma.scheduleNotification.update({
-            where: { id: notification.id },
-            data: { openedAt: new Date() },
+        const notification = await db.scheduleNotification.findFirst({
+            where: {
+                employeeId: link.employeeId,
+                weekStart: new Date(ws),
+                openedAt: null,
+            },
+            orderBy: { createdAt: 'desc' },
         });
-    }
 
-    res.json({ success: true });
+        if (notification) {
+            await db.scheduleNotification.update({
+                where: { id: notification.id },
+                data: { openedAt: new Date() },
+            });
+        }
+
+        res.json({ success: true });
+    });
 }
 
 async function getNotificationForView(req, res) {
@@ -258,34 +271,37 @@ async function getNotificationForView(req, res) {
     const link = await prisma.employeeScheduleLink.findUnique({ where: { token } });
     if (!link || !link.active) return res.status(404).json({ error: 'Invalid link' });
 
-    const { weekStart: ws } = getWeekRange(weekStart || new Date().toISOString().slice(0, 10));
+    await enterTokenTenant(req, res, link.agencyId, async () => {
+        const db = req.db;
+        const { weekStart: ws } = getWeekRange(weekStart || new Date().toISOString().slice(0, 10));
 
-    const notification = await prisma.scheduleNotification.findFirst({
-        where: {
-            employeeId: link.employeeId,
-            weekStart: new Date(ws),
-            status: { not: 'failed' },
-        },
-        orderBy: { createdAt: 'desc' },
-        select: {
-            confirmationToken: true,
-            message: true,
-            response: true,
-            responseNotes: true,
-            respondedAt: true,
-            openedAt: true,
-            sentAt: true,
-        },
+        const notification = await db.scheduleNotification.findFirst({
+            where: {
+                employeeId: link.employeeId,
+                weekStart: new Date(ws),
+                status: { not: 'failed' },
+            },
+            orderBy: { createdAt: 'desc' },
+            select: {
+                confirmationToken: true,
+                message: true,
+                response: true,
+                responseNotes: true,
+                respondedAt: true,
+                openedAt: true,
+                sentAt: true,
+            },
+        });
+
+        if (!notification) return res.json({ notification: null });
+        res.json(notification);
     });
-
-    if (!notification) return res.json({ notification: null });
-    res.json(notification);
 }
 
 async function getEmployeeNotificationHistory(req, res) {
     const { employeeId } = req.params;
 
-    const notifications = await prisma.scheduleNotification.findMany({
+    const notifications = await req.db.scheduleNotification.findMany({
         where: { employeeId: Number(employeeId) },
         include: {
             sentByUser: { select: { name: true } },

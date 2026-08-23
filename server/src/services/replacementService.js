@@ -9,8 +9,14 @@
 // v1 ships shadow-mode-first: recordCallout only ranks. Sending is an explicit
 // act (offerToCandidate), so the owner stays in the loop until the ranking has
 // proven itself and the auto-offer flag is switched on.
+//
+// Every function takes `db` (a tenant-scoped Prisma client) as its first
+// argument rather than reading a module-level connection: this service is
+// called from authenticated controllers (req.db), the public token routes
+// (resolved via enterTokenTenant), the employee portal (req.db), and the
+// offer-expiry worker (a per-agency tenantClient built by the cron driver) —
+// none of which share an ambient tenant context with each other.
 
-const prisma = require('../lib/prisma');
 const ranking = require('./candidateRankingService');
 const channels = require('./offerChannels');
 const queue = require('../lib/queue');
@@ -30,8 +36,8 @@ function toDateStr(value) {
  * Record a callout: mark the shift as needing coverage and rank candidates.
  * Deliberately does NOT send offers — see the shadow-mode note above.
  */
-async function recordCallout(shiftId, { reason = '', reportedById = null, limit = DEFAULT_CANDIDATE_LIMIT } = {}) {
-    const shift = await prisma.shift.findUnique({
+async function recordCallout(db, shiftId, { reason = '', reportedById = null, limit = DEFAULT_CANDIDATE_LIMIT } = {}) {
+    const shift = await db.shift.findUnique({
         where: { id: Number(shiftId) },
         include: { client: true },
     });
@@ -40,7 +46,7 @@ async function recordCallout(shiftId, { reason = '', reportedById = null, limit 
         throw new Error(`Shift ${shiftId} is already pending replacement`);
     }
 
-    const callout = await prisma.shiftCallout.create({
+    const callout = await db.shiftCallout.create({
         data: {
             shiftId: shift.id,
             calloutEmployeeId: shift.employeeId ?? null,
@@ -50,12 +56,12 @@ async function recordCallout(shiftId, { reason = '', reportedById = null, limit 
         },
     });
 
-    await prisma.shift.update({
+    await db.shift.update({
         where: { id: shift.id },
         data: { status: 'pending_replacement' },
     });
 
-    const ranked = await ranking.rankCandidates({
+    const ranked = await ranking.rankCandidates(db, {
         clientId: shift.clientId,
         serviceCode: shift.serviceCode,
         date: toDateStr(shift.shiftDate),
@@ -67,7 +73,7 @@ async function recordCallout(shiftId, { reason = '', reportedById = null, limit 
     const candidates = ranked.eligible || [];
 
     if (candidates.length === 0) {
-        await prisma.shiftCallout.update({
+        await db.shiftCallout.update({
             where: { id: callout.id },
             data: { resolution: 'no_coverage', resolvedAt: new Date() },
         });
@@ -81,7 +87,7 @@ async function recordCallout(shiftId, { reason = '', reportedById = null, limit 
  * Offer a shift to one candidate. Returns a result object rather than throwing,
  * so an undeliverable candidate can be skipped and the loop can continue.
  */
-async function offerToCandidate(shiftId, employeeId, {
+async function offerToCandidate(db, shiftId, employeeId, {
     calloutId = null,
     rank = 0,
     scoreBreakdown = {},
@@ -91,11 +97,11 @@ async function offerToCandidate(shiftId, employeeId, {
     // Re-check activity immediately before sending: someone can be deactivated
     // between ranking and offering, and burning a response window on them
     // delays every remaining candidate.
-    const employee = await prisma.employee.findUnique({ where: { id: Number(employeeId) } });
+    const employee = await db.employee.findUnique({ where: { id: Number(employeeId) } });
     if (!employee) return { skipped: true, reason: 'missing' };
     if (!employee.active || employee.archivedAt) return { skipped: true, reason: 'inactive' };
 
-    const shift = await prisma.shift.findUnique({
+    const shift = await db.shift.findUnique({
         where: { id: Number(shiftId) },
         include: { client: true },
     });
@@ -103,7 +109,7 @@ async function offerToCandidate(shiftId, employeeId, {
 
     const expiresAt = new Date(Date.now() + responseWindowMinutes * 60 * 1000);
 
-    const offer = await prisma.shiftOffer.create({
+    const offer = await db.shiftOffer.create({
         data: {
             shiftId: shift.id,
             employeeId: employee.id,
@@ -119,7 +125,7 @@ async function offerToCandidate(shiftId, employeeId, {
     // Sending a portal notification and email on top would be noise, and
     // pretending it was undelivered would be wrong.
     if (channel === 'phone') {
-        await prisma.shiftOffer.update({
+        await db.shiftOffer.update({
             where: { id: offer.id },
             data: { channel: 'phone' },
         });
@@ -141,7 +147,7 @@ async function offerToCandidate(shiftId, employeeId, {
     if (!delivery.anyDelivered) {
         // Nobody can answer an offer they never received; mark it skipped so
         // the loop moves on instead of waiting out the full window.
-        await prisma.shiftOffer.update({
+        await db.shiftOffer.update({
             where: { id: offer.id },
             data: {
                 response: 'skipped',
@@ -151,7 +157,7 @@ async function offerToCandidate(shiftId, employeeId, {
         return { offer, delivered: false, reason: 'undeliverable' };
     }
 
-    await prisma.shiftOffer.update({
+    await db.shiftOffer.update({
         where: { id: offer.id },
         data: { channel: delivery.delivered.join(',') },
     });
@@ -166,8 +172,8 @@ async function offerToCandidate(shiftId, employeeId, {
     return { offer, delivered: true, channels: delivery.delivered };
 }
 
-async function loadOfferByToken(token) {
-    return prisma.shiftOffer.findUnique({
+async function loadOfferByToken(db, token) {
+    return db.shiftOffer.findUnique({
         where: { token },
         include: { shift: { include: { client: true } } },
     });
@@ -185,34 +191,34 @@ function validateRespondable(offer) {
  * Accept an offer. First valid acceptance wins; every later one is told the
  * shift was already covered.
  */
-async function acceptOffer(token) {
-    const offer = await loadOfferByToken(token);
+async function acceptOffer(db, token) {
+    const offer = await loadOfferByToken(db, token);
     const invalid = validateRespondable(offer);
     if (invalid) return invalid;
 
     // The whole concurrency guarantee: claim the shift only while it is still
     // pending. Two simultaneous accepts both run this; the database matches
     // exactly one, and the loser gets count === 0.
-    const claim = await prisma.shift.updateMany({
+    const claim = await db.shift.updateMany({
         where: { id: offer.shiftId, status: 'pending_replacement' },
         data: { employeeId: offer.employeeId, status: 'scheduled' },
     });
 
     if (claim.count === 0) {
-        await prisma.shiftOffer.update({
+        await db.shiftOffer.update({
             where: { id: offer.id },
             data: { response: 'expired', respondedAt: new Date() },
         });
         return { status: 'already_filled' };
     }
 
-    await prisma.shiftOffer.update({
+    await db.shiftOffer.update({
         where: { id: offer.id },
         data: { response: 'accepted', respondedAt: new Date() },
     });
 
     // Withdraw every other outstanding offer for this shift.
-    await prisma.shiftOffer.updateMany({
+    await db.shiftOffer.updateMany({
         where: { shiftId: offer.shiftId, id: { not: offer.id }, response: '' },
         data: { response: 'expired' },
     });
@@ -220,7 +226,7 @@ async function acceptOffer(token) {
     await queue.cancel(expiryJobId(offer.id));
 
     if (offer.calloutId) {
-        await prisma.shiftCallout.update({
+        await db.shiftCallout.update({
             where: { id: offer.calloutId },
             data: { resolution: 'filled', resolvedAt: new Date() },
         });
@@ -230,12 +236,12 @@ async function acceptOffer(token) {
 }
 
 /** Decline an offer. The shift stays unfilled and open to other candidates. */
-async function declineOffer(token) {
-    const offer = await loadOfferByToken(token);
+async function declineOffer(db, token) {
+    const offer = await loadOfferByToken(db, token);
     const invalid = validateRespondable(offer);
     if (invalid) return invalid;
 
-    await prisma.shiftOffer.update({
+    await db.shiftOffer.update({
         where: { id: offer.id },
         data: { response: 'declined', respondedAt: new Date() },
     });
@@ -250,8 +256,8 @@ async function declineOffer(token) {
  * Guarded on response:'' so a job firing moments after a caregiver answered
  * cannot overwrite their response.
  */
-async function expireOffer(offerId) {
-    const result = await prisma.shiftOffer.updateMany({
+async function expireOffer(db, offerId) {
+    const result = await db.shiftOffer.updateMany({
         where: { id: Number(offerId), response: '' },
         data: { response: 'expired', respondedAt: new Date() },
     });
@@ -260,8 +266,8 @@ async function expireOffer(offerId) {
 }
 
 /** Resolve a callout that could not be filled automatically. */
-async function resolveCallout(calloutId, resolution) {
-    return prisma.shiftCallout.update({
+async function resolveCallout(db, calloutId, resolution) {
+    return db.shiftCallout.update({
         where: { id: Number(calloutId) },
         data: { resolution, resolvedAt: new Date() },
     });

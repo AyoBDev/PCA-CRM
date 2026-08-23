@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const prisma = require('../lib/prisma');
+const { getTenantDb } = require('../lib/tenantContext');
 
 // Fields hashed per entry, per service block. Companion is included with its
 // defaults so the PCA path (which never writes companion) and the admin path
@@ -92,14 +92,15 @@ function computeSignaturesHash(ts) {
 // signatures. Hashing persisted values (not the request body) keeps the PCA
 // and admin submit paths consistent.
 async function computeAndStoreIntegrityHash(timesheetId) {
-    const ts = await prisma.timesheet.findUnique({
+    const db = getTenantDb();
+    const ts = await db.timesheet.findUnique({
         where: { id: timesheetId },
         include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
     });
     if (!ts) return null;
     const signedPayloadHash = computeHash(ts);
     const signaturesHash = computeSignaturesHash(ts);
-    await prisma.timesheet.update({
+    await db.timesheet.update({
         where: { id: timesheetId },
         data: { signedPayloadHash, signaturesHash, hashedAt: new Date() },
     });

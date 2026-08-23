@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const { authenticate, requireSurface } = require('../middleware/authMiddleware');
+const { tenantMiddleware } = require('../middleware/tenantMiddleware');
 const { requireEmployeeLink } = require('../middleware/requireEmployeeLink');
 const { getProfile, updateProfile } = require('../controllers/employeePortal/profileController');
 const { getHomeSummary, getNextShift, getActivity } = require('../controllers/employeePortal/homeController');
@@ -23,6 +24,7 @@ const router = express.Router();
 
 router.use(authenticate);
 router.use(requireSurface('employee'));
+router.use(tenantMiddleware);
 router.use(requireEmployeeLink);
 
 // Home

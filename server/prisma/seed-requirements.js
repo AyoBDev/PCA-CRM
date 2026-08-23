@@ -1,4 +1,4 @@
-const prisma = require('../src/lib/prisma');
+const defaultPrisma = require('../src/lib/prisma');
 
 const DEFAULT_DOCUMENT_TYPES = [
   { key: 'government_id', label: 'Government ID', requiresExpiry: true, sortOrder: 1 },
@@ -24,24 +24,36 @@ const DEFAULT_POLICIES = [
   { key: 'privacy_policy', title: 'Privacy Policy', sortOrder: 5 },
 ];
 
-async function createMissing(model, rows) {
+// Requirement catalogs (document/cert/policy types) are agency-scoped —
+// mirrors seedServices()/seedAgencyDefaults(): create-missing-only, never
+// overwrites an existing (possibly admin-edited) row.
+async function createMissing(model, rows, agencyId) {
   let created = 0;
   for (const row of rows) {
-    const existing = await model.findUnique({ where: { key: row.key } });
-    if (!existing) { await model.create({ data: row }); created++; }
+    const existing = await model.findUnique({ where: { agencyId_key: { agencyId, key: row.key } } });
+    if (!existing) { await model.create({ data: { ...row, agencyId } }); created++; }
   }
   return created;
 }
 
-async function seedRequirements() {
-  const documentTypes = await createMissing(prisma.documentType, DEFAULT_DOCUMENT_TYPES);
-  const certTypes = await createMissing(prisma.certType, DEFAULT_CERT_TYPES);
-  const policyDocuments = await createMissing(prisma.policyDocument, DEFAULT_POLICIES);
+async function seedRequirements(prisma = defaultPrisma, agencyId) {
+  if (!Number.isInteger(agencyId)) {
+    throw new Error('seedRequirements requires an agencyId — requirement catalogs are agency-scoped');
+  }
+  const documentTypes = await createMissing(prisma.documentType, DEFAULT_DOCUMENT_TYPES, agencyId);
+  const certTypes = await createMissing(prisma.certType, DEFAULT_CERT_TYPES, agencyId);
+  const policyDocuments = await createMissing(prisma.policyDocument, DEFAULT_POLICIES, agencyId);
   return { documentTypes, certTypes, policyDocuments };
 }
 
 module.exports = { seedRequirements, DEFAULT_DOCUMENT_TYPES, DEFAULT_CERT_TYPES, DEFAULT_POLICIES };
 
 if (require.main === module) {
-  seedRequirements().then(r => { console.log('Seeded requirements:', r); return prisma.$disconnect(); });
+  (async () => {
+    const agency = await defaultPrisma.agency.findFirst({ orderBy: { id: 'asc' } });
+    if (!agency) throw new Error('No agency found — run prisma/seed.js first');
+    const r = await seedRequirements(defaultPrisma, agency.id);
+    console.log('Seeded requirements:', r);
+    await defaultPrisma.$disconnect();
+  })();
 }

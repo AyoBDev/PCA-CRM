@@ -1,10 +1,10 @@
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
+const { tenantTransaction } = require('../lib/tenantPrisma');
 
 const MODELS = {
-    documents: { model: () => prisma.documentType, resKey: 'documentTypes', entity: 'DocumentType' },
-    'cert-types': { model: () => prisma.certType, resKey: 'certTypes', entity: 'CertType' },
-    policies: { model: () => prisma.policyDocument, resKey: 'policyDocuments', entity: 'PolicyDocument' },
+    documents: { model: (db) => db.documentType, resKey: 'documentTypes', entity: 'DocumentType' },
+    'cert-types': { model: (db) => db.certType, resKey: 'certTypes', entity: 'CertType' },
+    policies: { model: (db) => db.policyDocument, resKey: 'policyDocuments', entity: 'PolicyDocument' },
 };
 
 function list(kind) {
@@ -14,7 +14,7 @@ function list(kind) {
             const query = req.query || {};
             const includeInactive = query.all === '1' || query.includeInactive === 'true';
             const where = includeInactive ? {} : { active: true };
-            const rows = await model().findMany({ where, orderBy: { sortOrder: 'asc' } });
+            const rows = await model(req.db).findMany({ where, orderBy: { sortOrder: 'asc' } });
             res.json({ [resKey]: rows });
         } catch (err) { next(err); }
     };
@@ -45,7 +45,7 @@ function create(kind) {
         try {
             const { model, entity } = MODELS[kind];
             const data = pick(req.body, CREATABLE[kind]);
-            const row = await model().create({ data });
+            const row = await model(req.db).create({ data });
             audit.logAction({
                 userId: req.user.id,
                 userName: req.user.name,
@@ -66,7 +66,7 @@ function update(kind) {
             const { model, entity } = MODELS[kind];
             const id = parseInt(req.params.id);
             const data = pick(req.body, EDITABLE[kind]);
-            const row = await model().update({ where: { id }, data });
+            const row = await model(req.db).update({ where: { id }, data });
             audit.logAction({
                 userId: req.user.id, userName: req.user.name, userRole: req.user.role,
                 action: 'UPDATE', entityType: entity, entityId: row.id, entityName: row.label || row.title,
@@ -82,7 +82,7 @@ function setActive(kind) {
             const { model, entity } = MODELS[kind];
             const id = parseInt(req.params.id);
             const active = Boolean(req.body.active);
-            const row = await model().update({ where: { id }, data: { active } });
+            const row = await model(req.db).update({ where: { id }, data: { active } });
             audit.logAction({
                 userId: req.user.id, userName: req.user.name, userRole: req.user.role,
                 action: active ? 'RESTORE' : 'ARCHIVE', entityType: entity, entityId: row.id, entityName: row.label || row.title,
@@ -95,11 +95,17 @@ function setActive(kind) {
 function reorder(kind) {
     return async (req, res, next) => {
         try {
-            const { model, entity } = MODELS[kind];
+            const { entity } = MODELS[kind];
             const ids = Array.isArray(req.body.ids) ? req.body.ids : [];
-            await prisma.$transaction(ids.map((id, index) =>
-                model().update({ where: { id: parseInt(id) }, data: { sortOrder: index } })
-            ));
+            // Batch $transaction([...]) is not atomic on the extended tenant client
+            // (each array item runs its own nested scoped() transaction) — use an
+            // interactive tenantTransaction instead.
+            await tenantTransaction(req.user.agencyId, async (tx) => {
+                const { model } = MODELS[kind];
+                for (const [index, id] of ids.entries()) {
+                    await model(tx).update({ where: { id: parseInt(id) }, data: { sortOrder: index } });
+                }
+            });
             audit.logAction({
                 userId: req.user.id, userName: req.user.name, userRole: req.user.role,
                 action: 'UPDATE', entityType: entity, entityId: 0, entityName: `${kind} reorder`,

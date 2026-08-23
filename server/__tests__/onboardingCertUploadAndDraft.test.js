@@ -8,11 +8,11 @@ afterAll(async () => { await prisma.$disconnect(); });
 describe('onboarding certification upload + availability draft', () => {
   let token, employeeId, certReqId;
   beforeAll(async () => {
-    const e = await prisma.employee.create({ data: { name: 'Cert EE', email: `cert-${Date.now()}@t.co`, onboardingStatus: 'invitation_pending' } });
+    const e = await prisma.employee.create({ data: { name: 'Cert EE', email: `cert-${Date.now()}@t.co`, onboardingStatus: 'invitation_pending', agencyId: 1 } });
     employeeId = e.id;
-    token = (await onboarding.createOnboardingToken(e.id)).token;
-    const ct = await prisma.certType.create({ data: { key: `cpr-${Date.now()}`, label: 'CPR', sortOrder: 1 } });
-    certReqId = (await prisma.employeeRequirement.create({ data: { employeeId, kind: 'certification', catalogTypeId: ct.id, status: 'required' } })).id;
+    token = (await onboarding.createOnboardingToken(prisma, e.id)).token;
+    const ct = await prisma.certType.create({ data: { key: `cpr-${Date.now()}`, label: 'CPR', sortOrder: 1, agencyId: 1 } });
+    certReqId = (await prisma.employeeRequirement.create({ data: { employeeId, kind: 'certification', catalogTypeId: ct.id, status: 'required' , agencyId: 1} })).id;
   });
   afterAll(async () => { await prisma.employee.delete({ where: { id: employeeId } }); });
 

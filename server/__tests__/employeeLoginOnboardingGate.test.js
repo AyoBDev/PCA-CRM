@@ -13,16 +13,16 @@ function uniq(p) { return `${p}-${Date.now()}-${seq++}-${Math.random().toString(
 // Create a login user + linked employee with the given user.status / employee.onboardingStatus.
 async function makeEmployeeUser({ userStatus = 'pending', onboardingStatus = 'changes_requested', active = true, archivedAt = null } = {}) {
   const user = await prisma.user.create({
-    data: { email: `${uniq('elg-u')}@t.co`, passwordHash: await bcrypt.hash(PW, 4), name: 'ELG', role: 'pca', status: userStatus, active, archivedAt },
+    data: { email: `${uniq('elg-u')}@t.co`, passwordHash: await bcrypt.hash(PW, 4), name: 'ELG', role: 'pca', status: userStatus, active, archivedAt, agencyId: 1 },
   });
   const emp = await prisma.employee.create({
-    data: { name: 'ELG EE', email: `${uniq('elg-e')}@t.co`, userId: user.id, onboardingStatus },
+    data: { name: 'ELG EE', email: `${uniq('elg-e')}@t.co`, userId: user.id, onboardingStatus, agencyId: 1 },
   });
   return { user, emp };
 }
 
 function loginReq(email, password = PW) {
-  return request(app).post('/api/auth/employee-login').send({ email, password });
+  return request(app).post('/api/auth/employee-login').set('Host', 'nvbest.localhost').send({ email, password });
 }
 
 describe('employee-login onboarding gate (pending user.status relaxation)', () => {
@@ -80,7 +80,7 @@ describe('employee-login onboarding gate (pending user.status relaxation)', () =
 
   it('a pending user with NO linked employee is still 403 (no relaxation without an onboarding employee)', async () => {
     const user = await prisma.user.create({
-      data: { email: `${uniq('elg-noemp')}@t.co`, passwordHash: await bcrypt.hash(PW, 4), name: 'NoEmp', role: 'pca', status: 'pending' },
+      data: { email: `${uniq('elg-noemp')}@t.co`, passwordHash: await bcrypt.hash(PW, 4), name: 'NoEmp', role: 'pca', status: 'pending', agencyId: 1 },
     });
     const res = await loginReq(user.email);
     expect(res.status).toBe(403);
@@ -92,12 +92,12 @@ describe('finalizeOnboarding changes_requested branch does not demote the login 
     // Build a pending_review employee whose user is already active (post-adoption),
     // with one rejected requirement so finalize takes the changes_requested branch.
     const user = await prisma.user.create({
-      data: { email: `${uniq('fin-u')}@t.co`, passwordHash: await bcrypt.hash(PW, 4), name: 'FinU', role: 'pca', status: 'active' },
+      data: { email: `${uniq('fin-u')}@t.co`, passwordHash: await bcrypt.hash(PW, 4), name: 'FinU', role: 'pca', status: 'active', agencyId: 1 },
     });
     const emp = await prisma.employee.create({
-      data: { name: 'Fin EE', email: `${uniq('fin-e')}@t.co`, onboardingStatus: 'pending_review', userId: user.id },
+      data: { name: 'Fin EE', email: `${uniq('fin-e')}@t.co`, onboardingStatus: 'pending_review', userId: user.id, agencyId: 1 },
     });
-    await prisma.employeeRequirement.create({ data: { employeeId: emp.id, kind: 'document', catalogTypeId: 1, status: 'submitted', reviewStatus: 'rejected', rejectionReason: 'Bad' } });
+    await prisma.employeeRequirement.create({ data: { employeeId: emp.id, kind: 'document', catalogTypeId: 1, status: 'submitted', reviewStatus: 'rejected', rejectionReason: 'Bad', agencyId: 1 } });
 
     const result = await onboarding.finalizeOnboarding(emp.id, { userId: 0, userName: 'admin', userRole: 'admin' });
     expect(result.outcome).toBe('changes_requested');

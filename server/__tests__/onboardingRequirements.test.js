@@ -8,12 +8,12 @@ afterAll(async () => { await prisma.$disconnect(); });
 describe('onboarding requirements + personal save', () => {
   let token, employeeId;
   beforeAll(async () => {
-    const e = await prisma.employee.create({ data: { name: 'Onb EE', email: `onb-${Date.now()}@t.co`, onboardingStatus: 'invitation_pending' } });
+    const e = await prisma.employee.create({ data: { name: 'Onb EE', email: `onb-${Date.now()}@t.co`, onboardingStatus: 'invitation_pending', agencyId: 1 } });
     employeeId = e.id;
-    const tokenRecord = await onboarding.createOnboardingToken(e.id);
+    const tokenRecord = await onboarding.createOnboardingToken(prisma, e.id);
     token = tokenRecord.token;
-    const dt = await prisma.documentType.create({ data: { key: `onbd-${Date.now()}`, label: 'Gov ID', requiresExpiry: true, sortOrder: 1 } });
-    await prisma.employeeRequirement.create({ data: { employeeId, kind: 'document', catalogTypeId: dt.id, status: 'required' } });
+    const dt = await prisma.documentType.create({ data: { key: `onbd-${Date.now()}`, label: 'Gov ID', requiresExpiry: true, sortOrder: 1, agencyId: 1 } });
+    await prisma.employeeRequirement.create({ data: { employeeId, kind: 'document', catalogTypeId: dt.id, status: 'required' , agencyId: 1} });
   });
   afterAll(async () => { await prisma.employee.delete({ where: { id: employeeId } }); });
 

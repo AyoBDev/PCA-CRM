@@ -7,46 +7,121 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
+model Agency {
   id                      Int                       @id @default(autoincrement())
-  email                   String                    @unique
-  passwordHash            String                    @map("password_hash")
   name                    String
-  role                    String                    @default("pca")
-  phone                   String                    @default("") @map("phone")
-  permissionGroupId       Int?                      @map("permission_group_id")
-  permissionsVersion      Int                       @default(1) @map("permissions_version")
-  active                  Boolean                   @default(true) @map("active")
-  status                  String                    @default("active") @map("status")
-  archivedAt              DateTime?                 @map("archived_at")
+  slug                    String                    @unique
+  status                  String                    @default("active")
+  settings                Json                      @default("{}")
   createdAt               DateTime                  @default(now()) @map("created_at")
-  updatedAt               DateTime                  @updatedAt @map("updated_at")
+  User                    User[]
+  AdminEventSeen          AdminEventSeen[]
+  PasswordResetToken      PasswordResetToken[]
+  OnboardingToken         OnboardingToken[]
+  EmployeeAvailability    EmployeeAvailability[]
+  Employee                Employee[]
+  EmployeeCertification   EmployeeCertification[]
+  CertificationUpload     CertificationUpload[]
+  EmployeeScheduleLink    EmployeeScheduleLink[]
+  ScheduleNotification    ScheduleNotification[]
+  Client                  Client[]
+  ClientNote              ClientNote[]
+  ClientCareTeam          ClientCareTeam[]
+  ClientDocument          ClientDocument[]
+  HospitalVisit           HospitalVisit[]
+  Incident                Incident[]
+  ClientActivity          ClientActivity[]
+  Authorization           Authorization[]
+  Lead                    Lead[]
+  InsuranceType           InsuranceType[]
+  Service                 Service[]
+  Timesheet               Timesheet[]
+  TimesheetEntry          TimesheetEntry[]
+  SigningToken            SigningToken[]
+  PayrollRun              PayrollRun[]
+  PayrollVisit            PayrollVisit[]
+  PayrollProfile          PayrollProfile[]
+  PayReceipt              PayReceipt[]
+  Shift                   Shift[]
+  AuditLog                AuditLog[]
+  PermanentLink           PermanentLink[]
   authorization_documents authorization_documents[]
-  uploadedDocuments       ClientDocument[]
-  uploadedLeadDocuments   LeadDocument[]
-  activities              ClientActivity[]
-  employee                Employee?
-  assignedTasks           Task[]            @relation("TaskAssignee")
-  triggerDefaults         WorkflowTrigger[] @relation("TriggerAssignee")
-  sentScheduleNotifications ScheduleNotification[] @relation("ScheduleSentBy")
-  adminFiles              AdminFile[]
+  BulkEditBatch           BulkEditBatch[]
+  TimesheetReminder       TimesheetReminder[]
+  Task                    Task[]
+  WorkflowTrigger         WorkflowTrigger[]
+  TaskReminder            TaskReminder[]
+  AdminFolder             AdminFolder[]
+  AdminFile               AdminFile[]
+  AvailabilityRequest     AvailabilityRequest[]
+  TimeOffRequest          TimeOffRequest[]
+  Conversation            Conversation[]
+  Message                 Message[]
+  EmployeeTask            EmployeeTask[]
+  Notification            Notification[]
+  PushSubscription        PushSubscription[]
+  PermissionGroup         PermissionGroup[]
+  ShiftCallout            ShiftCallout[]
+  ShiftOffer              ShiftOffer[]
+  LeadDocument            LeadDocument[]
+  LeadContact             LeadContact[]
+  DocumentType            DocumentType[]
+  CertType                CertType[]
+  PolicyDocument          PolicyDocument[]
+  EmployeeRequirement     EmployeeRequirement[]
+  EmployeeDocument        EmployeeDocument[]
+  EmployeePolicyAck       EmployeePolicyAck[]
+
+  @@map("agencies")
+}
+
+model User {
+  id                        Int                       @id @default(autoincrement())
+  email                     String
+  passwordHash              String                    @map("password_hash")
+  name                      String
+  role                      String                    @default("pca")
+  phone                     String                    @default("") @map("phone")
+  permissionGroupId         Int?                      @map("permission_group_id")
+  permissionsVersion        Int                       @default(1) @map("permissions_version")
+  active                    Boolean                   @default(true) @map("active")
+  status                    String                    @default("active") @map("status")
+  archivedAt                DateTime?                 @map("archived_at")
+  createdAt                 DateTime                  @default(now()) @map("created_at")
+  updatedAt                 DateTime                  @updatedAt @map("updated_at")
+  authorization_documents   authorization_documents[]
+  uploadedDocuments         ClientDocument[]
+  uploadedLeadDocuments     LeadDocument[]
+  activities                ClientActivity[]
+  employee                  Employee?
+  assignedTasks             Task[]                    @relation("TaskAssignee")
+  triggerDefaults           WorkflowTrigger[]         @relation("TriggerAssignee")
+  sentScheduleNotifications ScheduleNotification[]    @relation("ScheduleSentBy")
+  adminFiles                AdminFile[]
   messages                  Message[]
   pushSubscriptions         PushSubscription[]
   seenAttentionEvents       AdminEventSeen[]
-  permissionGroup         PermissionGroup?  @relation(fields: [permissionGroupId], references: [id], onDelete: SetNull)
+  permissionGroup           PermissionGroup?          @relation(fields: [permissionGroupId], references: [id], onDelete: SetNull)
+  agencyId                  Int?                      @map("agency_id")
+  agency                    Agency?                   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  @@unique([agencyId, email])
+  @@index([agencyId])
   @@map("users")
 }
 
 model AdminEventSeen {
-  id        Int      @id @default(autoincrement())
-  userId    Int      @map("user_id")
-  eventKey  String   @map("event_key")
-  seenAt    DateTime @default(now()) @map("seen_at")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id       Int      @id @default(autoincrement())
+  userId   Int      @map("user_id")
+  eventKey String   @map("event_key")
+  seenAt   DateTime @default(now()) @map("seen_at")
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agencyId Int      @map("agency_id")
+  agency   Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@unique([userId, eventKey])
   @@index([userId])
+  @@index([agencyId])
   @@map("admin_event_seen")
 }
 
@@ -57,8 +132,11 @@ model PasswordResetToken {
   expiresAt DateTime  @map("expires_at")
   usedAt    DateTime? @map("used_at")
   createdAt DateTime  @default(now()) @map("created_at")
+  agencyId  Int?      @map("agency_id")
+  agency    Agency?   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([agencyId])
   @@map("password_reset_tokens")
 }
 
@@ -72,7 +150,10 @@ model OnboardingToken {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
   employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  agencyId    Int       @map("agency_id")
+  agency      Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  @@index([agencyId])
   @@map("onboarding_tokens")
 }
 
@@ -84,7 +165,7 @@ model EmployeeAvailability {
   weeklySchedule       Json      @map("weekly_schedule")
   maxHoursPerWeek      Int       @map("max_hours_per_week")
   maxConcurrentClients Int       @map("max_concurrent_clients")
-  maxTravelDistance     Int       @map("max_travel_distance")
+  maxTravelDistance    Int       @map("max_travel_distance")
   transportation       String    @map("transportation")
   holidayAvailability  Json      @map("holiday_availability")
   blackoutDates        Json      @map("blackout_dates")
@@ -93,94 +174,103 @@ model EmployeeAvailability {
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
   employee             Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  agencyId             Int       @map("agency_id")
+  agency               Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  @@index([agencyId])
   @@map("employee_availability")
 }
 
 model Employee {
-  id                      Int                    @id @default(autoincrement())
-  name                    String
-  phone                   String                 @default("") @map("phone")
-  email                   String                 @default("") @map("email")
-  active                  Boolean                @default(true) @map("active")
-  userId                  Int?                   @unique @map("user_id")
-  archivedAt              DateTime?              @map("archived_at")
-  createdAt               DateTime               @default(now()) @map("created_at")
-  updatedAt               DateTime               @updatedAt @map("updated_at")
-  dob                     String                 @default("") @map("dob")
-  address                 String                 @default("") @map("address")
-  clientAssignment        String                 @default("") @map("client_assignment")
-  npi                     String                 @default("") @map("npi")
-  idExpDate               DateTime?              @map("id_exp_date")
-  firstAssignmentDate     DateTime?              @map("first_assignment_date")
-  tbDueDate               DateTime?              @map("tb_due_date")
-  tbType                  String                 @default("") @map("tb_type")
-  cprDueDate              DateTime?              @map("cpr_due_date")
-  trainingDueDate         DateTime?              @map("training_due_date")
-  backgroundCheckDueDate  DateTime?              @map("background_check_due_date")
-  dischargeDate           DateTime?              @map("discharge_date")
-  status                  String                 @default("active") @map("status")
-  notes                   String                 @default("") @map("notes")
-  critical                Boolean                @default(false) @map("critical")
-  complianceStatus        String                 @default("ok") @map("compliance_status")
-  onboardingStatus        String                 @default("invitation_pending") @map("onboarding_status")
-  availability            Json?                  @map("availability")
-  latitude                Float?                 @map("latitude")
-  longitude               Float?                 @map("longitude")
-  geocodedAt              DateTime?              @map("geocoded_at")
-  geocodeStatus           String                 @default("pending") @map("geocode_status")
-  geocodeAddressHash      String                 @default("") @map("geocode_address_hash")
-  careTeamAssignments     ClientCareTeam[]
-  certifications          EmployeeCertification[]
-  scheduleLink            EmployeeScheduleLink?
-  onboardingToken         OnboardingToken?
-  employeeAvailability    EmployeeAvailability?
-  user                    User?                  @relation(fields: [userId], references: [id])
-  notifications           ScheduleNotification[]
-  shifts                  Shift[]
-  payrollProfile          PayrollProfile?
-  receipts                PayReceipt[]
-  availabilityRequests    AvailabilityRequest[]
-  timeOffRequests         TimeOffRequest[]
-  conversation            Conversation?
-  employeeTasks           EmployeeTask[]
-  portalNotifications     Notification[]
-  shiftOffers             ShiftOffer[]
-  shiftCallouts           ShiftCallout[]         @relation("CalloutEmployee")
-  gender                       String   @default("") @map("gender")
-  preferredLanguage            String   @default("") @map("preferred_language")
-  ssn                          String   @default("") @map("ssn")
-  emergencyContactName         String   @default("") @map("emergency_contact_name")
-  emergencyContactRelationship String   @default("") @map("emergency_contact_relationship")
-  emergencyContactPhone        String   @default("") @map("emergency_contact_phone")
-  emergencyContactEmail        String   @default("") @map("emergency_contact_email")
-  onboardingDraft              Json?    @map("onboarding_draft")
-  adminReviewNote              String   @default("") @map("admin_review_note")
+  id                           Int                     @id @default(autoincrement())
+  name                         String
+  phone                        String                  @default("") @map("phone")
+  email                        String                  @default("") @map("email")
+  active                       Boolean                 @default(true) @map("active")
+  userId                       Int?                    @unique @map("user_id")
+  archivedAt                   DateTime?               @map("archived_at")
+  createdAt                    DateTime                @default(now()) @map("created_at")
+  updatedAt                    DateTime                @updatedAt @map("updated_at")
+  dob                          String                  @default("") @map("dob")
+  address                      String                  @default("") @map("address")
+  clientAssignment             String                  @default("") @map("client_assignment")
+  npi                          String                  @default("") @map("npi")
+  idExpDate                    DateTime?               @map("id_exp_date")
+  firstAssignmentDate          DateTime?               @map("first_assignment_date")
+  tbDueDate                    DateTime?               @map("tb_due_date")
+  tbType                       String                  @default("") @map("tb_type")
+  cprDueDate                   DateTime?               @map("cpr_due_date")
+  trainingDueDate              DateTime?               @map("training_due_date")
+  backgroundCheckDueDate       DateTime?               @map("background_check_due_date")
+  dischargeDate                DateTime?               @map("discharge_date")
+  status                       String                  @default("active") @map("status")
+  notes                        String                  @default("") @map("notes")
+  critical                     Boolean                 @default(false) @map("critical")
+  complianceStatus             String                  @default("ok") @map("compliance_status")
+  onboardingStatus             String                  @default("active") @map("onboarding_status")
+  availability                 Json?                   @map("availability")
+  latitude                     Float?                  @map("latitude")
+  longitude                    Float?                  @map("longitude")
+  geocodedAt                   DateTime?               @map("geocoded_at")
+  geocodeStatus                String                  @default("pending") @map("geocode_status")
+  geocodeAddressHash           String                  @default("") @map("geocode_address_hash")
+  gender                       String                  @default("") @map("gender")
+  preferredLanguage            String                  @default("") @map("preferred_language")
+  ssn                          String                  @default("") @map("ssn")
+  emergencyContactName         String                  @default("") @map("emergency_contact_name")
+  emergencyContactRelationship String                  @default("") @map("emergency_contact_relationship")
+  emergencyContactPhone        String                  @default("") @map("emergency_contact_phone")
+  emergencyContactEmail        String                  @default("") @map("emergency_contact_email")
+  onboardingDraft              Json?                   @map("onboarding_draft")
+  adminReviewNote              String                  @default("") @map("admin_review_note")
+  careTeamAssignments          ClientCareTeam[]
+  certifications               EmployeeCertification[]
+  scheduleLink                 EmployeeScheduleLink?
+  onboardingToken              OnboardingToken?
+  employeeAvailability         EmployeeAvailability?
+  user                         User?                   @relation(fields: [userId], references: [id])
+  notifications                ScheduleNotification[]
+  shifts                       Shift[]
+  payrollProfile               PayrollProfile?
+  receipts                     PayReceipt[]
+  availabilityRequests         AvailabilityRequest[]
+  timeOffRequests              TimeOffRequest[]
+  conversation                 Conversation?
+  employeeTasks                EmployeeTask[]
+  portalNotifications          Notification[]
+  shiftOffers                  ShiftOffer[]
+  shiftCallouts                ShiftCallout[]          @relation("CalloutEmployee")
   requirements                 EmployeeRequirement[]
   documents                    EmployeeDocument[]
   policyAcks                   EmployeePolicyAck[]
+  agencyId                     Int                     @map("agency_id")
+  agency                       Agency                  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  @@index([agencyId])
   @@map("employees")
 }
 
 model EmployeeCertification {
-  id           Int       @id @default(autoincrement())
-  employeeId   Int       @map("employee_id")
-  certType     String    @map("cert_type")
+  id             Int       @id @default(autoincrement())
+  employeeId     Int       @map("employee_id")
+  certType       String    @map("cert_type")
   expirationDate DateTime? @map("expiration_date")
-  status       String    @default("active") @map("status")
-  fileName     String    @default("") @map("file_name")
-  fileSize     Int       @default(0) @map("file_size")
-  fileType     String    @default("") @map("file_type")
-  fileData     Bytes?    @map("file_data")
-  notes        String    @default("") @map("notes")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  status         String    @default("active") @map("status")
+  fileName       String    @default("") @map("file_name")
+  fileSize       Int       @default(0) @map("file_size")
+  fileType       String    @default("") @map("file_type")
+  fileData       Bytes?    @map("file_data")
+  notes          String    @default("") @map("notes")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  uploads      CertificationUpload[]
+  employee Employee              @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  uploads  CertificationUpload[]
+  agencyId Int                   @map("agency_id")
+  agency   Agency                @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId, certType])
+  @@index([agencyId])
   @@map("employee_certifications")
 }
 
@@ -198,8 +288,11 @@ model CertificationUpload {
   effectiveDate   DateTime?             @map("effective_date")
   expirationDate  DateTime?             @map("expiration_date")
   certification   EmployeeCertification @relation(fields: [certificationId], references: [id], onDelete: Cascade)
+  agencyId        Int                   @map("agency_id")
+  agency          Agency                @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([certificationId])
+  @@index([agencyId])
   @@map("certification_uploads")
 }
 
@@ -210,7 +303,10 @@ model EmployeeScheduleLink {
   active     Boolean  @default(true)
   createdAt  DateTime @default(now()) @map("created_at")
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  agencyId   Int      @map("agency_id")
+  agency     Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  @@index([agencyId])
   @@map("employee_schedule_links")
 }
 
@@ -234,9 +330,12 @@ model ScheduleNotification {
   createdAt         DateTime  @default(now()) @map("created_at")
   employee          Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   sentByUser        User?     @relation("ScheduleSentBy", fields: [sentById], references: [id])
+  agencyId          Int       @map("agency_id")
+  agency            Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
   @@index([weekStart])
+  @@index([agencyId])
   @@map("schedule_notifications")
 }
 
@@ -295,7 +394,10 @@ model Client {
   permanentLinks             PermanentLink[]
   shifts                     Shift[]
   timesheets                 Timesheet[]
+  agencyId                   Int              @map("agency_id")
+  agency                     Agency           @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  @@index([agencyId])
   @@map("clients")
 }
 
@@ -307,8 +409,11 @@ model ClientNote {
   content   String   @default("")
   createdAt DateTime @default(now()) @map("created_at")
   client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  agencyId  Int      @map("agency_id")
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
+  @@index([agencyId])
   @@map("client_notes")
 }
 
@@ -323,9 +428,12 @@ model ClientCareTeam {
   updatedAt  DateTime @updatedAt @map("updated_at")
   client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  agencyId   Int      @map("agency_id")
+  agency     Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@index([employeeId])
+  @@index([agencyId])
   @@map("client_care_team")
 }
 
@@ -344,8 +452,11 @@ model ClientDocument {
   updatedAt  DateTime @updatedAt @map("updated_at")
   client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   uploader   User?    @relation(fields: [uploadedBy], references: [id])
+  agencyId   Int      @map("agency_id")
+  agency     Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
+  @@index([agencyId])
   @@map("client_documents")
 }
 
@@ -362,8 +473,11 @@ model HospitalVisit {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
   client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  agencyId     Int      @map("agency_id")
+  agency       Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
+  @@index([agencyId])
   @@map("hospital_visits")
 }
 
@@ -381,8 +495,11 @@ model Incident {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
   client       Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  agencyId     Int       @map("agency_id")
+  agency       Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
+  @@index([agencyId])
   @@map("incidents")
 }
 
@@ -398,8 +515,11 @@ model ClientActivity {
   createdAt   DateTime @default(now()) @map("created_at")
   client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   user        User     @relation(fields: [userId], references: [id])
+  agencyId    Int      @map("agency_id")
+  agency      Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
+  @@index([agencyId])
   @@map("client_activities")
 }
 
@@ -433,13 +553,16 @@ model Authorization {
   closedAt                DateTime?                 @map("closed_at")
   authorization_documents authorization_documents[]
   client                  Client                    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  agencyId                Int                       @map("agency_id")
+  agency                  Agency                    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
+  @@index([agencyId])
   @@map("authorizations")
 }
 
 model Lead {
-  id                       Int       @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
   // Step 1 — Basic info
   firstName                String    @default("") @map("first_name")
@@ -466,60 +589,63 @@ model Lead {
   callNotes                String    @default("") @map("call_notes")
 
   // Step 2 — Service needs
-  servicesRequested        String    @default("[]") @map("services_requested")
-  daysPerWeek              String    @default("") @map("days_per_week")
-  hoursPerDay              String    @default("") @map("hours_per_day")
-  startDateNeeded          String    @default("") @map("start_date_needed")
+  servicesRequested String @default("[]") @map("services_requested")
+  daysPerWeek       String @default("") @map("days_per_week")
+  hoursPerDay       String @default("") @map("hours_per_day")
+  startDateNeeded   String @default("") @map("start_date_needed")
 
   // Step 3 — Case type + conditional
-  caseType                 String    @default("initial") @map("case_type")
-  authStatus               String    @default("") @map("auth_status")
-  expectedStartDate        DateTime? @map("expected_start_date")
-  currentAgencyName        String    @default("") @map("current_agency_name")
-  currentAuthHoursMonth    Int       @default(0) @map("current_auth_hours_month")
-  authNumber               String    @default("") @map("auth_number")
-  transferReason           String    @default("") @map("transfer_reason")
-  transferNotes            String    @default("") @map("transfer_notes")
-  ppRate                   Float     @default(0) @map("pp_rate")
-  ppHoursPerWeek           Float     @default(0) @map("pp_hours_per_week")
-  ppDepositHours           Float     @default(0) @map("pp_deposit_hours")
+  caseType              String    @default("initial") @map("case_type")
+  authStatus            String    @default("") @map("auth_status")
+  expectedStartDate     DateTime? @map("expected_start_date")
+  currentAgencyName     String    @default("") @map("current_agency_name")
+  currentAuthHoursMonth Int       @default(0) @map("current_auth_hours_month")
+  authNumber            String    @default("") @map("auth_number")
+  transferReason        String    @default("") @map("transfer_reason")
+  transferNotes         String    @default("") @map("transfer_notes")
+  ppRate                Float     @default(0) @map("pp_rate")
+  ppHoursPerWeek        Float     @default(0) @map("pp_hours_per_week")
+  ppDepositHours        Float     @default(0) @map("pp_deposit_hours")
 
   // Step 4 — Preferences
-  genderPreference         String    @default("No preference") @map("gender_preference")
-  agePreference            String    @default("No preference") @map("age_preference")
-  shiftPreferences         String    @default("[]") @map("shift_preferences")
-  languagePreference       String    @default("English") @map("language_preference")
-  scheduleNotes            String    @default("") @map("schedule_notes")
+  genderPreference   String @default("No preference") @map("gender_preference")
+  agePreference      String @default("No preference") @map("age_preference")
+  shiftPreferences   String @default("[]") @map("shift_preferences")
+  languagePreference String @default("English") @map("language_preference")
+  scheduleNotes      String @default("") @map("schedule_notes")
 
   // Step 5 — Status routing
-  status                   String    @default("new")
-  assignedTo               String    @default("") @map("assigned_to")
-  followUpDate             DateTime? @map("follow_up_date")
+  status       String    @default("new")
+  assignedTo   String    @default("") @map("assigned_to")
+  followUpDate DateTime? @map("follow_up_date")
 
   // Staff attribution
-  createdBy                String    @default("") @map("created_by")
+  createdBy String @default("") @map("created_by")
 
   // Conversion linkage
-  convertedClientId        Int?      @map("converted_client_id")
-  convertedAt              DateTime? @map("converted_at")
+  convertedClientId Int?      @map("converted_client_id")
+  convertedAt       DateTime? @map("converted_at")
   // Pipeline stage the lead was in right before conversion, so a reverted
   // conversion can restore it to where it was (empty = pre-feature / unknown).
-  preConvertStatus         String    @default("") @map("pre_convert_status")
+  preConvertStatus  String    @default("") @map("pre_convert_status")
 
-  archivedAt               DateTime? @map("archived_at")
-  dormantAt                DateTime? @map("dormant_at")
+  archivedAt     DateTime?     @map("archived_at")
+  dormantAt      DateTime?     @map("dormant_at")
   // When the lead last entered its current pipeline stage (status). Used by the
   // "stuck in a stage" reminder so unrelated edits (e.g. logging a contact,
   // which bumps updatedAt) don't reset the stuck timer. Null = pre-feature rows.
-  stageEnteredAt           DateTime? @map("stage_entered_at")
-  createdAt                DateTime  @default(now()) @map("created_at")
-  updatedAt                DateTime  @updatedAt @map("updated_at")
-  contacts                 LeadContact[]
+  stageEnteredAt DateTime?     @map("stage_entered_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  agencyId       Int           @map("agency_id")
+  agency         Agency        @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  contacts       LeadContact[]
 
-  documents                LeadDocument[]
+  documents LeadDocument[]
 
   @@index([status])
   @@index([dormantAt])
+  @@index([agencyId])
   @@map("leads")
 }
 
@@ -533,8 +659,11 @@ model LeadContact {
   createdBy    String    @default("") @map("created_by")
   createdAt    DateTime  @default(now()) @map("created_at")
   lead         Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  agencyId     Int       @map("agency_id")
+  agency       Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([leadId])
+  @@index([agencyId])
   @@map("lead_contacts")
 }
 
@@ -551,26 +680,33 @@ model LeadDocument {
   createdAt  DateTime @default(now()) @map("created_at")
   lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
   uploader   User?    @relation(fields: [uploadedBy], references: [id])
+  agencyId   Int      @map("agency_id")
+  agency     Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([leadId])
+  @@index([agencyId])
   @@map("lead_documents")
 }
 
 model InsuranceType {
   id         Int       @id @default(autoincrement())
-  name       String    @unique
+  name       String
   color      String    @default("#9E9E9E")
   archivedAt DateTime? @map("archived_at")
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
+  agencyId   Int       @map("agency_id")
+  agency     Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  @@unique([agencyId, name])
+  @@index([agencyId])
   @@map("insurance_types")
 }
 
 model Service {
   id               Int       @id @default(autoincrement())
   category         String
-  code             String    @unique
+  code             String
   name             String    @default("")
   label            String    @default("")
   accountNumber    String    @default("") @map("account_number")
@@ -581,83 +717,93 @@ model Service {
   archivedAt       DateTime? @map("archived_at")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
+  agencyId         Int       @map("agency_id")
+  agency           Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  @@unique([agencyId, code])
+  @@index([agencyId])
   @@map("services")
 }
 
 model Timesheet {
-  id                  Int              @id @default(autoincrement())
-  clientId            Int              @map("client_id")
-  clientPhone         String           @default("") @map("client_phone")
-  clientIdNumber      String           @default("") @map("client_id_number")
-  pcaName             String           @map("pca_name")
-  weekStart           DateTime         @map("week_start")
-  status              String           @default("draft")
-  totalPasHours       Float            @default(0) @map("total_pas_hours")
-  totalHmHours        Float            @default(0) @map("total_hm_hours")
-  totalHours          Float            @default(0) @map("total_hours")
-  totalRespiteHours   Float            @default(0) @map("total_respite_hours")
-  totalCompanionHours Float            @default(0) @map("total_companion_hours")
-  recipientName       String           @default("") @map("recipient_name")
-  recipientSignature  String           @default("") @map("recipient_signature")
-  pcaSignature        String           @default("") @map("pca_signature")
-  pcaFullName         String           @default("") @map("pca_full_name")
-  supervisorName      String           @default("Sona Hakobyan") @map("supervisor_name")
-  supervisorSignature String           @default("") @map("supervisor_signature")
-  completionDate      String           @default("") @map("completion_date")
-  correctionNote      String           @default("") @map("correction_note")
-  signedPayloadHash   String           @default("") @map("signed_payload_hash")
-  signaturesHash      String           @default("") @map("signatures_hash")
-  hashedAt            DateTime?        @map("hashed_at")
-  submittedAt         DateTime?        @map("submitted_at")
-  acceptedAt          DateTime?        @map("accepted_at")
-  archivedAt          DateTime?        @map("archived_at")
-  createdAt           DateTime         @default(now()) @map("created_at")
-  updatedAt           DateTime         @updatedAt @map("updated_at")
+  id                  Int                 @id @default(autoincrement())
+  clientId            Int                 @map("client_id")
+  clientPhone         String              @default("") @map("client_phone")
+  clientIdNumber      String              @default("") @map("client_id_number")
+  pcaName             String              @map("pca_name")
+  weekStart           DateTime            @map("week_start")
+  status              String              @default("draft")
+  totalPasHours       Float               @default(0) @map("total_pas_hours")
+  totalHmHours        Float               @default(0) @map("total_hm_hours")
+  totalHours          Float               @default(0) @map("total_hours")
+  totalRespiteHours   Float               @default(0) @map("total_respite_hours")
+  totalCompanionHours Float               @default(0) @map("total_companion_hours")
+  recipientName       String              @default("") @map("recipient_name")
+  recipientSignature  String              @default("") @map("recipient_signature")
+  pcaSignature        String              @default("") @map("pca_signature")
+  pcaFullName         String              @default("") @map("pca_full_name")
+  supervisorName      String              @default("Sona Hakobyan") @map("supervisor_name")
+  supervisorSignature String              @default("") @map("supervisor_signature")
+  completionDate      String              @default("") @map("completion_date")
+  correctionNote      String              @default("") @map("correction_note")
+  signedPayloadHash   String              @default("") @map("signed_payload_hash")
+  signaturesHash      String              @default("") @map("signatures_hash")
+  hashedAt            DateTime?           @map("hashed_at")
+  submittedAt         DateTime?           @map("submitted_at")
+  acceptedAt          DateTime?           @map("accepted_at")
+  archivedAt          DateTime?           @map("archived_at")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
   signingTokens       SigningToken[]
   entries             TimesheetEntry[]
   reminders           TimesheetReminder[]
-  client              Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client              Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  agencyId            Int                 @map("agency_id")
+  agency              Agency              @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@unique([clientId, pcaName, weekStart])
+  @@index([agencyId])
   @@map("timesheets")
 }
 
 model TimesheetEntry {
-  id                    Int       @id @default(autoincrement())
-  timesheetId           Int       @map("timesheet_id")
-  dayOfWeek             Int       @map("day_of_week")
-  dateOfService         String    @default("") @map("date_of_service")
-  adlActivities         String    @default("{}") @map("adl_activities")
-  adlTimeIn             String?   @map("adl_time_in")
-  adlTimeOut            String?   @map("adl_time_out")
-  adlHours              Float     @default(0) @map("adl_hours")
-  adlPcaInitials        String    @default("") @map("adl_pca_initials")
-  adlClientInitials     String    @default("") @map("adl_client_initials")
-  adlTimeBlocks         String    @default("[]") @map("adl_time_blocks")
-  iadlActivities        String    @default("{}") @map("iadl_activities")
-  iadlTimeIn            String?   @map("iadl_time_in")
-  iadlTimeOut           String?   @map("iadl_time_out")
-  iadlHours             Float     @default(0) @map("iadl_hours")
-  iadlPcaInitials       String    @default("") @map("iadl_pca_initials")
-  iadlClientInitials    String    @default("") @map("iadl_client_initials")
-  iadlTimeBlocks        String    @default("[]") @map("iadl_time_blocks")
-  respiteActivities     String    @default("{}") @map("respite_activities")
-  respiteTimeIn         String?   @map("respite_time_in")
-  respiteTimeOut        String?   @map("respite_time_out")
-  respiteHours          Float     @default(0) @map("respite_hours")
-  respitePcaInitials    String    @default("") @map("respite_pca_initials")
-  respiteClientInitials String    @default("") @map("respite_client_initials")
-  respiteTimeBlocks     String    @default("[]") @map("respite_time_blocks")
-  companionActivities   String    @default("{}") @map("companion_activities")
-  companionTimeIn       String?   @map("companion_time_in")
-  companionTimeOut      String?   @map("companion_time_out")
-  companionHours        Float     @default(0) @map("companion_hours")
-  companionPcaInitials  String    @default("") @map("companion_pca_initials")
-  companionClientInitials String  @default("") @map("companion_client_initials")
-  companionTimeBlocks   String    @default("[]") @map("companion_time_blocks")
-  timesheet             Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+  id                      Int       @id @default(autoincrement())
+  timesheetId             Int       @map("timesheet_id")
+  dayOfWeek               Int       @map("day_of_week")
+  dateOfService           String    @default("") @map("date_of_service")
+  adlActivities           String    @default("{}") @map("adl_activities")
+  adlTimeIn               String?   @map("adl_time_in")
+  adlTimeOut              String?   @map("adl_time_out")
+  adlHours                Float     @default(0) @map("adl_hours")
+  adlPcaInitials          String    @default("") @map("adl_pca_initials")
+  adlClientInitials       String    @default("") @map("adl_client_initials")
+  adlTimeBlocks           String    @default("[]") @map("adl_time_blocks")
+  iadlActivities          String    @default("{}") @map("iadl_activities")
+  iadlTimeIn              String?   @map("iadl_time_in")
+  iadlTimeOut             String?   @map("iadl_time_out")
+  iadlHours               Float     @default(0) @map("iadl_hours")
+  iadlPcaInitials         String    @default("") @map("iadl_pca_initials")
+  iadlClientInitials      String    @default("") @map("iadl_client_initials")
+  iadlTimeBlocks          String    @default("[]") @map("iadl_time_blocks")
+  respiteActivities       String    @default("{}") @map("respite_activities")
+  respiteTimeIn           String?   @map("respite_time_in")
+  respiteTimeOut          String?   @map("respite_time_out")
+  respiteHours            Float     @default(0) @map("respite_hours")
+  respitePcaInitials      String    @default("") @map("respite_pca_initials")
+  respiteClientInitials   String    @default("") @map("respite_client_initials")
+  respiteTimeBlocks       String    @default("[]") @map("respite_time_blocks")
+  companionActivities     String    @default("{}") @map("companion_activities")
+  companionTimeIn         String?   @map("companion_time_in")
+  companionTimeOut        String?   @map("companion_time_out")
+  companionHours          Float     @default(0) @map("companion_hours")
+  companionPcaInitials    String    @default("") @map("companion_pca_initials")
+  companionClientInitials String    @default("") @map("companion_client_initials")
+  companionTimeBlocks     String    @default("[]") @map("companion_time_blocks")
+  timesheet               Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+  agencyId                Int       @map("agency_id")
+  agency                  Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  @@index([agencyId])
   @@map("timesheet_entries")
 }
 
@@ -670,7 +816,10 @@ model SigningToken {
   usedAt      DateTime? @map("used_at")
   createdAt   DateTime  @default(now()) @map("created_at")
   timesheet   Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+  agencyId    Int       @map("agency_id")
+  agency      Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  @@index([agencyId])
   @@map("signing_tokens")
 }
 
@@ -689,7 +838,10 @@ model PayrollRun {
   createdAt             DateTime       @default(now()) @map("created_at")
   updatedAt             DateTime       @updatedAt @map("updated_at")
   visits                PayrollVisit[]
+  agencyId              Int            @map("agency_id")
+  agency                Agency         @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  @@index([agencyId])
   @@map("payroll_runs")
 }
 
@@ -724,32 +876,38 @@ model PayrollVisit {
   nextDayCallOut    Boolean    @default(false) @map("next_day_call_out")
   createdAt         DateTime   @default(now()) @map("created_at")
   run               PayrollRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  agencyId          Int        @map("agency_id")
+  agency            Agency     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([runId])
+  @@index([agencyId])
   @@map("payroll_visits")
 }
 
 model PayrollProfile {
-  id                     Int       @id @default(autoincrement())
-  employeeId             Int       @unique @map("employee_id")
-  hourlyRate             Decimal   @default(0) @map("hourly_rate") @db.Decimal(10, 2)
-  classification         String    @default("W2") @map("classification")
-  ein                    String    @default("") @map("ein")
-  ssn                    String    @default("") @map("ssn")
-  accountNumber          String    @default("") @map("account_number")
-  garnishmentActive      Boolean   @default(false) @map("garnishment_active")
-  childSupportActive     Boolean   @default(false) @map("child_support_active")
-  childSupportAmount     Decimal   @default(0) @map("child_support_amount") @db.Decimal(10, 2)
-  overpaymentBalance     Decimal   @default(0) @map("overpayment_balance") @db.Decimal(10, 2)
-  ytdGrossOverride       Decimal?  @map("ytd_gross_override") @db.Decimal(10, 2)
-  ytdDeductionsOverride  Decimal?  @map("ytd_deductions_override") @db.Decimal(10, 2)
-  ytdNetOverride         Decimal?  @map("ytd_net_override") @db.Decimal(10, 2)
-  ytdOverpaymentOverride Decimal?  @map("ytd_overpayment_override") @db.Decimal(10, 2)
-  createdAt              DateTime  @default(now()) @map("created_at")
-  updatedAt              DateTime  @updatedAt @map("updated_at")
+  id                     Int      @id @default(autoincrement())
+  employeeId             Int      @unique @map("employee_id")
+  hourlyRate             Decimal  @default(0) @map("hourly_rate") @db.Decimal(10, 2)
+  classification         String   @default("W2") @map("classification")
+  ein                    String   @default("") @map("ein")
+  ssn                    String   @default("") @map("ssn")
+  accountNumber          String   @default("") @map("account_number")
+  garnishmentActive      Boolean  @default(false) @map("garnishment_active")
+  childSupportActive     Boolean  @default(false) @map("child_support_active")
+  childSupportAmount     Decimal  @default(0) @map("child_support_amount") @db.Decimal(10, 2)
+  overpaymentBalance     Decimal  @default(0) @map("overpayment_balance") @db.Decimal(10, 2)
+  ytdGrossOverride       Decimal? @map("ytd_gross_override") @db.Decimal(10, 2)
+  ytdDeductionsOverride  Decimal? @map("ytd_deductions_override") @db.Decimal(10, 2)
+  ytdNetOverride         Decimal? @map("ytd_net_override") @db.Decimal(10, 2)
+  ytdOverpaymentOverride Decimal? @map("ytd_overpayment_override") @db.Decimal(10, 2)
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
 
-  employee               Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  agencyId Int      @map("agency_id")
+  agency   Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  @@index([agencyId])
   @@map("payroll_profiles")
 }
 
@@ -778,61 +936,70 @@ model PayReceipt {
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
 
-  employee             Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  agencyId Int      @map("agency_id")
+  agency   Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, periodStart])
   @@index([employeeId])
   @@index([periodStart])
+  @@index([agencyId])
   @@map("pay_receipts")
 }
 
 model Shift {
-  id               Int       @id @default(autoincrement())
-  clientId         Int       @map("client_id")
-  employeeId       Int?      @map("employee_id")
-  serviceCode      String    @map("service_code")
-  shiftDate        DateTime  @map("shift_date")
-  startTime        String    @map("start_time")
-  endTime          String    @map("end_time")
-  hours            Float     @default(0)
-  units            Int       @default(0)
-  notes            String    @default("")
-  status           String    @default("scheduled")
-  recurringGroupId String    @default("") @map("recurring_group_id")
-  accountNumber    String    @default("") @map("account_number")
-  sandataClientId  String    @default("") @map("sandata_client_id")
-  archivedAt       DateTime? @map("archived_at")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
-  client           Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  employee         Employee? @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  id               Int            @id @default(autoincrement())
+  clientId         Int            @map("client_id")
+  employeeId       Int?           @map("employee_id")
+  serviceCode      String         @map("service_code")
+  shiftDate        DateTime       @map("shift_date")
+  startTime        String         @map("start_time")
+  endTime          String         @map("end_time")
+  hours            Float          @default(0)
+  units            Int            @default(0)
+  notes            String         @default("")
+  status           String         @default("scheduled")
+  recurringGroupId String         @default("") @map("recurring_group_id")
+  accountNumber    String         @default("") @map("account_number")
+  sandataClientId  String         @default("") @map("sandata_client_id")
+  archivedAt       DateTime?      @map("archived_at")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  client           Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  employee         Employee?      @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  agencyId         Int            @map("agency_id")
+  agency           Agency         @relation(fields: [agencyId], references: [id], onDelete: Cascade)
   offers           ShiftOffer[]
   callouts         ShiftCallout[]
 
   @@index([clientId])
   @@index([employeeId])
   @@index([shiftDate])
+  @@index([agencyId])
   @@map("shifts")
 }
 
 /// A caregiver calling out of a scheduled shift. Opens the replacement workflow.
 model ShiftCallout {
-  id                Int       @id @default(autoincrement())
-  shiftId           Int       @map("shift_id")
-  calloutEmployeeId Int?      @map("callout_employee_id")
-  reason            String    @default("")
-  reportedById      Int?      @map("reported_by_id")
+  id                Int          @id @default(autoincrement())
+  shiftId           Int          @map("shift_id")
+  calloutEmployeeId Int?         @map("callout_employee_id")
+  reason            String       @default("")
+  reportedById      Int?         @map("reported_by_id")
   /// 'open' | 'filled' | 'no_coverage' | 'cancelled'
-  resolution        String    @default("open")
-  resolvedAt        DateTime? @map("resolved_at")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
-  shift             Shift     @relation(fields: [shiftId], references: [id], onDelete: Cascade)
-  calloutEmployee   Employee? @relation("CalloutEmployee", fields: [calloutEmployeeId], references: [id], onDelete: SetNull)
+  resolution        String       @default("open")
+  resolvedAt        DateTime?    @map("resolved_at")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+  shift             Shift        @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  calloutEmployee   Employee?    @relation("CalloutEmployee", fields: [calloutEmployeeId], references: [id], onDelete: SetNull)
   offers            ShiftOffer[]
+  agencyId          Int          @map("agency_id")
+  agency            Agency       @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([shiftId])
   @@index([resolution])
+  @@index([agencyId])
   @@map("shift_callouts")
 }
 
@@ -864,10 +1031,13 @@ model ShiftOffer {
   shift          Shift         @relation(fields: [shiftId], references: [id], onDelete: Cascade)
   callout        ShiftCallout? @relation(fields: [calloutId], references: [id], onDelete: SetNull)
   employee       Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  agencyId       Int           @map("agency_id")
+  agency         Agency        @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([shiftId])
   @@index([employeeId])
   @@index([calloutId])
+  @@index([agencyId])
   @@map("shift_offers")
 }
 
@@ -883,10 +1053,13 @@ model AuditLog {
   changes    String   @default("[]")
   metadata   String   @default("{}")
   createdAt  DateTime @default(now()) @map("created_at")
+  agencyId   Int?     @map("agency_id")
+  agency     Agency?  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([entityType, entityId])
   @@index([entityType, createdAt])
   @@index([userId])
+  @@index([agencyId])
   @@map("audit_logs")
 }
 
@@ -898,8 +1071,11 @@ model PermanentLink {
   active    Boolean  @default(true)
   createdAt DateTime @default(now()) @map("created_at")
   client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  agencyId  Int      @map("agency_id")
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@unique([clientId, pcaName])
+  @@index([agencyId])
   @@map("permanent_links")
 }
 
@@ -916,8 +1092,11 @@ model authorization_documents {
   created_at       DateTime      @default(now())
   authorizations   Authorization @relation(fields: [authorization_id], references: [id], onDelete: Cascade)
   users            User?         @relation(fields: [uploaded_by], references: [id])
+  agencyId         Int           @map("agency_id")
+  agency           Agency        @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([authorization_id])
+  @@index([agencyId])
 }
 
 model BulkEditBatch {
@@ -929,22 +1108,28 @@ model BulkEditBatch {
   snapshot   String    @default("[]")
   undoneAt   DateTime? @map("undone_at")
   createdAt  DateTime  @default(now()) @map("created_at")
+  agencyId   Int       @map("agency_id")
+  agency     Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([createdAt])
+  @@index([agencyId])
   @@map("bulk_edit_batches")
 }
 
 model TimesheetReminder {
-  id          Int       @id @default(autoincrement())
-  timesheetId Int       @map("timesheet_id")
-  employeeId  Int?      @map("employee_id")
-  sentAt      DateTime  @default(now()) @map("sent_at")
-  channel     String    @default("email")
-  status      String    @default("sent")
+  id          Int      @id @default(autoincrement())
+  timesheetId Int      @map("timesheet_id")
+  employeeId  Int?     @map("employee_id")
+  sentAt      DateTime @default(now()) @map("sent_at")
+  channel     String   @default("email")
+  status      String   @default("sent")
 
-  timesheet   Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+  timesheet Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+  agencyId  Int       @map("agency_id")
+  agency    Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  @@index([agencyId])
   @@map("timesheet_reminders")
 }
 
@@ -968,10 +1153,13 @@ model Task {
   assignedToUser User?            @relation("TaskAssignee", fields: [assignedToUserId], references: [id])
   trigger        WorkflowTrigger? @relation(fields: [triggerId], references: [id])
   reminders      TaskReminder[]
+  agencyId       Int              @map("agency_id")
+  agency         Agency           @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([status])
   @@index([assignedToUserId])
   @@index([triggerId, entityType, entityId])
+  @@index([agencyId])
   @@map("tasks")
 }
 
@@ -988,8 +1176,11 @@ model WorkflowTrigger {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   tasks        Task[]
-  assignToUser User? @relation("TriggerAssignee", fields: [assignToUserId], references: [id])
+  assignToUser User?  @relation("TriggerAssignee", fields: [assignToUserId], references: [id])
+  agencyId     Int    @map("agency_id")
+  agency       Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  @@index([agencyId])
   @@map("workflow_triggers")
 }
 
@@ -1000,9 +1191,12 @@ model TaskReminder {
   channel String
   status  String
 
-  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task     Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  agencyId Int    @map("agency_id")
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([taskId])
+  @@index([agencyId])
   @@map("task_reminders")
 }
 
@@ -1017,9 +1211,12 @@ model AdminFolder {
   files      AdminFile[]
   createdAt  DateTime      @default(now()) @map("created_at")
   updatedAt  DateTime      @updatedAt @map("updated_at")
+  agencyId   Int           @map("agency_id")
+  agency     Agency        @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@unique([parentId, name])
   @@index([parentId])
+  @@index([agencyId])
   @@map("admin_folders")
 }
 
@@ -1035,9 +1232,12 @@ model AdminFile {
   uploader   User?       @relation(fields: [uploadedBy], references: [id])
   createdAt  DateTime    @default(now()) @map("created_at")
   updatedAt  DateTime    @updatedAt @map("updated_at")
+  agencyId   Int         @map("agency_id")
+  agency     Agency      @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@unique([folderId, name])
   @@index([folderId])
+  @@index([agencyId])
   @@map("admin_files")
 }
 
@@ -1051,25 +1251,31 @@ model AvailabilityRequest {
   reviewedAt       DateTime? @map("reviewed_at")
   createdAt        DateTime  @default(now()) @map("created_at")
   employee         Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  agencyId         Int       @map("agency_id")
+  agency           Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
+  @@index([agencyId])
   @@map("availability_requests")
 }
 
 model TimeOffRequest {
-  id          Int       @id @default(autoincrement())
-  employeeId  Int       @map("employee_id")
-  dateFrom    DateTime  @map("date_from")
-  dateTo      DateTime  @map("date_to")
-  reason      String
-  status      String    @default("pending") @map("status")
-  adminNote   String    @default("") @map("admin_note")
-  reviewedBy  Int?      @map("reviewed_by")
-  reviewedAt  DateTime? @map("reviewed_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  id         Int       @id @default(autoincrement())
+  employeeId Int       @map("employee_id")
+  dateFrom   DateTime  @map("date_from")
+  dateTo     DateTime  @map("date_to")
+  reason     String
+  status     String    @default("pending") @map("status")
+  adminNote  String    @default("") @map("admin_note")
+  reviewedBy Int?      @map("reviewed_by")
+  reviewedAt DateTime? @map("reviewed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  agencyId   Int       @map("agency_id")
+  agency     Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
+  @@index([agencyId])
   @@map("time_off_requests")
 }
 
@@ -1080,7 +1286,10 @@ model Conversation {
   createdAt     DateTime  @default(now()) @map("created_at")
   employee      Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   messages      Message[]
+  agencyId      Int       @map("agency_id")
+  agency        Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  @@index([agencyId])
   @@map("conversations")
 }
 
@@ -1094,8 +1303,11 @@ model Message {
   createdAt      DateTime     @default(now()) @map("created_at")
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender         User         @relation(fields: [senderId], references: [id])
+  agencyId       Int          @map("agency_id")
+  agency         Agency       @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
+  @@index([agencyId])
   @@map("messages")
 }
 
@@ -1109,8 +1321,11 @@ model EmployeeTask {
   completedAt  DateTime? @map("completed_at")
   createdAt    DateTime  @default(now()) @map("created_at")
   employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  agencyId     Int       @map("agency_id")
+  agency       Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
+  @@index([agencyId])
   @@map("employee_tasks")
 }
 
@@ -1123,8 +1338,11 @@ model Notification {
   readAt     DateTime? @map("read_at")
   createdAt  DateTime  @default(now()) @map("created_at")
   employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  agencyId   Int       @map("agency_id")
+  agency     Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
+  @@index([agencyId])
   @@map("notifications")
 }
 
@@ -1136,55 +1354,77 @@ model PushSubscription {
   auth      String
   createdAt DateTime @default(now()) @map("created_at")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agencyId  Int      @map("agency_id")
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([agencyId])
   @@map("push_subscriptions")
 }
 
 model PermissionGroup {
-  id           Int       @id @default(autoincrement())
-  name         String    @unique
-  description  String    @default("")
-  permissions  Json
-  archivedAt   DateTime? @map("archived_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-  users        User[]
+  id          Int       @id @default(autoincrement())
+  name        String
+  description String    @default("")
+  permissions Json
+  archivedAt  DateTime? @map("archived_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  users       User[]
+  agencyId    Int       @map("agency_id")
+  agency      Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  @@unique([agencyId, name])
+  @@index([agencyId])
   @@map("permission_groups")
 }
 
 model DocumentType {
-  id             Int      @id @default(autoincrement())
-  key            String   @unique
+  id             Int     @id @default(autoincrement())
+  key            String
   label          String
-  requiresExpiry Boolean  @default(false) @map("requires_expiry")
-  active         Boolean  @default(true)
-  sortOrder      Int      @default(0) @map("sort_order")
+  requiresExpiry Boolean @default(false) @map("requires_expiry")
+  active         Boolean @default(true)
+  sortOrder      Int     @default(0) @map("sort_order")
+  agencyId       Int     @map("agency_id")
+  agency         Agency  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@unique([agencyId, key])
+  @@index([agencyId])
   @@map("document_types")
 }
 
 model CertType {
-  id             Int      @id @default(autoincrement())
-  key            String   @unique
+  id             Int     @id @default(autoincrement())
+  key            String
   label          String
-  renewalYears   Int?     @map("renewal_years")
-  requiresExpiry Boolean  @default(true) @map("requires_expiry")
-  active         Boolean  @default(true)
-  sortOrder      Int      @default(0) @map("sort_order")
+  renewalYears   Int?    @map("renewal_years")
+  requiresExpiry Boolean @default(true) @map("requires_expiry")
+  active         Boolean @default(true)
+  sortOrder      Int     @default(0) @map("sort_order")
+  agencyId       Int     @map("agency_id")
+  agency         Agency  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@unique([agencyId, key])
+  @@index([agencyId])
   @@map("cert_types")
 }
 
 model PolicyDocument {
-  id        Int      @id @default(autoincrement())
-  key       String   @unique
+  id        Int                 @id @default(autoincrement())
+  key       String
   title     String
   body      String?
-  fileKey   String?  @map("file_key")
-  version   Int      @default(1)
-  active    Boolean  @default(true)
-  sortOrder Int      @default(0) @map("sort_order")
+  fileKey   String?             @map("file_key")
+  version   Int                 @default(1)
+  active    Boolean             @default(true)
+  sortOrder Int                 @default(0) @map("sort_order")
   acks      EmployeePolicyAck[]
+  agencyId  Int                 @map("agency_id")
+  agency    Agency              @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@unique([agencyId, key])
+  @@index([agencyId])
   @@map("policy_documents")
 }
 
@@ -1206,7 +1446,11 @@ model EmployeeRequirement {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
   employee        Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  agencyId        Int       @map("agency_id")
+  agency          Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
   @@index([employeeId, kind])
+  @@index([agencyId])
   @@map("employee_requirements")
 }
 
@@ -1222,7 +1466,11 @@ model EmployeeDocument {
   status         String    @default("submitted")
   uploadedAt     DateTime  @default(now()) @map("uploaded_at")
   employee       Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  agencyId       Int       @map("agency_id")
+  agency         Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
   @@index([employeeId])
+  @@index([agencyId])
   @@map("employee_documents")
 }
 
@@ -1235,6 +1483,10 @@ model EmployeePolicyAck {
   ipAddress        String?        @map("ip_address")
   employee         Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   policyDocument   PolicyDocument @relation(fields: [policyDocumentId], references: [id], onDelete: Cascade)
+  agencyId         Int            @map("agency_id")
+  agency           Agency         @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
   @@index([employeeId])
+  @@index([agencyId])
   @@map("employee_policy_acks")
 }

@@ -9,7 +9,7 @@ const prisma = require('../../../lib/prisma');
 const { getActivity } = require('../homeController');
 
 function mockReqRes(emp = { id: 7 }) {
-  const req = { employee: emp, user: { id: 11 } };
+  const req = { employee: emp, user: { id: 11 }, db: prisma };
   const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
   return { req, res };
 }

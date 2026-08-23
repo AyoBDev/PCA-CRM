@@ -5,17 +5,18 @@
 // covers, when it was generated, and by whom. A page of undated text proves
 // nothing.
 
-jest.mock('../../lib/prisma', () => ({
+jest.mock('../../services/auditService', () => ({ logAction: jest.fn(), diffFields: jest.fn(() => []) }));
+
+// Controllers read the DB via req.db (tenant-scoped client set by
+// tenantMiddleware), not the owner lib/prisma connection.
+const prisma = {
     employee: { findUnique: jest.fn() },
     client: { findUnique: jest.fn() },
     shiftCallout: { findMany: jest.fn(() => []) },
     shiftOffer: { findMany: jest.fn(() => []) },
     auditLog: { findMany: jest.fn(() => []) },
-}));
+};
 
-jest.mock('../../services/auditService', () => ({ logAction: jest.fn(), diffFields: jest.fn(() => []) }));
-
-const prisma = require('../../lib/prisma');
 const audit = require('../../services/auditService');
 const {
     exportEmployeeNotesPdf,
@@ -62,7 +63,8 @@ function mockReq(overrides = {}) {
     return {
         params: { employeeId: '5' },
         query: {},
-        user: { id: 2, name: 'Admin User', role: 'admin' },
+        user: { id: 2, name: 'Admin User', role: 'admin', agencyId: 1 },
+        db: prisma,
         ...overrides,
     };
 }

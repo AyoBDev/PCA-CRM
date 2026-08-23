@@ -1,6 +1,6 @@
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 const { uploadFile, downloadFile } = require('../lib/storage');
+const { tenantKey } = require('../services/storageService');
 
 const leadName = (l) => `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Lead #${l.id}`;
 
@@ -16,7 +16,7 @@ const ALLOWED_MIME = [
 async function listLeadDocuments(req, res, next) {
     try {
         const leadId = Number(req.params.leadId);
-        const docs = await prisma.leadDocument.findMany({
+        const docs = await req.db.leadDocument.findMany({
             where: { leadId },
             orderBy: { createdAt: 'desc' },
             include: { uploader: { select: { id: true, name: true } } },
@@ -31,7 +31,7 @@ async function listLeadDocuments(req, res, next) {
 async function uploadLeadDocument(req, res, next) {
     try {
         const leadId = Number(req.params.leadId);
-        const lead = await prisma.lead.findUnique({ where: { id: leadId } });
+        const lead = await req.db.lead.findUnique({ where: { id: leadId } });
         if (!lead) return res.status(404).json({ error: 'Lead not found' });
 
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
@@ -41,10 +41,10 @@ async function uploadLeadDocument(req, res, next) {
             return res.status(400).json({ error: 'Unsupported file type. Allowed: images, PDF, Word documents.' });
         }
 
-        const bucketKey = `lead-documents/${leadId}/${Date.now()}-${req.file.originalname}`;
+        const bucketKey = tenantKey(`lead-documents/${leadId}/${Date.now()}-${req.file.originalname}`);
         await uploadFile(bucketKey, req.file.buffer, mime);
 
-        const doc = await prisma.leadDocument.create({
+        const doc = await req.db.leadDocument.create({
             data: {
                 leadId,
                 fileName: req.file.originalname,
@@ -73,7 +73,7 @@ async function uploadLeadDocument(req, res, next) {
 async function downloadLeadDocument(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const doc = await prisma.leadDocument.findUnique({ where: { id } });
+        const doc = await req.db.leadDocument.findUnique({ where: { id } });
         if (!doc) return res.status(404).json({ error: 'Document not found' });
 
         const mimeType = doc.mimeType || 'application/octet-stream';
@@ -95,10 +95,10 @@ async function downloadLeadDocument(req, res, next) {
 async function deleteLeadDocument(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const doc = await prisma.leadDocument.findUnique({ where: { id }, include: { lead: true } });
+        const doc = await req.db.leadDocument.findUnique({ where: { id }, include: { lead: true } });
         if (!doc) return res.status(404).json({ error: 'Document not found' });
 
-        await prisma.leadDocument.delete({ where: { id } });
+        await req.db.leadDocument.delete({ where: { id } });
 
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,

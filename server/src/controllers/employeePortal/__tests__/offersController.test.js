@@ -5,9 +5,13 @@
 // endpoints must scope everything to req.employee.id — an authenticated
 // caregiver must never be able to see or answer somebody else's offer.
 
-jest.mock('../../../lib/prisma', () => ({
+// This controller reads/writes via req.db (set by tenantMiddleware in
+// routes/employee.js — see the top-of-file comment in offersController.js),
+// not the owner-connection lib/prisma. So the mock plays the role of req.db
+// and is passed into mockReqRes below.
+const prisma = {
     shiftOffer: { findMany: jest.fn(), findFirst: jest.fn() },
-}));
+};
 
 jest.mock('../../../services/replacementService', () => ({
     acceptOffer: jest.fn(),
@@ -16,12 +20,11 @@ jest.mock('../../../services/replacementService', () => ({
 
 jest.mock('../../../services/auditService', () => ({ logAction: jest.fn(), diffFields: jest.fn(() => []) }));
 
-const prisma = require('../../../lib/prisma');
 const replacement = require('../../../services/replacementService');
 const { getMyOffers, respondToMyOffer } = require('../offersController');
 
 function mockReqRes(overrides = {}) {
-    const req = { params: {}, query: {}, body: {}, employee: { id: 5, name: 'Sam Carer' }, ...overrides };
+    const req = { params: {}, query: {}, body: {}, employee: { id: 5, name: 'Sam Carer' }, db: prisma, ...overrides };
     const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
     return { req, res };
 }
@@ -77,7 +80,7 @@ describe('respondToMyOffer', () => {
         const { req, res } = mockReqRes({ params: { id: '21' }, body: { response: 'accept' } });
         await respondToMyOffer(req, res);
 
-        expect(replacement.acceptOffer).toHaveBeenCalledWith('tok-21');
+        expect(replacement.acceptOffer).toHaveBeenCalledWith(prisma, 'tok-21');
         expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: 'accepted' }));
     });
 
@@ -88,7 +91,7 @@ describe('respondToMyOffer', () => {
         const { req, res } = mockReqRes({ params: { id: '21' }, body: { response: 'decline' } });
         await respondToMyOffer(req, res);
 
-        expect(replacement.declineOffer).toHaveBeenCalledWith('tok-21');
+        expect(replacement.declineOffer).toHaveBeenCalledWith(prisma, 'tok-21');
     });
 
     test('404s for an offer belonging to a different caregiver', async () => {

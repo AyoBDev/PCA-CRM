@@ -32,13 +32,13 @@ function availabilityPayload() {
 async function changesRequestedEmployee() {
   const email = `loop-${uniq()}@t.co`;
   const user = await prisma.user.create({
-    data: { email, passwordHash: await bcrypt.hash('x', 4), name: 'Loop EE', role: 'pca', status: 'pending' },
+    data: { email, passwordHash: await bcrypt.hash('x', 4), name: 'Loop EE', role: 'pca', status: 'pending', agencyId: 1 },
   });
   const emp = await prisma.employee.create({
-    data: { name: 'Loop EE', email, onboardingStatus: 'changes_requested', userId: user.id },
+    data: { name: 'Loop EE', email, onboardingStatus: 'changes_requested', userId: user.id, agencyId: 1 },
   });
   await prisma.employeeRequirement.create({
-    data: { employeeId: emp.id, kind: 'document', catalogTypeId: 1, status: 'submitted', reviewStatus: 'pending' },
+    data: { employeeId: emp.id, kind: 'document', catalogTypeId: 1, status: 'submitted', reviewStatus: 'pending', agencyId: 1 },
   });
   // Availability already exists from the first submit — the @unique employeeId
   // means a second create() would P2002/500.
@@ -47,10 +47,10 @@ async function changesRequestedEmployee() {
       employeeId: emp.id, availableFrom: new Date('2025-01-01'), availableUntil: null,
       weeklySchedule: { sun: true }, maxHoursPerWeek: 10, maxConcurrentClients: 1,
       maxTravelDistance: 5, transportation: 'walk', holidayAvailability: {},
-      blackoutDates: [], initialTimeOff: [], notes: 'old',
+      blackoutDates: [], initialTimeOff: [], notes: 'old', agencyId: 1,
     },
   });
-  const tok = await onboarding.createOnboardingToken(emp.id);
+  const tok = await onboarding.createOnboardingToken(prisma, emp.id);
   return { emp, user, tokenStr: tok.token };
 }
 
@@ -93,12 +93,12 @@ describe('re-submit loop after changes_requested', () => {
     // and the employee is NOT yet linked to any user (userId null).
     const email = `ext-${uniq()}@t.co`;
     const externalUser = await prisma.user.create({
-      data: { email, passwordHash: await bcrypt.hash('x', 4), name: 'External', role: 'admin', status: 'active' },
+      data: { email, passwordHash: await bcrypt.hash('x', 4), name: 'External', role: 'admin', status: 'active', agencyId: 1 },
     });
     const emp = await prisma.employee.create({
-      data: { name: 'External', email, onboardingStatus: 'invitation_pending', userId: null },
+      data: { name: 'External', email, onboardingStatus: 'invitation_pending', userId: null, agencyId: 1 },
     });
-    const tok = await onboarding.createOnboardingToken(emp.id);
+    const tok = await onboarding.createOnboardingToken(prisma, emp.id);
 
     const result = await onboarding.completeOnboarding(tok.token, {
       password: 'password123', availability: availabilityPayload(),
@@ -116,9 +116,9 @@ describe('re-submit loop after changes_requested', () => {
   it('first-ever submit (no existing user) creates the user and goes to pending_review', async () => {
     const email = `new-${uniq()}@t.co`;
     const emp = await prisma.employee.create({
-      data: { name: 'Fresh', email, onboardingStatus: 'invitation_pending', userId: null },
+      data: { name: 'Fresh', email, onboardingStatus: 'invitation_pending', userId: null, agencyId: 1 },
     });
-    const tok = await onboarding.createOnboardingToken(emp.id);
+    const tok = await onboarding.createOnboardingToken(prisma, emp.id);
 
     const result = await onboarding.completeOnboarding(tok.token, {
       password: 'password123', availability: availabilityPayload(),
@@ -127,7 +127,7 @@ describe('re-submit loop after changes_requested', () => {
     expect(result.skipApproval).toBe(false);
     const afterEmp = await prisma.employee.findUnique({ where: { id: emp.id } });
     expect(afterEmp.onboardingStatus).toBe('pending_review');
-    const createdUser = await prisma.user.findUnique({ where: { email } });
+    const createdUser = await prisma.user.findFirst({ where: { email } });
     expect(createdUser).toBeTruthy();
     expect(createdUser.status).not.toBe('active');
 

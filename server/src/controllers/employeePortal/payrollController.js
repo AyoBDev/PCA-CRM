@@ -1,14 +1,13 @@
-const prisma = require('../../lib/prisma');
 
 async function getPayrollSummary(req, res) {
   const employeeId = req.employee.id;
-  const lastReceipt = await prisma.payReceipt.findFirst({
+  const lastReceipt = await req.db.payReceipt.findFirst({
     where: { employeeId },
     orderBy: { payDate: 'desc' },
     select: { netPay: true, payDate: true, totalHours: true, periodStart: true, periodEnd: true },
   });
 
-  const ytd = await prisma.payReceipt.findFirst({
+  const ytd = await req.db.payReceipt.findFirst({
     where: { employeeId },
     orderBy: { payDate: 'desc' },
     select: { ytdGross: true, ytdNet: true },
@@ -22,7 +21,7 @@ async function getPayrollSummary(req, res) {
 }
 
 async function getPaystubs(req, res) {
-  const receipts = await prisma.payReceipt.findMany({
+  const receipts = await req.db.payReceipt.findMany({
     where: { employeeId: req.employee.id },
     orderBy: { payDate: 'desc' },
     select: {
@@ -35,7 +34,7 @@ async function getPaystubs(req, res) {
 
 async function downloadPaystub(req, res) {
   const id = parseInt(req.params.id);
-  const receipt = await prisma.payReceipt.findFirst({
+  const receipt = await req.db.payReceipt.findFirst({
     where: { id, employeeId: req.employee.id },
   });
   if (!receipt) return res.status(404).json({ error: 'Paystub not found' });

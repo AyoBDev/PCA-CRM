@@ -13,6 +13,8 @@
 // backfill data that does not exist yet.
 
 const prisma = require('../lib/prisma');
+const { tenantClient } = require('../lib/tenantPrisma');
+const { runWithTenant } = require('../lib/tenantContext');
 const { geocodeEntity } = require('./geocodingService');
 
 function getProvider() {
@@ -35,37 +37,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  *   that, so a large first-run backfill does not get rate-limited (429).
  * @returns {Promise<{ok: boolean, reason: string, attempted: number, succeeded: number, failed: number}>}
  */
-async function runBackfill(options = {}) {
-    // Back-compat: runBackfill(logFn) still works.
-    const opts = typeof options === 'function' ? { log: options } : options;
-    const log = opts.log || console.log;
-    const delayMs = opts.delayMs != null ? opts.delayMs : 150;
-
-    const provider = getProvider();
-    if (!provider.isConfigured()) {
-        return {
-            ok: false,
-            reason: 'not_configured',
-            attempted: 0, succeeded: 0, failed: 0,
-        };
-    }
-
+// Runs the backfill for a single tenant's `db`. Callers must invoke this from
+// inside runWithTenant({ agencyId, db }, ...) since geocodeEntity (via
+// geocodingService) reads the tenant DB via getTenantDb().
+async function runBackfillForAgency(db, { log, delayMs }) {
     // Only records that actually have an address to place.
     const addressFilter = { address: { not: '' } };
     const [clients, employees] = await Promise.all([
-        prisma.client.findMany({ where: addressFilter, select: { id: true } }),
-        prisma.employee.findMany({ where: addressFilter, select: { id: true } }),
+        db.client.findMany({ where: addressFilter, select: { id: true } }),
+        db.employee.findMany({ where: addressFilter, select: { id: true } }),
     ]);
 
     const targets = [
         ...clients.map(c => ['client', c.id]),
         ...employees.map(e => ['employee', e.id]),
     ];
-
-    if (targets.length === 0) {
-        log('[geocode-backfill] nothing addressable yet — skipping');
-        return { ok: true, reason: 'nothing_to_backfill', attempted: 0, succeeded: 0, failed: 0 };
-    }
 
     let succeeded = 0;
     let failed = 0;
@@ -88,16 +74,60 @@ async function runBackfill(options = {}) {
         if (delayMs > 0 && i < targets.length - 1) await sleep(delayMs);
     }
 
-    log(`[geocode-backfill] ${succeeded} geocoded/cached, ${failed} failed, of ${targets.length}`);
+    return { attempted: targets.length, succeeded, failed };
+}
+
+/**
+ * Runs the backfill across every agency (enumerated on the owner connection),
+ * each inside its own tenant context — a geocode cache hit/miss for one
+ * agency's address must never touch another agency's rows.
+ */
+async function runBackfill(options = {}) {
+    // Back-compat: runBackfill(logFn) still works.
+    const opts = typeof options === 'function' ? { log: options } : options;
+    const log = opts.log || console.log;
+    const delayMs = opts.delayMs != null ? opts.delayMs : 150;
+
+    const provider = getProvider();
+    if (!provider.isConfigured()) {
+        return {
+            ok: false,
+            reason: 'not_configured',
+            attempted: 0, succeeded: 0, failed: 0,
+        };
+    }
+
+    const agencies = await prisma.agency.findMany({ where: { status: 'active' } });
+
+    let attempted = 0;
+    let succeeded = 0;
+    let failed = 0;
+
+    for (const agency of agencies) {
+        const db = tenantClient(agency.id);
+        const result = await runWithTenant({ agencyId: agency.id, db }, () =>
+            runBackfillForAgency(db, { log, delayMs })
+        );
+        attempted += result.attempted;
+        succeeded += result.succeeded;
+        failed += result.failed;
+    }
+
+    if (attempted === 0) {
+        log('[geocode-backfill] nothing addressable yet — skipping');
+        return { ok: true, reason: 'nothing_to_backfill', attempted: 0, succeeded: 0, failed: 0 };
+    }
+
+    log(`[geocode-backfill] ${succeeded} geocoded/cached, ${failed} failed, of ${attempted}`);
 
     // Every single attempt failing means a broken configuration — a bad token,
     // a rate-limit block, or PostGIS missing — not just a few unplaceable
     // addresses. Surface it so the deploy can halt.
     if (succeeded === 0) {
-        return { ok: false, reason: 'all_failed', attempted: targets.length, succeeded, failed };
+        return { ok: false, reason: 'all_failed', attempted, succeeded, failed };
     }
 
-    return { ok: true, reason: 'ok', attempted: targets.length, succeeded, failed };
+    return { ok: true, reason: 'ok', attempted, succeeded, failed };
 }
 
 module.exports = { runBackfill, SUCCESS_STATUSES };

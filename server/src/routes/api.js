@@ -1,4 +1,5 @@
 const express = require('express');
+const { tenantMiddleware } = require('../middleware/tenantMiddleware');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 const onbUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -184,6 +185,7 @@ const { listConversations, getConversationMessages, adminSendMessage, markConver
 const { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, getOnboardingLink, getOnboardingReviews, getOnboardingReviewDetail, reviewRequirementItem, finalizeOnboarding, approveOnboardingSubmission, sendBackOnboarding, rejectOnboardingSubmission } = require('../controllers/onboardingController');
 const { savePersonal, saveEmergency, uploadDocument: uploadOnboardingDocument, ackPolicy } = require('../controllers/employeePortal/onboardingRequirementsController');
 const catalog = require('../controllers/catalogController');
+const { agencyInfo, hostInfo } = require('../controllers/platformController');
 const { listLeads, getLead, createLead, updateLead, setLeadStatus, archiveLead, restoreLead, convertLead, revertConversion, reactivateLead, getLeadStats, createLeadContact, listLeadContacts, deleteLeadContact, getLeadReminders, getClientLeadContacts } = require('../controllers/leadController');
 const {
     listPermissionGroups,
@@ -235,8 +237,10 @@ router.get('/shift-offers/:token', getOffer);
 router.post('/shift-offers/:token/respond', respondToOffer);
 // Admin-only onboarding review list. Registered BEFORE the public '/onboarding/:token'
 // route so 'reviews' isn't swallowed as a token, and gated inline (authenticate +
-// admin) since it sits above the global authenticate middleware. Not visible to other roles.
-router.get('/onboarding/reviews', authenticate, requireRole('admin'), getOnboardingReviews);
+// tenantMiddleware + admin) since it sits above the global authenticate middleware.
+// tenantMiddleware is required here too — the controller reads via req.db. Not
+// visible to other roles.
+router.get('/onboarding/reviews', authenticate, tenantMiddleware, requireRole('admin'), getOnboardingReviews);
 router.get('/onboarding/:token', getOnboardingInfo);
 router.post('/onboarding/:token/complete', completeOnboarding);
 router.patch('/onboarding/:token/personal', savePersonal);
@@ -245,6 +249,8 @@ router.patch('/onboarding/:token/availability-draft', saveAvailabilityDraft);
 router.post('/onboarding/:token/documents/:reqId', onbUpload.single('file'), uploadOnboardingDocument);
 router.post('/onboarding/:token/policies/:reqId/ack', ackPolicy);
 router.post('/onboarding/:token/submit', submitOnboarding);
+router.get('/agency-info', agencyInfo);
+router.get('/host-info', hostInfo);
 
 // Backup (admin JWT or dedicated API key — must be above authenticate middleware)
 function backupAuth(req, res, next) {
@@ -257,7 +263,14 @@ function backupAuth(req, res, next) {
         const jwt = require('jsonwebtoken');
         try {
             const payload = jwt.verify(header.slice(7), require('../config/secrets').JWT_SECRET);
-            if (payload.role === 'admin') return next();
+            if (
+                payload.role === 'admin' &&
+                Number.isInteger(payload.agencyId) &&
+                req.agency &&
+                payload.agencyId === req.agency.id
+            ) {
+                return next();
+            }
         } catch {}
     }
     return res.status(401).json({ error: 'Invalid backup credentials' });
@@ -266,6 +279,12 @@ router.get('/backup/export', backupAuth, exportBackup);
 
 // ── All routes below require authentication ──
 router.use(authenticate);
+
+// Platform console (superadmin only) — runs after authenticate but before
+// tenantMiddleware since superadmin accounts have no agencyId.
+router.use('/platform', require('./platform'));
+
+router.use(tenantMiddleware);
 
 // Auth (authenticated). `/auth/me` is surface-agnostic — BOTH the admin app and the
 // employee portal call it to refresh the current user, so it must accept either
