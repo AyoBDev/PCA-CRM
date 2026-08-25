@@ -82,6 +82,7 @@ const {
     forgotPassword,
     resetPasswordWithToken,
     toggleUserActive,
+    updateUser,
 } = require('../controllers/authController');
 const {
     generateSigningLinks,
@@ -305,6 +306,7 @@ router.delete('/auth/users/:id', requireRole('admin'), requirePermission('users'
 router.put('/auth/users/:id/restore', requireRole('admin'), requirePermission('users'), restoreUser);
 router.put('/auth/users/:id/reset-password', requireRole('admin'), requirePermission('users'), resetPassword);
 router.put('/auth/users/:id/toggle-active', requireRole('admin'), requirePermission('users'), toggleUserActive);
+router.put('/auth/users/:id', requireRole('admin'), requirePermission('users'), updateUser);
 router.delete('/auth/users/:id/permanent', requireRole('admin'), requirePermission('users'), permanentlyDeleteUser);
 
 // Permission groups (admin only)

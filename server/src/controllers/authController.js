@@ -467,4 +467,94 @@ async function employeeLogin(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { login, employeeLogin, getMe, register, listUsers, deleteUser, restoreUser, resetPassword, permanentlyDeleteUser, bulkPermanentlyDeleteUsers, forgotPassword, resetPasswordWithToken, toggleUserActive };
+// PUT /api/auth/users/:id  (admin only — edit user fields, optional password/reactivate)
+async function updateUser(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const user = await prisma.user.findUnique({ where: { id } });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const { name, email, role, phone, permissionGroupId, password, active } = req.body;
+        const isSelf = id === req.user.id;
+
+        // Self-guard: an admin cannot demote or deactivate their own account here.
+        if (isSelf && role !== undefined && role !== user.role) {
+            return res.status(400).json({ error: 'You cannot change your own role' });
+        }
+        if (isSelf && active !== undefined && active !== user.active) {
+            return res.status(400).json({ error: 'You cannot change your own active status' });
+        }
+
+        const data = {};
+
+        if (name !== undefined) {
+            if (!String(name).trim()) return res.status(400).json({ error: 'Name is required' });
+            data.name = String(name).trim();
+        }
+
+        if (email !== undefined) {
+            const normalized = String(email).toLowerCase().trim();
+            if (!normalized) return res.status(400).json({ error: 'Email is required' });
+            const existing = await prisma.user.findUnique({ where: { email: normalized } });
+            if (existing && existing.id !== id) {
+                return res.status(409).json({ error: 'A user with this email already exists' });
+            }
+            data.email = normalized;
+        }
+
+        let validRole = user.role;
+        if (role !== undefined) {
+            validRole = ['admin', 'user', 'pca'].includes(role) ? role : user.role;
+            data.role = validRole;
+        }
+
+        // Permission group only applies to the 'user' role; validate when provided, clear otherwise.
+        if (validRole !== 'user') {
+            data.permissionGroupId = null;
+        } else if (permissionGroupId !== undefined) {
+            if (Number.isInteger(permissionGroupId)) {
+                const group = await prisma.permissionGroup.findUnique({ where: { id: permissionGroupId } });
+                if (!group || group.archivedAt) return res.status(400).json({ error: 'Invalid permission group' });
+                data.permissionGroupId = permissionGroupId;
+            } else {
+                data.permissionGroupId = null;
+            }
+        }
+
+        if (phone !== undefined) data.phone = String(phone || '').trim();
+        if (active !== undefined) data.active = !!active;
+
+        let passwordChanged = false;
+        if (password !== undefined && password !== '') {
+            if (String(password).length < 4) {
+                return res.status(400).json({ error: 'Password must be at least 4 characters' });
+            }
+            data.passwordHash = await bcrypt.hash(String(password), 10);
+            passwordChanged = true;
+        }
+
+        // Bump permissionsVersion on any security-affecting change so existing tokens are rejected.
+        const roleChanged = data.role !== undefined && data.role !== user.role;
+        const groupChanged = data.permissionGroupId !== undefined && data.permissionGroupId !== user.permissionGroupId;
+        if (passwordChanged || roleChanged || groupChanged) {
+            data.permissionsVersion = { increment: 1 };
+        }
+
+        const updated = await prisma.user.update({ where: { id }, data });
+
+        res.json({
+            id: updated.id, email: updated.email, name: updated.name,
+            role: updated.role, phone: updated.phone, active: updated.active,
+            permissionGroupId: updated.permissionGroupId,
+        });
+
+        audit.logAction({
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            action: 'UPDATE', entityType: 'User', entityId: id, entityName: updated.name,
+            changes: audit.diffFields(user, updated, ['name', 'email', 'role', 'phone', 'permissionGroupId', 'active']),
+            metadata: passwordChanged ? { passwordChanged: true } : undefined,
+        });
+    } catch (err) { next(err); }
+}
+
+module.exports = { login, employeeLogin, getMe, register, listUsers, deleteUser, restoreUser, resetPassword, permanentlyDeleteUser, bulkPermanentlyDeleteUsers, forgotPassword, resetPasswordWithToken, toggleUserActive, updateUser };
