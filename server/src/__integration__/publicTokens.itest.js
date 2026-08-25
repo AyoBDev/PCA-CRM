@@ -34,3 +34,25 @@ test('unknown token is a plain 404 (no agency oracle)', async () => {
   const res = await request(app).get('/api/pca-form/00000000-0000-0000-0000-000000000000').set('Host', 'tok-a.localhost');
   expect(res.status).toBe(404);
 });
+
+test('saving a pca-form for a new week creates the timesheet + entries (nested entries get agencyId)', async () => {
+  // Regression: db.timesheet.create nested `entries.create[]` were built without
+  // agencyId. The tenant client only auto-stamps the top-level create, so the
+  // nested TimesheetEntry rows threw "Argument `agency` is missing" → 500 on save.
+  const weekStart = '2026-08-23'; // a Sunday with no existing timesheet
+  const res = await request(app)
+    .put(`/api/pca-form/${link.token}`)
+    .set('Host', 'tok-a.localhost')
+    .send({ weekStart, entries: [] });
+  expect(res.status).toBeLessThan(300);
+
+  // The timesheet + its 7 day-entries persisted, scoped to agency A.
+  const ts = await systemPrisma.timesheet.findFirst({
+    where: { clientId: link.clientId, pcaName: link.pcaName },
+    include: { entries: true },
+  });
+  expect(ts).not.toBeNull();
+  expect(ts.agencyId).toBe(A.agency.id);
+  expect(ts.entries.length).toBe(7);
+  expect(ts.entries.every((e) => e.agencyId === A.agency.id)).toBe(true);
+});
