@@ -124,6 +124,8 @@ export const resetUserPassword = (id, password) =>
     request(`/auth/users/${id}/reset-password`, { method: 'PUT', body: JSON.stringify({ password }) });
 export const toggleUserActive = (id) =>
     request(`/auth/users/${id}/toggle-active`, { method: 'PUT' });
+export const updateUser = (id, data) =>
+    request(`/auth/users/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 
 // Clients
 export const getClients = ({ archived } = {}) => request(`/clients${archived ? '?archived=true' : ''}`);
