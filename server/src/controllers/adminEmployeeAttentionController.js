@@ -1,5 +1,3 @@
-const prisma = require('../lib/prisma');
-
 async function getEmployeeAttention(req, res) {
   const adminUserId = req.user.id;
 
@@ -14,29 +12,29 @@ async function getEmployeeAttention(req, res) {
     pendingTimeOff,
     pendingAvailability,
   ] = await Promise.all([
-    prisma.employeeCertification.count({ where: { status: 'pending' } }),
-    prisma.timeOffRequest.count({ where: { status: 'pending' } }),
-    prisma.availabilityRequest.count({ where: { status: 'pending' } }),
-    prisma.adminEventSeen.findMany({ where: { userId: adminUserId } }),
-    prisma.auditLog.findMany({
+    req.db.employeeCertification.count({ where: { status: 'pending' } }),
+    req.db.timeOffRequest.count({ where: { status: 'pending' } }),
+    req.db.availabilityRequest.count({ where: { status: 'pending' } }),
+    req.db.adminEventSeen.findMany({ where: { userId: adminUserId } }),
+    req.db.auditLog.findMany({
       where: { entityType: 'Employee', action: 'UPDATE', userRole: 'pca' },
       orderBy: { createdAt: 'desc' },
       take: 100,
     }),
-    prisma.employee.findMany({ select: { id: true, userId: true, name: true } }),
-    prisma.employeeCertification.findMany({
+    req.db.employee.findMany({ select: { id: true, userId: true, name: true } }),
+    req.db.employeeCertification.findMany({
       where: { status: 'pending' },
       include: { employee: { select: { name: true } } },
       orderBy: { updatedAt: 'desc' },
       take: 20,
     }),
-    prisma.timeOffRequest.findMany({
+    req.db.timeOffRequest.findMany({
       where: { status: 'pending' },
       include: { employee: { select: { name: true } } },
       orderBy: { createdAt: 'desc' },
       take: 20,
     }),
-    prisma.availabilityRequest.findMany({
+    req.db.availabilityRequest.findMany({
       where: { status: 'pending' },
       include: { employee: { select: { name: true } } },
       orderBy: { createdAt: 'desc' },
@@ -131,7 +129,7 @@ async function markAttentionSeen(req, res) {
   if (keys.length === 0) return res.status(400).json({ error: 'eventKey or eventKeys required' });
 
   for (const eventKey of keys) {
-    await prisma.adminEventSeen.upsert({
+    await req.db.adminEventSeen.upsert({
       where: { userId_eventKey: { userId, eventKey } },
       create: { userId, eventKey },
       update: {},

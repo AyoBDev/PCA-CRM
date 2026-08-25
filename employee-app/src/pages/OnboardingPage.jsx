@@ -101,6 +101,13 @@ export default function OnboardingPage() {
                 setInfo(data);
                 if (!initialStepApplied) {
                     rehydrate(data);
+                    // If the admin sent items back for changes, jump straight to the
+                    // first rejected item's step instead of the normal resume step.
+                    const firstRejectedStep = firstRejectedStepFor(data);
+                    if (firstRejectedStep != null) setStep(firstRejectedStep);
+                    // A returning employee already has a login account, so skip the
+                    // Password step (index 0) — never land them on it.
+                    else if (data.hasAccount) setStep(s => (s === 0 ? 1 : s));
                     setInitialStepApplied(true);
                 }
             })
@@ -109,6 +116,30 @@ export default function OnboardingPage() {
         // rehydrate is stable for the life of the component; intentionally omitted.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [token]);
+
+    // A returning employee (already has a login account) is not asked to set a
+    // password again — the wizard hides and skips the Password step for them.
+    const hasAccount = Boolean(info?.hasAccount);
+    // The lowest step the Back button may reach. Returning employees can't go back
+    // to the (hidden) Password step, so they stop at Personal Info (index 1).
+    const minStep = hasAccount ? 1 : 0;
+
+    // Maps a rejected requirement's `kind` to the STEPS key that renders it.
+    const KIND_TO_STEP_KEY = { document: 'documents', certification: 'certifications', policy: 'policies' };
+
+    // When the onboarding record is in changes_requested mode and has at least one
+    // rejected requirement, return the step index of the FIRST rejected item's kind
+    // so the wizard opens directly on the step that needs attention. Returns null
+    // when there's nothing to jump to (normal resume logic applies instead).
+    function firstRejectedStepFor(data) {
+        const requirements = (data && data.requirements) || [];
+        const rejected = requirements.filter(r => r.reviewStatus === 'rejected');
+        if (data?.onboardingStatus !== 'changes_requested' || rejected.length === 0) return null;
+        const stepKey = KIND_TO_STEP_KEY[rejected[0].kind];
+        if (!stepKey) return null;
+        const idx = STEPS.findIndex(s => s.key === stepKey);
+        return idx === -1 ? null : idx;
+    }
 
     // Refill everything the server has saved so a returning employee resumes where
     // they left off. Password is never restored (it isn't stored until submit).
@@ -187,7 +218,7 @@ export default function OnboardingPage() {
     }
 
     function validateStep() {
-        if (step === 0) {
+        if (step === 0 && !hasAccount) {
             if (password.length < 8) return 'Password must be at least 8 characters';
             if (password !== passwordConfirm) return 'Passwords do not match';
         }
@@ -302,7 +333,9 @@ export default function OnboardingPage() {
         setError('');
         setSubmitting(true);
         try {
-            const res = await submitOnboardingV2(token, { password, availability: buildAvailability() });
+            // Returning employees keep their existing password — send it only for a
+            // first-time submit (no account yet).
+            const res = await submitOnboardingV2(token, { password: hasAccount ? undefined : password, availability: buildAvailability() });
             if (res && res.error) { setError(res.error); return; }
             setDone(true);
         } catch (err) {
@@ -333,6 +366,8 @@ export default function OnboardingPage() {
 
     const requirements = info.requirements || [];
     const isLastStep = step === STEPS.length - 1;
+    const rejectedItems = (info?.requirements || []).filter(r => r.reviewStatus === 'rejected');
+    const changesRequested = info?.onboardingStatus === 'changes_requested' && rejectedItems.length > 0;
 
     return (
         <div className="onboard-page">
@@ -342,6 +377,8 @@ export default function OnboardingPage() {
 
                 <div className="wizard-dots">
                     {STEPS.map((s, i) => {
+                        // Returning employees don't set a password — hide that dot entirely.
+                        if (hasAccount && s.key === 'password') return null;
                         let mod = '';
                         let mark = '';
                         if (i === step) {
@@ -357,8 +394,20 @@ export default function OnboardingPage() {
                     })}
                 </div>
                 <div className="wizard-dots__label">
-                    {STEPS[step].label} <span>· Step {step + 1} of {STEPS.length}</span>
+                    {STEPS[step].label} <span>· Step {(hasAccount ? step : step + 1)} of {STEPS.length - (hasAccount ? 1 : 0)}</span>
                 </div>
+
+                {changesRequested && (
+                    <div className="cr-banner" role="alert">
+                        <h3>Changes requested</h3>
+                        <p>Please fix the flagged items below and resubmit.</p>
+                        <ul>
+                            {rejectedItems.map(r => (
+                                <li key={r.id}><strong>{r.label}</strong>{r.rejectionReason ? <span className="cr-banner__reason"> — {r.rejectionReason}</span> : null}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
 
                 {info && info.adminReviewNote && (
                     <div className="onboard-review-note">
@@ -562,15 +611,15 @@ export default function OnboardingPage() {
 
                 {!isLastStep && (
                     <div className="onboard-actions">
-                        {step > 0 && (
-                            <button type="button" className="btn btn--outline" onClick={() => { setError(''); setStep(s => s - 1); }}>Back</button>
+                        {step > minStep && (
+                            <button type="button" className="btn btn--outline" onClick={() => { setError(''); setStep(s => Math.max(minStep, s - 1)); }}>Back</button>
                         )}
                         <button type="button" className="btn btn--primary" onClick={handleNext} disabled={submitting}>Next</button>
                     </div>
                 )}
                 {isLastStep && (
                     <div className="onboard-actions">
-                        <button type="button" className="btn btn--outline" onClick={() => { setError(''); setStep(s => s - 1); }}>Back</button>
+                        <button type="button" className="btn btn--outline" onClick={() => { setError(''); setStep(s => Math.max(minStep, s - 1)); }}>Back</button>
                     </div>
                 )}
             </div>

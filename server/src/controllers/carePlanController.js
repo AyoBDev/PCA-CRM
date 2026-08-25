@@ -1,4 +1,3 @@
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 
 // ── Care Team ──
@@ -9,13 +8,13 @@ async function addCareTeamMember(req, res, next) {
         const { employeeId, role, notes } = req.body;
         if (!employeeId) return res.status(400).json({ error: 'employeeId is required' });
 
-        const client = await prisma.client.findUnique({ where: { id: clientId } });
+        const client = await req.db.client.findUnique({ where: { id: clientId } });
         if (!client) return res.status(404).json({ error: 'Client not found' });
 
-        const employee = await prisma.employee.findUnique({ where: { id: Number(employeeId) } });
+        const employee = await req.db.employee.findUnique({ where: { id: Number(employeeId) } });
         if (!employee) return res.status(404).json({ error: 'Employee not found' });
 
-        const member = await prisma.clientCareTeam.create({
+        const member = await req.db.clientCareTeam.create({
             data: {
                 clientId,
                 employeeId: Number(employeeId),
@@ -40,13 +39,13 @@ async function addCareTeamMember(req, res, next) {
 async function removeCareTeamMember(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const member = await prisma.clientCareTeam.findUnique({
+        const member = await req.db.clientCareTeam.findUnique({
             where: { id },
             include: { employee: true, client: true },
         });
         if (!member) return res.status(404).json({ error: 'Care team member not found' });
 
-        await prisma.clientCareTeam.delete({ where: { id } });
+        await req.db.clientCareTeam.delete({ where: { id } });
 
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
@@ -65,7 +64,7 @@ async function removeCareTeamMember(req, res, next) {
 async function listHospitalVisits(req, res, next) {
     try {
         const clientId = Number(req.params.clientId);
-        const visits = await prisma.hospitalVisit.findMany({
+        const visits = await req.db.hospitalVisit.findMany({
             where: { clientId },
             orderBy: { visitDate: 'desc' },
         });
@@ -81,10 +80,10 @@ async function createHospitalVisit(req, res, next) {
         const { visitDate, visitTime, providerName, location, purpose, status, notes } = req.body;
         if (!visitDate) return res.status(400).json({ error: 'visitDate is required' });
 
-        const client = await prisma.client.findUnique({ where: { id: clientId } });
+        const client = await req.db.client.findUnique({ where: { id: clientId } });
         if (!client) return res.status(404).json({ error: 'Client not found' });
 
-        const visit = await prisma.hospitalVisit.create({
+        const visit = await req.db.hospitalVisit.create({
             data: {
                 clientId,
                 visitDate: new Date(visitDate),
@@ -112,7 +111,7 @@ async function createHospitalVisit(req, res, next) {
 async function updateHospitalVisit(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const existing = await prisma.hospitalVisit.findUnique({ where: { id }, include: { client: true } });
+        const existing = await req.db.hospitalVisit.findUnique({ where: { id }, include: { client: true } });
         if (!existing) return res.status(404).json({ error: 'Hospital visit not found' });
 
         const { visitDate, visitTime, providerName, location, purpose, status, notes } = req.body;
@@ -125,7 +124,7 @@ async function updateHospitalVisit(req, res, next) {
         if (status !== undefined) data.status = status;
         if (notes !== undefined) data.notes = notes.trim();
 
-        const visit = await prisma.hospitalVisit.update({ where: { id }, data });
+        const visit = await req.db.hospitalVisit.update({ where: { id }, data });
 
         const changes = audit.redactChanges(audit.diffFields(existing, visit, ['visitDate', 'visitTime', 'providerName', 'location', 'purpose', 'status', 'notes']), ['providerName', 'location', 'purpose', 'notes']);
         audit.logAction({
@@ -144,10 +143,10 @@ async function updateHospitalVisit(req, res, next) {
 async function deleteHospitalVisit(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const existing = await prisma.hospitalVisit.findUnique({ where: { id }, include: { client: true } });
+        const existing = await req.db.hospitalVisit.findUnique({ where: { id }, include: { client: true } });
         if (!existing) return res.status(404).json({ error: 'Hospital visit not found' });
 
-        await prisma.hospitalVisit.delete({ where: { id } });
+        await req.db.hospitalVisit.delete({ where: { id } });
 
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
@@ -166,7 +165,7 @@ async function deleteHospitalVisit(req, res, next) {
 async function listIncidents(req, res, next) {
     try {
         const clientId = Number(req.params.clientId);
-        const incidents = await prisma.incident.findMany({
+        const incidents = await req.db.incident.findMany({
             where: { clientId },
             orderBy: { incidentDate: 'desc' },
         });
@@ -182,10 +181,10 @@ async function createIncident(req, res, next) {
         const { incidentDate, description, severity, reportedBy, notes } = req.body;
         if (!incidentDate) return res.status(400).json({ error: 'incidentDate is required' });
 
-        const client = await prisma.client.findUnique({ where: { id: clientId } });
+        const client = await req.db.client.findUnique({ where: { id: clientId } });
         if (!client) return res.status(404).json({ error: 'Client not found' });
 
-        const incident = await prisma.incident.create({
+        const incident = await req.db.incident.create({
             data: {
                 clientId,
                 incidentDate: new Date(incidentDate),
@@ -211,7 +210,7 @@ async function createIncident(req, res, next) {
 async function updateIncident(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const existing = await prisma.incident.findUnique({ where: { id }, include: { client: true } });
+        const existing = await req.db.incident.findUnique({ where: { id }, include: { client: true } });
         if (!existing) return res.status(404).json({ error: 'Incident not found' });
 
         const { incidentDate, description, severity, reportedBy, status, resolvedAt, resolution, notes } = req.body;
@@ -225,7 +224,7 @@ async function updateIncident(req, res, next) {
         if (resolution !== undefined) data.resolution = resolution.trim();
         if (notes !== undefined) data.notes = notes.trim();
 
-        const incident = await prisma.incident.update({ where: { id }, data });
+        const incident = await req.db.incident.update({ where: { id }, data });
 
         const changes = audit.diffFields(existing, incident, ['incidentDate', 'description', 'severity', 'reportedBy', 'status', 'resolution', 'notes']);
         audit.logAction({
@@ -244,10 +243,10 @@ async function updateIncident(req, res, next) {
 async function deleteIncident(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const existing = await prisma.incident.findUnique({ where: { id }, include: { client: true } });
+        const existing = await req.db.incident.findUnique({ where: { id }, include: { client: true } });
         if (!existing) return res.status(404).json({ error: 'Incident not found' });
 
-        await prisma.incident.delete({ where: { id } });
+        await req.db.incident.delete({ where: { id } });
 
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,

@@ -3,9 +3,12 @@
 // Two public token endpoints (getOffer / respondToOffer) sit outside
 // authenticate, so anyone holding a token can reach them. They deliberately
 // return only what a caregiver needs to decide on a shift — never the client's
-// Medicaid ID, DOB, or care notes.
+// Medicaid ID, DOB, or care notes. Since they cross tenants by token lookup,
+// they resolve the offer's agencyId first (via the owner connection) and then
+// enter that tenant's context before touching any other tenant data.
 
 const prisma = require('../lib/prisma');
+const { enterTokenTenant } = require('../lib/tokenTenant');
 const replacement = require('../services/replacementService');
 const ranking = require('../services/candidateRankingService');
 const settings = require('../services/replacementSettings');
@@ -23,7 +26,7 @@ async function recordCallout(req, res, next) {
 
         let result;
         try {
-            result = await replacement.recordCallout(shiftId, {
+            result = await replacement.recordCallout(req.db, shiftId, {
                 reason,
                 reportedById: req.user?.id ?? null,
             });
@@ -34,9 +37,7 @@ async function recordCallout(req, res, next) {
         }
 
         audit.logAction({
-            userId: req.user?.id ?? 0,
-            userName: req.user?.name ?? 'System',
-            userRole: req.user?.role ?? 'system',
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             action: 'CREATE',
             entityType: 'ShiftCallout',
             entityId: result.callout.id,
@@ -54,10 +55,10 @@ async function recordCallout(req, res, next) {
 // GET /api/shifts/:id/replacement-candidates
 async function getReplacementCandidates(req, res, next) {
     try {
-        const shift = await prisma.shift.findUnique({ where: { id: Number(req.params.id) } });
+        const shift = await req.db.shift.findUnique({ where: { id: Number(req.params.id) } });
         if (!shift) return res.status(404).json({ error: 'Shift not found' });
 
-        const result = await ranking.rankCandidates({
+        const result = await ranking.rankCandidates(req.db, {
             clientId: shift.clientId,
             serviceCode: shift.serviceCode,
             date: toDateStr(shift.shiftDate),
@@ -69,7 +70,7 @@ async function getReplacementCandidates(req, res, next) {
         // The open callout travels with the candidates so the panel can show
         // WHY cover is needed — the reason was previously write-only, stored
         // and then never surfaced to the person acting on it.
-        const callout = await prisma.shiftCallout.findFirst({
+        const callout = await req.db.shiftCallout.findFirst({
             where: { shiftId: shift.id, resolution: 'open' },
             orderBy: { createdAt: 'desc' },
             include: { calloutEmployee: { select: { id: true, name: true, phone: true } } },
@@ -89,6 +90,7 @@ async function getNearbyEmployees(req, res, next) {
         // Soft mode returns unavailable employees too, annotated with their
         // conflicts, so the scheduler can still knowingly assign anyone.
         const result = await ranking.rankCandidates(
+            req.db,
             { clientId, serviceCode, date, startTime, endTime },
             { mode: 'soft' },
         );
@@ -104,37 +106,47 @@ async function getNearbyEmployees(req, res, next) {
 // GET /api/shift-offers/:token — PUBLIC
 async function getOffer(req, res, next) {
     try {
-        const offer = await prisma.shiftOffer.findUnique({
+        // Token lookup crosses tenants by design — resolve on the owner
+        // connection first, then enter that offer's agency's tenant context.
+        const stub = await prisma.shiftOffer.findUnique({
             where: { token: req.params.token },
-            include: {
-                employee: { select: { id: true, name: true } },
-                shift: { include: { client: true } },
-            },
+            select: { agencyId: true },
         });
-        if (!offer) return res.status(404).json({ error: 'Offer not found' });
+        if (!stub) return res.status(404).json({ error: 'Offer not found' });
 
-        const expired = offer.expiresAt && offer.expiresAt.getTime() < Date.now();
-        const status = offer.response || (expired ? 'expired' : 'open');
+        await enterTokenTenant(req, res, stub.agencyId, async () => {
+            const offer = await req.db.shiftOffer.findUnique({
+                where: { token: req.params.token },
+                include: {
+                    employee: { select: { id: true, name: true } },
+                    shift: { include: { client: true } },
+                },
+            });
+            if (!offer) return res.status(404).json({ error: 'Offer not found' });
 
-        // Hand-picked fields rather than spreading the client record: this
-        // endpoint is unauthenticated, so anything included here is readable by
-        // anyone who obtains the token.
-        res.json({
-            status,
-            expiresAt: offer.expiresAt,
-            employee: offer.employee,
-            shift: {
-                id: offer.shift.id,
-                shiftDate: offer.shift.shiftDate,
-                startTime: offer.shift.startTime,
-                endTime: offer.shift.endTime,
-                serviceCode: offer.shift.serviceCode,
-            },
-            client: {
-                clientName: offer.shift.client.clientName,
-                address: offer.shift.client.address,
-                gateCode: offer.shift.client.gateCode,
-            },
+            const expired = offer.expiresAt && offer.expiresAt.getTime() < Date.now();
+            const status = offer.response || (expired ? 'expired' : 'open');
+
+            // Hand-picked fields rather than spreading the client record: this
+            // endpoint is unauthenticated, so anything included here is readable by
+            // anyone who obtains the token.
+            res.json({
+                status,
+                expiresAt: offer.expiresAt,
+                employee: offer.employee,
+                shift: {
+                    id: offer.shift.id,
+                    shiftDate: offer.shift.shiftDate,
+                    startTime: offer.shift.startTime,
+                    endTime: offer.shift.endTime,
+                    serviceCode: offer.shift.serviceCode,
+                },
+                client: {
+                    clientName: offer.shift.client.clientName,
+                    address: offer.shift.client.address,
+                    gateCode: offer.shift.client.gateCode,
+                },
+            });
         });
     } catch (err) {
         next(err);
@@ -149,33 +161,43 @@ async function respondToOffer(req, res, next) {
             return res.status(400).json({ error: "response must be 'accept' or 'decline'" });
         }
 
-        const result = response === 'accept'
-            ? await replacement.acceptOffer(req.params.token)
-            : await replacement.declineOffer(req.params.token);
-
-        if (result.status === 'not_found') return res.status(404).json({ error: 'Offer not found' });
-        if (result.status === 'already_filled') {
-            return res.status(409).json({ status: 'already_filled', error: 'This shift has already been covered' });
-        }
-        if (['expired', 'already_answered'].includes(result.status)) {
-            return res.status(409).json({ status: result.status, error: 'This offer is no longer open' });
-        }
-
-        // No req.user on a public endpoint — CLAUDE.md specifies userId 0 with
-        // the entity name as userName.
-        audit.logAction({
-            userId: req.user?.id ?? 0,
-            userName: req.user?.name ?? result.offer?.employee?.name ?? 'Caregiver',
-            userRole: req.user?.role ?? 'system',
-            action: 'UPDATE',
-            entityType: 'ShiftOffer',
-            entityId: result.offer?.id ?? 0,
-            entityName: `Shift ${result.offer?.shiftId ?? ''}`,
-            changes: [{ field: 'response', oldValue: '', newValue: result.status }],
-            metadata: { via: 'public_token' },
+        // Token lookup crosses tenants by design — resolve on the owner
+        // connection first, then enter that offer's agency's tenant context.
+        const stub = await prisma.shiftOffer.findUnique({
+            where: { token: req.params.token },
+            select: { agencyId: true },
         });
+        if (!stub) return res.status(404).json({ error: 'Offer not found' });
 
-        res.json(result);
+        await enterTokenTenant(req, res, stub.agencyId, async () => {
+            const result = response === 'accept'
+                ? await replacement.acceptOffer(req.db, req.params.token)
+                : await replacement.declineOffer(req.db, req.params.token);
+
+            if (result.status === 'not_found') return res.status(404).json({ error: 'Offer not found' });
+            if (result.status === 'already_filled') {
+                return res.status(409).json({ status: 'already_filled', error: 'This shift has already been covered' });
+            }
+            if (['expired', 'already_answered'].includes(result.status)) {
+                return res.status(409).json({ status: result.status, error: 'This offer is no longer open' });
+            }
+
+            // No req.user on a public endpoint — CLAUDE.md specifies userId 0 with
+            // the entity name as userName.
+            audit.logAction({
+                userId: req.user?.id ?? 0,
+                userName: req.user?.name ?? result.offer?.employee?.name ?? 'Caregiver',
+                userRole: req.user?.role ?? 'system',
+                action: 'UPDATE',
+                entityType: 'ShiftOffer',
+                entityId: result.offer?.id ?? 0,
+                entityName: `Shift ${result.offer?.shiftId ?? ''}`,
+                changes: [{ field: 'response', oldValue: '', newValue: result.status }],
+                metadata: { via: 'public_token' },
+            });
+
+            res.json(result);
+        });
     } catch (err) {
         next(err);
     }
@@ -188,7 +210,7 @@ async function createOffer(req, res, next) {
         const { employeeId, calloutId, rank, scoreBreakdown, responseWindowMinutes, channel } = req.body;
         if (!employeeId) return res.status(400).json({ error: 'employeeId is required' });
 
-        const result = await replacement.offerToCandidate(shiftId, Number(employeeId), {
+        const result = await replacement.offerToCandidate(req.db, shiftId, Number(employeeId), {
             calloutId: calloutId ? Number(calloutId) : null,
             rank: Number(rank) || 0,
             scoreBreakdown: scoreBreakdown || {},
@@ -201,9 +223,7 @@ async function createOffer(req, res, next) {
         }
 
         audit.logAction({
-            userId: req.user?.id ?? 0,
-            userName: req.user?.name ?? 'System',
-            userRole: req.user?.role ?? 'system',
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             action: 'CREATE',
             entityType: 'ShiftOffer',
             entityId: result.offer.id,
@@ -226,17 +246,17 @@ async function createOffer(req, res, next) {
 // race the whole design exists to avoid.
 async function startAutoOffer(req, res, next) {
     try {
-        const { autoOfferEnabled, responseWindowMinutes } = await settings.getReplacementSettings();
+        const { autoOfferEnabled, responseWindowMinutes } = await settings.getReplacementSettings(req.db, req.user.agencyId);
         if (!autoOfferEnabled) {
             return res.status(403).json({
                 error: 'Automatic offering is disabled. Enable the "Shift Replacement" workflow trigger to turn it on.',
             });
         }
 
-        const shift = await prisma.shift.findUnique({ where: { id: Number(req.params.id) } });
+        const shift = await req.db.shift.findUnique({ where: { id: Number(req.params.id) } });
         if (!shift) return res.status(404).json({ error: 'Shift not found' });
 
-        const ranked = await ranking.rankCandidates({
+        const ranked = await ranking.rankCandidates(req.db, {
             clientId: shift.clientId,
             serviceCode: shift.serviceCode,
             date: toDateStr(shift.shiftDate),
@@ -250,13 +270,13 @@ async function startAutoOffer(req, res, next) {
             return res.json({ noCoverage: true, offered: null });
         }
 
-        const callout = await prisma.shiftCallout.findFirst({
+        const callout = await req.db.shiftCallout.findFirst({
             where: { shiftId: shift.id, resolution: 'open' },
             orderBy: { createdAt: 'desc' },
         });
 
         const top = candidates[0];
-        const result = await replacement.offerToCandidate(shift.id, top.employeeId, {
+        const result = await replacement.offerToCandidate(req.db, shift.id, top.employeeId, {
             calloutId: callout?.id ?? null,
             rank: top.rank,
             scoreBreakdown: top.scoreBreakdown || {},
@@ -264,9 +284,7 @@ async function startAutoOffer(req, res, next) {
         });
 
         audit.logAction({
-            userId: req.user?.id ?? 0,
-            userName: req.user?.name ?? 'System',
-            userRole: req.user?.role ?? 'system',
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             action: 'CREATE',
             entityType: 'ShiftOffer',
             entityId: result.offer?.id ?? 0,
@@ -296,14 +314,14 @@ async function recordOfferResponse(req, res, next) {
             return res.status(400).json({ error: "response must be 'accept' or 'decline'" });
         }
 
-        const offer = await prisma.shiftOffer.findFirst({
+        const offer = await req.db.shiftOffer.findFirst({
             where: { id: Number(req.params.offerId), shiftId: Number(req.params.id) },
         });
         if (!offer) return res.status(404).json({ error: 'Offer not found' });
 
         const result = response === 'accept'
-            ? await replacement.acceptOffer(offer.token)
-            : await replacement.declineOffer(offer.token);
+            ? await replacement.acceptOffer(req.db, offer.token)
+            : await replacement.declineOffer(req.db, offer.token);
 
         if (result.status === 'already_filled') {
             return res.status(409).json({ status: 'already_filled', error: 'This shift has already been covered' });
@@ -315,9 +333,7 @@ async function recordOfferResponse(req, res, next) {
         // Attributed to the admin who took the call — they are the one making
         // the record, and the note is their account of what was said.
         audit.logAction({
-            userId: req.user?.id ?? 0,
-            userName: req.user?.name ?? 'System',
-            userRole: req.user?.role ?? 'system',
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             action: 'UPDATE',
             entityType: 'ShiftOffer',
             entityId: offer.id,
@@ -335,7 +351,7 @@ async function recordOfferResponse(req, res, next) {
 // GET /api/shifts/:id/offers
 async function listOffers(req, res, next) {
     try {
-        const offers = await prisma.shiftOffer.findMany({
+        const offers = await req.db.shiftOffer.findMany({
             where: { shiftId: Number(req.params.id) },
             include: { employee: { select: { id: true, name: true } } },
             orderBy: [{ rank: 'asc' }, { createdAt: 'asc' }],
@@ -354,12 +370,10 @@ async function resolveCallout(req, res, next) {
             return res.status(400).json({ error: 'Invalid resolution' });
         }
 
-        const callout = await replacement.resolveCallout(Number(req.params.id), resolution);
+        const callout = await replacement.resolveCallout(req.db, Number(req.params.id), resolution);
 
         audit.logAction({
-            userId: req.user?.id ?? 0,
-            userName: req.user?.name ?? 'System',
-            userRole: req.user?.role ?? 'system',
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             action: 'UPDATE',
             entityType: 'ShiftCallout',
             entityId: callout.id,

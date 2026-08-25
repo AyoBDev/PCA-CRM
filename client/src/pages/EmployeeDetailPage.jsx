@@ -12,11 +12,16 @@ import PayrollTab from './employee-tabs/PayrollTab';
 import EmployeeNotesTab from './employee-tabs/NotesTab';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
-import { TIMESHEET_STATUS_STYLES, TIMESHEET_SERVICE_COLORS } from '../utils/constants';
-import { formatDate } from '../utils/dates';
+import { TIMESHEET_STATUS_STYLES, TIMESHEET_SERVICE_COLORS, ONBOARDING_STATUS_LABELS, ONBOARDING_STATUS_BADGE_VARIANT } from '../utils/constants';
+import { formatDate, formatTimestamp } from '../utils/dates';
 import PreviewModal from '../components/common/PreviewModal';
 import CertFileRow from '../components/files/CertFileRow';
+import CertViewerPanel from '../components/common/CertViewerPanel';
+import { useIsWide } from '../hooks/useIsWide';
+import Tooltip from '../components/common/Tooltip';
+import ToggleSwitch from '../components/common/ToggleSwitch';
 import { hhmm12 } from '../utils/time';
+import OnboardingReviewModal from '../components/employees/OnboardingReviewModal';
 
 const TABS = [
     { key: 'profile', label: 'Profile', icon: 'user' },
@@ -347,6 +352,8 @@ export default function EmployeeDetailPage() {
     const [shiftsLoading, setShiftsLoading] = useState(false);
     const [availabilityData, setAvailabilityData] = useState(null);
     const [loadingAvailability, setLoadingAvailability] = useState(false);
+    const [showReviewModal, setShowReviewModal] = useState(false);
+    const [autoReviewShown, setAutoReviewShown] = useState(false);
 
     const fetchEmployee = useCallback(async () => {
         try {
@@ -386,6 +393,15 @@ export default function EmployeeDetailPage() {
     }, [employeeId, employee]);
 
     useEffect(() => { fetchEmployee(); fetchUsers(); }, [fetchEmployee, fetchUsers]);
+    // Auto-open the onboarding review modal once when landing on a pending_review
+    // employee, so the admin is prompted to approve/reject without hunting for the
+    // button. Guarded so closing the modal doesn't immediately reopen it.
+    useEffect(() => {
+        if (employee && employee.onboardingStatus === 'pending_review' && !autoReviewShown) {
+            setShowReviewModal(true);
+            setAutoReviewShown(true);
+        }
+    }, [employee, autoReviewShown]);
     useEffect(() => { if (activeTab === 'schedule') fetchShifts(); }, [activeTab, fetchShifts]);
     useEffect(() => { if (activeTab === 'availability') fetchAvailability(); }, [activeTab, fetchAvailability]);
 
@@ -436,14 +452,9 @@ export default function EmployeeDetailPage() {
         }
     };
 
-    const handleApprove = async () => {
-        try {
-            await api.approveOnboarding(employee.id);
-            showToast(`${employee.name}'s account has been activated`, 'success');
-            fetchEmployee();
-        } catch (err) {
-            showToast(err.message, 'error');
-        }
+    const handleReviewResolved = () => {
+        setShowReviewModal(false);
+        fetchEmployee();
     };
 
     const handleToggleActive = async (next) => {
@@ -481,6 +492,11 @@ export default function EmployeeDetailPage() {
         );
     }
 
+    // True while the employee has not yet finished onboarding (any pre-active
+    // lifecycle state). Used to suppress the Active/Inactive account toggle so it
+    // can't contradict the onboarding badge.
+    const isOnboarding = ['invitation_pending', 'onboarding_in_progress', 'pending_review', 'changes_requested'].includes(employee.onboardingStatus);
+
     const overallStatus = (() => {
         let worst = 'valid';
         for (const { key } of CERT_FIELDS) {
@@ -509,7 +525,7 @@ export default function EmployeeDetailPage() {
             <ContextBar>
                 <ContextBar.Right>
                     <EntityActivityButton entityType="Employee" entityId={employee.id} />
-                    {employee.onboardingStatus === 'invited' && (
+                    {employee.onboardingStatus === 'invitation_pending' && (
                         <>
                             <button className="btn btn--outline btn--sm" onClick={handleCopyOnboardingLink}>
                                 {Icons.copy} Copy Link
@@ -537,20 +553,25 @@ export default function EmployeeDetailPage() {
                             <div className="cp-bio__name-row">
                                 <h2 className="cp-bio__name">{employee.name}</h2>
                                 {employee.critical && <span className="ts-badge ts-badge--danger">Critical</span>}
-                                <select
-                                    className={`cp-bio__status-select cp-bio__status-select--${employee.active ? 'active' : 'inactive'}`}
-                                    value={employee.active ? 'active' : 'inactive'}
-                                    onChange={(e) => handleToggleActive(e.target.value === 'active')}
-                                    title="Marks the employee not currently working. Does not archive or hide them."
-                                >
-                                    <option value="active">Active</option>
-                                    <option value="inactive">Inactive</option>
-                                </select>
-                                {employee.onboardingStatus === 'invited' && (
-                                    <span className="ts-badge ts-badge--draft">Invited</span>
-                                )}
-                                {employee.onboardingStatus === 'submitted' && (
-                                    <span className="ts-badge ts-badge--submitted">Pending Review</span>
+                                {/* The Active/Inactive account toggle only makes sense once the
+                                    employee has FINISHED onboarding. While they're still in an
+                                    onboarding state (invited/onboarding/pending review/changes
+                                    requested), showing "Active" contradicts the onboarding badge —
+                                    so we show the onboarding badge alone until they're activated. */}
+                                {isOnboarding ? (
+                                    <span className={`ts-badge ts-badge--${ONBOARDING_STATUS_BADGE_VARIANT[employee.onboardingStatus]}`}>
+                                        {ONBOARDING_STATUS_LABELS[employee.onboardingStatus]}
+                                    </span>
+                                ) : (
+                                    <select
+                                        className={`cp-bio__status-select cp-bio__status-select--${employee.active ? 'active' : 'inactive'}`}
+                                        value={employee.active ? 'active' : 'inactive'}
+                                        onChange={(e) => handleToggleActive(e.target.value === 'active')}
+                                        title="Marks the employee not currently working. Does not archive or hide them."
+                                    >
+                                        <option value="active">Active</option>
+                                        <option value="inactive">Inactive</option>
+                                    </select>
                                 )}
                             </div>
                             <div className="cp-bio__chips">
@@ -560,7 +581,9 @@ export default function EmployeeDetailPage() {
                                 <span className={`cp-chip ${overallStatus === 'valid' ? 'cp-chip--program' : overallStatus === 'expiring' ? 'cp-chip--risk' : 'cp-chip--complaint'}`}>
                                     {overallStatus === 'valid' ? 'All Certs Valid' : overallStatus === 'expiring' ? 'Certs Expiring Soon' : 'Certs Expired'}
                                 </span>
-                                {employee.user && (
+                                {/* Show the linked login account only when its name differs from
+                                    the employee's — otherwise it just duplicates the header name. */}
+                                {employee.user && employee.user.name && employee.user.name.trim() !== employee.name.trim() && (
                                     <span className="cp-chip cp-chip--program">{Icons.users} {employee.user.name}</span>
                                 )}
                             </div>
@@ -641,10 +664,10 @@ export default function EmployeeDetailPage() {
                     )}
                     {activeTab === 'availability' && (
                         <div className="cp-tab-panel">
-                            {employee.onboardingStatus === 'submitted' && (
+                            {employee.onboardingStatus === 'pending_review' && (
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-                                    <button className="btn btn--primary btn--sm" onClick={handleApprove}>
-                                        {Icons.checkCircle} Approve Onboarding
+                                    <button className="btn btn--primary btn--sm" onClick={() => setShowReviewModal(true)}>
+                                        {Icons.checkCircle} Review Onboarding
                                     </button>
                                 </div>
                             )}
@@ -694,6 +717,13 @@ export default function EmployeeDetailPage() {
                     employee={employee}
                     onSave={handleSaveCerts}
                     onClose={() => setShowCertModal(false)}
+                />
+            )}
+            {showReviewModal && (
+                <OnboardingReviewModal
+                    employeeId={employee.id}
+                    onClose={() => setShowReviewModal(false)}
+                    onResolved={handleReviewResolved}
                 />
             )}
         </>
@@ -804,6 +834,26 @@ function CertificationsTab({ employee, onEdit }) {
     const [showUploadModal, setShowUploadModal] = useState(null);
     const [certFilter, setCertFilter] = useState('All');
     const [previewUpload, setPreviewUpload] = useState(null);
+    const [split, setSplit] = useState(false);
+    // The attachment shown in the tab-level docked Interactive Attachment Viewer
+    // (client-tab parity): { fileName, fetchBlob }. Set by clicking a cert's file.
+    const [selectedCertDoc, setSelectedCertDoc] = useState(null);
+    const certViewerWide = useIsWide(900);
+
+    // Clicking a cert file opens it in the inline viewer — even with the Preview
+    // toggle off (it reveals the panel). On narrow screens there's no room for a
+    // side panel, so it opens full-screen instead. Never auto full-screen on wide.
+    const openCertDoc = (item) => {
+        if (certViewerWide) {
+            setSelectedCertDoc({ id: item.id, fileName: item.fileName, fetchBlob: item.fetchBlob });
+            setSplit(true);
+        } else {
+            setPreviewUpload({ fileName: item.fileName, fetchBlob: item.fetchBlob });
+        }
+    };
+    // Show the docked viewer column when the toggle is on OR a file has been
+    // picked (a click reveals it) — but only where there's room (wide screens).
+    const showCertViewer = certViewerWide && split;
 
     const fetchCerts = useCallback(async () => {
         try {
@@ -896,8 +946,46 @@ function CertificationsTab({ employee, onEdit }) {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
+    // Shared save helper for FilePreviewPane items (current file + history), mirroring
+    // handleDownload/handleDownloadUpload but sourced from an item's fetchBlob.
+    const saveItem = async (item) => {
+        try {
+            const res = await item.fetchBlob();
+            if (!res.ok) throw new Error('Download failed');
+            const contentType = res.headers.get('Content-Type') || 'application/octet-stream';
+            const blob = await res.blob();
+            const url = URL.createObjectURL(new Blob([blob], { type: contentType }));
+            if (contentType === 'application/pdf') {
+                window.open(url, '_blank');
+            } else {
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = item.fileName;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
     const statusLabel = (s) => s === 'ok' ? 'Active' : s === 'critical' ? 'Expiring Soon' : s === 'expired' ? 'Expired' : 'Not Set';
     const statusBadgeClass = (s) => s === 'ok' ? 'submitted' : s === 'critical' ? 'draft' : s === 'expired' ? 'critical' : 'draft';
+
+    // Stable fetchBlob closures for the docked FilePreviewPane, keyed by
+    // record/upload id. Built once per certRecords change (not per render of
+    // renderCertCard, which runs inside a .map() and can't call useMemo
+    // itself) so DocViewer doesn't see a new fetchBlob identity — and
+    // refetch/reload the file — on every unrelated re-render while the pane
+    // is open.
+    const certFetchBlobs = useMemo(() => {
+        const map = new Map();
+        certRecords.forEach(rec => {
+            map.set(`cert:${rec.id}`, () => api.downloadEmployeeCertification(rec.id));
+            (rec.uploads || []).forEach(u => {
+                map.set(`upload:${u.id}`, () => api.downloadCertificationUpload(u.id));
+            });
+        });
+        return map;
+    }, [certRecords]);
 
     return (
         <div className="cp-tab-panel">
@@ -921,6 +1009,11 @@ function CertificationsTab({ employee, onEdit }) {
                                 </button>
                             ))}
                         </div>
+                        <Tooltip content={split ? 'Switch back to the list view' : 'Show a docked preview of certification attachments'}>
+                            <span className="cert-preview-toggle">
+                                <ToggleSwitch checked={split} onChange={(v) => setSplit(v)} label="Preview" />
+                            </span>
+                        </Tooltip>
                         <button className="btn btn--outline btn--sm" onClick={onEdit}>{Icons.edit} Edit Dates</button>
                     </div>
                 </div>
@@ -933,13 +1026,27 @@ function CertificationsTab({ employee, onEdit }) {
                             <p>No certifications match the current filter.</p>
                         </div>
                     ) : (
-                        <div className="pa-services-grid">
-                            <div className="pa-services-grid__left">
-                                {filteredTypes.filter((_, i) => i % 2 === 0).map(ct => renderCertCard(ct))}
+                        <div className={showCertViewer ? 'cert-portfolio' : undefined}>
+                            <div className={showCertViewer ? 'cert-portfolio__list' : undefined}>
+                                <div className="pa-services-grid">
+                                    <div className="pa-services-grid__left">
+                                        {filteredTypes.filter((_, i) => i % 2 === 0).map(ct => renderCertCard(ct))}
+                                    </div>
+                                    <div className="pa-services-grid__right">
+                                        {filteredTypes.filter((_, i) => i % 2 === 1).map(ct => renderCertCard(ct))}
+                                    </div>
+                                </div>
                             </div>
-                            <div className="pa-services-grid__right">
-                                {filteredTypes.filter((_, i) => i % 2 === 1).map(ct => renderCertCard(ct))}
-                            </div>
+                            {showCertViewer && (
+                                <div className="cert-portfolio__viewer">
+                                    <CertViewerPanel
+                                        fileName={selectedCertDoc?.fileName}
+                                        fetchBlob={selectedCertDoc?.fetchBlob}
+                                        onExpand={selectedCertDoc ? () => setPreviewUpload({ fileName: selectedCertDoc.fileName, fetchBlob: selectedCertDoc.fetchBlob }) : undefined}
+                                        emptyText="Select an attachment to preview it here."
+                                    />
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -1069,70 +1176,88 @@ function CertificationsTab({ employee, onEdit }) {
                             <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', padding: '12px 0' }}>No certification records on file.</div>
                         ) : (
                             <div className="pa-auth-list">
-                                {activeRecords.map(rec => (
-                                    <div key={rec.id} className="pa-auth-item pa-auth-item--active">
-                                        <div className="cert-history__label">Current File</div>
-                                        <div className="cert-history__list">
-                                            {rec.fileName ? (
-                                                <CertFileRow
-                                                    upload={{ id: rec.id, fileName: rec.fileName, fileType: rec.fileType, note: rec.notes }}
-                                                    cacheKey={`cert:${rec.id}`}
-                                                    fetchBlob={() => api.downloadEmployeeCertification(rec.id)}
-                                                    onPreview={setPreviewUpload}
-                                                    onDownload={() => handleDownload(rec)}
-                                                    expiresText={rec.expirationDate ? `Expires ${formatDate(rec.expirationDate)}` : 'No expiry'}
-                                                    badge={(
-                                                        <span className={`ts-badge ts-badge--${statusBadgeClass(status)}`}>
-                                                            {statusLabel(status)} {days !== null && `(${days >= 0 ? `${days}d` : `${Math.abs(days)}d ago`})`}
-                                                        </span>
-                                                    )}
-                                                />
-                                            ) : (
-                                                <div className="file-row file-row--cert">
-                                                    <div className="file-row__main">
-                                                        <div className="file-row__name">No file uploaded</div>
-                                                        <div className="file-row__submeta">
-                                                            {rec.expirationDate ? `Expires ${formatDate(rec.expirationDate)}` : 'No expiry'}
+                                {activeRecords.map(rec => {
+                                    if (!rec.fileName) {
+                                        return (
+                                            <div key={rec.id} className="pa-auth-item pa-auth-item--active">
+                                                <div className="cert-history__label">Current File</div>
+                                                <div className="cert-history__list">
+                                                    <div className="file-row file-row--cert">
+                                                        <div className="file-row__main">
+                                                            <div className="file-row__name">No file uploaded</div>
+                                                            <div className="file-row__submeta">
+                                                                {rec.expirationDate ? `Expires ${formatDate(rec.expirationDate)}` : 'No expiry'}
+                                                            </div>
+                                                        </div>
+                                                        <div className="file-row__badge">
+                                                            <span className={`ts-badge ts-badge--${statusBadgeClass(status)}`}>
+                                                                {statusLabel(status)} {days !== null && `(${days >= 0 ? `${days}d` : `${Math.abs(days)}d ago`})`}
+                                                            </span>
                                                         </div>
                                                     </div>
-                                                    <div className="file-row__badge">
-                                                        <span className={`ts-badge ts-badge--${statusBadgeClass(status)}`}>
-                                                            {statusLabel(status)} {days !== null && `(${days >= 0 ? `${days}d` : `${Math.abs(days)}d ago`})`}
-                                                        </span>
+                                                </div>
+                                                {rec.notes && (
+                                                    <div className="pa-auth-item__body">
+                                                        <div className="pa-auth-item__notes">{rec.notes}</div>
                                                     </div>
+                                                )}
+                                            </div>
+                                        );
+                                    }
+
+                                    // History attachments under the active cert. The active file itself
+                                    // already appears as the first pane item, so skip the upload row that
+                                    // matches the active fileName to avoid a duplicate; the rest are
+                                    // prior/expired history files.
+                                    const history = (rec.uploads || []).filter(u => u.fileName !== rec.fileName);
+                                    const items = [{
+                                        id: `cert:${rec.id}`,
+                                        fileName: rec.fileName,
+                                        fileType: rec.fileType,
+                                        cacheKey: `cert:${rec.id}`,
+                                        fetchBlob: certFetchBlobs.get(`cert:${rec.id}`) || (() => api.downloadEmployeeCertification(rec.id)),
+                                        meta: rec.expirationDate ? `Expires ${formatDate(rec.expirationDate)}` : 'No expiry',
+                                        badge: (
+                                            <span className={`ts-badge ts-badge--${statusBadgeClass(status)}`}>
+                                                {statusLabel(status)} {days !== null && `(${days >= 0 ? `${days}d` : `${Math.abs(days)}d ago`})`}
+                                            </span>
+                                        ),
+                                    }, ...history.map(u => ({
+                                        id: `upload:${u.id}`,
+                                        fileName: u.fileName,
+                                        fileType: u.fileType,
+                                        cacheKey: `cert-upload:${u.id}`,
+                                        fetchBlob: certFetchBlobs.get(`upload:${u.id}`) || (() => api.downloadCertificationUpload(u.id)),
+                                        meta: [u.submittedAt ? `Uploaded ${formatTimestamp(u.submittedAt)}` : '', u.expirationDate ? `Expires ${formatDate(u.expirationDate)}` : ''].filter(Boolean).join(' · '),
+                                    }))];
+
+                                    return (
+                                        <div key={rec.id} className="pa-auth-item pa-auth-item--active">
+                                            <div className="cert-history__label">Files</div>
+                                            {rec.notes && (
+                                                <div className="pa-auth-item__body">
+                                                    <div className="pa-auth-item__notes">{rec.notes}</div>
                                                 </div>
                                             )}
-                                        </div>
-                                        {rec.notes && !rec.fileName && (
-                                            <div className="pa-auth-item__body">
-                                                <div className="pa-auth-item__notes">{rec.notes}</div>
+                                            <div className="cert-history__list">
+                                                {items.map(item => (
+                                                    <CertFileRow
+                                                        key={item.id}
+                                                        upload={item}
+                                                        fetchBlob={item.fetchBlob}
+                                                        cacheKey={item.cacheKey}
+                                                        badge={item.badge}
+                                                        expiresText={item.meta}
+                                                        selected={selectedCertDoc?.id === item.id}
+                                                        onSelect={() => openCertDoc(item)}
+                                                        onPreview={() => openCertDoc(item)}
+                                                        onDownload={() => saveItem(item)}
+                                                    />
+                                                ))}
                                             </div>
-                                        )}
-                                        {(() => {
-                                            // Show history attachments under the active cert. The active file
-                                            // itself already appears in the header with its own download button,
-                                            // so skip the upload row that matches the active fileName to avoid a
-                                            // duplicate; the rest are prior/expired history files.
-                                            const history = (rec.uploads || []).filter(u => u.fileName !== rec.fileName);
-                                            if (history.length === 0) return null;
-                                            return (
-                                                <div className="pa-auth-item__body cert-history__body">
-                                                    <div className="cert-history__label">History</div>
-                                                    <div className="cert-history__list">
-                                                        {history.map(upload => (
-                                                            <CertFileRow
-                                                                key={upload.id}
-                                                                upload={upload}
-                                                                onPreview={setPreviewUpload}
-                                                                onDownload={handleDownloadUpload}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })()}
-                                    </div>
-                                ))}
+                                        </div>
+                                    );
+                                })}
                                 {pendingRecords.length > 0 && (
                                     <>
                                         <div style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--primary))', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '8px 0 4px' }}>Pending Review (uploaded by employee)</div>

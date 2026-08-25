@@ -11,7 +11,7 @@ const controller = require('../src/controllers/leadController');
 function mockRes() {
   return { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
 }
-const reqUser = { user: { id: 1, name: 'Admin', role: 'admin' } };
+const reqUser = { user: { id: 1, name: 'Admin', role: 'admin', agencyId: 1 }, db: prisma };
 
 beforeEach(() => jest.clearAllMocks());
 

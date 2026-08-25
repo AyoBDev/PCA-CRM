@@ -1,7 +1,11 @@
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 const onboarding = require('../services/onboardingService');
 const { isOnboardingComplete, projectLedger } = require('../services/requirementService');
+// Public-token endpoints (getOnboardingInfo/saveAvailabilityDraft/submitOnboarding)
+// run before tenant context exists — same allowlisted pattern as onboardingService.js
+// (needs the PHI-decrypting owner client, not the raw basePrisma). Admin-authenticated
+// endpoints below use req.db instead.
+const prisma = require('../lib/prisma');
 
 async function getOnboardingInfo(req, res, next) {
     try {
@@ -14,13 +18,20 @@ async function getOnboardingInfo(req, res, next) {
             };
             return res.status(400).json({ error: messages[reason] || 'Invalid link' });
         }
-        const requirements = await projectLedger(employee.id);
+        if (req.agency && employee.agencyId !== req.agency.id) {
+            return res.status(404).json({ error: 'Invalid onboarding link.' });
+        }
+        const requirements = await projectLedger(prisma, employee.id);
         const draft = employee.onboardingDraft || null;
         res.json({
             employeeName: employee.name,
             employeeEmail: employee.email,
             // If an admin sent them back, show the note explaining what to fix.
             adminReviewNote: employee.adminReviewNote || '',
+            onboardingStatus: employee.onboardingStatus,
+            // A returning employee already has a login account (set a password on their
+            // first submit). The wizard uses this to SKIP the password step on re-entry.
+            hasAccount: Boolean(employee.userId),
             requirements,
             // Already-saved values so a returning employee's form is pre-filled on reload.
             // (Password is never returned — it isn't stored until final submit.)
@@ -81,12 +92,20 @@ async function completeOnboarding(req, res, next) {
             return res.status(400).json({ error: 'Travel information is required' });
         }
 
+        const { valid, employee: tokenEmployee } = await onboarding.validateToken(req.params.token);
+        if (valid && req.agency && tokenEmployee.agencyId !== req.agency.id) {
+            return res.status(400).json({ error: 'This onboarding link is no longer valid.' });
+        }
+
         const { employee, skipApproval } = await onboarding.completeOnboarding(req.params.token, { password, availability });
         audit.logAction({ userId: 0, userName: employee.name, userRole: 'pca', action: 'SUBMIT', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'onboarding_completed', skipApproval } });
         res.json({ success: true, message: skipApproval ? 'Onboarding complete. You can now log in.' : 'Onboarding complete. Your admin will review and activate your account.' });
     } catch (err) {
         if (err.message === 'not_found' || err.message === 'completed' || err.message === 'expired') {
             return res.status(400).json({ error: 'This onboarding link is no longer valid.' });
+        }
+        if (err.message === 'password_required') {
+            return res.status(400).json({ error: 'Password must be at least 8 characters' });
         }
         next(err);
     }
@@ -100,7 +119,10 @@ async function submitOnboarding(req, res, next) {
         // v3 gate: every required document/cert/policy must be satisfied before the account is created.
         const reqs = await prisma.employeeRequirement.findMany({ where: { employeeId: employee.id } });
         if (!isOnboardingComplete(reqs)) return res.status(400).json({ error: 'Please complete all required items before submitting.' });
-        if (!password) return res.status(400).json({ error: 'A password is required to finish onboarding.' });
+        // A returning employee (already has a login account — e.g. re-submitting after
+        // changes_requested) is NOT asked to set a password again, so don't require one.
+        // A first-time submit (no linked account yet) still must set a password.
+        if (!employee.userId && !password) return res.status(400).json({ error: 'A password is required to finish onboarding.' });
         if (!availability) return res.status(400).json({ error: 'Availability details are required to finish onboarding.' });
         // Reuse the proven account-creation path: hashes the password, creates/links the User,
         // stores availability, and marks the token completed (all transactional).
@@ -111,6 +133,9 @@ async function submitOnboarding(req, res, next) {
         if (err.message === 'not_found' || err.message === 'completed' || err.message === 'expired') {
             return res.status(400).json({ error: 'This onboarding link is no longer valid.' });
         }
+        if (err.message === 'password_required') {
+            return res.status(400).json({ error: 'Password must be at least 8 characters' });
+        }
         next(err);
     }
 }
@@ -118,16 +143,16 @@ async function submitOnboarding(req, res, next) {
 async function resendInvite(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const employee = await prisma.employee.findUnique({ where: { id } });
+        const employee = await req.db.employee.findUnique({ where: { id } });
         if (!employee) return res.status(404).json({ error: 'Employee not found' });
-        if (employee.onboardingStatus !== 'invited') {
-            return res.status(400).json({ error: 'Can only resend invite for employees with status "invited"' });
+        if (employee.onboardingStatus !== 'invitation_pending') {
+            return res.status(400).json({ error: 'Can only resend invite for employees who have not yet started onboarding' });
         }
         if (!employee.email) {
             return res.status(400).json({ error: 'Employee has no email address' });
         }
 
-        const token = await onboarding.createOnboardingToken(employee.id);
+        const token = await onboarding.createOnboardingToken(req.db, employee.id);
         onboarding.sendOnboardingEmail(employee, token).catch(err => console.error('Resend invite email failed:', err.message));
 
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'resend_onboarding_invite' } });
@@ -135,52 +160,10 @@ async function resendInvite(req, res, next) {
     } catch (err) { next(err); }
 }
 
-async function approveOnboarding(req, res, next) {
-    try {
-        const id = Number(req.params.id);
-        const employee = await onboarding.approveOnboarding(id);
-
-        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'approve_onboarding' } });
-        res.json({ success: true });
-    } catch (err) {
-        if (err.message === 'Employee not found') return res.status(404).json({ error: err.message });
-        if (err.message === 'Employee is not pending approval') return res.status(400).json({ error: err.message });
-        next(err);
-    }
-}
-
-async function rejectOnboarding(req, res, next) {
-    try {
-        const id = Number(req.params.id);
-        const note = (req.body && req.body.note) || '';
-        const employee = await onboarding.reviewOnboarding(id, { status: 'changes_requested', note });
-        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'reject_onboarding', note } });
-        res.json({ success: true });
-    } catch (err) {
-        if (err.message === 'Employee not found') return res.status(404).json({ error: err.message });
-        if (err.message === 'Employee is not pending approval') return res.status(400).json({ error: err.message });
-        next(err);
-    }
-}
-
-async function requestOnboardingChange(req, res, next) {
-    try {
-        const id = Number(req.params.id);
-        const note = (req.body && req.body.note) || '';
-        const employee = await onboarding.reviewOnboarding(id, { status: 'changes_requested', note });
-        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: employee.id, entityName: employee.name, metadata: { action: 'request_onboarding_change', note } });
-        res.json({ success: true });
-    } catch (err) {
-        if (err.message === 'Employee not found') return res.status(404).json({ error: err.message });
-        if (err.message === 'Employee is not pending approval') return res.status(400).json({ error: err.message });
-        next(err);
-    }
-}
-
 async function getOnboardingLink(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const token = await prisma.onboardingToken.findUnique({ where: { employeeId: id } });
+        const token = await req.db.onboardingToken.findUnique({ where: { employeeId: id } });
         if (!token || token.status !== 'pending') {
             return res.status(404).json({ error: 'No active onboarding link for this employee' });
         }
@@ -193,7 +176,7 @@ async function getOnboardingLink(req, res, next) {
 async function getOnboardingReviewDetail(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const employee = await prisma.employee.findUnique({
+        const employee = await req.db.employee.findUnique({
             where: { id },
             select: {
                 id: true, name: true, email: true, phone: true, address: true, dob: true,
@@ -204,8 +187,8 @@ async function getOnboardingReviewDetail(req, res, next) {
         });
         if (!employee) return res.status(404).json({ error: 'Employee not found' });
         const [requirements, availability] = await Promise.all([
-            projectLedger(id),
-            prisma.employeeAvailability.findUnique({ where: { employeeId: id } }),
+            projectLedger(req.db, id),
+            req.db.employeeAvailability.findUnique({ where: { employeeId: id } }),
         ]);
         res.json({ employee, requirements, availability });
     } catch (err) { next(err); }
@@ -215,16 +198,16 @@ async function getOnboardingReviewDetail(req, res, next) {
 // Admin-only (gated at the route) — this list is not visible to other roles.
 async function getOnboardingReviews(req, res, next) {
     try {
-        const employees = await prisma.employee.findMany({
-            where: { onboardingStatus: 'submitted' },
+        const employees = await req.db.employee.findMany({
+            where: { onboardingStatus: 'pending_review' },
             select: { id: true, name: true, email: true, phone: true, updatedAt: true },
             orderBy: { updatedAt: 'asc' }, // oldest submissions first
         });
         const reviews = await Promise.all(employees.map(async (e) => {
             const [required, satisfied, optionalPending] = await Promise.all([
-                prisma.employeeRequirement.count({ where: { employeeId: e.id, optional: false } }),
-                prisma.employeeRequirement.count({ where: { employeeId: e.id, optional: false, status: { in: ['submitted', 'approved'] } } }),
-                prisma.employeeRequirement.count({ where: { employeeId: e.id, optional: true, status: 'required' } }),
+                req.db.employeeRequirement.count({ where: { employeeId: e.id, optional: false } }),
+                req.db.employeeRequirement.count({ where: { employeeId: e.id, optional: false, status: { in: ['submitted', 'approved'] } } }),
+                req.db.employeeRequirement.count({ where: { employeeId: e.id, optional: true, status: 'required' } }),
             ]);
             return { id: e.id, name: e.name, email: e.email, phone: e.phone, submittedAt: e.updatedAt, requiredTotal: required, requiredDone: satisfied, optionalPending };
         }));
@@ -232,4 +215,75 @@ async function getOnboardingReviews(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, approveOnboarding, rejectOnboarding, requestOnboardingChange, getOnboardingLink, getOnboardingReviews, getOnboardingReviewDetail };
+// Admin per-item decision on a single requirement (approve/reject). Does not move
+// the employee's overall onboarding status.
+async function reviewRequirementItem(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const reqId = Number(req.params.reqId);
+        const { decision, reason } = req.body || {};
+        if (!['approved', 'rejected'].includes(decision)) return res.status(400).json({ error: 'decision must be approved or rejected' });
+        const updated = await onboarding.reviewItem(id, reqId, { decision, reason });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: id, entityName: '', metadata: { action: 'review_requirement', reqId, decision } });
+        res.json({ success: true, requirement: updated });
+    } catch (err) {
+        if (err.message === 'Requirement not found') return res.status(404).json({ error: err.message });
+        if (err.message === 'Rejection reason required') return res.status(400).json({ error: err.message });
+        next(err);
+    }
+}
+
+// Admin "finalize review" — reads per-item review decisions and either
+// approves+activates the employee (and their login user) or sends them back to
+// changes_requested (reopening the onboarding token). See onboardingService.finalizeOnboarding.
+async function finalizeOnboarding(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const { outcome } = await onboarding.finalizeOnboarding(id, { userId: req.user.id, userName: req.user.name, userRole: req.user.role });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: id, entityName: '', metadata: { action: 'finalize_onboarding', outcome } });
+        res.json({ success: true, outcome });
+    } catch (err) {
+        if (err.message === 'Employee not found') return res.status(404).json({ error: err.message });
+        if (err.message === 'Employee is not pending review') return res.status(400).json({ error: err.message });
+        next(err);
+    }
+}
+
+// Explicit whole-submission decisions (the 3 review-modal buttons). Each is
+// independent of per-item state and maps to one lifecycle transition.
+const REVIEW_DECISION_ERRORS = (err, res, next) => {
+    if (err.message === 'Employee not found') return res.status(404).json({ error: err.message });
+    if (err.message === 'Employee is not pending review') return res.status(400).json({ error: err.message });
+    next(err);
+};
+
+async function approveOnboardingSubmission(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        await onboarding.approveOnboardingSubmission(id, { userId: req.user.id, userName: req.user.name, userRole: req.user.role });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: id, entityName: '', metadata: { action: 'approve_onboarding' } });
+        res.json({ success: true, outcome: 'approved' });
+    } catch (err) { REVIEW_DECISION_ERRORS(err, res, next); }
+}
+
+async function sendBackOnboarding(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const note = (req.body && req.body.note) || '';
+        await onboarding.sendBackOnboarding(id, { userId: req.user.id, userName: req.user.name, userRole: req.user.role }, note);
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: id, entityName: '', metadata: { action: 'send_back_onboarding', note } });
+        res.json({ success: true, outcome: 'changes_requested' });
+    } catch (err) { REVIEW_DECISION_ERRORS(err, res, next); }
+}
+
+async function rejectOnboardingSubmission(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const note = (req.body && req.body.note) || '';
+        await onboarding.rejectOnboardingSubmission(id, { userId: req.user.id, userName: req.user.name, userRole: req.user.role }, note);
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Employee', entityId: id, entityName: '', metadata: { action: 'reject_onboarding', note } });
+        res.json({ success: true, outcome: 'inactive' });
+    } catch (err) { REVIEW_DECISION_ERRORS(err, res, next); }
+}
+
+module.exports = { getOnboardingInfo, saveAvailabilityDraft, completeOnboarding, submitOnboarding, resendInvite, getOnboardingLink, getOnboardingReviews, getOnboardingReviewDetail, reviewRequirementItem, finalizeOnboarding, approveOnboardingSubmission, sendBackOnboarding, rejectOnboardingSubmission };

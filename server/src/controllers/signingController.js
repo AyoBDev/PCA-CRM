@@ -1,24 +1,25 @@
 const crypto = require('crypto');
 const prisma = require('../lib/prisma');
+const { enterTokenTenant } = require('../lib/tokenTenant');
 
 // ── Generate signing links ──
 async function generateSigningLinks(req, res, next) {
     try {
         const timesheetId = Number(req.params.id);
-        const ts = await prisma.timesheet.findUnique({ where: { id: timesheetId } });
+        const ts = await req.db.timesheet.findUnique({ where: { id: timesheetId } });
         if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
 
         const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72 hours
 
         // Invalidate any existing unused tokens for this timesheet
-        await prisma.signingToken.updateMany({
+        await req.db.signingToken.updateMany({
             where: { timesheetId, usedAt: null },
             data: { usedAt: new Date() },
         });
 
         const token = crypto.randomUUID();
 
-        await prisma.signingToken.create({
+        await req.db.signingToken.create({
             data: { token, timesheetId, role: 'combined', expiresAt },
         });
 
@@ -45,29 +46,32 @@ async function getSigningForm(req, res, next) {
 
         if (!record) return res.status(404).json({ error: 'Invalid link' });
 
-        // Find or auto-create the permanent link for this client+PCA pair
-        let permanentLink = await prisma.permanentLink.findFirst({
-            where: {
-                clientId: record.timesheet.clientId,
-                pcaName: record.timesheet.pcaName,
-            },
-        });
-
-        if (!permanentLink) {
-            permanentLink = await prisma.permanentLink.create({
-                data: {
+        await enterTokenTenant(req, res, record.agencyId, async () => {
+            const db = req.db;
+            // Find or auto-create the permanent link for this client+PCA pair
+            let permanentLink = await db.permanentLink.findFirst({
+                where: {
                     clientId: record.timesheet.clientId,
                     pcaName: record.timesheet.pcaName,
                 },
             });
-        } else if (!permanentLink.active) {
-            permanentLink = await prisma.permanentLink.update({
-                where: { id: permanentLink.id },
-                data: { active: true },
-            });
-        }
 
-        res.json({ redirect: permanentLink.token });
+            if (!permanentLink) {
+                permanentLink = await db.permanentLink.create({
+                    data: {
+                        clientId: record.timesheet.clientId,
+                        pcaName: record.timesheet.pcaName,
+                    },
+                });
+            } else if (!permanentLink.active) {
+                permanentLink = await db.permanentLink.update({
+                    where: { id: permanentLink.id },
+                    data: { active: true },
+                });
+            }
+
+            res.json({ redirect: permanentLink.token });
+        });
     } catch (err) { next(err); }
 }
 

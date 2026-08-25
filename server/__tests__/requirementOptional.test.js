@@ -19,11 +19,11 @@ describe('optional requirements', () => {
   });
 
   it('assignRequirements resolves certTypeKeys and marks them optional', async () => {
-    const emp = await prisma.employee.create({ data: { name: 'Opt EE', email: `opt-${Date.now()}@t.co`, onboardingStatus: 'invited' } });
+    const emp = await prisma.employee.create({ data: { name: 'Opt EE', email: `opt-${Date.now()}@t.co`, onboardingStatus: 'invitation_pending', agencyId: 1 } });
     const key = `cpr-${Date.now()}`;
-    await prisma.certType.create({ data: { key, label: 'CPR', sortOrder: 1 } });
+    await prisma.certType.create({ data: { key, label: 'CPR', sortOrder: 1 , agencyId: 1} });
     const rows = await prisma.$transaction(tx =>
-      assignRequirements(tx, emp.id, { certTypeKeys: [key], optional: true })
+      assignRequirements(tx, emp.id, { certTypeKeys: [key], optional: true }, 1)
     );
     expect(rows).toHaveLength(1);
     const req = await prisma.employeeRequirement.findUnique({ where: { id: rows[0].id } });

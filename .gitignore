@@ -52,3 +52,6 @@ scripts/restore-backup.js
 .env.test
 .env.backup
 seed-local-demo.js
+
+# Local scratch/report artifacts
+server/tmp/

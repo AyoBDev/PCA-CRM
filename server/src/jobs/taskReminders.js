@@ -1,7 +1,11 @@
+// Cron driver: enumerates active agencies on the owner connection, then runs
+// the reminder sweep for each agency inside its own tenant context.
 const prisma = require('../lib/prisma');
+const { tenantClient } = require('../lib/tenantPrisma');
+const { runWithTenant } = require('../lib/tenantContext');
 const { isEmailConfigured, sendEmail } = require('../services/notificationService');
 
-async function sendTaskReminders() {
+async function sendTaskRemindersForAgency(db) {
     if (!isEmailConfigured()) {
         console.log('[TaskReminders] Email not configured, skipping.');
         return { sent: 0, skipped: 0 };
@@ -14,7 +18,7 @@ async function sendTaskReminders() {
 
     const todayStr = todayStart.toISOString().split('T')[0];
 
-    const tasks = await prisma.task.findMany({
+    const tasks = await db.task.findMany({
         where: {
             status: { in: ['open', 'in_progress'] },
             dueDate: { gte: todayStart, lt: tomorrowEnd },
@@ -40,7 +44,7 @@ async function sendTaskReminders() {
         if (task.assignedToUser?.email) {
             recipients.push(task.assignedToUser.email);
         } else if (task.assignedToRole) {
-            const users = await prisma.user.findMany({
+            const users = await db.user.findMany({
                 where: { role: task.assignedToRole, active: true, archivedAt: null },
                 select: { email: true },
             });
@@ -69,13 +73,13 @@ async function sendTaskReminders() {
         for (const email of recipients) {
             try {
                 await sendEmail(email, subject, html);
-                await prisma.taskReminder.create({
+                await db.taskReminder.create({
                     data: { taskId: task.id, channel: 'email', status: 'sent' },
                 });
                 sent++;
             } catch (err) {
                 console.error(`[TaskReminders] Failed to send to ${email}:`, err.message);
-                await prisma.taskReminder.create({
+                await db.taskReminder.create({
                     data: { taskId: task.id, channel: 'email', status: 'failed' },
                 });
                 skipped++;
@@ -87,4 +91,17 @@ async function sendTaskReminders() {
     return { sent, skipped };
 }
 
-module.exports = { sendTaskReminders };
+// Cron entry point: iterates every active agency and runs the sweep for each.
+async function sendTaskReminders() {
+    const agencies = await prisma.agency.findMany({ where: { status: 'active' } });
+    const totals = { sent: 0, skipped: 0 };
+    for (const agency of agencies) {
+        const db = tenantClient(agency.id);
+        const result = await runWithTenant({ agencyId: agency.id, db }, () => sendTaskRemindersForAgency(db));
+        totals.sent += result.sent;
+        totals.skipped += result.skipped;
+    }
+    return totals;
+}
+
+module.exports = { sendTaskReminders, sendTaskRemindersForAgency };

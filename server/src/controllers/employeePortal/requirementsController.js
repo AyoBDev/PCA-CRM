@@ -1,31 +1,60 @@
-const prisma = require('../../lib/prisma');
-const { uploadFile } = require('../../lib/storage');
+const { uploadFile, downloadFile } = require('../../lib/storage');
+const { tenantKey } = require('../../services/storageService');
 const audit = require('../../services/auditService');
+const { tenantTransaction } = require('../../lib/tenantPrisma');
 
 async function getCertifications(req, res) {
-  const certs = await prisma.employeeCertification.findMany({
-    where: { employeeId: req.employee.id },
-    select: {
-      id: true, certType: true, expirationDate: true, status: true, notes: true, updatedAt: true,
-    },
-    orderBy: { certType: 'asc' },
+  const employeeId = req.employee.id;
+  const [reqs, certTypes, certs] = await Promise.all([
+    req.db.employeeRequirement.findMany({ where: { employeeId, kind: 'certification' } }),
+    req.db.certType.findMany(),
+    req.db.employeeCertification.findMany({
+      where: { employeeId },
+      include: {
+        uploads: {
+          orderBy: { submittedAt: 'desc' },
+          select: { id: true, fileName: true, fileType: true, fileSize: true, submittedAt: true },
+        },
+      },
+    }),
+  ]);
+
+  const catById = Object.fromEntries(certTypes.map(c => [c.id, c]));
+  const certById = Object.fromEntries(certs.map(c => [c.id, c]));
+
+  const certifications = reqs.map(r => {
+    const cat = catById[r.catalogTypeId] || {};
+    const cert = r.certificationId ? certById[r.certificationId] : null;
+    return {
+      requirementId: r.id,
+      certificationId: cert ? cert.id : null,
+      certType: cat.key || (cert ? cert.certType : ''),
+      label: cat.label || (cert ? cert.certType : ''),
+      status: cert ? cert.status : 'required',
+      reviewStatus: r.reviewStatus || 'pending',
+      expirationDate: cert ? cert.expirationDate : null,
+      requiresExpiry: Boolean(cat.requiresExpiry),
+      renewalYears: cat.renewalYears ?? null,
+      currentFile: cert && cert.fileName ? { fileName: cert.fileName } : null,
+      uploads: cert ? (cert.uploads || []) : [],
+    };
   });
 
-  const counts = { approved: 0, pending: 0, actionNeeded: 0, total: certs.length };
-  for (const c of certs) {
+  const counts = { approved: 0, pending: 0, actionNeeded: 0, total: certifications.length };
+  for (const c of certifications) {
     if (c.status === 'approved' || c.status === 'active') counts.approved++;
-    else if (c.status === 'pending') counts.pending++;
+    else if (c.status === 'pending' || c.status === 'submitted') counts.pending++;
     else counts.actionNeeded++;
   }
 
-  res.json({ certifications: certs, summary: counts });
+  res.json({ certifications, summary: counts });
 }
 
 async function uploadCertification(req, res) {
   const certId = parseInt(req.params.certId);
   if (!req.file) return res.status(400).json({ error: 'No file provided' });
 
-  const cert = await prisma.employeeCertification.findFirst({
+  const cert = await req.db.employeeCertification.findFirst({
     where: { id: certId, employeeId: req.employee.id },
   });
   if (!cert) return res.status(404).json({ error: 'Certification not found' });
@@ -39,13 +68,16 @@ async function uploadCertification(req, res) {
   }
 
   const timestamp = Date.now();
-  const key = `certs/${req.employee.id}/${cert.certType}/${timestamp}-${req.file.originalname}`;
+  const key = tenantKey(`certs/${req.employee.id}/${cert.certType}/${timestamp}-${req.file.originalname}`);
   await uploadFile(key, req.file.buffer, req.file.mimetype);
 
   const note = req.body.note || '';
-  await prisma.$transaction([
-    prisma.certificationUpload.create({
+  // Batch $transaction([...]) arrays are not supported on the extended tenant
+  // client — use an interactive transaction and stamp agencyId explicitly.
+  await tenantTransaction(req.employee.agencyId, async (tx) => {
+    await tx.certificationUpload.create({
       data: {
+        agencyId: req.employee.agencyId,
         certificationId: certId,
         bucketKey: key,
         fileName: req.file.originalname,
@@ -53,12 +85,12 @@ async function uploadCertification(req, res) {
         fileType: req.file.mimetype,
         note,
       },
-    }),
-    prisma.employeeCertification.update({
+    });
+    await tx.employeeCertification.update({
       where: { id: certId },
       data: { status: 'pending' },
-    }),
-  ]);
+    });
+  });
 
   audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'CertificationUpload', entityId: certId, entityName: `${cert.certType} - ${req.file.originalname}`, metadata: { employeeId: req.employee.id, fileName: req.file.originalname } });
   res.json({ success: true, status: 'pending' });
@@ -86,14 +118,14 @@ async function createCertification(req, res) {
 
   const expirationDate = req.body && req.body.expirationDate ? new Date(req.body.expirationDate) : null;
   const timestamp = Date.now();
-  const key = `certs/${req.employee.id}/${certType}/${timestamp}-${req.file.originalname}`;
+  const key = tenantKey(`certs/${req.employee.id}/${certType}/${timestamp}-${req.file.originalname}`);
   await uploadFile(key, req.file.buffer, req.file.mimetype);
 
-  const cert = await prisma.employeeCertification.create({
+  const cert = await req.db.employeeCertification.create({
     data: { employeeId: req.employee.id, certType, status: 'pending', expirationDate, fileName: req.file.originalname, fileSize: req.file.size, fileType: req.file.mimetype },
   });
 
-  await prisma.certificationUpload.create({
+  await req.db.certificationUpload.create({
     data: {
       certificationId: cert.id,
       bucketKey: key,
@@ -118,4 +150,23 @@ async function createCertification(req, res) {
   res.json({ success: true, certificationId: cert.id, status: 'pending' });
 }
 
-module.exports = { getCertifications, uploadCertification, createCertification };
+async function downloadCertificationUpload(req, res) {
+  const uploadId = parseInt(req.params.uploadId);
+  const upload = await req.db.certificationUpload.findFirst({
+    where: { id: uploadId, certification: { employeeId: req.employee.id } },
+  });
+  if (!upload || !upload.bucketKey) return res.status(404).json({ error: 'File not found' });
+
+  const buffer = await downloadFile(upload.bucketKey);
+  if (!buffer) return res.status(404).json({ error: 'File not found in storage' });
+
+  const isPdf = upload.fileType === 'application/pdf';
+  res.set({
+    'Content-Type': upload.fileType || 'application/octet-stream',
+    'Content-Disposition': `${isPdf ? 'inline' : 'attachment'}; filename="${upload.fileName}"`,
+    'Content-Length': buffer.length,
+  });
+  res.send(buffer);
+}
+
+module.exports = { getCertifications, uploadCertification, createCertification, downloadCertificationUpload };

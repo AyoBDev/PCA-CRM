@@ -1,14 +1,21 @@
+// Cron driver: enumerates active agencies on the owner connection, then runs
+// the reminder job for each agency inside its own tenant context.
 const prisma = require('../lib/prisma');
+const { tenantClient } = require('../lib/tenantPrisma');
+const { runWithTenant } = require('../lib/tenantContext');
 const { isEmailConfigured, sendEmail } = require('../services/notificationService');
 const { isOverdue } = require('../lib/timesheetUtils');
 
-async function sendOverdueReminders() {
+// Runs the overdue-timesheet reminder sweep for a single tenant. `db` may be
+// req.db (called from an authenticated admin route, already tenant-scoped)
+// or a tenantClient(agencyId) (called from the cron driver below).
+async function sendOverdueRemindersForAgency(db) {
     if (!isEmailConfigured()) {
         console.log('[TimesheetReminders] Email not configured, skipping.');
         return { sent: 0, skipped: 0 };
     }
 
-    const overdueTimesheets = await prisma.timesheet.findMany({
+    const overdueTimesheets = await db.timesheet.findMany({
         where: {
             status: 'draft',
             archivedAt: null,
@@ -25,11 +32,11 @@ async function sendOverdueReminders() {
     let skipped = 0;
 
     for (const ts of actuallyOverdue) {
-        const permanentLink = await prisma.permanentLink.findFirst({
+        const permanentLink = await db.permanentLink.findFirst({
             where: { clientId: ts.clientId, pcaName: ts.pcaName },
         });
 
-        const employee = await prisma.employee.findFirst({
+        const employee = await db.employee.findFirst({
             where: { name: ts.pcaName },
             include: { user: true },
         });
@@ -62,7 +69,7 @@ async function sendOverdueReminders() {
 
         try {
             await sendEmail(email, subject, html);
-            await prisma.timesheetReminder.create({
+            await db.timesheetReminder.create({
                 data: {
                     timesheetId: ts.id,
                     employeeId: employee?.id || null,
@@ -74,7 +81,7 @@ async function sendOverdueReminders() {
             console.log(`[TimesheetReminders] Sent reminder for timesheet ${ts.id} to ${email}`);
         } catch (err) {
             console.error(`[TimesheetReminders] Failed to send to ${email}:`, err.message);
-            await prisma.timesheetReminder.create({
+            await db.timesheetReminder.create({
                 data: {
                     timesheetId: ts.id,
                     employeeId: employee?.id || null,
@@ -90,4 +97,17 @@ async function sendOverdueReminders() {
     return { sent, skipped };
 }
 
-module.exports = { sendOverdueReminders };
+// Cron entry point: iterates every active agency and runs the sweep for each.
+async function sendOverdueReminders() {
+    const agencies = await prisma.agency.findMany({ where: { status: 'active' } });
+    const totals = { sent: 0, skipped: 0 };
+    for (const agency of agencies) {
+        const db = tenantClient(agency.id);
+        const result = await runWithTenant({ agencyId: agency.id, db }, () => sendOverdueRemindersForAgency(db));
+        totals.sent += result.sent;
+        totals.skipped += result.skipped;
+    }
+    return totals;
+}
+
+module.exports = { sendOverdueReminders, sendOverdueRemindersForAgency };

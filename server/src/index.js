@@ -12,6 +12,10 @@ const { runComplianceCheck } = require('./jobs/complianceCron');
 const { runLeadDormancySweep } = require('./jobs/leadDormancySweep');
 const { startWorker } = require('./workers/replacementWorker');
 
+if (process.env.NODE_ENV === 'production' && !process.env.APP_DATABASE_URL) {
+    throw new Error('APP_DATABASE_URL must be set in production — tenant isolation depends on the RLS-constrained app_user connection');
+}
+
 const PORT = process.env.PORT || 4000;
 const server = http.createServer(app);
 

@@ -1,5 +1,4 @@
 const xlsx = require('xlsx');
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 
 const VALID_ACCOUNTS = ['71040', '71120', '71119', '71635'];
@@ -25,7 +24,7 @@ async function previewSandata(req, res, next) {
 
         const { uniqueRows, duplicates } = deduplicateRows(sandataRows);
 
-        const clients = await prisma.client.findMany({
+        const clients = await req.db.client.findMany({
             where: { archivedAt: null },
             select: { id: true, clientName: true, medicaidId: true, address: true, phone: true },
             orderBy: { clientName: 'asc' },
@@ -48,7 +47,7 @@ async function previewSandata(req, res, next) {
                 continue;
             }
 
-            const authCount = await prisma.authorization.count({
+            const authCount = await req.db.authorization.count({
                 where: {
                     clientId: client.id,
                     archivedAt: null,
@@ -85,7 +84,7 @@ async function previewSandata(req, res, next) {
         // Fetch current sandataClientId for matched clients
         if (matched.length > 0) {
             const clientIds = matched.map(m => m.clientId);
-            const existingAuths = await prisma.authorization.findMany({
+            const existingAuths = await req.db.authorization.findMany({
                 where: {
                     clientId: { in: clientIds },
                     archivedAt: null,
@@ -151,7 +150,7 @@ async function applySandata(req, res, next) {
                     { accountNumber: '', serviceCode: { in: serviceCodes } },
                 ],
             };
-            const existing = await prisma.authorization.findMany({
+            const existing = await req.db.authorization.findMany({
                 where: whereClause,
                 select: { id: true, sandataClientId: true, accountNumber: true },
             });
@@ -161,7 +160,7 @@ async function applySandata(req, res, next) {
                     auths: existing.map(a => ({ id: a.id, sandataClientId: a.sandataClientId || '', accountNumber: a.accountNumber || '' })),
                 });
             }
-            const result = await prisma.authorization.updateMany({
+            const result = await req.db.authorization.updateMany({
                 where: whereClause,
                 data: { sandataClientId: entry.sandataClientId.toString().trim(), accountNumber },
             });
@@ -200,7 +199,7 @@ async function undoSandata(req, res, next) {
         let restored = 0;
         for (const entry of previousValues) {
             for (const auth of entry.auths) {
-                await prisma.authorization.update({
+                await req.db.authorization.update({
                     where: { id: auth.id },
                     data: { sandataClientId: auth.sandataClientId, accountNumber: auth.accountNumber },
                 });

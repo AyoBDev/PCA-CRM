@@ -5,6 +5,7 @@ import { useServices } from '../../hooks/useServices';
 import { ServiceCodeSelect, SERVICE_CATEGORIES, SERVICE_NAME_SUGGESTIONS } from '../../utils/serviceCodes';
 import { SERVICE_CODE_NAMES } from '../../utils/constants';
 import { getAccountForCategory, getAccountForServiceCode, ACCOUNT_NUMBER_OPTIONS } from '../../utils/accountMapping';
+import { coverageIssue } from '../../utils/authorizations';
 
 // Local mirror of the day-before-start computation used for the renewal
 // close-preview banner (the previous authorization auto-closes the day
@@ -40,6 +41,7 @@ function fmtDayBefore(dateStr) {
 export default function AuthorizationFormModal({
     auth,
     clientId,
+    siblingAuths = [],
     onSave,
     onClose,
     onRenewal,
@@ -75,6 +77,16 @@ export default function AuthorizationFormModal({
     const [inactiveReason, setInactiveReason] = useState('Client transferred to another agency');
     const [inactiveNote, setInactiveNote] = useState('');
     const [correctingInPlace, setCorrectingInPlace] = useState(false);
+    // Renewal activation: 'scheduled' = keep the current auth in effect until the
+    // new start date, then the renewal takes over automatically (dates are the
+    // source of truth). 'immediate' = retire the current auth now and make the
+    // renewal current today. Defaults to scheduled; only meaningful when the new
+    // start date is in the future.
+    const [renewalActivation, setRenewalActivation] = useState('scheduled');
+    // Second-step confirmation: when a renewal with a future start is submitted,
+    // we ask "wait until start date vs start immediately" on its own modal before
+    // firing the renewal.
+    const [renewalConfirmOpen, setRenewalConfirmOpen] = useState(false);
     const [files, setFiles] = useState([]);
 
     // GUIDE annual-visits detail fields
@@ -90,6 +102,28 @@ export default function AuthorizationFormModal({
     const authorizationType = isGuide ? 'Annual Visits' : 'Weekly Units';
     const isAnnual = authorizationType === 'Annual Visits';
     const hoursPerYear = (Number(authorizedVisitsPerYear) || 0) * (Number(hoursPerVisit) || 0);
+
+    // The activation choice only matters when the new start date is in the future.
+    // A start of today or earlier is always effectively immediate.
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const startIsFuture = !!startDate && startDate > todayStr;
+
+    // Coverage warning: when this auth's start date leaves a GAP after — or
+    // OVERLAPS — the previous same-code authorization, surface it so staff can
+    // fix the dates. Advisory only; never auto-changes a date the user typed.
+    const coverage = coverageIssue(
+        { serviceCode, authorizationStartDate: startDate },
+        siblingAuths,
+        { excludeId: auth?.id, excludeRenewedFromId: auth?.renewedFromId }
+    );
+    const coverageWarning = coverage && (() => {
+        const priorEndStr = new Date(coverage.priorEndDate + 'T00:00:00').toLocaleDateString('en-US');
+        if (coverage.kind === 'gap') {
+            const d = coverage.gapDays;
+            return { kind: 'gap', text: `The previous ${serviceCode} authorization ends ${priorEndStr}, but this one starts ${startDate} — leaving ${d} day${d > 1 ? 's' : ''} (${d === 1 ? 'that day has' : 'those days have'} no ${serviceCode} coverage). Set this start to the day after ${priorEndStr}, or adjust the previous end date, to close the gap.` };
+        }
+        return { kind: 'overlap', text: `This ${serviceCode} authorization starts ${startDate}, but the previous one runs through ${priorEndStr} — the dates overlap. Two ${serviceCode} authorizations would be effective at once. Adjust one of the dates so they don't overlap.` };
+    })();
 
     // Parse pasted date text into YYYY-MM-DD for date inputs
     const handleDatePaste = (setter) => (e) => {
@@ -152,38 +186,52 @@ export default function AuthorizationFormModal({
         }
     };
 
+    // Fire the renewal with an explicit activation choice. Only a future start
+    // can be 'scheduled'; a start today/earlier is always immediate.
+    const fireRenewal = (activation) => {
+        if (typeof onRenewal !== 'function') {
+            // Guard: never silently fall through to onSave (which would save this
+            // as manualStatus:'active') when the parent hasn't wired a renewal
+            // handler — that would look like a normal save but silently discard
+            // the intended renewal.
+            console.error('AuthorizationFormModal: manualStatus is "renewal" but no onRenewal handler was provided. Aborting submit to avoid silently saving as active.');
+            return;
+        }
+        const note = notePreset === 'custom'
+            ? (notes.trim() || 'Other')
+            : (notePreset + (notes.trim() ? ' - ' + notes.trim() : ''));
+        onRenewal({
+            oldAuthId: auth.id,
+            clientId: auth.clientId || clientId,
+            serviceCategory,
+            serviceCode,
+            serviceName,
+            authorizationNumber,
+            authorizedUnits: parseInt(authorizedUnits) || 0,
+            authorizationStartDate: startDate || null,
+            authorizationEndDate: endDate || null,
+            notes: note,
+            accountNumber,
+            sandataClientId,
+            authorizationType,
+            authorizedVisitsPerYear: isAnnual && authorizedVisitsPerYear ? Number(authorizedVisitsPerYear) : null,
+            hoursPerVisit: isAnnual && hoursPerVisit ? Number(hoursPerVisit) : null,
+            renewalActivation: startIsFuture ? activation : 'immediate',
+            files,
+        });
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
         if (isEdit && manualStatus === 'renewal' && !correctingInPlace) {
-            if (typeof onRenewal !== 'function') {
-                // Guard: never silently fall through to onSave (which would save
-                // this as manualStatus:'active') when the parent hasn't wired a
-                // renewal handler — that would look like a normal save but
-                // silently discard the intended renewal.
-                console.error('AuthorizationFormModal: manualStatus is "renewal" but no onRenewal handler was provided. Aborting submit to avoid silently saving as active.');
+            // A future-dated renewal asks "wait vs start immediately" on a second
+            // confirmation modal before it fires. A start today/earlier is always
+            // immediate, so skip the extra step and renew directly.
+            if (startIsFuture) {
+                setRenewalConfirmOpen(true);
                 return;
             }
-            const note = notePreset === 'custom'
-                ? (notes.trim() || 'Other')
-                : (notePreset + (notes.trim() ? ' - ' + notes.trim() : ''));
-            onRenewal({
-                oldAuthId: auth.id,
-                clientId: auth.clientId || clientId,
-                serviceCategory,
-                serviceCode,
-                serviceName,
-                authorizationNumber,
-                authorizedUnits: parseInt(authorizedUnits) || 0,
-                authorizationStartDate: startDate || null,
-                authorizationEndDate: endDate || null,
-                notes: note,
-                accountNumber,
-                sandataClientId,
-                authorizationType,
-                authorizedVisitsPerYear: isAnnual && authorizedVisitsPerYear ? Number(authorizedVisitsPerYear) : null,
-                hoursPerVisit: isAnnual && hoursPerVisit ? Number(hoursPerVisit) : null,
-                files,
-            });
+            fireRenewal('immediate');
             return;
         }
         if (isEdit && manualStatus === 'inactive') {
@@ -229,6 +277,7 @@ export default function AuthorizationFormModal({
         : 'Edit Authorization';
 
     return (
+      <>
         <Modal onClose={onClose} wide>
             {isEdit ? (
                 <>
@@ -370,11 +419,6 @@ export default function AuthorizationFormModal({
 
                 {isEdit && manualStatus === 'renewal' && !correctingInPlace && (
                     <>
-                        <div className="preview-box">
-                            On save, <b>{auth.authorizationNumber || 'the current authorization'}</b> auto-closes
-                            with an end date of <b>{startDate ? fmtDayBefore(startDate) : '-'}</b> - the day before
-                            this new authorization starts. No overlapping dates, no manual entry.
-                        </div>
                         <div className="form-group">
                             <label>New Authorization Number</label>
                             <input type="text" value={authorizationNumber} onChange={(e) => setAuthorizationNumber(e.target.value)} placeholder="e.g. A-2026-0119" />
@@ -500,6 +544,13 @@ export default function AuthorizationFormModal({
                     </div>
                 )}
 
+                {coverageWarning && !correctingInPlace && (
+                    <div className="preview-box" role="alert"
+                        style={{ background: 'hsl(var(--warning-bg))', borderColor: 'hsl(var(--warning))', color: 'hsl(38 60% 28%)' }}>
+                        <b>⚠ {coverageWarning.kind === 'gap' ? 'Coverage gap' : 'Overlapping dates'}.</b> {coverageWarning.text}
+                    </div>
+                )}
+
                 <div className="form-actions">
                     <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
                     <button
@@ -516,5 +567,47 @@ export default function AuthorizationFormModal({
                 </div>
             </form>
         </Modal>
+
+        {/* Second step: choose when the future-dated renewal takes effect. Opened
+            by "Save Renewal" only when the new start date is in the future. */}
+        {renewalConfirmOpen && (
+            <Modal onClose={() => setRenewalConfirmOpen(false)}>
+                <h2 className="modal__title">When should this renewal take effect?</h2>
+                <p className="modal__desc">
+                    The new authorization <b>{authorizationNumber || '(no number)'}</b> starts on <b>{startDate}</b>.
+                    Choose whether the current authorization keeps running until then, or is replaced right away.
+                </p>
+                <div className="auth-status-cards">
+                    <label className={`auth-status-card ${renewalActivation === 'scheduled' ? 'auth-status-card--renewal' : ''}`}>
+                        <input type="radio" name="renewalActivationConfirm" value="scheduled"
+                            checked={renewalActivation === 'scheduled'} onChange={() => setRenewalActivation('scheduled')} />
+                        <div className="auth-status-card__radio"><span className="auth-status-card__dot" /></div>
+                        <span className="auth-status-card__label">Wait until start date</span>
+                        <span className="auth-status-card__desc">
+                            The current authorization stays in effect (Scheduler, Care Plan, units)
+                            through {fmtDayBefore(startDate)}, then this renewal takes over automatically on {startDate}.
+                        </span>
+                    </label>
+                    <label className={`auth-status-card ${renewalActivation === 'immediate' ? 'auth-status-card--renewal' : ''}`}>
+                        <input type="radio" name="renewalActivationConfirm" value="immediate"
+                            checked={renewalActivation === 'immediate'} onChange={() => setRenewalActivation('immediate')} />
+                        <div className="auth-status-card__radio"><span className="auth-status-card__dot" /></div>
+                        <span className="auth-status-card__label">Start immediately</span>
+                        <span className="auth-status-card__desc">
+                            Replace the current authorization now. It is retired today and this renewal becomes current
+                            immediately, even though its start date is in the future.
+                        </span>
+                    </label>
+                </div>
+                <div className="form-actions">
+                    <button type="button" className="btn btn--outline" onClick={() => setRenewalConfirmOpen(false)}>Back</button>
+                    <button type="button" className="btn btn--primary"
+                        onClick={() => { setRenewalConfirmOpen(false); fireRenewal(renewalActivation); }}>
+                        Confirm Renewal
+                    </button>
+                </div>
+            </Modal>
+        )}
+      </>
     );
 }

@@ -1,8 +1,7 @@
-const prisma = require('../../lib/prisma');
 const { emitToEmployee, emitToOffice } = require('../../socket');
 
 async function listConversations(req, res) {
-  const conversations = await prisma.conversation.findMany({
+  const conversations = await req.db.conversation.findMany({
     orderBy: { lastMessageAt: 'desc' },
     include: {
       employee: { select: { id: true, name: true, userId: true } },
@@ -14,7 +13,7 @@ async function listConversations(req, res) {
   for (const c of conversations) {
     const employeeUserId = c.employee.userId;
     const unreadCount = employeeUserId
-      ? await prisma.message.count({
+      ? await req.db.message.count({
           where: { conversationId: c.id, senderId: employeeUserId, readAt: null },
         })
       : 0;
@@ -34,13 +33,13 @@ async function listConversations(req, res) {
 
 async function getConversationMessages(req, res) {
   const id = parseInt(req.params.id);
-  const convo = await prisma.conversation.findUnique({
+  const convo = await req.db.conversation.findUnique({
     where: { id },
     include: { employee: { select: { id: true, name: true, userId: true } } },
   });
   if (!convo) return res.status(404).json({ error: 'Conversation not found' });
 
-  const messages = await prisma.message.findMany({
+  const messages = await req.db.message.findMany({
     where: { conversationId: id },
     orderBy: { createdAt: 'asc' },
     include: { sender: { select: { name: true } } },
@@ -59,13 +58,13 @@ async function adminSendMessage(req, res) {
   const { content } = req.body;
   if (!content?.trim()) return res.status(400).json({ error: 'Content required' });
 
-  const convo = await prisma.conversation.findUnique({
+  const convo = await req.db.conversation.findUnique({
     where: { id: conversationId },
     include: { employee: { select: { id: true, name: true, userId: true } } },
   });
   if (!convo) return res.status(404).json({ error: 'Conversation not found' });
 
-  const msg = await prisma.message.create({
+  const msg = await req.db.message.create({
     data: {
       conversationId,
       senderId: req.user.id,
@@ -75,7 +74,7 @@ async function adminSendMessage(req, res) {
     include: { sender: { select: { name: true } } },
   });
 
-  const updatedConvo = await prisma.conversation.update({
+  const updatedConvo = await req.db.conversation.update({
     where: { id: conversationId },
     data: { lastMessageAt: new Date() },
   });
@@ -92,10 +91,10 @@ async function adminSendMessage(req, res) {
     employeeUserId: convo.employee.userId,
   };
 
-  emitToEmployee(convo.employeeId, 'chat:message', payload);
-  emitToOffice('chat:message', payload);
+  emitToEmployee(req.user.agencyId, convo.employeeId, 'chat:message', payload);
+  emitToOffice(req.user.agencyId, 'chat:message', payload);
 
-  emitToOffice('chat:conversation-updated', {
+  emitToOffice(req.user.agencyId, 'chat:conversation-updated', {
     conversationId,
     employeeId: convo.employee.id,
     employeeName: convo.employee.name,
@@ -117,7 +116,7 @@ async function markConversationRead(req, res) {
   const conversationId = parseInt(req.params.id);
   if (!conversationId) return res.status(400).json({ error: 'Invalid conversation id' });
 
-  const convo = await prisma.conversation.findUnique({
+  const convo = await req.db.conversation.findUnique({
     where: { id: conversationId },
     include: { employee: { select: { userId: true } } },
   });
@@ -125,19 +124,19 @@ async function markConversationRead(req, res) {
 
   const employeeUserId = convo.employee.userId;
   if (employeeUserId) {
-    await prisma.message.updateMany({
+    await req.db.message.updateMany({
       where: { conversationId, senderId: employeeUserId, readAt: null },
       data: { readAt: new Date() },
     });
   }
 
-  emitToOffice('chat:conversation-read', { conversationId });
+  emitToOffice(req.user.agencyId, 'chat:conversation-read', { conversationId });
 
   res.json({ conversationId, unreadCount: 0 });
 }
 
 async function getUnreadSummary(req, res) {
-  const employees = await prisma.employee.findMany({
+  const employees = await req.db.employee.findMany({
     where: { userId: { not: null } },
     select: { userId: true, conversation: { select: { id: true } } },
   });
@@ -146,7 +145,7 @@ async function getUnreadSummary(req, res) {
   let unreadMessages = 0;
   for (const emp of employees) {
     if (!emp.conversation || !emp.userId) continue;
-    const count = await prisma.message.count({
+    const count = await req.db.message.count({
       where: { conversationId: emp.conversation.id, senderId: emp.userId, readAt: null },
     });
     if (count > 0) {

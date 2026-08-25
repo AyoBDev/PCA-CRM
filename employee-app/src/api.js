@@ -1,7 +1,9 @@
+import { TOKEN_KEY, USER_KEY } from './authKeys';
+
 const BASE = import.meta.env.VITE_API_URL || '';
 
 async function request(path, options = {}) {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem(TOKEN_KEY);
   const headers = { ...options.headers };
   if (token) headers['Authorization'] = `Bearer ${token}`;
   if (!(options.body instanceof FormData)) {
@@ -9,8 +11,8 @@ async function request(path, options = {}) {
   }
   const res = await fetch(`${BASE}/api/employee${path}`, { ...options, headers });
   if (res.status === 401) {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
     const base = import.meta.env.BASE_URL || '/';
     window.location.href = `${base}login`;
     return;
@@ -51,6 +53,19 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }).then(async r => { if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.error || 'Invalid credentials'); } return r.json(); }),
 
+  // NOTE: /auth/me lives outside the /api/employee prefix (like /auth/employee-login above),
+  // so it must use a raw fetch with an explicit Authorization header rather than the
+  // request() helper, which always targets /api/employee/*.
+  getMe: () => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return fetch(`${BASE}/api/auth/me`, { headers }).then(async r => {
+      if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.error || 'Request failed'); }
+      return r.json();
+    });
+  },
+
   getHomeSummary: () => request('/home/summary'),
   getNextShift: () => request('/home/next-shift'),
   getActivity: () => request('/home/activity'),
@@ -66,6 +81,12 @@ export const api = {
   getCertifications: () => request('/certifications'),
   uploadCertification: (certId, formData) => request(`/certifications/${certId}/upload`, { method: 'POST', body: formData }),
   createCertification: (formData) => request('/certifications', { method: 'POST', body: formData }),
+  // Raw fetch (not the JSON-parsing request() helper) — returns a Response so
+  // callers can read Content-Type/.blob() themselves, matching the admin app's
+  // fetchBlob contract for file preview/download components.
+  downloadCertUpload: (uploadId) => fetch(`${BASE}/api/employee/certifications/uploads/${uploadId}/download`, {
+    headers: { Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY)}` },
+  }),
   getPayrollSummary: () => request('/payroll/summary'),
   getPaystubs: () => request('/payroll/stubs'),
   getPaystubDownload: (id) => request(`/payroll/stubs/${id}/download`),
@@ -80,8 +101,11 @@ export const api = {
   getProfile: () => request('/profile'),
   updateProfile: (data) => request('/profile', { method: 'PATCH', body: JSON.stringify(data) }),
   getRequirements: () => request('/requirements'),
+  // For a logged-in onboarding employee: fetch their own onboarding token so the app
+  // can send them into the onboarding wizard without needing the email link.
+  getMyOnboardingLink: () => request('/onboarding/my-link'),
   uploadRequirementDocument: (reqId, formData) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem(TOKEN_KEY);
     const headers = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
     return fetch(`${BASE}/api/employee/documents/${reqId}`, {

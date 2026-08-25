@@ -1,4 +1,3 @@
-const prisma = require('../lib/prisma');
 const { computeReceipt, computeYTD, getEmployeeHours, getPriorReceipts, generateReceiptPdf, snapBiweeklyPeriod } = require('../services/receiptService');
 const { decrypt, maskSSN, maskEIN } = require('../services/encryptionService');
 const { sendEmail } = require('../services/notificationService');
@@ -12,7 +11,7 @@ async function listReceipts(req, res) {
     if (search) {
         where.employee = { name: { contains: search, mode: 'insensitive' } };
     }
-    const receipts = await prisma.payReceipt.findMany({
+    const receipts = await req.db.payReceipt.findMany({
         where,
         include: { employee: { select: { id: true, name: true, email: true } } },
         orderBy: [{ periodStart: 'desc' }, { employee: { name: 'asc' } }],
@@ -39,7 +38,7 @@ async function previewReceipts(req, res) {
     const start = new Date(periodStart);
     const end = new Date(periodEnd);
 
-    const profiles = await prisma.payrollProfile.findMany({
+    const profiles = await req.db.payrollProfile.findMany({
         include: { employee: { select: { id: true, name: true, email: true, active: true } } },
     });
     const activeProfiles = profiles.filter(p => p.employee.active);
@@ -80,7 +79,7 @@ async function generateReceipts(req, res) {
 
     const created = [];
     for (const input of receiptInputs) {
-        const profile = await prisma.payrollProfile.findUnique({
+        const profile = await req.db.payrollProfile.findUnique({
             where: { employeeId: input.employeeId },
             include: { employee: { select: { id: true, name: true, email: true, address: true } } },
         });
@@ -105,7 +104,7 @@ async function generateReceipts(req, res) {
         };
         const ytd = computeYTD(priorReceipts, computed, overrides);
 
-        const receipt = await prisma.payReceipt.upsert({
+        const receipt = await req.db.payReceipt.upsert({
             where: { employeeId_periodStart: { employeeId: input.employeeId, periodStart: start } },
             create: {
                 employeeId: input.employeeId,
@@ -144,7 +143,7 @@ async function generateReceipts(req, res) {
         });
 
         if (Math.abs(computed.overpaymentDeduction) > 0) {
-            await prisma.payrollProfile.update({
+            await req.db.payrollProfile.update({
                 where: { employeeId: input.employeeId },
                 data: { overpaymentBalance: { decrement: Math.abs(computed.overpaymentDeduction) } },
             });
@@ -153,7 +152,7 @@ async function generateReceipts(req, res) {
         if (shouldSend && profile.employee.email) {
             try {
                 await sendReceiptEmail(receipt, profile);
-                await prisma.payReceipt.update({
+                await req.db.payReceipt.update({
                     where: { id: receipt.id },
                     data: { emailSentAt: new Date() },
                 });
@@ -171,19 +170,19 @@ async function generateReceipts(req, res) {
 
 async function updateReceipt(req, res) {
     const { id } = req.params;
-    const receipt = await prisma.payReceipt.findUnique({ where: { id: Number(id) } });
+    const receipt = await req.db.payReceipt.findUnique({ where: { id: Number(id) } });
     if (!receipt) return res.status(404).json({ error: 'Receipt not found' });
     if (receipt.status !== 'draft') return res.status(400).json({ error: 'Only draft receipts can be edited' });
 
     const data = req.body;
-    const updated = await prisma.payReceipt.update({ where: { id: Number(id) }, data });
+    const updated = await req.db.payReceipt.update({ where: { id: Number(id) }, data });
     audit.logAction(req.user.id, req.user.name, req.user.role, 'UPDATE', 'PayReceipt', updated.id, '', [], {});
     res.json(updated);
 }
 
 async function finalizeReceipts(req, res) {
     const { ids } = req.body;
-    await prisma.payReceipt.updateMany({
+    await req.db.payReceipt.updateMany({
         where: { id: { in: ids.map(Number) }, status: 'draft' },
         data: { status: 'finalized' },
     });
@@ -192,21 +191,21 @@ async function finalizeReceipts(req, res) {
 
 async function sendReceipts(req, res) {
     const { ids } = req.body;
-    const receipts = await prisma.payReceipt.findMany({
+    const receipts = await req.db.payReceipt.findMany({
         where: { id: { in: ids.map(Number) }, status: { in: ['finalized', 'sent'] } },
         include: { employee: { select: { id: true, name: true, email: true, address: true } } },
     });
 
     const results = [];
     for (const receipt of receipts) {
-        const profile = await prisma.payrollProfile.findUnique({ where: { employeeId: receipt.employeeId } });
+        const profile = await req.db.payrollProfile.findUnique({ where: { employeeId: receipt.employeeId } });
         if (!receipt.employee.email) {
             results.push({ id: receipt.id, success: false, reason: 'No email' });
             continue;
         }
         try {
             await sendReceiptEmail(receipt, { ...profile, employee: receipt.employee });
-            await prisma.payReceipt.update({
+            await req.db.payReceipt.update({
                 where: { id: receipt.id },
                 data: { status: 'sent', emailSentAt: new Date() },
             });
@@ -220,13 +219,13 @@ async function sendReceipts(req, res) {
 
 async function downloadReceiptPdf(req, res) {
     const { id } = req.params;
-    const receipt = await prisma.payReceipt.findUnique({
+    const receipt = await req.db.payReceipt.findUnique({
         where: { id: Number(id) },
         include: { employee: { select: { id: true, name: true, email: true, address: true } } },
     });
     if (!receipt) return res.status(404).json({ error: 'Receipt not found' });
 
-    const profile = await prisma.payrollProfile.findUnique({ where: { employeeId: receipt.employeeId } });
+    const profile = await req.db.payrollProfile.findUnique({ where: { employeeId: receipt.employeeId } });
 
     const pdfData = {
         employee: receipt.employee,

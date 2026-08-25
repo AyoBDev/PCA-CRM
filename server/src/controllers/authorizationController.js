@@ -1,6 +1,6 @@
-const prisma = require('../lib/prisma');
 const { enrichAuthorization, enrichClient } = require('../services/authorizationService');
 const audit = require('../services/auditService');
+const { tenantTransaction } = require('../lib/tenantPrisma');
 const serviceRegistry = require('../services/serviceRegistry');
 const { dayBefore } = require('../lib/authDates');
 
@@ -34,21 +34,26 @@ function buildAuthTypeFields(body) {
     return { authorizationType, authorizedVisitsPerYear: visits, hoursPerVisit: perVisit, authorizedHoursPerYear: hoursPerYear };
 }
 
-async function deactivatePreviousAuths(clientId, serviceCode, serviceName, excludeId, auditContext) {
+async function deactivatePreviousAuths(db, clientId, serviceCode, serviceName, excludeId, auditContext) {
+    // `excludeId` may be a single id or an array of ids to leave untouched.
+    // A future-dated renewal passes both the new auth AND the still-active
+    // renewed-from auth here, so the current authorization is not clobbered
+    // before its effective date.
+    const excludeIds = Array.isArray(excludeId) ? excludeId : [excludeId];
     // Program codes allow multiple active auths with different service names
     const where = {
         clientId,
         serviceCode,
         manualStatus: 'active',
         archivedAt: null,
-        id: { not: excludeId },
+        id: { notIn: excludeIds },
     };
     if (MULTI_AUTH_CODES.includes(serviceCode) && serviceName) {
         where.serviceName = serviceName;
     }
-    const existing = await prisma.authorization.findMany({ where });
+    const existing = await db.authorization.findMany({ where });
     if (existing.length === 0) return;
-    await prisma.authorization.updateMany({
+    await db.authorization.updateMany({
         where: { id: { in: existing.map(a => a.id) } },
         data: { manualStatus: 'inactive' },
     });
@@ -69,13 +74,13 @@ async function deactivatePreviousAuths(clientId, serviceCode, serviceName, exclu
 async function createAuthorization(req, res, next) {
     try {
         const clientId = Number(req.params.clientId);
-        const client = await prisma.client.findUnique({ where: { id: clientId } });
+        const client = await req.db.client.findUnique({ where: { id: clientId } });
         if (!client) return res.status(404).json({ error: 'Client not found' });
 
         const errors = await validateBody(req.body);
         if (errors.length) return res.status(400).json({ errors });
 
-        const auth = await prisma.authorization.create({
+        const auth = await req.db.authorization.create({
             data: {
                 clientId,
                 serviceCategory: (req.body.serviceCategory || '').trim(),
@@ -96,7 +101,7 @@ async function createAuthorization(req, res, next) {
         });
 
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Authorization', entityId: auth.id, entityName: `${client.clientName} - ${auth.serviceCode}` });
-        await deactivatePreviousAuths(clientId, req.body.serviceCode, (req.body.serviceName || '').trim(), auth.id, {
+        await deactivatePreviousAuths(req.db, clientId, req.body.serviceCode, (req.body.serviceName || '').trim(), auth.id, {
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
         });
         res.status(201).json(enrichAuthorization(auth));
@@ -112,8 +117,8 @@ async function updateAuthorization(req, res, next) {
         const errors = await validateBody(req.body);
         if (errors.length) return res.status(400).json({ errors });
 
-        const oldAuth = await prisma.authorization.findUnique({ where: { id } });
-        const auth = await prisma.authorization.update({
+        const oldAuth = await req.db.authorization.findUnique({ where: { id } });
+        const auth = await req.db.authorization.update({
             where: { id },
             data: {
                 serviceCategory: (req.body.serviceCategory || '').trim(),
@@ -150,7 +155,7 @@ async function updateAuthorization(req, res, next) {
         // trigger the "new auth supersedes siblings" side effect (see deactivatePreviousAuths).
         if (!req.body.skipDeactivate &&
             (req.body.serviceCode !== oldAuth.serviceCode || serviceNameChanged || isReactivating)) {
-            await deactivatePreviousAuths(auth.clientId, auth.serviceCode, auth.serviceName || '', auth.id, {
+            await deactivatePreviousAuths(req.db, auth.clientId, auth.serviceCode, auth.serviceName || '', auth.id, {
                 userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             });
         }
@@ -168,16 +173,16 @@ async function updateAuthorization(req, res, next) {
 async function archiveAuthorization(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const auth = await prisma.authorization.findUnique({ where: { id } });
+        const auth = await req.db.authorization.findUnique({ where: { id } });
         if (!auth) return res.status(404).json({ error: 'Authorization not found' });
 
-        const archived = await prisma.authorization.update({
+        const archived = await req.db.authorization.update({
             where: { id },
             data: { archivedAt: new Date() },
         });
 
         // Log affected shifts for visibility
-        const affectedShifts = await prisma.shift.count({
+        const affectedShifts = await req.db.shift.count({
             where: { clientId: auth.clientId, serviceCode: auth.serviceCode, archivedAt: null },
         });
 
@@ -192,16 +197,16 @@ async function archiveAuthorization(req, res, next) {
 async function restoreAuthorization(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const auth = await prisma.authorization.findUnique({ where: { id } });
+        const auth = await req.db.authorization.findUnique({ where: { id } });
         if (!auth) return res.status(404).json({ error: 'Authorization not found' });
 
-        const restored = await prisma.authorization.update({
+        const restored = await req.db.authorization.update({
             where: { id },
             data: { archivedAt: null },
         });
 
         if ((restored.manualStatus || 'active') === 'active') {
-            await deactivatePreviousAuths(restored.clientId, restored.serviceCode, restored.serviceName || '', restored.id, {
+            await deactivatePreviousAuths(req.db, restored.clientId, restored.serviceCode, restored.serviceName || '', restored.id, {
                 userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             });
         }
@@ -217,13 +222,13 @@ async function restoreAuthorization(req, res, next) {
 async function deleteAuthorization(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const auth = await prisma.authorization.findUnique({ where: { id } });
+        const auth = await req.db.authorization.findUnique({ where: { id } });
         if (!auth) return res.status(404).json({ error: 'Authorization not found' });
 
-        await prisma.authorization.delete({ where: { id } });
+        await req.db.authorization.delete({ where: { id } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'DELETE', entityType: 'Authorization', entityId: id, entityName: auth.serviceCode });
 
-        const client = await prisma.client.findUnique({
+        const client = await req.db.client.findUnique({
             where: { id: auth.clientId },
             include: { authorizations: { orderBy: { createdAt: 'asc' } } },
         });
@@ -239,7 +244,7 @@ async function updateAccountNumber(req, res, next) {
     try {
         const id = Number(req.params.id);
         const { accountNumber } = req.body;
-        const auth = await prisma.authorization.update({
+        const auth = await req.db.authorization.update({
             where: { id },
             data: { accountNumber: (accountNumber || '').trim() },
         });
@@ -255,7 +260,7 @@ async function updateSandataClientId(req, res, next) {
     try {
         const id = Number(req.params.id);
         const { sandataClientId } = req.body;
-        const auth = await prisma.authorization.update({
+        const auth = await req.db.authorization.update({
             where: { id },
             data: { sandataClientId: (sandataClientId || '').trim() },
         });
@@ -273,16 +278,16 @@ async function updateAuthManualStatus(req, res, next) {
         if (!['active', 'inactive'].includes(manualStatus)) {
             return res.status(400).json({ error: 'Invalid status. Must be active or inactive.' });
         }
-        const oldAuth = await prisma.authorization.findUnique({ where: { id } });
+        const oldAuth = await req.db.authorization.findUnique({ where: { id } });
         if (!oldAuth) return res.status(404).json({ error: 'Authorization not found' });
 
-        const auth = await prisma.authorization.update({
+        const auth = await req.db.authorization.update({
             where: { id },
             data: { manualStatus },
         });
 
         if (manualStatus === 'active') {
-            await deactivatePreviousAuths(oldAuth.clientId, auth.serviceCode, auth.serviceName || '', auth.id, {
+            await deactivatePreviousAuths(req.db, oldAuth.clientId, auth.serviceCode, auth.serviceName || '', auth.id, {
                 userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             });
         }
@@ -296,7 +301,7 @@ async function updateAuthManualStatus(req, res, next) {
 async function renewAuthorization(req, res, next) {
     try {
         const oldId = Number(req.params.id);
-        const oldAuth = await prisma.authorization.findUnique({ where: { id: oldId } });
+        const oldAuth = await req.db.authorization.findUnique({ where: { id: oldId } });
         if (!oldAuth) return res.status(404).json({ error: 'Authorization not found' });
 
         const errors = await validateBody(req.body);
@@ -307,42 +312,77 @@ async function renewAuthorization(req, res, next) {
         // Server-authoritative close date: the day before the new auth starts.
         const closeDateStr = newStart ? dayBefore(newStart) : null;
 
-        const newAuth = await prisma.authorization.create({
-            data: {
-                clientId,
-                serviceCategory: (req.body.serviceCategory || '').trim(),
-                serviceCode: req.body.serviceCode,
-                serviceName: (req.body.serviceName || '').trim(),
-                authorizationNumber: (req.body.authorizationNumber || '').trim(),
-                authorizedUnits: parseInt(req.body.authorizedUnits) || 0,
-                authorizedHours: parseFloat(req.body.authorizedHours) || 0,
-                authorizationStartDate: newStart ? new Date(newStart) : null,
-                authorizationEndDate: req.body.authorizationEndDate ? new Date(req.body.authorizationEndDate) : null,
-                notes: (req.body.notes || '').trim(),
-                // Renewals must not lose these — inherit from the old auth when omitted.
-                accountNumber: (req.body.accountNumber || oldAuth.accountNumber || '').trim(),
-                sandataClientId: (req.body.sandataClientId || oldAuth.sandataClientId || '').trim(),
-                manualStatus: 'active',
-                renewedFromId: oldId,
-                ...buildAuthTypeFields(req.body),
-            },
-        });
+        // Renewal activation is an EXPLICIT choice made in the confirmation modal
+        // ("Wait until start date" vs "Start immediately"), not inferred here.
+        // Dates remain the source of truth for what is current; this flag only
+        // decides whether the current authorization is retired now.
+        //
+        //   scheduled  → keep the current auth `active`; its end date is moved to
+        //                the day before the new start, so date-range filtering
+        //                (server `filterAuthsByWeek` + client Scheduler/Care Plan)
+        //                keeps showing the current units until the new start date,
+        //                then hands over automatically. Only valid for a future
+        //                start (a start today/earlier can't be "waited for").
+        //   immediate  → retire the current auth now; the renewal becomes current
+        //                today even if its start date is in the future.
+        //
+        // Back-compat: if the client sends no flag, fall back to date inference
+        // (future start ⇒ scheduled) so older callers keep the fixed behavior.
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const startIsFuture = !!newStart && newStart > todayStr;
+        const activation = req.body.renewalActivation === 'immediate' ? 'immediate'
+            : req.body.renewalActivation === 'scheduled' ? 'scheduled'
+            : (startIsFuture ? 'scheduled' : 'immediate');
+        // A "scheduled" renewal only defers retirement when the start is actually
+        // in the future; otherwise there is nothing to wait for.
+        const deferRetire = activation === 'scheduled' && startIsFuture;
 
-        await prisma.authorization.update({
-            where: { id: oldId },
-            data: {
-                manualStatus: 'inactive',
-                closedAt: new Date(),
-                renewedToId: newAuth.id,
-                // Parses at local midnight by convention, matching the note in server/src/lib/authDates.js.
-                ...(closeDateStr ? { authorizationEndDate: new Date(closeDateStr + 'T00:00:00') } : {}),
-            },
+        // Both writes must be atomic under RLS; batch $transaction([...]) arrays are
+        // not supported on the extended tenant client, so use an interactive transaction.
+        const newAuth = await tenantTransaction(req.user.agencyId, async (tx) => {
+            const created = await tx.authorization.create({
+                data: {
+                    clientId,
+                    serviceCategory: (req.body.serviceCategory || '').trim(),
+                    serviceCode: req.body.serviceCode,
+                    serviceName: (req.body.serviceName || '').trim(),
+                    authorizationNumber: (req.body.authorizationNumber || '').trim(),
+                    authorizedUnits: parseInt(req.body.authorizedUnits) || 0,
+                    authorizedHours: parseFloat(req.body.authorizedHours) || 0,
+                    authorizationStartDate: newStart ? new Date(newStart) : null,
+                    authorizationEndDate: req.body.authorizationEndDate ? new Date(req.body.authorizationEndDate) : null,
+                    notes: (req.body.notes || '').trim(),
+                    // Renewals must not lose these — inherit from the old auth when omitted.
+                    accountNumber: (req.body.accountNumber || oldAuth.accountNumber || '').trim(),
+                    sandataClientId: (req.body.sandataClientId || oldAuth.sandataClientId || '').trim(),
+                    manualStatus: 'active',
+                    renewedFromId: oldId,
+                    agencyId: req.user.agencyId,
+                    ...buildAuthTypeFields(req.body),
+                },
+            });
+            await tx.authorization.update({
+                where: { id: oldId },
+                data: {
+                    // Future renewal: keep the current auth active until its (moved) end
+                    // date passes. Immediate/backdated renewal: retire it now.
+                    ...(deferRetire ? {} : { manualStatus: 'inactive' }),
+                    closedAt: new Date(),
+                    renewedToId: created.id,
+                    // Parses at local midnight by convention, matching the note in server/src/lib/authDates.js.
+                    ...(closeDateStr ? { authorizationEndDate: new Date(closeDateStr + 'T00:00:00') } : {}),
+                },
+            });
+            return created;
         });
 
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Authorization', entityId: newAuth.id, entityName: `${req.body.serviceCode} (renewal)`, metadata: { renewedFromId: oldId } });
-        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: oldId, entityName: oldAuth.serviceCode, changes: [{ field: 'manualStatus', oldValue: oldAuth.manualStatus, newValue: 'inactive' }], metadata: { reason: 'renewed', renewedToId: newAuth.id } });
+        audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Authorization', entityId: oldId, entityName: oldAuth.serviceCode, changes: [{ field: 'manualStatus', oldValue: oldAuth.manualStatus, newValue: deferRetire ? (oldAuth.manualStatus || 'active') : 'inactive' }], metadata: { reason: 'renewed', renewedToId: newAuth.id, effectiveStart: newStart || null, activation } });
 
-        await deactivatePreviousAuths(clientId, newAuth.serviceCode, (req.body.serviceName || '').trim(), newAuth.id, {
+        // On a scheduled (deferred) renewal, keep the current auth out of the
+        // "superseded" sweep so it stays active until its effective end date.
+        const excludeFromDeactivate = deferRetire ? [newAuth.id, oldId] : newAuth.id;
+        await deactivatePreviousAuths(req.db, clientId, newAuth.serviceCode, (req.body.serviceName || '').trim(), excludeFromDeactivate, {
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
         });
 
@@ -367,10 +407,10 @@ async function inactivateAuthorization(req, res, next) {
         const authorizationEndDate = new Date(rawEndDate + 'T00:00:00');
         if (Number.isNaN(authorizationEndDate.getTime())) return res.status(400).json({ error: 'Invalid end date' });
 
-        const oldAuth = await prisma.authorization.findUnique({ where: { id } });
+        const oldAuth = await req.db.authorization.findUnique({ where: { id } });
         if (!oldAuth) return res.status(404).json({ error: 'Authorization not found' });
 
-        const auth = await prisma.authorization.update({
+        const auth = await req.db.authorization.update({
             where: { id },
             data: {
                 manualStatus: 'inactive',
@@ -390,7 +430,7 @@ async function inactivateAuthorization(req, res, next) {
 // POST /api/authorizations/dedup — one-time cleanup of duplicate authorizations
 async function dedupAuthorizations(req, res, next) {
     try {
-        const auths = await prisma.authorization.findMany({
+        const auths = await req.db.authorization.findMany({
             where: { archivedAt: null, manualStatus: 'active' },
             orderBy: [{ clientId: 'asc' }, { serviceCode: 'asc' }, { createdAt: 'asc' }],
             include: { client: { select: { clientName: true } } }
@@ -452,12 +492,12 @@ async function dedupAuthorizations(req, res, next) {
         let inactiveCount = 0;
 
         if (toDelete.length > 0) {
-            const result = await prisma.authorization.deleteMany({ where: { id: { in: toDelete } } });
+            const result = await req.db.authorization.deleteMany({ where: { id: { in: toDelete } } });
             deletedCount = result.count;
         }
 
         if (toMarkInactive.length > 0) {
-            const result = await prisma.authorization.updateMany({ where: { id: { in: toMarkInactive } }, data: { manualStatus: 'inactive' } });
+            const result = await req.db.authorization.updateMany({ where: { id: { in: toMarkInactive } }, data: { manualStatus: 'inactive' } });
             inactiveCount = result.count;
         }
 

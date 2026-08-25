@@ -18,6 +18,7 @@ const PcaFormPage = lazy(() => import('./pages/PcaFormPage'));
 const PermanentLinksPage = lazy(() => import('./pages/PermanentLinksPage'));
 const InsuranceTypesPage = lazy(() => import('./pages/InsuranceTypesPage'));
 const ServicesPage = lazy(() => import('./pages/ServicesPage'));
+const CatalogManagementPage = lazy(() => import('./pages/CatalogManagementPage'));
 const UsersPage = lazy(() => import('./pages/UsersPage'));
 const PayrollPage = lazy(() => import('./pages/PayrollPage'));
 const ReceiptsPage = lazy(() => import('./pages/ReceiptsPage'));
@@ -35,11 +36,14 @@ const FilesPage = lazy(() => import('./pages/FilesPage'));
 const PdfEditorPage = lazy(() => import('./pages/PdfEditorPage'));
 const MessagesPage = lazy(() => import('./pages/MessagesPage'));
 const LeadsPage = lazy(() => import('./pages/LeadsPage'));
+const PlatformPage = lazy(() => import('./pages/PlatformPage'));
 
-function ProtectedRoute({ children, adminOnly = false, staffOnly = false, officeOnly = false, permission = null }) {
-    const { user, isAdmin, isOffice, isStaff, hasPermission, loading } = useAuth();
+function ProtectedRoute({ children, adminOnly = false, staffOnly = false, officeOnly = false, superadminOnly = false, permission = null }) {
+    const { user, isAdmin, isOffice, isStaff, isSuperadmin, hasPermission, loading } = useAuth();
     if (loading) return <div className="page-loading" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 48, color: 'hsl(var(--muted-foreground))' }}>Loading…</div>;
     if (!user) return <Navigate to="/login" replace />;
+    if (superadminOnly && !isSuperadmin) return <Navigate to="/dashboard" replace />;
+    if (!superadminOnly && isSuperadmin) return <Navigate to="/platform" replace />;
     if (adminOnly && !isAdmin) return <Navigate to="/timesheets" replace />;
     if (officeOnly && !isOffice) return <Navigate to="/timesheets" replace />;
     if (staffOnly && !isStaff) return <Navigate to="/timesheets" replace />;
@@ -47,8 +51,14 @@ function ProtectedRoute({ children, adminOnly = false, staffOnly = false, office
     return <ServicesProvider>{children}</ServicesProvider>;
 }
 
+function landingPath(user, isStaff, isSuperadmin) {
+    if (!user) return '/login';
+    if (isSuperadmin) return '/platform';
+    return isStaff ? '/dashboard' : '/timesheets';
+}
+
 function AppRoutes() {
-    const { user, isAdmin, isStaff, loading } = useAuth();
+    const { user, isStaff, isSuperadmin, loading } = useAuth();
 
     if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'hsl(var(--muted-foreground))' }}>Loading…</div>;
 
@@ -56,9 +66,10 @@ function AppRoutes() {
         <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 48, color: 'hsl(var(--muted-foreground))' }}>Loading…</div>}>
             <Routes>
                 {/* Public routes */}
-                <Route path="/login" element={!user ? <LoginPage /> : <Navigate to={isStaff ? '/dashboard' : '/timesheets'} replace />} />
-                <Route path="/forgot-password" element={!user ? <ForgotPasswordPage /> : <Navigate to={isStaff ? '/dashboard' : '/timesheets'} replace />} />
-                <Route path="/reset-password" element={!user ? <ResetPasswordPage /> : <Navigate to={isStaff ? '/dashboard' : '/timesheets'} replace />} />
+                <Route path="/login" element={!user ? <LoginPage /> : <Navigate to={landingPath(user, isStaff, isSuperadmin)} replace />} />
+                <Route path="/forgot-password" element={!user ? <ForgotPasswordPage /> : <Navigate to={landingPath(user, isStaff, isSuperadmin)} replace />} />
+                <Route path="/reset-password" element={!user ? <ResetPasswordPage /> : <Navigate to={landingPath(user, isStaff, isSuperadmin)} replace />} />
+                <Route path="/platform" element={<ProtectedRoute superadminOnly><Layout><PlatformPage /></Layout></ProtectedRoute>} />
                 <Route path="/sign/:token" element={<SignRedirectPage />} />
                 <Route path="/pca-form/:token" element={<PcaFormPage />} />
                 <Route path="/schedule/confirm/:token" element={<ScheduleConfirmPage />} />
@@ -80,6 +91,7 @@ function AppRoutes() {
                 <Route path="/receipts" element={<ProtectedRoute adminOnly permission="receipts"><Layout><ReceiptsPage /></Layout></ProtectedRoute>} />
                 <Route path="/insurance-types" element={<ProtectedRoute staffOnly permission="insurance-types"><Layout><InsuranceTypesPage /></Layout></ProtectedRoute>} />
                 <Route path="/services" element={<ProtectedRoute staffOnly permission="services"><Layout><ServicesPage /></Layout></ProtectedRoute>} />
+                <Route path="/catalogs" element={<ProtectedRoute staffOnly permission="employees"><Layout><CatalogManagementPage /></Layout></ProtectedRoute>} />
                 <Route path="/employees" element={<ProtectedRoute staffOnly permission="employees"><Layout><EmployeesPage /></Layout></ProtectedRoute>} />
                 <Route path="/employees/:employeeId" element={<ProtectedRoute staffOnly permission="employees"><Layout><EmployeeDetailPage /></Layout></ProtectedRoute>} />
                 <Route path="/users" element={<ProtectedRoute adminOnly permission="users"><Layout><UsersPage /></Layout></ProtectedRoute>} />
@@ -90,7 +102,7 @@ function AppRoutes() {
                 <Route path="/messages" element={<ProtectedRoute staffOnly permission="messages"><Layout><MessagesPage /></Layout></ProtectedRoute>} />
 
                 {/* Default redirect */}
-                <Route path="*" element={<Navigate to={user ? (isStaff ? '/dashboard' : '/timesheets') : '/login'} replace />} />
+                <Route path="*" element={<Navigate to={landingPath(user, isStaff, isSuperadmin)} replace />} />
             </Routes>
         </Suspense>
     );

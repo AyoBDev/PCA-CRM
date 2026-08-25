@@ -1,10 +1,55 @@
 'use strict';
 
 const XLSX = require('xlsx');
-const prisma = require('../lib/prisma');
 const { processPayrollRows, parseTimeToMinutes, minutesToHHMM, applyTimeRules, calcUnits, normalizeName, computeManualUnitLimit } = require('../services/payrollService');
 const { filterAuthsByWeek } = require('../services/authorizationService');
 const audit = require('../services/auditService');
+
+/**
+ * Build the client→authorized-units map used by the payroll banner, honoring the
+ * single source of truth: an authorization counts only when it is EFFECTIVE for
+ * the run's pay period (date-range overlap) and not manually inactive/archived.
+ *
+ * This uses the same `filterAuthsByWeek` overlap+dedupe logic as the Scheduler
+ * and PCA form, so a future-dated renewal (scheduled to start after the period)
+ * is NOT summed on top of the current authorization — preventing a doubled
+ * authorized total (e.g. SDPC 28 + 28 = 56) on the banner.
+ *
+ * When the run has no period set (older runs), it falls back to "effective
+ * today" so a not-yet-started renewal is still excluded.
+ *
+ * @param {Array} clients  clients with `authorizations` included
+ * @param {Date|string|null} periodStart
+ * @param {Date|string|null} periodEnd
+ * @returns {Object} normalizedName → { _records: [...], [serviceCode]: units }
+ */
+function buildClientAuthMap(clients, periodStart, periodEnd) {
+    const start = periodStart || new Date();
+    const end = periodEnd || periodStart || new Date();
+    const map = {};
+    for (const client of clients) {
+        // Skip archived clients — a duplicate/archived client record sharing the
+        // same normalized name would otherwise double-count its auth units (#60).
+        if (client.archivedAt) continue;
+        const norm = normalizeName(client.clientName);
+        if (!map[norm]) map[norm] = { _records: [] };
+        // Effective-for-period auths only (date overlap + active + deduped per code).
+        const effective = filterAuthsByWeek(client.authorizations || [], start, end);
+        for (const auth of effective) {
+            const code = auth.serviceCode || auth.service || '';
+            if (!code) continue;
+            map[norm]._records.push({
+                serviceCode: code,
+                authorizedUnits: auth.authorizedUnits || 0,
+                startDate: auth.authorizationStartDate ? new Date(auth.authorizationStartDate).toISOString().split('T')[0] : null,
+                endDate: auth.authorizationEndDate ? new Date(auth.authorizationEndDate).toISOString().split('T')[0] : null,
+            });
+            if (!map[norm][code]) map[norm][code] = 0;
+            map[norm][code] += (auth.authorizedUnits || 0);
+        }
+    }
+    return map;
+}
 
 // ── Column aliases accepted from the XLSX header row ──────
 const HEADER_ALIASES = {
@@ -47,7 +92,7 @@ async function uploadPayrollRun(req, res, next) {
     // Create the run record immediately so we have an ID even if processing fails
     let run;
     try {
-        run = await prisma.payrollRun.create({
+        run = await req.db.payrollRun.create({
             data: {
                 name:        runName,
                 fileName:    req.file.originalname,
@@ -214,30 +259,15 @@ async function uploadPayrollRun(req, res, next) {
         }
 
         // ── Fetch clients + authorizations for auth cap ──────
-        const clientsWithAuths = await prisma.client.findMany({
+        const clientsWithAuths = await req.db.client.findMany({
             include: { authorizations: true },
         });
 
         // ── Snapshot authorization data at upload time ────────
-        // Only include active (manualStatus === 'active') non-archived authorizations.
-        const authSnapshot = {};
-        for (const client of clientsWithAuths) {
-            const norm = normalizeName(client.clientName);
-            if (!authSnapshot[norm]) authSnapshot[norm] = { _records: [] };
-            const activeAuths = client.authorizations.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt);
-            for (const auth of activeAuths) {
-                const code = auth.serviceCode || auth.service || '';
-                if (!code) continue;
-                authSnapshot[norm]._records.push({
-                    serviceCode: code,
-                    authorizedUnits: auth.authorizedUnits || 0,
-                    startDate: auth.authorizationStartDate ? new Date(auth.authorizationStartDate).toISOString().split('T')[0] : null,
-                    endDate: auth.authorizationEndDate ? new Date(auth.authorizationEndDate).toISOString().split('T')[0] : null,
-                });
-                if (!authSnapshot[norm][code]) authSnapshot[norm][code] = 0;
-                authSnapshot[norm][code] += (auth.authorizedUnits || 0);
-            }
-        }
+        // Effective-for-period auths only (date overlap + active), so a future
+        // renewal isn't summed on top of the current authorization. Archived
+        // clients are skipped inside buildClientAuthMap (see #60).
+        const authSnapshot = buildClientAuthMap(clientsWithAuths, periodStart, periodEnd);
 
         // ── Run processing pipeline ──────────────────────────
         const processed = processPayrollRows(rawRows, clientsWithAuths);
@@ -277,12 +307,12 @@ async function uploadPayrollRun(req, res, next) {
             };
         });
 
-        await prisma.payrollVisit.createMany({ data: visitData });
+        await req.db.payrollVisit.createMany({ data: visitData });
 
         // Insert original incomplete rows for each merge pair (for claims review)
         if (mergeOriginals.length > 0) {
             // Find the merged rows and match by clientName + callInTime (unique per merge)
-            const mergedVisits = await prisma.payrollVisit.findMany({
+            const mergedVisits = await req.db.payrollVisit.findMany({
                 where: { runId: run.id, visitStatus: 'Verified (merged)' },
             });
 
@@ -359,7 +389,7 @@ async function uploadPayrollRun(req, res, next) {
             }
 
             if (originalVisitData.length > 0) {
-                await prisma.payrollVisit.createMany({ data: originalVisitData });
+                await req.db.payrollVisit.createMany({ data: originalVisitData });
             }
         }
 
@@ -367,7 +397,7 @@ async function uploadPayrollRun(req, res, next) {
             .filter((v) => !v.voidFlag && !v.needsReview)
             .reduce((s, v) => s + v.finalPayableUnits, 0);
 
-        const updatedRun = await prisma.payrollRun.update({
+        const updatedRun = await req.db.payrollRun.update({
             where: { id: run.id },
             data: {
                 status:       'done',
@@ -390,7 +420,7 @@ async function uploadPayrollRun(req, res, next) {
         return res.status(201).json(runResponse);
     } catch (err) {
         // Update run status to error
-        await prisma.payrollRun.update({
+        await req.db.payrollRun.update({
             where: { id: run.id },
             data: { status: 'error', errorMessage: err.message },
         }).catch(() => {});
@@ -405,7 +435,7 @@ async function uploadPayrollRun(req, res, next) {
 async function listPayrollRuns(req, res, next) {
     try {
         const where = req.query.archived === 'true' ? { archivedAt: { not: null } } : { archivedAt: null };
-        const runs = await prisma.payrollRun.findMany({
+        const runs = await req.db.payrollRun.findMany({
             where,
             orderBy: { createdAt: 'desc' },
             select: {
@@ -435,7 +465,7 @@ async function listPayrollRuns(req, res, next) {
 async function getPayrollRun(req, res, next) {
     try {
         const id = parseInt(req.params.id);
-        const run = await prisma.payrollRun.findUnique({
+        const run = await req.db.payrollRun.findUnique({
             where: { id },
             include: {
                 visits: { orderBy: [{ clientName: 'asc' }, { visitDate: 'asc' }] },
@@ -453,26 +483,11 @@ async function getPayrollRun(req, res, next) {
             // Old format is just { normalizedClient: { serviceCode: units } } — keep as-is.
             authMap = parsed;
         } else {
-            // Fallback for runs created before the snapshot feature — use live data
-            // Only include active (manualStatus === 'active') non-archived authorizations
-            const allClients = await prisma.client.findMany({ include: { authorizations: true } });
-            for (const client of allClients) {
-                const norm = normalizeName(client.clientName);
-                if (!authMap[norm]) authMap[norm] = { _records: [] };
-                const activeAuths = client.authorizations.filter(a => (a.manualStatus || 'active') === 'active' && !a.archivedAt);
-                for (const auth of activeAuths) {
-                    const code = auth.serviceCode || auth.service || '';
-                    if (!code) continue;
-                    authMap[norm]._records.push({
-                        serviceCode: code,
-                        authorizedUnits: auth.authorizedUnits || 0,
-                        startDate: auth.authorizationStartDate ? new Date(auth.authorizationStartDate).toISOString().split('T')[0] : null,
-                        endDate: auth.authorizationEndDate ? new Date(auth.authorizationEndDate).toISOString().split('T')[0] : null,
-                    });
-                    if (!authMap[norm][code]) authMap[norm][code] = 0;
-                    authMap[norm][code] += (auth.authorizedUnits || 0);
-                }
-            }
+            // Fallback for runs created before the snapshot feature — use live data,
+            // effective for the run's period (date overlap + active), so a future
+            // renewal isn't summed on top of the current authorization.
+            const allClients = await req.db.client.findMany({ include: { authorizations: true } });
+            authMap = buildClientAuthMap(allClients, run.periodStart, run.periodEnd);
         }
 
         const { authorizationSnapshot: _snap, ...runData } = run;
@@ -488,9 +503,9 @@ async function getPayrollRun(req, res, next) {
 async function deletePayrollRun(req, res, next) {
     try {
         const id = parseInt(req.params.id);
-        const run = await prisma.payrollRun.findUnique({ where: { id } });
+        const run = await req.db.payrollRun.findUnique({ where: { id } });
         if (!run) return res.status(404).json({ error: 'Payroll run not found' });
-        const archived = await prisma.payrollRun.update({ where: { id }, data: { archivedAt: new Date() } });
+        const archived = await req.db.payrollRun.update({ where: { id }, data: { archivedAt: new Date() } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'ARCHIVE', entityType: 'PayrollRun', entityId: id, entityName: run.name });
         return res.json(archived);
     } catch (err) {
@@ -504,9 +519,9 @@ async function deletePayrollRun(req, res, next) {
 async function restorePayrollRun(req, res, next) {
     try {
         const id = parseInt(req.params.id);
-        const run = await prisma.payrollRun.findUnique({ where: { id } });
+        const run = await req.db.payrollRun.findUnique({ where: { id } });
         if (!run) return res.status(404).json({ error: 'Payroll run not found' });
-        const restored = await prisma.payrollRun.update({ where: { id }, data: { archivedAt: null } });
+        const restored = await req.db.payrollRun.update({ where: { id }, data: { archivedAt: null } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'RESTORE', entityType: 'PayrollRun', entityId: id, entityName: run.name });
         return res.json(restored);
     } catch (err) {
@@ -521,7 +536,7 @@ async function restorePayrollRun(req, res, next) {
 async function exportPayrollRun(req, res, next) {
     try {
         const id = parseInt(req.params.id);
-        const run = await prisma.payrollRun.findUnique({
+        const run = await req.db.payrollRun.findUnique({
             where: { id },
             include: {
                 visits: { orderBy: [{ clientName: 'asc' }, { visitDate: 'asc' }] },
@@ -629,7 +644,7 @@ async function exportPayrollRun(req, res, next) {
 async function updatePayrollVisit(req, res, next) {
     try {
         const id      = parseInt(req.params.id);
-        const current = await prisma.payrollVisit.findUnique({ where: { id } });
+        const current = await req.db.payrollVisit.findUnique({ where: { id } });
         if (!current) return res.status(404).json({ error: 'Visit not found.' });
 
         const data = {};
@@ -719,8 +734,8 @@ async function updatePayrollVisit(req, res, next) {
                 finalPayableUnits: requestedUnits,
                 voidFlag: false, needsReview: false, mergedInto: current.mergedInto,
             };
-            const runVisits = await prisma.payrollVisit.findMany({ where: { runId: current.runId } });
-            const clientsWithAuths = await prisma.client.findMany({ include: { authorizations: true } });
+            const runVisits = await req.db.payrollVisit.findMany({ where: { runId: current.runId } });
+            const clientsWithAuths = await req.db.client.findMany({ include: { authorizations: true } });
             const limit = computeManualUnitLimit(editedFinal, runVisits, clientsWithAuths);
             if (requestedUnits > limit) {
                 data.finalPayableUnits = limit;
@@ -746,12 +761,12 @@ async function updatePayrollVisit(req, res, next) {
         data.needsReview  = reasons.length > 0;
         data.reviewReason = reasons.join(', ');
 
-        const visit = await prisma.payrollVisit.update({ where: { id }, data });
+        const visit = await req.db.payrollVisit.update({ where: { id }, data });
 
         // Re-compute totalPayable on the parent run (exclude mergedInto reference rows)
-        const allVisits = await prisma.payrollVisit.findMany({ where: { runId: visit.runId } });
+        const allVisits = await req.db.payrollVisit.findMany({ where: { runId: visit.runId } });
         const totalPayable = allVisits.filter((v) => !v.voidFlag && !v.needsReview && v.mergedInto == null).reduce((s, v) => s + v.finalPayableUnits, 0);
-        await prisma.payrollRun.update({ where: { id: visit.runId }, data: { totalPayable } });
+        await req.db.payrollRun.update({ where: { id: visit.runId }, data: { totalPayable } });
 
         return res.json(visit);
     } catch (err) {
@@ -762,14 +777,14 @@ async function updatePayrollVisit(req, res, next) {
 async function updatePayrollVisitNotes(req, res, next) {
     try {
         const id = parseInt(req.params.id);
-        const current = await prisma.payrollVisit.findUnique({ where: { id } });
+        const current = await req.db.payrollVisit.findUnique({ where: { id } });
         if (!current) return res.status(404).json({ error: 'Visit not found.' });
 
         if (req.body.notes === undefined) {
             return res.status(400).json({ error: 'notes field is required.' });
         }
 
-        const visit = await prisma.payrollVisit.update({
+        const visit = await req.db.payrollVisit.update({
             where: { id },
             data: { notes: String(req.body.notes) },
         });
@@ -790,9 +805,9 @@ async function updatePayrollRun(req, res, next) {
         if (!name || typeof name !== 'string' || !name.trim()) {
             return res.status(400).json({ error: 'name is required' });
         }
-        const run = await prisma.payrollRun.findUnique({ where: { id } });
+        const run = await req.db.payrollRun.findUnique({ where: { id } });
         if (!run) return res.status(404).json({ error: 'Payroll run not found' });
-        const updated = await prisma.payrollRun.update({ where: { id }, data: { name: name.trim() } });
+        const updated = await req.db.payrollRun.update({ where: { id }, data: { name: name.trim() } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'PayrollRun', entityId: id, entityName: updated.name, changes: [{ field: 'name', oldValue: run.name, newValue: updated.name }] });
         return res.json(updated);
     } catch (err) {
@@ -803,10 +818,10 @@ async function updatePayrollRun(req, res, next) {
 async function permanentlyDeletePayrollRun(req, res, next) {
     try {
         const id = parseInt(req.params.id);
-        const run = await prisma.payrollRun.findUnique({ where: { id } });
+        const run = await req.db.payrollRun.findUnique({ where: { id } });
         if (!run) return res.status(404).json({ error: 'Payroll run not found' });
         if (!run.archivedAt) return res.status(400).json({ error: 'Only archived payroll runs can be permanently deleted' });
-        await prisma.payrollRun.delete({ where: { id } });
+        await req.db.payrollRun.delete({ where: { id } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'PERMANENT_DELETE', entityType: 'PayrollRun', entityId: id, entityName: run.name });
         res.json({ success: true });
     } catch (err) { next(err); }
@@ -814,7 +829,7 @@ async function permanentlyDeletePayrollRun(req, res, next) {
 
 async function bulkPermanentlyDeletePayrollRuns(req, res, next) {
     try {
-        const result = await prisma.payrollRun.deleteMany({ where: { archivedAt: { not: null } } });
+        const result = await req.db.payrollRun.deleteMany({ where: { archivedAt: { not: null } } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'BULK_DELETE', entityType: 'PayrollRun', entityId: 0, metadata: { count: result.count } });
         res.json({ success: true, count: result.count });
     } catch (err) { next(err); }
@@ -832,4 +847,5 @@ module.exports = {
     exportPayrollRun,
     updatePayrollVisit,
     updatePayrollVisitNotes,
+    buildClientAuthMap,
 };

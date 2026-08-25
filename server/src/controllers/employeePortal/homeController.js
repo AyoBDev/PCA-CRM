@@ -1,5 +1,3 @@
-const prisma = require('../../lib/prisma');
-
 async function getHomeSummary(req, res) {
   const employeeId = req.employee.id;
   const now = new Date();
@@ -10,14 +8,14 @@ async function getHomeSummary(req, res) {
   weekEnd.setDate(weekStart.getDate() + 7);
 
   const [shiftsThisWeek, overdueCerts, openTasks] = await Promise.all([
-    prisma.shift.findMany({
+    req.db.shift.findMany({
       where: { employeeId, shiftDate: { gte: weekStart, lt: weekEnd }, archivedAt: null },
       select: { hours: true },
     }),
-    prisma.employeeCertification.count({
+    req.db.employeeCertification.count({
       where: { employeeId, expirationDate: { lt: now }, status: { not: 'expired_replaced' } },
     }),
-    prisma.employeeTask.count({
+    req.db.employeeTask.count({
       where: { employeeId, completedAt: null },
     }),
   ]);
@@ -34,7 +32,7 @@ async function getHomeSummary(req, res) {
 
 async function getNextShift(req, res) {
   const now = new Date();
-  const shift = await prisma.shift.findFirst({
+  const shift = await req.db.shift.findFirst({
     where: { employeeId: req.employee.id, shiftDate: { gte: now }, archivedAt: null },
     orderBy: { shiftDate: 'asc' },
     include: { client: { select: { clientName: true } } },
@@ -55,18 +53,18 @@ async function getActivity(req, res) {
   const since = new Date(Date.now() - 14 * 86400000);
 
   const [shifts, messages, auditLogs, tasks, timeOff] = await Promise.all([
-    prisma.shift.findMany({
+    req.db.shift.findMany({
       where: { employeeId, OR: [{ createdAt: { gte: since } }, { updatedAt: { gte: since } }] },
       include: { client: { select: { clientName: true } } },
       orderBy: { updatedAt: 'desc' },
       take: 20,
     }),
-    prisma.message.findMany({
+    req.db.message.findMany({
       where: { senderRole: 'admin', createdAt: { gte: since }, conversation: { employeeId } },
       orderBy: { createdAt: 'desc' },
       take: 20,
     }).catch(() => []),
-    prisma.auditLog.findMany({
+    req.db.auditLog.findMany({
       where: {
         entityType: { in: ['CertificationUpload', 'EmployeeCertification'] },
         createdAt: { gte: since },
@@ -74,12 +72,12 @@ async function getActivity(req, res) {
       orderBy: { createdAt: 'desc' },
       take: 50,
     }).catch(() => []),
-    prisma.employeeTask.findMany({
+    req.db.employeeTask.findMany({
       where: { employeeId, createdAt: { gte: since } },
       orderBy: { createdAt: 'desc' },
       take: 20,
     }),
-    prisma.timeOffRequest.findMany({
+    req.db.timeOffRequest.findMany({
       where: { employeeId, reviewedAt: { gte: since, not: null } },
       orderBy: { reviewedAt: 'desc' },
       take: 20,

@@ -19,17 +19,17 @@ beforeAll(async () => {
     const passwordHash = await bcrypt.hash('secret123', 10);
 
     const admin = await prisma.user.create({
-        data: { email: ADMIN_EMAIL, passwordHash, name: 'Sec Admin', role: 'admin' },
+        data: { email: ADMIN_EMAIL, passwordHash, name: 'Sec Admin', role: 'admin', agencyId: 1 },
     });
     pcaUser = await prisma.user.create({
-        data: { email: PCA_EMAIL, passwordHash, name: 'Sec PCA', role: 'pca', status: 'active', active: true },
+        data: { email: PCA_EMAIL, passwordHash, name: 'Sec PCA', role: 'pca', status: 'active', active: true, agencyId: 1 },
     });
     pcaEmployee = await prisma.employee.create({
-        data: { name: 'Sec PCA', email: PCA_EMAIL, userId: pcaUser.id },
+        data: { name: 'Sec PCA', email: PCA_EMAIL, userId: pcaUser.id, agencyId: 1 },
     });
 
-    adminToken = (await request(app).post('/api/auth/login').send({ email: ADMIN_EMAIL, password: 'secret123' })).body.token;
-    pcaToken = (await request(app).post('/api/auth/employee-login').send({ email: PCA_EMAIL, password: 'secret123' })).body.token;
+    adminToken = (await request(app).post('/api/auth/login').set('Host', 'nvbest.localhost').send({ email: ADMIN_EMAIL, password: 'secret123' })).body.token;
+    pcaToken = (await request(app).post('/api/auth/employee-login').set('Host', 'nvbest.localhost').send({ email: PCA_EMAIL, password: 'secret123' })).body.token;
 });
 
 afterAll(async () => {
@@ -70,5 +70,24 @@ describe('pca token cannot reach the main staff API', () => {
     it('still allows an admin token to reach GET /api/clients', async () => {
         const res = await request(app).get('/api/clients').set('Authorization', `Bearer ${adminToken}`);
         expect(res.status).toBe(200);
+    });
+
+    // Surface boundary (added with the login-surface claim):
+    it('BLOCKS an admin-surface token from the employee portal', async () => {
+        const res = await request(app).get('/api/employee/home/summary').set('Authorization', `Bearer ${adminToken}`);
+        expect(res.status).toBe(403);
+    });
+
+    it('allows BOTH tokens to reach the surface-agnostic /api/auth/me', async () => {
+        const asPca = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${pcaToken}`);
+        const asAdmin = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${adminToken}`);
+        expect(asPca.status).toBe(200);
+        expect(asAdmin.status).toBe(200);
+    });
+
+    it('BLOCKS a pca account at the ADMIN login endpoint (must use the employee portal)', async () => {
+        const res = await request(app).post('/api/auth/login').set('Host', 'nvbest.localhost').send({ email: PCA_EMAIL, password: 'secret123' });
+        expect(res.status).toBe(403);
+        expect(res.body.error).toMatch(/employee portal/i);
     });
 });

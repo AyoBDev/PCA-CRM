@@ -1,5 +1,4 @@
 const PDFDocument = require('pdfkit');
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 const { filterByRange, renderNotesDocument, notesFilename } = require('./employeeNotesController');
 
@@ -12,7 +11,7 @@ async function listNotesTimeline(req, res, next, returnAll = false) {
         const page = Math.max(1, Number(req.query.page) || 1);
         const limit = 25;
 
-        const client = await prisma.client.findUnique({
+        const client = await req.db.client.findUnique({
             where: { id: clientId },
             select: { id: true, clientName: true, notes: true, pcaNotes: true, updatedAt: true },
         });
@@ -34,19 +33,19 @@ async function listNotesTimeline(req, res, next, returnAll = false) {
             activities,
             callouts,
         ] = await Promise.all([
-            prisma.clientNote.findMany({ where: { clientId } }),
-            prisma.authorization.findMany({ where: { clientId, archivedAt: null } }),
-            prisma.hospitalVisit.findMany({ where: { clientId } }),
-            prisma.clientCareTeam.findMany({ where: { clientId }, include: { employee: { select: { name: true } } } }),
-            prisma.incident.findMany({ where: { clientId } }),
-            prisma.clientDocument.findMany({ where: { clientId }, include: { uploader: { select: { name: true } } } }),
-            prisma.authorization_documents.findMany({ where: { authorizations: { clientId } }, include: { users: { select: { name: true } } } }),
-            prisma.timesheet.findMany({ where: { clientId } }),
-            prisma.shift.findMany({ where: { clientId, archivedAt: null } }),
-            prisma.clientActivity.findMany({ where: { clientId, type: 'note' }, include: { user: { select: { name: true } } } }),
+            req.db.clientNote.findMany({ where: { clientId } }),
+            req.db.authorization.findMany({ where: { clientId, archivedAt: null } }),
+            req.db.hospitalVisit.findMany({ where: { clientId } }),
+            req.db.clientCareTeam.findMany({ where: { clientId }, include: { employee: { select: { name: true } } } }),
+            req.db.incident.findMany({ where: { clientId } }),
+            req.db.clientDocument.findMany({ where: { clientId }, include: { uploader: { select: { name: true } } } }),
+            req.db.authorization_documents.findMany({ where: { authorizations: { clientId } }, include: { users: { select: { name: true } } } }),
+            req.db.timesheet.findMany({ where: { clientId } }),
+            req.db.shift.findMany({ where: { clientId, archivedAt: null } }),
+            req.db.clientActivity.findMany({ where: { clientId, type: 'note' }, include: { user: { select: { name: true } } } }),
             // Callouts on this client's shifts: the family may ask why a
             // different caregiver turned up, and this is the answer.
-            prisma.shiftCallout.findMany({
+            req.db.shiftCallout.findMany({
                 where: { shift: { clientId } },
                 include: { calloutEmployee: { select: { name: true } } },
             }),
@@ -117,11 +116,11 @@ async function exportClientNotesPdf(req, res, next) {
         // Reuse the list handler's ten-source aggregation rather than
         // duplicating it, asking for every entry instead of one page.
         const all = await listNotesTimeline(
-            { params: { clientId: String(clientId) }, query: {} }, null, next, true,
+            { params: { clientId: String(clientId) }, query: {}, db: req.db }, null, next, true,
         );
         if (!all) return res.status(404).json({ error: 'Client not found' });
 
-        const client = await prisma.client.findUnique({
+        const client = await req.db.client.findUnique({
             where: { id: clientId }, select: { clientName: true },
         });
 

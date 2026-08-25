@@ -1,4 +1,3 @@
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 const { uploadFile, downloadFile } = require('../lib/storage');
 
@@ -6,7 +5,7 @@ const { uploadFile, downloadFile } = require('../lib/storage');
 async function uploadAuthDocument(req, res, next) {
     try {
         const authId = Number(req.params.authId);
-        const auth = await prisma.authorization.findUnique({
+        const auth = await req.db.authorization.findUnique({
             where: { id: authId },
             include: { client: true }
         });
@@ -19,7 +18,7 @@ async function uploadAuthDocument(req, res, next) {
         const bucketKey = `auth-documents/${authId}/${Date.now()}-${req.file.originalname}`;
         await uploadFile(bucketKey, req.file.buffer, req.file.mimetype || 'application/octet-stream');
 
-        const doc = await prisma.authorization_documents.create({
+        const doc = await req.db.authorization_documents.create({
             data: {
                 authorization_id: authId,
                 file_name: req.file.originalname,
@@ -53,7 +52,7 @@ async function uploadAuthDocument(req, res, next) {
 async function downloadAuthDocument(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const doc = await prisma.authorization_documents.findUnique({ where: { id } });
+        const doc = await req.db.authorization_documents.findUnique({ where: { id } });
         if (!doc) return res.status(404).json({ error: 'Document not found' });
 
         const mimeType = doc.mime_type || 'application/octet-stream';
@@ -94,7 +93,7 @@ async function downloadAuthDocument(req, res, next) {
 async function deleteAuthDocument(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const doc = await prisma.authorization_documents.findUnique({
+        const doc = await req.db.authorization_documents.findUnique({
             where: { id },
             include: {
                 authorizations: {
@@ -104,7 +103,7 @@ async function deleteAuthDocument(req, res, next) {
         });
         if (!doc) return res.status(404).json({ error: 'Document not found' });
 
-        await prisma.authorization_documents.delete({ where: { id } });
+        await req.db.authorization_documents.delete({ where: { id } });
 
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,

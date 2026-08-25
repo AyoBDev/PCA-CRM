@@ -4,19 +4,28 @@ const prisma = require('../lib/prisma');
 const { isEmailConfigured, sendEmail } = require('../services/notificationService');
 const audit = require('../services/auditService');
 const { JWT_SECRET } = require('../config/secrets');
+const { runWithTenant } = require('../lib/tenantContext');
 
 const TOKEN_EXPIRY = '24h';
 
-function signToken(user, permissions) {
+// `surface` records which app the token was issued for: 'admin' (the office/admin
+// web app, via /auth/login) or 'employee' (the PCA portal, via /auth/employee-login).
+// Route middleware enforces the boundary so an employee-portal token can't be used
+// against admin APIs and vice-versa. Defaults to 'admin' so any pre-existing token
+// minted before this claim keeps working in the admin app.
+function signToken(user, permissions, surface = 'admin') {
     return jwt.sign(
         {
             id: user.id,
             email: user.email,
             name: user.name,
             role: user.role,
+            surface,
             permissionGroupId: user.permissionGroupId ?? null,
             permissions: Array.isArray(permissions) ? permissions : [],
             permissionsVersion: user.permissionsVersion ?? 1,
+            agencyId: user.agencyId ?? null,
+            agencySlug: user._agencySlug ?? null,
         },
         JWT_SECRET,
         { expiresIn: TOKEN_EXPIRY }
@@ -30,9 +39,22 @@ async function login(req, res, next) {
         if (!email || !password) {
             return res.status(400).json({ error: 'Email and password are required' });
         }
-        const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+        const agencyId = req.agency ? req.agency.id : null;
+        const user = await prisma.user.findFirst({
+            where: { email: email.toLowerCase().trim(), agencyId },
+        });
         if (!user) {
             return res.status(401).json({ error: 'Invalid email or password' });
+        }
+        if (!req.agency) {
+            // Superadmin accounts only authenticate on the platform host
+            // (admin.<BASE_DOMAIN> in production; loopback/apex also count
+            // in dev/test — see resolveAgency). Any other non-agency host
+            // (e.g. production apex) rejects even valid superadmin creds —
+            // same "invalid email or password" response, no oracle.
+            if (user.role !== 'superadmin' || !req.isPlatformHost) {
+                return res.status(401).json({ error: 'Invalid email or password' });
+            }
         }
         if (user.archivedAt) {
             return res.status(403).json({ error: 'This account has been archived. Please contact your administrator.' });
@@ -40,14 +62,16 @@ async function login(req, res, next) {
         if (!user.active) {
             return res.status(403).json({ error: 'This account has been deactivated. Please contact your administrator.' });
         }
+        // Caregivers belong in the Employee Portal, never the admin app. Check this
+        // BEFORE the pending-status gate so an employee always gets the clear
+        // "use the Employee Portal" message rather than a misleading "pending approval"
+        // one. (Belt-and-suspenders — the token's `surface` claim, enforced by route
+        // middleware, is the primary boundary.)
+        if (user.role === 'pca') {
+            return res.status(403).json({ error: 'Please use the Employee Portal to log in.' });
+        }
         if (user.status === 'pending') {
             return res.status(403).json({ error: 'Your account is pending admin approval. You will receive an email when activated.' });
-        }
-        if (user.role === 'pca') {
-            const employee = await prisma.employee.findUnique({ where: { userId: user.id } });
-            if (employee) {
-                return res.status(403).json({ error: 'Please use the Employee Portal to log in.' });
-            }
         }
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) {
@@ -57,8 +81,13 @@ async function login(req, res, next) {
             ? await prisma.permissionGroup.findUnique({ where: { id: user.permissionGroupId } })
             : null;
         const permissions = group && Array.isArray(group.permissions) ? group.permissions : [];
-        const token = signToken(user, permissions);
-        audit.logAction({ userId: user.id, userName: user.name, userRole: user.role, action: 'LOGIN', entityType: 'User', entityId: user.id, entityName: user.name });
+        user._agencySlug = req.agency ? req.agency.slug : null;
+        const token = signToken(user, permissions, 'admin');
+        // login fires before tenantMiddleware establishes context; wrap the
+        // fire-and-forget audit call so getAgencyId() stamps it correctly.
+        runWithTenant({ agencyId: user.agencyId ?? null, db: null }, () => {
+            audit.logAction({ userId: user.id, userName: user.name, userRole: user.role, action: 'LOGIN', entityType: 'User', entityId: user.id, entityName: user.name });
+        });
         res.json({
             token,
             user: {
@@ -74,7 +103,7 @@ async function login(req, res, next) {
 // GET /api/auth/me
 async function getMe(req, res, next) {
     try {
-        const user = await prisma.user.findUnique({
+        const user = await req.db.user.findUnique({
             where: { id: req.user.id },
             include: { permissionGroup: true },
         });
@@ -82,11 +111,13 @@ async function getMe(req, res, next) {
         const permissions = user.permissionGroup && Array.isArray(user.permissionGroup.permissions)
             ? user.permissionGroup.permissions
             : [];
+        const employee = await prisma.employee.findUnique({ where: { userId: user.id }, select: { onboardingStatus: true } });
         res.json({
             id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone,
             permissionGroupId: user.permissionGroupId ?? null,
             permissions,
             permissionsVersion: user.permissionsVersion ?? 1,
+            onboardingStatus: employee ? employee.onboardingStatus : null,
         });
     } catch (err) { next(err); }
 }
@@ -99,18 +130,20 @@ async function register(req, res, next) {
             return res.status(400).json({ error: 'Email, password, and name are required' });
         }
         const validRole = ['admin', 'user', 'pca'].includes(role) ? role : 'pca';
-        const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+        const existing = await req.db.user.findFirst({
+            where: { email: email.toLowerCase().trim(), agencyId: req.user.agencyId ?? null },
+        });
         if (existing) {
             return res.status(409).json({ error: 'A user with this email already exists' });
         }
         if (validRole === 'user' && Number.isInteger(permissionGroupId)) {
-            const group = await prisma.permissionGroup.findUnique({ where: { id: permissionGroupId } });
+            const group = await req.db.permissionGroup.findUnique({ where: { id: permissionGroupId } });
             if (!group || group.archivedAt) {
                 return res.status(400).json({ error: 'Invalid permission group' });
             }
         }
         const passwordHash = await bcrypt.hash(password, 10);
-        const user = await prisma.user.create({
+        const user = await req.db.user.create({
             data: {
                 email: email.toLowerCase().trim(),
                 passwordHash,
@@ -118,6 +151,7 @@ async function register(req, res, next) {
                 role: validRole,
                 phone: (phone || '').trim(),
                 permissionGroupId: (validRole === 'user' && Number.isInteger(permissionGroupId)) ? permissionGroupId : null,
+                agencyId: req.user.agencyId,
             },
         });
         res.status(201).json({ id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone });
@@ -152,7 +186,7 @@ async function register(req, res, next) {
 async function listUsers(req, res, next) {
     try {
         const where = req.query.archived === 'true' ? { archivedAt: { not: null } } : { archivedAt: null };
-        const users = await prisma.user.findMany({
+        const users = await req.db.user.findMany({
             where,
             select: {
                 id: true, email: true, name: true, role: true, phone: true, active: true,
@@ -177,9 +211,9 @@ async function deleteUser(req, res, next) {
         if (id === req.user.id) {
             return res.status(400).json({ error: 'Cannot delete your own account' });
         }
-        const user = await prisma.user.findUnique({ where: { id } });
+        const user = await req.db.user.findUnique({ where: { id } });
         if (!user) return res.status(404).json({ error: 'User not found' });
-        const archived = await prisma.user.update({ where: { id }, data: { archivedAt: new Date() } });
+        const archived = await req.db.user.update({ where: { id }, data: { archivedAt: new Date() } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'ARCHIVE', entityType: 'User', entityId: id, entityName: user.name });
         res.json({ id: archived.id, email: archived.email, name: archived.name, role: archived.role });
     } catch (err) { next(err); }
@@ -189,9 +223,9 @@ async function deleteUser(req, res, next) {
 async function restoreUser(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const user = await prisma.user.findUnique({ where: { id } });
+        const user = await req.db.user.findUnique({ where: { id } });
         if (!user) return res.status(404).json({ error: 'User not found' });
-        const restored = await prisma.user.update({ where: { id }, data: { archivedAt: null } });
+        const restored = await req.db.user.update({ where: { id }, data: { archivedAt: null } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'RESTORE', entityType: 'User', entityId: id, entityName: restored.name });
         res.json({ id: restored.id, email: restored.email, name: restored.name, role: restored.role, phone: restored.phone });
     } catch (err) { next(err); }
@@ -205,12 +239,12 @@ async function resetPassword(req, res, next) {
         if (!password || password.length < 4) {
             return res.status(400).json({ error: 'Password must be at least 4 characters' });
         }
-        const user = await prisma.user.findUnique({ where: { id } });
+        const user = await req.db.user.findUnique({ where: { id } });
         if (!user) return res.status(404).json({ error: 'User not found' });
         const passwordHash = await bcrypt.hash(password, 10);
         // Bump permissionsVersion so all of the user's existing tokens are
         // rejected on their next request, forcing a re-login with the new password.
-        await prisma.user.update({ where: { id }, data: { passwordHash, permissionsVersion: { increment: 1 } } });
+        await req.db.user.update({ where: { id }, data: { passwordHash, permissionsVersion: { increment: 1 } } });
 
         // Send password reset email (fire-and-forget)
         if (isEmailConfigured()) {
@@ -243,10 +277,10 @@ async function permanentlyDeleteUser(req, res, next) {
     try {
         const id = Number(req.params.id);
         if (id === req.user.id) return res.status(400).json({ error: 'Cannot delete your own account' });
-        const user = await prisma.user.findUnique({ where: { id } });
+        const user = await req.db.user.findUnique({ where: { id } });
         if (!user) return res.status(404).json({ error: 'User not found' });
         if (!user.archivedAt) return res.status(400).json({ error: 'Only archived users can be permanently deleted' });
-        await prisma.user.delete({ where: { id } });
+        await req.db.user.delete({ where: { id } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'PERMANENT_DELETE', entityType: 'User', entityId: id, entityName: user.name });
         res.json({ success: true });
     } catch (err) { next(err); }
@@ -254,7 +288,7 @@ async function permanentlyDeleteUser(req, res, next) {
 
 async function bulkPermanentlyDeleteUsers(req, res, next) {
     try {
-        const result = await prisma.user.deleteMany({ where: { archivedAt: { not: null } } });
+        const result = await req.db.user.deleteMany({ where: { archivedAt: { not: null } } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'BULK_DELETE', entityType: 'User', entityId: 0, entityName: '', metadata: { count: result.count } });
         res.json({ success: true, count: result.count });
     } catch (err) { next(err); }
@@ -267,9 +301,9 @@ async function toggleUserActive(req, res, next) {
         if (id === req.user.id) {
             return res.status(400).json({ error: 'Cannot deactivate your own account' });
         }
-        const user = await prisma.user.findUnique({ where: { id } });
+        const user = await req.db.user.findUnique({ where: { id } });
         if (!user) return res.status(404).json({ error: 'User not found' });
-        const updated = await prisma.user.update({
+        const updated = await req.db.user.update({
             where: { id },
             data: { active: !user.active },
         });
@@ -284,7 +318,9 @@ async function forgotPassword(req, res, next) {
         const { email } = req.body;
         if (!email) return res.status(400).json({ error: 'Email is required' });
 
-        const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+        const user = await prisma.user.findFirst({
+            where: { email: email.toLowerCase().trim(), agencyId: req.agency?.id ?? null },
+        });
         // Always return success to avoid revealing whether email exists
         if (!user || user.archivedAt) {
             return res.json({ success: true });
@@ -300,6 +336,7 @@ async function forgotPassword(req, res, next) {
         const resetToken = await prisma.passwordResetToken.create({
             data: {
                 userId: user.id,
+                agencyId: user.agencyId ?? null,
                 expiresAt: new Date(Date.now() + 60 * 60 * 1000),
             },
         });
@@ -343,6 +380,15 @@ async function resetPasswordWithToken(req, res, next) {
         if (!resetToken) {
             return res.status(400).json({ error: 'Invalid or expired reset link' });
         }
+        if (req.agency && resetToken.agencyId !== req.agency.id) {
+            return res.status(400).json({ error: 'Invalid or expired reset link' });
+        }
+        // Apex/loopback requests have no resolved agency. An agency user's
+        // token (agencyId set) must not be usable there — only a
+        // superadmin's token (agencyId null) is allowed to redeem on the apex.
+        if (!req.agency && resetToken.agencyId !== null) {
+            return res.status(400).json({ error: 'Invalid or expired reset link' });
+        }
         if (resetToken.usedAt) {
             return res.status(400).json({ error: 'This reset link has already been used' });
         }
@@ -368,7 +414,9 @@ async function employeeLogin(req, res, next) {
         if (!email || !password) {
             return res.status(400).json({ error: 'Email and password are required' });
         }
-        const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+        const user = await prisma.user.findFirst({
+            where: { email: email.toLowerCase().trim(), agencyId: req.agency?.id ?? null },
+        });
         if (!user) {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
@@ -378,12 +426,18 @@ async function employeeLogin(req, res, next) {
         if (!user.active) {
             return res.status(403).json({ error: 'This account has been deactivated. Please contact your administrator.' });
         }
-        if (user.status === 'pending') {
-            return res.status(403).json({ error: 'Your account is pending admin approval. You will receive an email when activated.' });
-        }
+        // Fetch the linked employee up front so the pending-status gate below can be
+        // relaxed for employees who are actively onboarding. The portal keeps them on
+        // the onboarding-only screen via employee.onboardingStatus + the App gate; a
+        // pending user.status must NOT lock them out of the very portal they need to
+        // reach to fix things and re-submit.
         const employee = await prisma.employee.findUnique({ where: { userId: user.id } });
         if (!employee) {
-            return res.status(403).json({ error: 'No employee profile is linked to this account.' });
+            return res.status(403).json({ error: 'This account is not an employee account. Please use the admin app to log in.' });
+        }
+        const ONBOARDING_LOGIN_STATUSES = ['pending_review', 'changes_requested'];
+        if (user.status === 'pending' && !ONBOARDING_LOGIN_STATUSES.includes(employee.onboardingStatus)) {
+            return res.status(403).json({ error: 'Your account is pending admin approval. You will receive an email when activated.' });
         }
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) {
@@ -393,8 +447,13 @@ async function employeeLogin(req, res, next) {
             ? await prisma.permissionGroup.findUnique({ where: { id: user.permissionGroupId } })
             : null;
         const permissions = group && Array.isArray(group.permissions) ? group.permissions : [];
-        const token = signToken(user, permissions);
-        audit.logAction({ userId: user.id, userName: user.name, userRole: user.role, action: 'LOGIN', entityType: 'User', entityId: user.id, entityName: user.name, metadata: { portal: 'employee' } });
+        user._agencySlug = req.agency ? req.agency.slug : null;
+        const token = signToken(user, permissions, 'employee');
+        // employeeLogin fires before tenantMiddleware establishes context; wrap
+        // the fire-and-forget audit call so getAgencyId() stamps it correctly.
+        runWithTenant({ agencyId: user.agencyId ?? null, db: null }, () => {
+            audit.logAction({ userId: user.id, userName: user.name, userRole: user.role, action: 'LOGIN', entityType: 'User', entityId: user.id, entityName: user.name, metadata: { portal: 'employee' } });
+        });
         res.json({
             token,
             user: {
@@ -402,6 +461,7 @@ async function employeeLogin(req, res, next) {
                 permissionGroupId: user.permissionGroupId ?? null,
                 permissions,
                 permissionsVersion: user.permissionsVersion ?? 1,
+                onboardingStatus: employee.onboardingStatus,
             },
         });
     } catch (err) { next(err); }

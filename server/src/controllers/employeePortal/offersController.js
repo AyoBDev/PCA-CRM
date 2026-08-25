@@ -8,15 +8,14 @@
 //
 // The actual state transitions live in replacementService, so the portal and
 // the public token route share one implementation — and therefore one
-// double-fill guard.
+// double-fill guard. req.db here is set by tenantMiddleware in routes/employee.js.
 
-const prisma = require('../../lib/prisma');
 const replacement = require('../../services/replacementService');
 const audit = require('../../services/auditService');
 
 // GET /api/employee/offers
 async function getMyOffers(req, res) {
-    const offers = await prisma.shiftOffer.findMany({
+    const offers = await req.db.shiftOffer.findMany({
         where: {
             employeeId: req.employee.id,
             response: '',
@@ -52,14 +51,14 @@ async function respondToMyOffer(req, res) {
         return res.status(400).json({ error: "response must be 'accept' or 'decline'" });
     }
 
-    const offer = await prisma.shiftOffer.findFirst({
+    const offer = await req.db.shiftOffer.findFirst({
         where: { id: Number(req.params.id), employeeId: req.employee.id },
     });
     if (!offer) return res.status(404).json({ error: 'Offer not found' });
 
     const result = response === 'accept'
-        ? await replacement.acceptOffer(offer.token)
-        : await replacement.declineOffer(offer.token);
+        ? await replacement.acceptOffer(req.db, offer.token)
+        : await replacement.declineOffer(req.db, offer.token);
 
     if (result.status === 'already_filled') {
         return res.status(409).json({ status: 'already_filled', error: 'This shift has already been covered' });
