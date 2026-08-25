@@ -471,7 +471,7 @@ async function employeeLogin(req, res, next) {
 async function updateUser(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const user = await prisma.user.findUnique({ where: { id } });
+        const user = await req.db.user.findUnique({ where: { id } });
         if (!user) return res.status(404).json({ error: 'User not found' });
 
         const { name, email, role, phone, permissionGroupId, password, active } = req.body;
@@ -495,7 +495,10 @@ async function updateUser(req, res, next) {
         if (email !== undefined) {
             const normalized = String(email).toLowerCase().trim();
             if (!normalized) return res.status(400).json({ error: 'Email is required' });
-            const existing = await prisma.user.findUnique({ where: { email: normalized } });
+            // email alone is not a unique key under multi-tenancy (unique is
+            // agencyId_email); req.db is already agency-scoped, so findFirst by
+            // email checks uniqueness within this agency only.
+            const existing = await req.db.user.findFirst({ where: { email: normalized } });
             if (existing && existing.id !== id) {
                 return res.status(409).json({ error: 'A user with this email already exists' });
             }
@@ -513,7 +516,7 @@ async function updateUser(req, res, next) {
             data.permissionGroupId = null;
         } else if (permissionGroupId !== undefined) {
             if (Number.isInteger(permissionGroupId)) {
-                const group = await prisma.permissionGroup.findUnique({ where: { id: permissionGroupId } });
+                const group = await req.db.permissionGroup.findUnique({ where: { id: permissionGroupId } });
                 if (!group || group.archivedAt) return res.status(400).json({ error: 'Invalid permission group' });
                 data.permissionGroupId = permissionGroupId;
             } else {
@@ -540,7 +543,7 @@ async function updateUser(req, res, next) {
             data.permissionsVersion = { increment: 1 };
         }
 
-        const updated = await prisma.user.update({ where: { id }, data });
+        const updated = await req.db.user.update({ where: { id }, data });
 
         res.json({
             id: updated.id, email: updated.email, name: updated.name,
