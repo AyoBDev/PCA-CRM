@@ -2,6 +2,14 @@
 
 A running log of notable build-vs-adopt and design decisions, most recent first.
 
+## 2026-08-25 — Edit User + reuse office email on inactive account
+
+**Options considered:** (a) build in-house edit endpoint + modal; (b) adopt an off-the-shelf admin/user-management library (e.g. AdminJS, react-admin).
+
+**Choice:** Build in-house.
+
+**Why:** User accounts here are a bespoke domain (custom roles, permission groups, PHI-adjacent audit logging, JWT `permissionsVersion` session invalidation) tightly coupled to existing Express/Prisma controllers. An off-the-shelf admin panel would duplicate auth, fight our schema, and add a heavy dependency for a single dialog + one endpoint. The edit path reuses existing `Modal`/design-system primitives and the established audit + undo patterns.
+
 ## 2026-08-09 — Reusable Tooltip: adopt Radix over building or floating-ui
 
 **Feature:** A reusable `<Tooltip>` for the whole app, replacing the native `title`
