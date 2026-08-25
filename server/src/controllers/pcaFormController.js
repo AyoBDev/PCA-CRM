@@ -316,6 +316,7 @@ async function updatePcaForm(req, res, next) {
           const date = new Date(weekStart);
           date.setUTCDate(date.getUTCDate() + d);
           entryData.push({
+            agencyId: link.agencyId,
             dayOfWeek: d,
             dateOfService: date.toISOString().slice(0, 10),
           });
