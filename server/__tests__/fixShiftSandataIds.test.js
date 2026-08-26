@@ -7,7 +7,10 @@ jest.mock('../src/lib/prisma', () => ({
   authorization: { findMany: jest.fn() },
   $disconnect: jest.fn(),
 }));
-jest.mock('fs', () => ({ mkdirSync: jest.fn(), writeFileSync: jest.fn() }));
+// Stub only the write calls this test cares about; keep the rest of `fs` real so
+// exceljs (pulled in transitively via xlsxHelper) can load — it reads fs.constants
+// (O_CREAT etc.) at import time, which a full mock would leave undefined.
+jest.mock('fs', () => ({ ...jest.requireActual('fs'), mkdirSync: jest.fn(), writeFileSync: jest.fn() }));
 
 const prisma = require('../src/lib/prisma');
 const { main } = require('../prisma/fix-shift-sandata-ids');

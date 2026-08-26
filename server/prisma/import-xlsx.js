@@ -10,21 +10,19 @@
  * Run:  node prisma/import-xlsx.js
  */
 
-const XLSX = require('xlsx');
 const path = require('path');
+const { readRowsFromFile, excelSerialToDate } = require('../src/lib/xlsxHelper');
 
 const prisma = require('../src/lib/prisma');
 const FILE = path.resolve(__dirname, '../../data/all-data.xlsx');
 
 function parseDate(val) {
     if (!val && val !== 0) return null;
-    // XLSX might give a JS Date already
+    // ExcelJS gives a JS Date already for date-typed cells
     if (val instanceof Date) return val;
-    // XLSX serial number (days since 1899-12-30)
+    // Bare serial number (days since 1899-12-30) — e.g. from CSV/untyped cells
     if (typeof val === 'number') {
-        const d = XLSX.SSF.parse_date_code(val);
-        if (d) return new Date(d.y, d.m - 1, d.d);
-        return null;
+        return val > 0 ? excelSerialToDate(val) : null;
     }
     // String like "3/18/2025" or "02/28/2027"
     const str = String(val).trim();
@@ -52,9 +50,7 @@ async function main() {
         process.exit(1);
     }
 
-    const wb = XLSX.readFile(FILE);
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true });
+    const rows = await readRowsFromFile(FILE);
 
     // Column mapping (0-indexed):
     //  0: row #      1: Client Name   2: Medicaid ID   3: Insurance Type

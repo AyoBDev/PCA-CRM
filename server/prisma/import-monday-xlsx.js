@@ -17,8 +17,8 @@
  *   - No clients or data deleted
  */
 
-const XLSX = require('xlsx');
 const path = require('path');
+const { namedSheetsToRows, excelSerialToDate } = require('../src/lib/xlsxHelper');
 
 const prisma = require('../src/lib/prisma');
 
@@ -28,9 +28,7 @@ function parseDate(val) {
     if (val === undefined || val === null || val === '') return null;
     if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
     if (typeof val === 'number') {
-        const d = XLSX.SSF.parse_date_code(val);
-        if (d) return new Date(d.y, d.m - 1, d.d);
-        return null;
+        return excelSerialToDate(val);
     }
     const str = String(val).trim();
     if (!str) return null;
@@ -123,8 +121,7 @@ function isStructuralRow(row) {
 
 // ── Sheet 1: Client Data ──
 
-async function importClients(ws, { existingOnly = false } = {}) {
-    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true });
+async function importClients(rows, { existingOnly = false } = {}) {
     const stats = { created: 0, updated: 0, skipped: 0, errors: [] };
 
     let inCriticalSection = false;
@@ -207,8 +204,7 @@ async function importClients(ws, { existingOnly = false } = {}) {
 
 // ── Sheet 2: Renewal Notification History ──
 
-async function importNotes(ws) {
-    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true });
+async function importNotes(rows) {
     const stats = { imported: 0, unmatched: 0, errors: [], unmatchedNames: [] };
 
     for (let i = 2; i < rows.length; i++) {
@@ -291,18 +287,17 @@ async function main() {
     const resolved = path.resolve(filePath);
     console.log(`Reading: ${resolved}\n`);
 
-    const wb = XLSX.readFile(resolved);
-    console.log(`Sheets: ${wb.SheetNames.join(', ')}\n`);
+    const fs = require('fs');
+    const sheets = await namedSheetsToRows(fs.readFileSync(resolved));
+    console.log(`Sheets: ${sheets.map((s) => s.name).join(', ')}\n`);
 
-    const clientSheet = wb.Sheets[wb.SheetNames[0]];
     console.log('=== Importing Clients (Sheet 1) ===');
-    const clientStats = await importClients(clientSheet, { existingOnly });
+    const clientStats = await importClients(sheets[0].rows, { existingOnly });
     console.log(`\nClients: ${clientStats.created} created, ${clientStats.updated} updated, ${clientStats.skipped} skipped, ${clientStats.errors.length} errors\n`);
 
-    if (wb.SheetNames.length > 1) {
-        const notesSheet = wb.Sheets[wb.SheetNames[1]];
+    if (sheets.length > 1) {
         console.log('=== Importing Renewal Notes (Sheet 2) ===');
-        const noteStats = await importNotes(notesSheet);
+        const noteStats = await importNotes(sheets[1].rows);
         console.log(`\nNotes: ${noteStats.imported} imported, ${noteStats.unmatched} unmatched, ${noteStats.errors.length} errors`);
         if (noteStats.unmatchedNames.length > 0) {
             console.log(`Unmatched client names: ${noteStats.unmatchedNames.join(', ')}`);
