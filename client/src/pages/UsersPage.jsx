@@ -5,6 +5,7 @@ import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
+import PillTabs from '../components/common/PillTabs';
 import ManageRolesModal from '../components/users/ManageRolesModal';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
@@ -32,6 +33,8 @@ export default function UsersPage() {
     const [editForm, setEditForm] = useState(null);
     const [showEditPassword, setShowEditPassword] = useState(false);
     const [savingEdit, setSavingEdit] = useState(false);
+    // Role tab: 'all' (every non-admin user), 'staff' (role='user'), 'caregivers' (role='pca').
+    const [tab, setTab] = useState('all');
 
     const fetchUsers = useCallback(async () => {
         try { setUsers(await api.getUsers({ archived: showArchived })); } catch (err) { showToast(err.message, 'error'); }
@@ -178,6 +181,25 @@ export default function UsersPage() {
         finally { setSavingEdit(false); }
     };
 
+    // Admins are never listed on this page. Split the rest by role so the tabs can
+    // separate app users (staff) from caregiver employee-app users, with live counts.
+    const visibleUsers = users.filter((u) => u.role !== 'admin');
+    const staffUsers = visibleUsers.filter((u) => u.role === 'user');
+    const caregiverUsers = visibleUsers.filter((u) => u.role === 'pca');
+    const tabCounts = { all: visibleUsers.length, staff: staffUsers.length, caregivers: caregiverUsers.length };
+    const rows = tab === 'staff' ? staffUsers : tab === 'caregivers' ? caregiverUsers : visibleUsers;
+
+    const emptyTitle = showArchived
+        ? 'No archived users'
+        : tab === 'staff' ? 'No staff users yet'
+        : tab === 'caregivers' ? 'No caregiver accounts yet'
+        : 'No users yet';
+    const emptyDesc = showArchived
+        ? 'Archived users will appear here.'
+        : tab === 'staff' ? 'Add a staff account with the "User (Staff)" role.'
+        : tab === 'caregivers' ? 'Add a caregiver account with the "PCA (Caregiver)" role.'
+        : 'Click "Add User" to create a staff or PCA account.';
+
     return (
         <>
             <GlobalToolbar
@@ -192,6 +214,19 @@ export default function UsersPage() {
                 }}
             />
             <ContextBar>
+                <ContextBar.Left>
+                    <PillTabs
+                        ariaLabel="User types"
+                        tabs={[
+                            { id: 'all', label: 'All' },
+                            { id: 'staff', label: 'App Users (Staff)' },
+                            { id: 'caregivers', label: 'Caregiver App' },
+                        ]}
+                        active={tab}
+                        counts={tabCounts}
+                        onChange={setTab}
+                    />
+                </ContextBar.Left>
                 <ContextBar.Right>
                     {!showArchived && (
                         <>
@@ -218,11 +253,11 @@ export default function UsersPage() {
                         </button>
                     </div>
                 )}
-                {users.filter((u) => u.role !== 'admin').length === 0 ? (
+                {rows.length === 0 ? (
                     <div className="empty-state">
                         <div className="empty-state__icon">{Icons.users}</div>
-                        <div className="empty-state__title">{showArchived ? 'No archived users' : 'No users yet'}</div>
-                        <div className="empty-state__desc">{showArchived ? 'Archived users will appear here.' : 'Click "Add User" to create a staff or PCA account.'}</div>
+                        <div className="empty-state__title">{emptyTitle}</div>
+                        <div className="empty-state__desc">{emptyDesc}</div>
                     </div>
                 ) : (
                     <div className="sheet-card">
@@ -230,7 +265,7 @@ export default function UsersPage() {
                         <table className="data-table data-table--sheet data-table--dark-header">
                             <thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Permission Group</th><th scope="col">Status</th><th scope="col">Created</th><th scope="col">Actions</th></tr></thead>
                             <tbody>
-                                {users.filter((u) => u.role !== 'admin').map((u) => (
+                                {rows.map((u) => (
                                     <tr key={u.id}>
                                         <td style={{ fontWeight: 500 }}>{u.name}</td>
                                         <td>{u.email}</td>
