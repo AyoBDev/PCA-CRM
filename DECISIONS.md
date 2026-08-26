@@ -149,3 +149,16 @@ blanks a shift — and is idempotent.
 **Choice:** Build in-house — a single shared primitive, migrate the 5 existing editors to it.
 
 **Why:** The requirement is a specific *safety contract*, not a missing widget: edit opens only via an explicit pencil affordance, ✓/✕ confirm with **blur cancelling** (killing the old silent-blur-save), a blank-value guard, a success toast, optional undo, and — critically — failure detection via the `onSave` promise rejecting. No off-the-shelf library encodes this, and every candidate would still need our contract layered on top while dragging in its own styling/data-model assumptions that clash with our design system. A ~150-line presentational component with zero new dependencies gives one place to maintain the behavior; "app-wide" only stays true if there's a single primitive the next page reuses. Built strictly test-first (14 RTL tests), reviewed per task; the migration also surfaced and fixed two latent error-swallow bugs (`handleSaveCarePlanField`, `handleSandataClientIdChange`) that the stricter reject-to-fail contract exposed.
+
+## 2026-08-26 — Users page role tabs (App Users vs. Caregiver App)
+
+**Feature:** A tab switcher on the Users page to visually separate app users (staff, `role='user'`) from caregiver employee-app users (`role='pca'`), mirroring the Leads page's view switcher.
+
+**Options considered:**
+- Adopt a third-party tabs component (e.g. `@radix-ui/react-tabs`, `react-tabs`). Signals: mature and popular, and Radix is already a dependency (used by `Tooltip`). But a role filter over an already-fetched list needs a pill toggle, not a tab-panel/roving-focus widget — Radix Tabs manages panel mounting and its own visual model we'd override to match the existing `.lead-view-switcher` look. Extra surface for no gain.
+- Reuse `LeadViewSwitcher` directly. Signals: zero new code, identical look. But it imports `LEAD_VIEWS` and is semantically Leads-specific; importing it into Users couples two unrelated pages through a Leads constant.
+- Build in-house: extract a generic `PillTabs` from the `LeadViewSwitcher` pattern, reusing the existing `.lead-view-switcher` CSS, and filter the table client-side.
+
+**Choice:** Build in-house — a generic `PillTabs` (`client/src/components/common/PillTabs.jsx`) reusing the existing pill CSS; client-side role filtering.
+
+**Why:** The need is a lightweight, presentational filter toggle that already has a house style in the repo (`.lead-view-switcher`). A dependency (even the already-present Radix) would add a panel/focus model we'd fight to restyle, for behavior that is one `useState` + `Array.filter`. Reusing `LeadViewSwitcher` verbatim would couple Users to a Leads constant; extracting a 40-line generic component instead decouples the pattern and makes the switcher available to any future page, following the app's DRY-shared-component convention. No API, backend, or mutation changes — filtering is client-side per the app's data-flow convention — so undo/redo/Activity wiring is untouched. Verified end-to-end in the running app (three tabs, correct counts, correct role filtering).
