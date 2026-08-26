@@ -1,22 +1,42 @@
 // Tests for the geocode backfill runner.
 //
-// This runs on every Railway deploy (idempotent — geocodeEntity skips
+// This runs as a manual/deploy-time step (idempotent — geocodeEntity skips
 // unchanged addresses), so it must be quiet on the normal case and LOUD on the
 // two that mean the deploy is broken:
 //   - no geocoder configured
 //   - it tried to geocode real addresses and every one failed (bad token,
 //     rate limit, or PostGIS missing)
 // A fresh install with nobody on the roster yet is not a failure.
+//
+// Multi-tenancy: runBackfill enumerates agencies on the owner connection and
+// runs the per-agency backfill inside that agency's tenant context, so one
+// agency's addresses are never geocoded/cached against another agency's rows.
+// The fake tenant client here is the same fake `client`/`employee` delegate
+// used pre-tenancy — one agency is enough to exercise the per-record logic
+// unchanged; a second test below proves the per-agency loop itself.
 
-jest.mock('../../lib/prisma', () => ({
+const mockDb = {
     client: { findMany: jest.fn(() => []) },
     employee: { findMany: jest.fn(() => []) },
+};
+
+jest.mock('../../lib/prisma', () => ({
+    agency: { findMany: jest.fn(() => [{ id: 1, status: 'active' }]) },
+}));
+
+jest.mock('../../lib/tenantPrisma', () => ({
+    tenantClient: jest.fn(() => mockDb),
+}));
+
+jest.mock('../../lib/tenantContext', () => ({
+    runWithTenant: jest.fn((_store, fn) => fn()),
 }));
 
 jest.mock('../geocodingService', () => ({ geocodeEntity: jest.fn() }));
 jest.mock('../geocoding/providers/mapbox', () => ({ name: 'mapbox', isConfigured: jest.fn() }));
 
 const prisma = require('../../lib/prisma');
+const { tenantClient } = require('../../lib/tenantPrisma');
 const { geocodeEntity } = require('../geocodingService');
 const mapbox = require('../geocoding/providers/mapbox');
 const { runBackfill } = require('../geocodeBackfill');
@@ -24,8 +44,10 @@ const { runBackfill } = require('../geocodeBackfill');
 beforeEach(() => {
     jest.clearAllMocks();
     mapbox.isConfigured.mockReturnValue(true);
-    prisma.client.findMany.mockResolvedValue([]);
-    prisma.employee.findMany.mockResolvedValue([]);
+    prisma.agency.findMany.mockResolvedValue([{ id: 1, status: 'active' }]);
+    tenantClient.mockReturnValue(mockDb);
+    mockDb.client.findMany.mockResolvedValue([]);
+    mockDb.employee.findMany.mockResolvedValue([]);
 });
 
 describe('runBackfill', () => {
@@ -38,6 +60,8 @@ describe('runBackfill', () => {
         expect(result.reason).toBe('not_configured');
         // Never reach the database if there is no geocoder to use.
         expect(geocodeEntity).not.toHaveBeenCalled();
+        // Must not even enumerate agencies — no geocoder means no work at all.
+        expect(prisma.agency.findMany).not.toHaveBeenCalled();
     });
 
     test('exits cleanly when there is nothing addressable yet', async () => {
@@ -50,9 +74,25 @@ describe('runBackfill', () => {
         expect(result.attempted).toBe(0);
     });
 
+    test('runs the backfill once per active agency, scoped to that agency\'s tenant client', async () => {
+        prisma.agency.findMany.mockResolvedValue([{ id: 1, status: 'active' }, { id: 2, status: 'active' }]);
+        mockDb.client.findMany.mockResolvedValue([{ id: 1 }]);
+        geocodeEntity.mockResolvedValue({ status: 'ok' });
+
+        const result = await runBackfill({ delayMs: 0 });
+
+        expect(tenantClient).toHaveBeenCalledWith(1);
+        expect(tenantClient).toHaveBeenCalledWith(2);
+        // Each agency contributed its own findMany call.
+        expect(mockDb.client.findMany).toHaveBeenCalledTimes(2);
+        // 1 client per agency * 2 agencies = 2 attempted/succeeded.
+        expect(result.attempted).toBe(2);
+        expect(result.succeeded).toBe(2);
+    });
+
     test('geocodes clients and employees that have addresses', async () => {
-        prisma.client.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
-        prisma.employee.findMany.mockResolvedValue([{ id: 7 }]);
+        mockDb.client.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+        mockDb.employee.findMany.mockResolvedValue([{ id: 7 }]);
         geocodeEntity.mockResolvedValue({ status: 'ok' });
 
         const result = await runBackfill({ delayMs: 0 });
@@ -65,7 +105,7 @@ describe('runBackfill', () => {
     });
 
     test('counts a cached result as a success, not a failure', async () => {
-        prisma.client.findMany.mockResolvedValue([{ id: 1 }]);
+        mockDb.client.findMany.mockResolvedValue([{ id: 1 }]);
         geocodeEntity.mockResolvedValue({ status: 'cached' });
 
         const result = await runBackfill({ delayMs: 0 });
@@ -78,7 +118,7 @@ describe('runBackfill', () => {
     });
 
     test('FAILS when it attempted addresses and every one failed', async () => {
-        prisma.client.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+        mockDb.client.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
         geocodeEntity.mockResolvedValue({ status: 'error' });
 
         const result = await runBackfill({ delayMs: 0 });
@@ -92,7 +132,7 @@ describe('runBackfill', () => {
     });
 
     test('succeeds when at least one geocode works', async () => {
-        prisma.client.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+        mockDb.client.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
         geocodeEntity
             .mockResolvedValueOnce({ status: 'ok' })
             .mockResolvedValueOnce({ status: 'error' });
@@ -107,7 +147,7 @@ describe('runBackfill', () => {
     });
 
     test('treats not_found as a real attempt that did not succeed', async () => {
-        prisma.client.findMany.mockResolvedValue([{ id: 1 }]);
+        mockDb.client.findMany.mockResolvedValue([{ id: 1 }]);
         geocodeEntity.mockResolvedValue({ status: 'not_found' });
 
         const result = await runBackfill({ delayMs: 0 });
@@ -119,7 +159,7 @@ describe('runBackfill', () => {
     });
 
     test('does not let one thrown error abort the whole run', async () => {
-        prisma.client.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+        mockDb.client.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
         geocodeEntity
             .mockRejectedValueOnce(new Error('transient network blip'))
             .mockResolvedValueOnce({ status: 'ok' });
@@ -134,7 +174,7 @@ describe('runBackfill', () => {
     });
 
     test('back-compat: still accepts a bare log function', async () => {
-        prisma.client.findMany.mockResolvedValue([{ id: 1 }]);
+        mockDb.client.findMany.mockResolvedValue([{ id: 1 }]);
         geocodeEntity.mockResolvedValue({ status: 'ok' });
         const log = jest.fn();
 
@@ -146,7 +186,7 @@ describe('runBackfill', () => {
     });
 
     test('throttles between geocodes to stay under the provider rate limit', async () => {
-        prisma.client.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }, { id: 3 }]);
+        mockDb.client.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }, { id: 3 }]);
         geocodeEntity.mockResolvedValue({ status: 'ok' });
 
         const start = Date.now();
@@ -162,10 +202,10 @@ describe('runBackfill', () => {
     test('only fetches records that actually have an address', async () => {
         await runBackfill({ delayMs: 0 });
 
-        expect(prisma.client.findMany).toHaveBeenCalledWith(
+        expect(mockDb.client.findMany).toHaveBeenCalledWith(
             expect.objectContaining({ where: expect.objectContaining({ address: expect.anything() }) }),
         );
-        expect(prisma.employee.findMany).toHaveBeenCalledWith(
+        expect(mockDb.employee.findMany).toHaveBeenCalledWith(
             expect.objectContaining({ where: expect.objectContaining({ address: expect.anything() }) }),
         );
     });

@@ -989,6 +989,22 @@ body {
 }
 .data-table th .th-sort svg { width: 14px; height: 14px; }
 
+/* ─── Catalog Management: inactive rows stay visible but de-emphasized ─── */
+.catalog-row--inactive {
+  opacity: 0.55;
+}
+.catalog-row__inactive-badge {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted));
+  border-radius: 4px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
 /* ─── Client (Parent) Row ─── */
 .row-client {
   cursor: pointer;
@@ -1454,14 +1470,24 @@ body {
    Document Viewer (PreviewModal) — full-screen PDF/image viewer
    ============================================================ */
 .doc-viewer {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
   display: flex;
   flex-direction: column;
   background: hsl(224 30% 12%);
   color: hsl(0 0% 96%);
+}
+
+.doc-viewer--modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
   animation: fadeIn 0.15s ease;
+}
+
+.doc-viewer--embedded {
+  height: 100%;
+  min-height: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
 }
 
 .doc-viewer__header {
@@ -1626,6 +1652,92 @@ body {
   .doc-viewer__toolbar { flex-wrap: wrap; justify-content: center; }
   .doc-viewer__spacer { display: none; }
 }
+
+.file-preview-pane { display: flex; flex-direction: column; min-height: 0; }
+.file-preview-pane--split { flex-direction: row; gap: 16px; align-items: stretch; }
+.file-preview-pane--split .file-preview-pane__list { flex: 0 0 320px; overflow-y: auto; max-height: 70vh; }
+.file-preview-pane__panel { flex: 1 1 auto; min-width: 0; min-height: 420px; height: 70vh; }
+.file-preview-pane__panel-empty, .file-preview-pane__empty { display: flex; align-items: center; justify-content: center; height: 100%; color: hsl(var(--muted-foreground)); font-size: 13px; padding: 24px; }
+
+/* Certification viewer panel (common/CertViewerPanel) */
+.cert-viewer { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.cert-viewer__head { padding: 4px 4px 12px; }
+.cert-viewer__title { font-size: 16px; font-weight: 700; color: hsl(var(--foreground)); margin: 0; }
+.cert-viewer__subtitle { font-size: 12px; color: hsl(var(--muted-foreground)); margin: 2px 0 0; }
+.cert-viewer__filebar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid hsl(var(--border)); border-radius: var(--radius); margin-bottom: 12px; }
+.cert-viewer__filename { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; min-width: 0; }
+.cert-viewer__filename svg { width: 16px; height: 16px; flex-shrink: 0; }
+.cert-viewer__body { flex: 1 1 auto; min-height: 420px; height: 60vh; }
+.cert-viewer__empty { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-height: 320px; color: hsl(var(--muted-foreground)); font-size: 13px; border: 1px dashed hsl(var(--border)); border-radius: var(--radius); }
+
+/* Portfolio two-column layout: card list (left) + document viewer (right).
+   Used by the employee Certifications tab and, with parallel classes, the client
+   Programs/Authorizations tab (see .pa-auth-portfolio below).
+   NOTE: the viewer is intentionally NOT `position: sticky`. Both hosts render this
+   inside `.cp-card__body` → `.cp-card`, and `.cp-card` has `overflow: hidden` — a
+   sticky descendant cannot escape an ancestor with overflow hidden/auto/scroll, so
+   it never actually tracks scroll (CSS spec: the nearest scrolling/clipping
+   ancestor becomes the sticky containing block). Rather than fight that ancestor's
+   clipping, the viewer simply scrolls with the page — a clean, predictable layout. */
+.cert-portfolio {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+}
+.cert-portfolio__list {
+  flex: 1 1 55%;
+  min-width: 0;
+}
+.cert-portfolio__viewer {
+  flex: 1 1 45%;
+  min-width: 0;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 16px;
+}
+@media (max-width: 1023px) {
+  .cert-portfolio {
+    flex-direction: column;
+  }
+  .cert-portfolio__list,
+  .cert-portfolio__viewer {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+}
+
+/* Sliding on/off switch (common/ToggleSwitch) */
+.toggle-switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+.toggle-switch--disabled { cursor: default; opacity: 0.5; }
+.toggle-switch__label { font-size: 13px; font-weight: 500; color: hsl(var(--foreground)); }
+.toggle-switch__track {
+    position: relative;
+    width: 38px;
+    height: 22px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 999px;
+    background: hsl(var(--muted-foreground) / 0.35);
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.18s ease;
+}
+.toggle-switch__track.is-on { background: hsl(var(--primary)); }
+.toggle-switch__track:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.toggle-switch__track:disabled { cursor: default; }
+.toggle-switch__knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px hsl(0 0% 0% / 0.25);
+    transition: transform 0.18s ease;
+}
+.toggle-switch__track.is-on .toggle-switch__knob { transform: translateX(16px); }
 
 @keyframes fadeIn {
   from {
@@ -11132,6 +11244,15 @@ button.sdr-section-tag:hover:not(:disabled) {
   flex-direction: column;
   gap: 16px;
 }
+/* Inside the portfolio list column (~55% width, beside the doc viewer) two grid
+   columns leave each card too narrow (~300px) for comfortable padding/content.
+   Collapse to a single flowing column so cards get full list-column width.
+   The __left/__right sub-columns are already flex columns, so stacking the grid
+   itself to one column makes them flow one after another correctly. Scoped to
+   .cert-portfolio__list so the standalone (non-portfolio) grid is unaffected. */
+.cert-portfolio__list .pa-services-grid {
+  grid-template-columns: 1fr;
+}
 .pa-service-card {
   border: 2px solid var(--card-border, hsl(var(--border)));
   border-radius: 12px;
@@ -11360,6 +11481,17 @@ button.sdr-section-tag:hover:not(:disabled) {
   color: hsl(var(--destructive));
   display: flex;
   gap: 6px;
+}
+
+.pa-auth-inactive-reason__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.pa-auth-inactive-reason__icon svg {
+  width: 14px;
+  height: 14px;
 }
 
 .pa-auth-list {
@@ -13835,6 +13967,11 @@ tr:hover .auth-note-icon--empty {
 }
 .file-row__submeta em { font-style: italic; }
 .file-row__badge { flex-shrink: 0; display: flex; align-items: center; }
+.file-row__leading { flex-shrink: 0; display: flex; align-items: center; }
+.file-row__leading input[type="checkbox"] { width: 15px; height: 15px; accent-color: hsl(var(--primary)); cursor: pointer; }
+.file-row--cert.is-selected { background: hsl(var(--primary) / 0.08); box-shadow: inset 3px 0 0 hsl(var(--primary)); }
+.file-row__main { cursor: default; }
+.file-row--cert[role="button"] .file-row__main, .file-row--cert .file-row__main[role="button"] { cursor: pointer; }
 
 /* Certification history list (reuses .file-row rows) */
 .cert-history__label {
@@ -15917,6 +16054,7 @@ tr:hover .auth-note-icon--empty {
 .orm-chip--submitted { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
 .orm-chip--approved  { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
 .orm-chip--required  { background: #fef9c3; color: #854d0e; border-color: #fde68a; }
+.orm-chip--pending   { background: #fef9c3; color: #854d0e; border-color: #fde68a; }
 .orm-chip--rejected  { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
 .orm-chip__opt { font-weight: 500; opacity: 0.75; margin-left: 4px; }
 
@@ -15931,6 +16069,65 @@ tr:hover .auth-note-icon--empty {
 }
 .orm-note {
     margin-bottom: 8px;
+}
+
+/* Per-item requirement review rows */
+.orm-row-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 6px 0;
+}
+.orm-row {
+    border: 1px solid hsl(var(--border));
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: hsl(var(--card));
+}
+.orm-row__main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.orm-row__label {
+    font-size: 13px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.orm-row__file {
+    font-size: 11px;
+    font-weight: 500;
+    color: hsl(var(--muted-foreground));
+}
+.orm-row__reason {
+    margin-top: 6px;
+    font-size: 12px;
+    color: hsl(0 70% 45%);
+}
+.orm-row__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+}
+.orm-row__reject-form {
+    margin-top: 8px;
+}
+.orm-row__reject-form textarea {
+    width: 100%;
+    resize: vertical;
+    font-family: inherit;
+    font-size: 13px;
+    padding: 8px 10px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 6px;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
 }
 
 .det-row__label,
@@ -16318,8 +16515,13 @@ tr:hover .auth-note-icon--empty {
 }
 
 .lead-history__method-icon {
-    font-size: 13px;
+    display: inline-flex;
     line-height: 1;
+}
+
+.lead-history__method-icon svg {
+    width: 13px;
+    height: 13px;
 }
 
 /* Timestamp pushed to the far right of the header row */
@@ -16425,10 +16627,17 @@ tr:hover .auth-note-icon--empty {
     font-weight: 500;
 }
 
-.lead-reminders__empty-emoji {
-    display: block;
-    font-size: 40px;
-    margin-bottom: 12px;
+.lead-reminders__empty-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 12px;
+    color: hsl(var(--primary));
+}
+
+.lead-reminders__empty-icon svg {
+    width: 40px;
+    height: 40px;
 }
 
 /* Bucket card — full border; the count badge carries the urgency color */
@@ -16684,7 +16893,32 @@ tr:hover .auth-note-icon--empty {
     text-overflow: ellipsis;
 }
 
-/* Inline editable — shared safe click-to-edit primitive */
+/* CertCard — certification portfolio card (Task 3) */
+.cert-card { border: 1px solid hsl(var(--border)); border-left: 4px solid var(--card-accent, hsl(var(--primary))); border-radius: 12px; background: hsl(var(--card)); padding: 16px; cursor: pointer; transition: box-shadow 0.15s, border-color 0.15s; }
+.cert-card:hover { box-shadow: 0 4px 14px hsl(0 0% 0% / 0.06); }
+.cert-card.is-selected { box-shadow: 0 0 0 2px hsl(var(--primary)); }
+.cert-card__header { display: flex; align-items: center; gap: 10px; }
+.cert-card__icon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.cert-card__icon svg { width: 18px; height: 18px; }
+.cert-card__title-area { flex: 1; min-width: 0; }
+.cert-card__title { font-size: 14px; font-weight: 700; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cert-card__meta { margin: 12px 0 8px; }
+.cert-card__expiry { font-size: 14px; font-weight: 600; color: hsl(var(--foreground)); }
+.cert-card__days { font-size: 12px; color: hsl(var(--muted-foreground)); margin-top: 2px; }
+.cert-card__progress { height: 6px; border-radius: 999px; background: hsl(var(--muted)); overflow: hidden; }
+.cert-card__progress-fill { height: 100%; border-radius: 999px; }
+.cert-card__progress-fill--active { background: #22c55e; }
+.cert-card__progress-fill--expiring { background: #f59e0b; }
+.cert-card__progress-fill--expired { background: #dc2626; }
+.cert-card__progress-fill--notset { background: #8b5cf6; }
+.cert-card__progress-fill--complete { background: #22c55e; }
+.cert-card__renewal { display: flex; align-items: center; justify-content: space-between; margin: 12px 0; font-size: 13px; }
+.cert-card__renewal-label { color: hsl(var(--muted-foreground)); }
+.cert-card__renewal-value { font-weight: 600; }
+.cert-card__actions { display: flex; gap: 8px; }
+.cert-card__actions .btn { flex: 1; justify-content: center; }
+
+/* Inline editable — shared safe click-to-edit primitive (from main) */
 .inline-editable { display: inline-flex; align-items: center; gap: 4px; }
 .inline-editable--read .inline-editable__value {
     border-bottom: 1px dashed hsl(var(--border));

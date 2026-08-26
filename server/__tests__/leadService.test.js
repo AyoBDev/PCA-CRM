@@ -172,17 +172,22 @@ describe('mapLeadToClientData', () => {
   });
 });
 
-function makeFakePrisma(lead) {
+jest.mock('../src/lib/tenantPrisma', () => ({
+  tenantTransaction: jest.fn((agencyId, fn) => fn(global.__leadServiceTestTx)),
+}));
+const { tenantTransaction } = require('../src/lib/tenantPrisma');
+
+function makeFakeDb(lead) {
   const createdClient = { id: 99, clientName: 'Jane Doe', authorizations: [] };
   const calls = { clientCreate: null, leadUpdate: null };
   const tx = {
     client: { create: async ({ data }) => { calls.clientCreate = data; return createdClient; } },
     lead: { update: async ({ where, data }) => { calls.leadUpdate = { where, data }; return { ...lead, ...data }; } },
   };
+  global.__leadServiceTestTx = tx;
   return {
     calls,
     lead: { findUnique: async () => lead },
-    $transaction: async (fn) => fn(tx),
   };
 }
 
@@ -190,31 +195,39 @@ describe('convertLead', () => {
   const baseLead = { id: 7, firstName: 'Jane', lastName: 'Doe', servicesRequested: '[]', status: 'quoted' };
 
   test('creates a client from the lead', async () => {
-    const prisma = makeFakePrisma(baseLead);
-    const { client } = await convertLead(prisma, 7);
+    const db = makeFakeDb(baseLead);
+    const { client } = await convertLead(db, 1, 7);
     expect(client.id).toBe(99);
-    expect(prisma.calls.clientCreate.clientName).toBe('Jane Doe');
+    expect(db.calls.clientCreate.clientName).toBe('Jane Doe');
+  });
+
+  test('stamps agencyId on the created client', async () => {
+    const db = makeFakeDb(baseLead);
+    await convertLead(db, 1, 7);
+    expect(db.calls.clientCreate.agencyId).toBe(1);
   });
 
   test('marks the lead converted + archived + linked', async () => {
-    const prisma = makeFakePrisma(baseLead);
-    await convertLead(prisma, 7);
-    expect(prisma.calls.leadUpdate.data.status).toBe('converted');
-    expect(prisma.calls.leadUpdate.data.convertedClientId).toBe(99);
-    expect(prisma.calls.leadUpdate.data.archivedAt).toBeInstanceOf(Date);
-    expect(prisma.calls.leadUpdate.data.convertedAt).toBeInstanceOf(Date);
+    const db = makeFakeDb(baseLead);
+    await convertLead(db, 1, 7);
+    expect(db.calls.leadUpdate.data.status).toBe('converted');
+    expect(db.calls.leadUpdate.data.convertedClientId).toBe(99);
+    expect(db.calls.leadUpdate.data.archivedAt).toBeInstanceOf(Date);
+    expect(db.calls.leadUpdate.data.convertedAt).toBeInstanceOf(Date);
   });
 
   test('records the pre-conversion stage for later revert', async () => {
-    const prisma = makeFakePrisma(baseLead); // status 'quoted'
-    await convertLead(prisma, 7);
-    expect(prisma.calls.leadUpdate.data.preConvertStatus).toBe('quoted');
+    const db = makeFakeDb(baseLead); // status 'quoted'
+    await convertLead(db, 1, 7);
+    expect(db.calls.leadUpdate.data.preConvertStatus).toBe('quoted');
   });
 });
 
-// Fake prisma for revertConversion: a converted lead pointing at a client, with
+// Fake db for revertConversion: a converted lead pointing at a client, with
 // configurable dependency counts to exercise the empty-vs-has-data guard.
-function makeRevertPrisma(lead, { client = { id: 99, clientName: 'Jane Doe' }, counts = {} } = {}) {
+// revertConversion uses tenantTransaction (mocked above to run the callback
+// against global.__leadServiceTestTx), same as convertLead.
+function makeRevertDb(lead, { client = { id: 99, clientName: 'Jane Doe' }, counts = {} } = {}) {
   const calls = { clientDelete: null, leadUpdate: null };
   const zero = { authorization: 0, shift: 0, timesheet: 0, clientNote: 0, permanentLink: 0, ...counts };
   const tx = {
@@ -229,10 +242,10 @@ function makeRevertPrisma(lead, { client = { id: 99, clientName: 'Jane Doe' }, c
     permanentLink: { count: async () => zero.permanentLink },
     lead: { update: async ({ where, data }) => { calls.leadUpdate = { where, data }; return { ...lead, ...data }; } },
   };
+  global.__leadServiceTestTx = tx;
   return {
     calls,
     lead: { findUnique: async () => lead },
-    $transaction: async (fn) => fn(tx),
   };
 }
 
@@ -240,44 +253,44 @@ describe('revertConversion', () => {
   const convertedLead = { id: 7, firstName: 'Jane', lastName: 'Doe', status: 'converted', preConvertStatus: 'review', convertedClientId: 99 };
 
   test('restores the lead to its pre-conversion stage', async () => {
-    const prisma = makeRevertPrisma(convertedLead);
-    const { lead } = await revertConversion(prisma, 7);
+    const db = makeRevertDb(convertedLead);
+    const { lead } = await revertConversion(db, 1, 7);
     expect(lead.status).toBe('review');
-    expect(prisma.calls.leadUpdate.data.convertedClientId).toBeNull();
-    expect(prisma.calls.leadUpdate.data.convertedAt).toBeNull();
-    expect(prisma.calls.leadUpdate.data.archivedAt).toBeNull();
-    expect(prisma.calls.leadUpdate.data.preConvertStatus).toBe('');
+    expect(db.calls.leadUpdate.data.convertedClientId).toBeNull();
+    expect(db.calls.leadUpdate.data.convertedAt).toBeNull();
+    expect(db.calls.leadUpdate.data.archivedAt).toBeNull();
+    expect(db.calls.leadUpdate.data.preConvertStatus).toBe('');
   });
 
   test('deletes the auto-created (empty) client', async () => {
-    const prisma = makeRevertPrisma(convertedLead);
-    const { deletedClient } = await revertConversion(prisma, 7);
-    expect(prisma.calls.clientDelete).toEqual({ id: 99 });
+    const db = makeRevertDb(convertedLead);
+    const { deletedClient } = await revertConversion(db, 1, 7);
+    expect(db.calls.clientDelete).toEqual({ id: 99 });
     expect(deletedClient).toEqual({ id: 99, clientName: 'Jane Doe' });
   });
 
   test('falls back to "new" when no pre-conversion stage was stored', async () => {
-    const prisma = makeRevertPrisma({ ...convertedLead, preConvertStatus: '' });
-    const { lead } = await revertConversion(prisma, 7);
+    const db = makeRevertDb({ ...convertedLead, preConvertStatus: '' });
+    const { lead } = await revertConversion(db, 1, 7);
     expect(lead.status).toBe('new');
   });
 
   test('blocks the revert when the client already has real data', async () => {
-    const prisma = makeRevertPrisma(convertedLead, { counts: { shift: 3 } });
-    await expect(revertConversion(prisma, 7)).rejects.toThrow(/Cannot move back/i);
-    expect(prisma.calls.clientDelete).toBeNull(); // nothing deleted
-    expect(prisma.calls.leadUpdate).toBeNull();   // lead untouched
+    const db = makeRevertDb(convertedLead, { counts: { shift: 3 } });
+    await expect(revertConversion(db, 1, 7)).rejects.toThrow(/Cannot move back/i);
+    expect(db.calls.clientDelete).toBeNull(); // nothing deleted
+    expect(db.calls.leadUpdate).toBeNull();   // lead untouched
   });
 
   test('throws when the lead is not converted', async () => {
-    const prisma = makeRevertPrisma({ ...convertedLead, status: 'new' });
-    await expect(revertConversion(prisma, 7)).rejects.toThrow(/not converted/i);
+    const db = makeRevertDb({ ...convertedLead, status: 'new' });
+    await expect(revertConversion(db, 1, 7)).rejects.toThrow(/not converted/i);
   });
 
   test('throws when the lead is missing', async () => {
-    const prisma = makeRevertPrisma(convertedLead);
-    prisma.lead.findUnique = async () => null;
-    await expect(revertConversion(prisma, 7)).rejects.toThrow(/not found/i);
+    const db = makeRevertDb(convertedLead);
+    db.lead.findUnique = async () => null;
+    await expect(revertConversion(db, 1, 7)).rejects.toThrow(/not found/i);
   });
 });
 
@@ -285,14 +298,14 @@ describe('convertLead error cases', () => {
   const baseLead = { id: 7, firstName: 'Jane', lastName: 'Doe', servicesRequested: '[]', status: 'quoted' };
 
   test('throws when lead is missing', async () => {
-    const prisma = makeFakePrisma(null);
-    prisma.lead.findUnique = async () => null;
-    await expect(convertLead(prisma, 7)).rejects.toThrow('Lead not found');
+    const db = makeFakeDb(null);
+    db.lead.findUnique = async () => null;
+    await expect(convertLead(db, 1, 7)).rejects.toThrow('Lead not found');
   });
 
   test('throws when already converted', async () => {
-    const prisma = makeFakePrisma({ ...baseLead, status: 'converted' });
-    await expect(convertLead(prisma, 7)).rejects.toThrow('already converted');
+    const db = makeFakeDb({ ...baseLead, status: 'converted' });
+    await expect(convertLead(db, 1, 7)).rejects.toThrow('already converted');
   });
 });
 

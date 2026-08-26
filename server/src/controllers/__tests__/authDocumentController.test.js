@@ -1,14 +1,16 @@
-jest.mock('../../lib/prisma', () => ({
-  authorization_documents: { findUnique: jest.fn() },
-}));
 jest.mock('../../lib/storage', () => ({ uploadFile: jest.fn(), downloadFile: jest.fn() }));
 
-const prisma = require('../../lib/prisma');
 const { downloadFile } = require('../../lib/storage');
 const { downloadAuthDocument } = require('../authDocumentController');
 
+// Controllers read the DB via req.db (tenant-scoped client set by
+// tenantMiddleware), not the owner lib/prisma connection.
+const prisma = {
+  authorization_documents: { findUnique: jest.fn() },
+};
+
 function mockReqRes(id = 3) {
-  const req = { params: { id: String(id) }, user: { id: 1, name: 'Admin', role: 'admin' } };
+  const req = { params: { id: String(id) }, user: { id: 1, name: 'Admin', role: 'admin', agencyId: 1 }, db: prisma };
   const res = {
     setHeader: jest.fn(),
     send: jest.fn().mockReturnThis(),

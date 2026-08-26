@@ -1,12 +1,19 @@
+// Cron driver: enumerates active agencies on the owner connection, then runs
+// the compliance check for each agency inside its own tenant context.
 const prisma = require('../lib/prisma');
+const { tenantClient } = require('../lib/tenantPrisma');
+const { runWithTenant } = require('../lib/tenantContext');
 const { evaluateCompliance, createComplianceTask, createNotification } = require('../services/complianceService');
 
-async function runComplianceCheck() {
+// Runs the compliance sweep for a single tenant's `db`. Callers must invoke
+// this from inside runWithTenant({ agencyId, db }, ...) since complianceService
+// reads the tenant DB via getTenantDb().
+async function runComplianceCheckForAgency(db) {
   const now = new Date();
   const thirtyDaysOut = new Date(now);
   thirtyDaysOut.setDate(thirtyDaysOut.getDate() + 30);
 
-  const expiringCerts = await prisma.employeeCertification.findMany({
+  const expiringCerts = await db.employeeCertification.findMany({
     where: {
       expirationDate: { lte: thirtyDaysOut },
       status: { notIn: ['pending'] },
@@ -24,7 +31,7 @@ async function runComplianceCheck() {
     const isExpiring = !isExpired;
 
     if (isExpiring) {
-      const recentNotif = await prisma.notification.findFirst({
+      const recentNotif = await db.notification.findFirst({
         where: {
           employeeId,
           type: 'reminder_30day',
@@ -48,7 +55,7 @@ async function runComplianceCheck() {
   for (const employeeId of employeesToEvaluate) {
     const status = await evaluateCompliance(employeeId);
     if (status === 'blocked') {
-      const recentBlock = await prisma.notification.findFirst({
+      const recentBlock = await db.notification.findFirst({
         where: { employeeId, type: 'blocked', createdAt: { gte: new Date(now - 24 * 60 * 60 * 1000) } },
       });
       if (!recentBlock) {
@@ -63,4 +70,13 @@ async function runComplianceCheck() {
   console.log(`[Compliance] Checked ${expiringCerts.length} certs, evaluated ${employeesToEvaluate.size} employees`);
 }
 
-module.exports = { runComplianceCheck };
+// Cron entry point: iterates every active agency and runs the sweep for each.
+async function runComplianceCheck() {
+  const agencies = await prisma.agency.findMany({ where: { status: 'active' } });
+  for (const agency of agencies) {
+    const db = tenantClient(agency.id);
+    await runWithTenant({ agencyId: agency.id, db }, () => runComplianceCheckForAgency(db));
+  }
+}
+
+module.exports = { runComplianceCheck, runComplianceCheckForAgency };

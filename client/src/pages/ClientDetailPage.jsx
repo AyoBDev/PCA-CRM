@@ -4,6 +4,7 @@ import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import PreviewModal from '../components/common/PreviewModal';
 import AuthorizationFormModal from '../components/common/AuthorizationFormModal';
 import Breadcrumbs from '../components/common/Breadcrumbs';
 import { EntityActivityButton } from '../components/common/ActivityDrawer';
@@ -25,6 +26,7 @@ import FollowUpHistoryList from '../components/leads/FollowUpHistoryList';
 import { AUTH_COLORS, DEFAULT_AUTH_COLOR } from '../utils/constants';
 import { formatDate, formatDateTime } from '../utils/dates';
 import { unitsToHours } from '../utils/time';
+import { isAuthListedActive } from '../utils/authorizations';
 
 const DOC_CATEGORIES = [
     { value: 'admission_packet', label: 'Client Admission Packets', color: '#3b82f6' },
@@ -128,6 +130,7 @@ export default function ClientDetailPage() {
     const [summaryExpandedService, setSummaryExpandedService] = useState(null);
     const [authFilterStatus, setAuthFilterStatus] = useState('active');
     const [expandedAuthAttachments, setExpandedAuthAttachments] = useState({});
+    const [previewAuthDoc, setPreviewAuthDoc] = useState(null);
 
     const fetchClient = useCallback(async () => {
         try {
@@ -530,6 +533,12 @@ export default function ClientDetailPage() {
             // Snapshot the old auth's pre-renew state so undo can restore it exactly —
             // renewAuthorization truncates its end date and sets renewedToId/closedAt server-side.
             const oldAuthSnapshot = (client.authorizations || []).find(a => a.id === oldAuthId) || editingAuth;
+            // Mirror the server's rule: a scheduled renewal with a future start leaves
+            // the old auth ACTIVE (dates govern hand-over); otherwise it's retired now.
+            // Redo must restore whichever status the renewal actually produced.
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const startIsFuture = !!data.authorizationStartDate && data.authorizationStartDate > todayStr;
+            const oldStaysActive = data.renewalActivation !== 'immediate' && startIsFuture;
             const newAuth = await api.renewAuthorization(oldAuthId, data);
             if (files && files.length && newAuth?.id) {
                 for (const file of files) {
@@ -552,7 +561,7 @@ export default function ClientDetailPage() {
                     });
                     await fetchClient();
                 },
-                async () => { await api.restoreAuthorization(newAuth.id); await api.updateAuthManualStatus(oldAuthId, 'inactive'); await fetchClient(); },
+                async () => { await api.restoreAuthorization(newAuth.id); if (!oldStaysActive) await api.updateAuthManualStatus(oldAuthId, 'inactive'); await fetchClient(); },
             );
             setShowAuthModal(false);
             fetchClient();
@@ -607,6 +616,24 @@ export default function ClientDetailPage() {
             undoState.pushAction('Restored authorization',
                 async () => { await api.archiveAuthorization(authId); fetchClient(); },
                 async () => { await api.restoreAuthorization(authId); fetchClient(); }
+            );
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    // Re-activate an authorization that was superseded/inactivated (e.g. one an
+    // old renewal retired early). Uses the full-record PUT with skipDeactivate so
+    // it does NOT sweep the same-code successor (the renewal stays active); the
+    // two coexist by date. Undo flips it back to inactive.
+    const handleReactivateAuth = async (authId) => {
+        try {
+            const snap = (client.authorizations || []).find(a => a.id === authId);
+            if (!snap) return;
+            await api.updateAuthorization(authId, { ...snap, manualStatus: 'active', skipDeactivate: true });
+            showToast('Authorization marked active');
+            fetchClient();
+            undoState.pushAction('Marked authorization active',
+                async () => { await api.updateAuthManualStatus(authId, 'inactive'); fetchClient(); },
+                async () => { await api.updateAuthorization(authId, { ...snap, manualStatus: 'active', skipDeactivate: true }); fetchClient(); }
             );
         } catch (err) { showToast(err.message, 'error'); }
     };
@@ -671,7 +698,9 @@ export default function ClientDetailPage() {
 
     const handleDownloadAuthDoc = async (doc) => {
         try {
-            const blob = await api.downloadAuthDocument(doc.id);
+            const res = await api.downloadAuthDocument(doc.id);
+            if (!res.ok) throw new Error('Download failed');
+            const blob = await res.blob();
             const url = URL.createObjectURL(blob);
             if (doc.mimeType === 'application/pdf' || doc.fileName?.toLowerCase().endsWith('.pdf')) {
                 window.open(url, '_blank');
@@ -711,7 +740,10 @@ export default function ClientDetailPage() {
     const PROGRAM_CODES = ['COPE', 'PAS'];
     const activeServiceEntries = [];
     const seenKeys = new Set();
-    (client.authorizations || []).filter(a => !a.archivedAt).forEach(a => {
+    // Header service chips reflect currently-authorized services: active, not
+    // archived, and not date-expired (a future renewal still counts). An expired
+    // service without a renewal drops off once its end date passes.
+    (client.authorizations || []).filter(a => isAuthListedActive(a)).forEach(a => {
         const isProgramCode = PROGRAM_CODES.includes(a.serviceCode);
         const key = isProgramCode ? `${a.serviceCode}::${a.serviceName || ''}` : a.serviceCode;
         if (!seenKeys.has(key)) {
@@ -1058,6 +1090,7 @@ export default function ClientDetailPage() {
                             openAuthModal={openAuthModal}
                             handleArchiveAuth={handleArchiveAuth}
                             handleRestoreAuth={handleRestoreAuth}
+                            handleReactivateAuth={handleReactivateAuth}
                             handleUploadAuthDoc={handleUploadAuthDoc}
                             handleDownloadAuthDoc={handleDownloadAuthDoc}
                             handleDeleteAuthDoc={handleDeleteAuthDoc}
@@ -1074,6 +1107,7 @@ export default function ClientDetailPage() {
                             showToast={showToast}
                             totalDocs={totalDocs}
                             onSaveAuthNote={handleSaveAuthNote}
+                            setPreviewAuthDoc={setPreviewAuthDoc}
                         />
                     )}
                     {activeTab === 'documents' && (
@@ -1510,6 +1544,7 @@ export default function ClientDetailPage() {
                 <AuthorizationFormModal
                     auth={editingAuth ? { ...editingAuth } : (authPresetServiceCode ? { serviceCode: authPresetServiceCode } : null)}
                     clientId={client.id}
+                    siblingAuths={client.authorizations || []}
                     onSave={handleSaveAuth}
                     onRenewal={handleRenewAuth}
                     onInactivate={handleInactivateAuth}
@@ -1539,6 +1574,14 @@ export default function ClientDetailPage() {
                     confirmVariant="danger"
                     onConfirm={handleArchiveClient}
                     onClose={() => setConfirmArchiveClient(false)}
+                />
+            )}
+            {previewAuthDoc && (
+                <PreviewModal
+                    open
+                    fileName={previewAuthDoc.fileName}
+                    fetchBlob={previewAuthDoc.fetchBlob}
+                    onClose={() => setPreviewAuthDoc(null)}
                 />
             )}
         </>

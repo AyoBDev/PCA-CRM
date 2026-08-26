@@ -20,15 +20,15 @@ describe('markConversationRead', () => {
   let pcaUser;
 
   beforeAll(async () => {
-    adminUser = await prisma.user.create({ data: { email: `admin-mr-${Date.now()}@test.local`, passwordHash: 'x', name: 'AdminMR', role: 'admin' } });
-    pcaUser = await prisma.user.create({ data: { email: `pca-mr-${Date.now()}@test.local`, passwordHash: 'x', name: 'PcaMR', role: 'pca' } });
-    employee = await prisma.employee.create({ data: { name: 'EmpMR', userId: pcaUser.id } });
-    conversation = await prisma.conversation.create({ data: { employeeId: employee.id } });
+    adminUser = await prisma.user.create({ data: { email: `admin-mr-${Date.now()}@test.local`, passwordHash: 'x', name: 'AdminMR', role: 'admin', agencyId: 1 } });
+    pcaUser = await prisma.user.create({ data: { email: `pca-mr-${Date.now()}@test.local`, passwordHash: 'x', name: 'PcaMR', role: 'pca', agencyId: 1 } });
+    employee = await prisma.employee.create({ data: { name: 'EmpMR', userId: pcaUser.id, agencyId: 1 } });
+    conversation = await prisma.conversation.create({ data: { employeeId: employee.id, agencyId: 1 } });
     await prisma.message.createMany({
       data: [
-        { conversationId: conversation.id, senderId: pcaUser.id, senderRole: 'pca', content: 'hi 1' },
-        { conversationId: conversation.id, senderId: pcaUser.id, senderRole: 'pca', content: 'hi 2' },
-        { conversationId: conversation.id, senderId: adminUser.id, senderRole: 'admin', content: 'reply' },
+        { conversationId: conversation.id, senderId: pcaUser.id, senderRole: 'pca', content: 'hi 1', agencyId: 1 },
+        { conversationId: conversation.id, senderId: pcaUser.id, senderRole: 'pca', content: 'hi 2', agencyId: 1 },
+        { conversationId: conversation.id, senderId: adminUser.id, senderRole: 'admin', content: 'reply', agencyId: 1 },
       ],
     });
   });
@@ -42,7 +42,7 @@ describe('markConversationRead', () => {
   });
 
   test('marks all unread PCA messages read and returns unreadCount 0', async () => {
-    const req = { params: { id: String(conversation.id) }, user: adminUser };
+    const req = { params: { id: String(conversation.id) }, user: adminUser, db: prisma };
     const res = mockRes();
 
     await markConversationRead(req, res);
@@ -61,7 +61,7 @@ describe('markConversationRead', () => {
   });
 
   test('idempotent on second call', async () => {
-    const req = { params: { id: String(conversation.id) }, user: adminUser };
+    const req = { params: { id: String(conversation.id) }, user: adminUser, db: prisma };
     const res = mockRes();
     await markConversationRead(req, res);
     expect(res.json).toHaveBeenCalledWith({ conversationId: conversation.id, unreadCount: 0 });
@@ -69,6 +69,6 @@ describe('markConversationRead', () => {
 
   test('emits chat:conversation-read to office', async () => {
     const { emitToOffice } = require('../src/socket');
-    expect(emitToOffice).toHaveBeenCalledWith('chat:conversation-read', { conversationId: conversation.id });
+    expect(emitToOffice).toHaveBeenCalledWith(adminUser.agencyId, 'chat:conversation-read', { conversationId: conversation.id });
   });
 });

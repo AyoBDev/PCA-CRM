@@ -1,10 +1,11 @@
 const express = require('express');
 const multer = require('multer');
-const { authenticate } = require('../middleware/authMiddleware');
+const { authenticate, requireSurface } = require('../middleware/authMiddleware');
+const { tenantMiddleware } = require('../middleware/tenantMiddleware');
 const { requireEmployeeLink } = require('../middleware/requireEmployeeLink');
 const { getProfile, updateProfile } = require('../controllers/employeePortal/profileController');
 const { getHomeSummary, getNextShift, getActivity } = require('../controllers/employeePortal/homeController');
-const { getCertifications, uploadCertification, createCertification } = require('../controllers/employeePortal/requirementsController');
+const { getCertifications, uploadCertification, createCertification, downloadCertificationUpload } = require('../controllers/employeePortal/requirementsController');
 const { getWeekSchedule, getScheduleHistory } = require('../controllers/employeePortal/scheduleController');
 const { getAvailability, submitAvailabilityRequest, getTimeOffRequests, submitTimeOff } = require('../controllers/employeePortal/availabilityController');
 const { getPayrollSummary, getPaystubs, downloadPaystub } = require('../controllers/employeePortal/payrollController');
@@ -13,7 +14,7 @@ const { getMessages, sendMessage, markRead, getUnreadCount } = require('../contr
 const { getNotifications, markNotificationsRead } = require('../controllers/employeePortal/notificationController');
 const { getTimesheet } = require('../controllers/employeePortal/timesheetController');
 const { getMyOffers, respondToMyOffer } = require('../controllers/employeePortal/offersController');
-const { getRequirements, getDocuments, uploadDocument } = require('../controllers/employeePortal/documentsController');
+const { getRequirements, getDocuments, uploadDocument, getMyOnboardingLink } = require('../controllers/employeePortal/documentsController');
 const { ackPolicy } = require('../controllers/employeePortal/policiesController');
 
 const certUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -22,6 +23,8 @@ const portalUpload = multer({ storage: multer.memoryStorage(), limits: { fileSiz
 const router = express.Router();
 
 router.use(authenticate);
+router.use(requireSurface('employee'));
+router.use(tenantMiddleware);
 router.use(requireEmployeeLink);
 
 // Home
@@ -37,6 +40,7 @@ router.patch('/profile', updateProfile);
 router.get('/certifications', getCertifications);
 router.post('/certifications/:certId/upload', certUpload.single('file'), uploadCertification);
 router.post('/certifications', certUpload.single('file'), createCertification);
+router.get('/certifications/uploads/:uploadId/download', downloadCertificationUpload);
 
 // Schedule
 router.get('/schedule/week', getWeekSchedule);
@@ -78,6 +82,7 @@ router.post('/offers/:id/respond', respondToMyOffer);
 router.get('/requirements', getRequirements);
 router.get('/documents', getDocuments);
 router.post('/documents/:reqId', portalUpload.single('file'), uploadDocument);
+router.get('/onboarding/my-link', getMyOnboardingLink);
 router.post('/policies/:reqId/ack', ackPolicy);
 
 module.exports = router;

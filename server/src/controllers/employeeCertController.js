@@ -1,18 +1,18 @@
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 const { uploadFile, downloadFile } = require('../lib/storage');
+const { tenantKey } = require('../services/storageService');
 
 // Upload the file to the bucket BEFORE any cert record is written, so a bucket
 // failure aborts the request without persisting a partial/orphaned cert row.
 async function uploadFileToBucket(employeeId, certType, file) {
     const timestamp = Date.now();
-    const bucketKey = `certs/${employeeId}/${certType}/${timestamp}-${file.originalname}`;
+    const bucketKey = tenantKey(`certs/${employeeId}/${certType}/${timestamp}-${file.originalname}`);
     await uploadFile(bucketKey, file.buffer, file.mimetype || 'application/octet-stream');
     return bucketKey;
 }
 
-async function writeUploadRow(cert, file, user, bucketKey) {
-    await prisma.certificationUpload.create({
+async function writeUploadRow(db, cert, file, user, bucketKey) {
+    await db.certificationUpload.create({
         data: {
             certificationId: cert.id,
             bucketKey,
@@ -30,7 +30,7 @@ async function writeUploadRow(cert, file, user, bucketKey) {
 async function listCertifications(req, res, next) {
     try {
         const employeeId = Number(req.params.employeeId);
-        const certs = await prisma.employeeCertification.findMany({
+        const certs = await req.db.employeeCertification.findMany({
             where: { employeeId },
             orderBy: [{ certType: 'asc' }, { createdAt: 'desc' }],
             select: {
@@ -78,11 +78,11 @@ async function createCertification(req, res, next) {
             bucketKey = await uploadFileToBucket(employeeId, certType, file);
         }
 
-        const cert = await prisma.employeeCertification.create({ data });
+        const cert = await req.db.employeeCertification.create({ data });
 
-        if (file) await writeUploadRow(cert, file, req.user, bucketKey);
+        if (file) await writeUploadRow(req.db, cert, file, req.user, bucketKey);
 
-        const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+        const employee = await req.db.employee.findUnique({ where: { id: employeeId } });
         audit.logAction(
             req.user.id, req.user.name, req.user.role,
             'CREATE', 'EmployeeCertification', cert.id,
@@ -100,7 +100,7 @@ async function updateCertification(req, res, next) {
         const { expirationDate, status, notes } = req.body;
         const file = req.file;
 
-        const old = await prisma.employeeCertification.findUnique({ where: { id } });
+        const old = await req.db.employeeCertification.findUnique({ where: { id } });
         if (!old) return res.status(404).json({ error: 'Certification not found' });
 
         const data = {};
@@ -117,9 +117,9 @@ async function updateCertification(req, res, next) {
             bucketKey = await uploadFileToBucket(old.employeeId, old.certType, file);
         }
 
-        const cert = await prisma.employeeCertification.update({ where: { id }, data });
+        const cert = await req.db.employeeCertification.update({ where: { id }, data });
 
-        if (file) await writeUploadRow(cert, file, req.user, bucketKey);
+        if (file) await writeUploadRow(req.db, cert, file, req.user, bucketKey);
 
         const changes = audit.diffFields(old, cert, ['expirationDate', 'status', 'notes', 'fileName']);
         audit.logAction(
@@ -136,10 +136,10 @@ async function updateCertification(req, res, next) {
 async function deleteCertification(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const cert = await prisma.employeeCertification.findUnique({ where: { id } });
+        const cert = await req.db.employeeCertification.findUnique({ where: { id } });
         if (!cert) return res.status(404).json({ error: 'Certification not found' });
 
-        await prisma.employeeCertification.delete({ where: { id } });
+        await req.db.employeeCertification.delete({ where: { id } });
 
         audit.logAction(
             req.user.id, req.user.name, req.user.role,
@@ -154,7 +154,7 @@ async function deleteCertification(req, res, next) {
 async function downloadCertification(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const cert = await prisma.employeeCertification.findUnique({
+        const cert = await req.db.employeeCertification.findUnique({
             where: { id },
             include: { uploads: { orderBy: { submittedAt: 'desc' } } },
         });
@@ -195,7 +195,7 @@ async function downloadCertification(req, res, next) {
 async function downloadCertificationUpload(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const upload = await prisma.certificationUpload.findUnique({ where: { id } });
+        const upload = await req.db.certificationUpload.findUnique({ where: { id } });
         if (!upload || !upload.bucketKey) return res.status(404).json({ error: 'File not found' });
 
         const buffer = await downloadFile(upload.bucketKey);

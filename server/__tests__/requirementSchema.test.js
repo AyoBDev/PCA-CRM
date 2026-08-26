@@ -5,15 +5,15 @@ afterAll(async () => { await prisma.$disconnect(); });
 describe('requirement schema', () => {
   let employeeId;
   beforeAll(async () => {
-    const e = await prisma.employee.create({ data: { name: 'Schema Test EE', email: `schema-${Date.now()}@t.co` } });
+    const e = await prisma.employee.create({ data: { name: 'Schema Test EE', email: `schema-${Date.now()}@t.co`, agencyId: 1 } });
     employeeId = e.id;
   });
   afterAll(async () => { await prisma.employee.delete({ where: { id: employeeId } }); });
 
   it('creates a DocumentType and an EmployeeRequirement pointing at it', async () => {
-    const dt = await prisma.documentType.create({ data: { key: `govid-${Date.now()}`, label: 'Government ID', requiresExpiry: true, sortOrder: 1 } });
+    const dt = await prisma.documentType.create({ data: { key: `govid-${Date.now()}`, label: 'Government ID', requiresExpiry: true, sortOrder: 1, agencyId: 1 } });
     const req = await prisma.employeeRequirement.create({
-      data: { employeeId, kind: 'document', catalogTypeId: dt.id, status: 'required' },
+      data: { employeeId, kind: 'document', catalogTypeId: dt.id, status: 'required', agencyId: 1 },
     });
     expect(req.status).toBe('required');
     expect(req.kind).toBe('document');

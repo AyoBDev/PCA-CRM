@@ -9,18 +9,19 @@
 // Mirrors clientNotesController: a read-only aggregation over source records
 // rather than a copied-note table, so nothing can drift out of sync.
 
-jest.mock('../../lib/prisma', () => ({
+const { listEmployeeNotesTimeline } = require('../employeeNotesController');
+
+// Controllers read the DB via req.db (tenant-scoped client set by
+// tenantMiddleware), not the owner lib/prisma connection.
+const prisma = {
     employee: { findUnique: jest.fn() },
     shiftCallout: { findMany: jest.fn(() => []) },
     shiftOffer: { findMany: jest.fn(() => []) },
     auditLog: { findMany: jest.fn(() => []) },
-}));
-
-const prisma = require('../../lib/prisma');
-const { listEmployeeNotesTimeline } = require('../employeeNotesController');
+};
 
 function mockReqRes(overrides = {}) {
-    const req = { params: { employeeId: '5' }, query: {}, user: { id: 2, name: 'Admin', role: 'admin' }, ...overrides };
+    const req = { params: { employeeId: '5' }, query: {}, user: { id: 2, name: 'Admin', role: 'admin', agencyId: 1 }, db: prisma, ...overrides };
     const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
     return { req, res, next: jest.fn() };
 }

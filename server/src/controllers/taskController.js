@@ -1,4 +1,3 @@
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 
 function assignmentFilter(user) {
@@ -34,14 +33,14 @@ async function listTasks(req, res, next) {
         }
 
         const [tasks, total] = await Promise.all([
-            prisma.task.findMany({
+            req.db.task.findMany({
                 where,
                 include: { assignedToUser: { select: { id: true, name: true, email: true, role: true } } },
                 orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
                 skip,
                 take: limit,
             }),
-            prisma.task.count({ where }),
+            req.db.task.count({ where }),
         ]);
 
         res.json({ tasks, total, page: Number(page), totalPages: Math.ceil(total / limit) });
@@ -52,7 +51,7 @@ async function listTasks(req, res, next) {
 
 async function getTask(req, res, next) {
     try {
-        const task = await prisma.task.findUnique({
+        const task = await req.db.task.findUnique({
             where: { id: Number(req.params.id) },
             include: {
                 assignedToUser: { select: { id: true, name: true, email: true, role: true } },
@@ -90,7 +89,7 @@ async function createTask(req, res, next) {
         if (dueDate) data.dueDate = new Date(dueDate);
         if (assignedToUserId) data.assignedToUserId = Number(assignedToUserId);
 
-        const task = await prisma.task.create({
+        const task = await req.db.task.create({
             data,
             include: { assignedToUser: { select: { id: true, name: true, email: true, role: true } } },
         });
@@ -116,7 +115,7 @@ async function createTask(req, res, next) {
 async function updateTask(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const existing = await prisma.task.findUnique({ where: { id } });
+        const existing = await req.db.task.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Task not found' });
 
         if (req.user.role !== 'admin') {
@@ -155,7 +154,7 @@ async function updateTask(req, res, next) {
             data.completedAt = null;
         }
 
-        const task = await prisma.task.update({
+        const task = await req.db.task.update({
             where: { id },
             data,
             include: { assignedToUser: { select: { id: true, name: true, email: true, role: true } } },
@@ -183,10 +182,10 @@ async function updateTask(req, res, next) {
 async function deleteTask(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const existing = await prisma.task.findUnique({ where: { id } });
+        const existing = await req.db.task.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Task not found' });
 
-        const task = await prisma.task.update({
+        const task = await req.db.task.update({
             where: { id },
             data: { status: 'cancelled' },
         });
@@ -225,7 +224,7 @@ async function bulkUpdateTasks(req, res, next) {
         if (status === 'completed') data.completedAt = new Date();
         if (status !== 'completed') data.completedAt = null;
 
-        await prisma.task.updateMany({
+        await req.db.task.updateMany({
             where: { id: { in: ids.map(Number) } },
             data,
         });
@@ -264,19 +263,19 @@ async function getTaskSummary(req, res, next) {
         if (scope.OR) baseWhere.AND = [{ OR: scope.OR }];
 
         const [overdue, dueToday, dueThisWeek, totalOpen, byUrgency] = await Promise.all([
-            prisma.task.count({
+            req.db.task.count({
                 where: { ...baseWhere, dueDate: { lt: todayStart } },
             }),
-            prisma.task.count({
+            req.db.task.count({
                 where: { ...baseWhere, dueDate: { gte: todayStart, lt: todayEnd } },
             }),
-            prisma.task.count({
+            req.db.task.count({
                 where: { ...baseWhere, dueDate: { gte: todayStart, lt: weekEnd } },
             }),
-            prisma.task.count({
+            req.db.task.count({
                 where: baseWhere,
             }),
-            prisma.task.groupBy({
+            req.db.task.groupBy({
                 by: ['urgency'],
                 where: baseWhere,
                 _count: true,

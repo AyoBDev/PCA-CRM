@@ -1,37 +1,42 @@
-jest.mock('../src/lib/prisma', () => {
-  const tx = {
-    employee: { create: jest.fn() },
-    certType: { findUnique: jest.fn() },
-    employeeCertification: { create: jest.fn() },
-    employeeRequirement: { create: jest.fn() },
-  };
-  return {
-    employee: { create: jest.fn(), update: jest.fn() },
-    $transaction: jest.fn(async (cb) => cb(tx)),
-    __tx: tx,
-  };
-});
 jest.mock('../src/services/auditService', () => ({ logAction: jest.fn(), redactChanges: jest.fn((c) => c), diffFields: jest.fn(() => []) }));
 jest.mock('../src/services/onboardingService', () => ({
   createOnboardingToken: jest.fn(async () => 'tok'),
   sendOnboardingEmail: jest.fn(async () => {}),
 }));
 jest.mock('../src/services/geocodeOnWrite', () => ({ geocodeOnWrite: jest.fn() }));
+jest.mock('../src/lib/tenantPrisma', () => ({ tenantTransaction: jest.fn() }));
 
-const prisma = require('../src/lib/prisma');
 const audit = require('../src/services/auditService');
+const { tenantTransaction } = require('../src/lib/tenantPrisma');
 const controller = require('../src/controllers/employeeController');
 
 function mockRes() {
   return { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
 }
-const reqUser = { user: { id: 1, name: 'Admin', role: 'admin' } };
+// createEmployee auto-sends an onboarding invite (req.db.employee.update + a
+// second onboarding token) whenever an email is provided with no linked user —
+// stub req.db for that path too.
+const reqDb = { employee: { update: jest.fn(async ({ data }) => ({ onboardingStatus: data.onboardingStatus })) } };
+const reqUser = { user: { id: 1, name: 'Admin', role: 'admin', agencyId: 1 }, db: reqDb };
 
 beforeEach(() => jest.clearAllMocks());
 
+// createEmployee runs its work inside tenantTransaction(agencyId, async (tx) => {...}) —
+// build a tx double per test and wire tenantTransaction to invoke the real callback with it.
+function makeTx() {
+  const tx = {
+    employee: { create: jest.fn() },
+    certType: { findUnique: jest.fn(), findFirst: jest.fn() },
+    employeeCertification: { create: jest.fn() },
+    employeeRequirement: { create: jest.fn() },
+  };
+  tenantTransaction.mockImplementation(async (agencyId, fn) => fn(tx));
+  return tx;
+}
+
 describe('createEmployee with requirementSelections', () => {
   test('creates employee + requirement ledger rows in one transaction and logs audit', async () => {
-    const tx = prisma.__tx;
+    const tx = makeTx();
     tx.employee.create.mockResolvedValue({ id: 10, name: 'Req EE', email: 'reqee@t.co' });
     tx.certType.findUnique.mockResolvedValue({ id: 2, key: 'cert-key' });
     tx.employeeCertification.create.mockResolvedValue({ id: 99, employeeId: 10 });
@@ -50,7 +55,7 @@ describe('createEmployee with requirementSelections', () => {
     }, res, jest.fn());
 
     expect(res.statusCode).toBe(201);
-    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(tenantTransaction).toHaveBeenCalledTimes(1);
     expect(tx.employeeRequirement.create).toHaveBeenCalledTimes(2);
     expect(audit.logAction).toHaveBeenCalledWith(expect.objectContaining({
       action: 'CREATE',
@@ -67,7 +72,7 @@ describe('createEmployee with requirementSelections', () => {
   });
 
   test('creates employee without requirementSelections (no ledger rows, no extra audit)', async () => {
-    const tx = prisma.__tx;
+    const tx = makeTx();
     tx.employee.create.mockResolvedValue({ id: 11, name: 'Plain EE', email: '' });
 
     const res = mockRes();

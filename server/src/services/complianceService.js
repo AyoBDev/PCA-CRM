@@ -1,27 +1,22 @@
-const prisma = require('../lib/prisma');
+const { getTenantDb, getAgencyId } = require('../lib/tenantContext');
 const { emitToEmployee } = require('../socket');
 
-const RENEWAL_YEARS = {
-  tb_test: 1,
-  cpr: 2,
-  annual_training: 1,
-  cultural_competency: 2,
-  infection_control: 1,
-  background_check: 5,
-};
-
 async function evaluateCompliance(employeeId) {
+  const db = getTenantDb();
   const now = new Date();
-  const certs = await prisma.employeeCertification.findMany({
-    where: { employeeId },
-  });
+  const [certs, certTypes] = await Promise.all([
+    db.employeeCertification.findMany({ where: { employeeId } }),
+    db.certType.findMany(),
+  ]);
+  const requiresExpiry = Object.fromEntries(certTypes.map(t => [t.key, Boolean(t.requiresExpiry)]));
 
   const hasExpired = certs.some(c =>
+    (requiresExpiry[c.certType] ?? true) &&   // unknown type defaults to gated
     c.expirationDate && c.expirationDate < now && c.status !== 'pending'
   );
 
   const newStatus = hasExpired ? 'blocked' : 'ok';
-  await prisma.employee.update({
+  await db.employee.update({
     where: { id: employeeId },
     data: { complianceStatus: newStatus },
   });
@@ -30,30 +25,33 @@ async function evaluateCompliance(employeeId) {
 }
 
 async function createComplianceTask(employeeId, certType, certId) {
-  const existing = await prisma.employeeTask.findFirst({
+  const db = getTenantDb();
+  const existing = await db.employeeTask.findFirst({
     where: { employeeId, linkedCertId: certId, completedAt: null },
   });
   if (existing) return existing;
 
   const title = `Renew ${certType.replace(/_/g, ' ')}`;
-  return prisma.employeeTask.create({
+  return db.employeeTask.create({
     data: { employeeId, title, source: 'compliance', linkedCertId: certId },
   });
 }
 
 async function createNotification(employeeId, type, title, body) {
-  const notif = await prisma.notification.create({
+  const db = getTenantDb();
+  const notif = await db.notification.create({
     data: { employeeId, type, title, body },
   });
-  emitToEmployee(employeeId, 'notification:new', notif);
+  emitToEmployee(getAgencyId(), employeeId, 'notification:new', notif);
   return notif;
 }
 
 async function resolveComplianceTasks(certId) {
-  await prisma.employeeTask.updateMany({
+  const db = getTenantDb();
+  await db.employeeTask.updateMany({
     where: { linkedCertId: certId, completedAt: null },
     data: { completedAt: new Date() },
   });
 }
 
-module.exports = { evaluateCompliance, createComplianceTask, createNotification, resolveComplianceTasks, RENEWAL_YEARS };
+module.exports = { evaluateCompliance, createComplianceTask, createNotification, resolveComplianceTasks };

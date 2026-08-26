@@ -1,4 +1,3 @@
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 const { enrichClient } = require('../services/authorizationService');
 const leadService = require('../services/leadService');
@@ -31,14 +30,14 @@ async function listLeads(req, res, next) {
       // Default (or view=board / view=list): active, non-archived leads.
       where = { archivedAt: null };
     }
-    const leads = await prisma.lead.findMany({ where, orderBy });
+    const leads = await req.db.lead.findMany({ where, orderBy });
     res.json(leads);
   } catch (err) { next(err); }
 }
 
 async function getLead(req, res, next) {
   try {
-    const lead = await prisma.lead.findUnique({ where: { id: Number(req.params.id) } });
+    const lead = await req.db.lead.findUnique({ where: { id: Number(req.params.id) } });
     if (!lead) return res.status(404).json({ error: 'Lead not found' });
     res.json(lead);
   } catch (err) { next(err); }
@@ -61,7 +60,7 @@ async function createLead(req, res, next) {
     const data = sanitizeLeadBody(req.body);
     if (!data.createdBy) data.createdBy = req.user.name;
     data.stageEnteredAt = new Date();
-    const lead = await prisma.lead.create({ data });
+    const lead = await req.db.lead.create({ data });
     audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Lead', entityId: lead.id, entityName: leadName(lead) });
     res.status(201).json(lead);
   } catch (err) { next(err); }
@@ -70,7 +69,7 @@ async function createLead(req, res, next) {
 async function updateLead(req, res, next) {
   try {
     const id = Number(req.params.id);
-    const lead = await prisma.lead.update({ where: { id }, data: sanitizeLeadBody(req.body) });
+    const lead = await req.db.lead.update({ where: { id }, data: sanitizeLeadBody(req.body) });
     audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Lead', entityId: id, entityName: leadName(lead) });
     res.json(lead);
   } catch (err) { next(err); }
@@ -82,12 +81,12 @@ async function setLeadStatus(req, res, next) {
     let { status } = req.body;
     if (COLUMN_IDS.includes(status)) status = leadService.columnToStatus(status);
     if (!WORKFLOW_STATUSES.includes(status)) return res.status(400).json({ error: 'invalid status' });
-    const existing = await prisma.lead.findUnique({ where: { id } });
+    const existing = await req.db.lead.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Lead not found' });
     const data = { status, archivedAt: status === 'archived' ? new Date() : null };
     // Reset the stuck-in-stage timer only when the stage actually changes.
     if (existing.status !== status) data.stageEnteredAt = new Date();
-    const lead = await prisma.lead.update({ where: { id }, data });
+    const lead = await req.db.lead.update({ where: { id }, data });
     audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Lead', entityId: id, entityName: leadName(lead), changes: [{ field: 'status', oldValue: existing.status, newValue: status }] });
     res.json(lead);
   } catch (err) { next(err); }
@@ -96,7 +95,7 @@ async function setLeadStatus(req, res, next) {
 async function archiveLead(req, res, next) {
   try {
     const id = Number(req.params.id);
-    const lead = await prisma.lead.update({ where: { id }, data: { status: 'archived', archivedAt: new Date() } });
+    const lead = await req.db.lead.update({ where: { id }, data: { status: 'archived', archivedAt: new Date() } });
     audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'ARCHIVE', entityType: 'Lead', entityId: id, entityName: leadName(lead) });
     res.json(lead);
   } catch (err) { next(err); }
@@ -105,7 +104,7 @@ async function archiveLead(req, res, next) {
 async function restoreLead(req, res, next) {
   try {
     const id = Number(req.params.id);
-    const lead = await prisma.lead.update({ where: { id }, data: { status: 'new', archivedAt: null } });
+    const lead = await req.db.lead.update({ where: { id }, data: { status: 'new', archivedAt: null } });
     audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'RESTORE', entityType: 'Lead', entityId: id, entityName: leadName(lead) });
     res.json(lead);
   } catch (err) { next(err); }
@@ -114,7 +113,7 @@ async function restoreLead(req, res, next) {
 async function convertLead(req, res, next) {
   try {
     const id = Number(req.params.id);
-    const { client, lead } = await leadService.convertLead(prisma, id);
+    const { client, lead } = await leadService.convertLead(req.db, req.user.agencyId, id);
     audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'CREATE', entityType: 'Client', entityId: client.id, entityName: client.clientName });
     audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Lead', entityId: id, entityName: leadName(lead), metadata: { action: 'lead_converted', clientId: client.id } });
     res.json({ client: enrichClient(client), lead });
@@ -127,7 +126,7 @@ async function convertLead(req, res, next) {
 async function revertConversion(req, res, next) {
   try {
     const id = Number(req.params.id);
-    const { lead, deletedClient } = await leadService.revertConversion(prisma, id);
+    const { lead, deletedClient } = await leadService.revertConversion(req.db, req.user.agencyId, id);
     if (deletedClient) {
       audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'DELETE', entityType: 'Client', entityId: deletedClient.id, entityName: deletedClient.clientName, metadata: { reason: 'conversion_reverted', leadId: id } });
     }
@@ -143,7 +142,7 @@ async function reactivateLead(req, res, next) {
   try {
     const id = Number(req.params.id);
     const columnId = req.body.status;
-    const lead = await leadService.reactivateLead(prisma, id, columnId);
+    const lead = await leadService.reactivateLead(req.db, id, columnId);
     audit.logAction({
       userId: req.user.id,
       userName: req.user.name,
@@ -164,8 +163,8 @@ async function reactivateLead(req, res, next) {
 async function getLeadStats(req, res, next) {
   try {
     const [leads, dormant] = await Promise.all([
-      prisma.lead.findMany(),
-      prisma.lead.count({ where: { dormantAt: { not: null } } }),
+      req.db.lead.findMany(),
+      req.db.lead.count({ where: { dormantAt: { not: null } } }),
     ]);
     const stats = leadService.computeStats(leads, new Date());
     stats.dormant = dormant;
@@ -181,10 +180,10 @@ async function createLeadContact(req, res, next) {
       return res.status(400).json({ error: 'followUpDate required unless outcome is terminal' });
     }
     const nextDate = followUpDate ? new Date(followUpDate) : null;
-    const contact = await prisma.leadContact.create({
+    const contact = await req.db.leadContact.create({
       data: { leadId, outcome, method, note, followUpDate: nextDate, createdBy: req.user.name },
     });
-    await prisma.lead.update({
+    await req.db.lead.update({
       where: { id: leadId },
       data: { updatedAt: new Date(), ...(nextDate ? { followUpDate: nextDate } : {}) },
     });
@@ -196,7 +195,7 @@ async function createLeadContact(req, res, next) {
 async function listLeadContacts(req, res, next) {
   try {
     const leadId = Number(req.params.id);
-    const contacts = await prisma.leadContact.findMany({ where: { leadId }, orderBy: { createdAt: 'desc' } });
+    const contacts = await req.db.leadContact.findMany({ where: { leadId }, orderBy: { createdAt: 'desc' } });
     res.json(contacts);
   } catch (err) { next(err); }
 }
@@ -204,20 +203,20 @@ async function listLeadContacts(req, res, next) {
 async function deleteLeadContact(req, res, next) {
   try {
     const contactId = Number(req.params.contactId);
-    const existing = await prisma.leadContact.findUnique({ where: { id: contactId } });
+    const existing = await req.db.leadContact.findUnique({ where: { id: contactId } });
     if (!existing) return res.json({ ok: true });
-    await prisma.leadContact.delete({ where: { id: contactId } });
+    await req.db.leadContact.delete({ where: { id: contactId } });
 
     // Revert the lead's followUpDate to the most recent REMAINING contact that
     // set one, so a deleted contact doesn't leave a phantom follow-up commitment.
     const leadId = existing.leadId;
-    const remaining = await prisma.leadContact.findMany({
+    const remaining = await req.db.leadContact.findMany({
       where: { leadId, followUpDate: { not: null } },
       orderBy: { createdAt: 'desc' },
       take: 1,
     });
     const revertedFollowUp = remaining.length ? remaining[0].followUpDate : null;
-    await prisma.lead.update({ where: { id: leadId }, data: { followUpDate: revertedFollowUp } });
+    await req.db.lead.update({ where: { id: leadId }, data: { followUpDate: revertedFollowUp } });
 
     audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'DELETE', entityType: 'LeadContact', entityId: contactId, entityName: `Lead #${leadId} — ${existing.outcome}`, metadata: { leadId } });
     res.json({ ok: true });
@@ -226,7 +225,7 @@ async function deleteLeadContact(req, res, next) {
 
 async function getLeadReminders(req, res, next) {
   try {
-    const buckets = await leadService.getReminders(prisma, req.user, new Date());
+    const buckets = await leadService.getReminders(req.db, req.user, new Date());
     res.json(buckets);
   } catch (err) { next(err); }
 }
@@ -236,12 +235,12 @@ async function getLeadReminders(req, res, next) {
 async function getClientLeadContacts(req, res, next) {
   try {
     const clientId = Number(req.params.id);
-    const lead = await prisma.lead.findFirst({
+    const lead = await req.db.lead.findFirst({
       where: { convertedClientId: clientId },
       select: { id: true },
     });
     if (!lead) return res.json([]);
-    const contacts = await prisma.leadContact.findMany({
+    const contacts = await req.db.leadContact.findMany({
       where: { leadId: lead.id },
       orderBy: { createdAt: 'desc' },
     });

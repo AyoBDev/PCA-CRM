@@ -49,6 +49,7 @@ export function AuthProvider({ children }) {
     const isAdmin = user?.role === 'admin';
     const isOffice = user?.role === 'admin' || user?.role === 'user';
     const isStaff = user?.role === 'admin' || user?.role === 'user' || user?.role === 'pca';
+    const isSuperadmin = user?.role === 'superadmin';
 
     const hasPermission = useCallback((key) => {
         if (!user) return false;
@@ -60,7 +61,7 @@ export function AuthProvider({ children }) {
     }, [user]);
 
     return (
-        <AuthContext.Provider value={{ user, isAdmin, isOffice, isStaff, hasPermission, login, logout, loading }}>
+        <AuthContext.Provider value={{ user, isAdmin, isOffice, isStaff, isSuperadmin, hasPermission, login, logout, loading }}>
             {children}
         </AuthContext.Provider>
     );

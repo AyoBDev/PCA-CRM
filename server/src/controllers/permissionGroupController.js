@@ -1,9 +1,9 @@
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
+const { tenantTransaction } = require('../lib/tenantPrisma');
 const { PERMISSIONS, isValidPermissionKey } = require('../lib/permissions');
 
 async function listPermissionGroups(req, res) {
-  const groups = await prisma.permissionGroup.findMany({
+  const groups = await req.db.permissionGroup.findMany({
     where: { archivedAt: null },
     orderBy: { name: 'asc' },
     include: { _count: { select: { users: true } } },
@@ -22,7 +22,7 @@ async function listPermissionGroups(req, res) {
 async function getPermissionGroup(req, res) {
   const id = parseInt(req.params.id);
   if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' });
-  const g = await prisma.permissionGroup.findUnique({
+  const g = await req.db.permissionGroup.findUnique({
     where: { id },
     include: { _count: { select: { users: true } } },
   });
@@ -59,7 +59,7 @@ async function createPermissionGroup(req, res) {
     return res.status(400).json({ error: 'Invalid permissions array' });
   }
   try {
-    const group = await prisma.permissionGroup.create({
+    const group = await req.db.permissionGroup.create({
       data: {
         name: name.trim(),
         description: (description || '').trim(),
@@ -83,7 +83,7 @@ async function createPermissionGroup(req, res) {
 async function updatePermissionGroup(req, res) {
   const id = parseInt(req.params.id);
   if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' });
-  const existing = await prisma.permissionGroup.findUnique({ where: { id } });
+  const existing = await req.db.permissionGroup.findUnique({ where: { id } });
   if (!existing || existing.archivedAt) return res.status(404).json({ error: 'Permission group not found' });
 
   const { name, description, permissions } = req.body || {};
@@ -115,10 +115,10 @@ async function updatePermissionGroup(req, res) {
   }
 
   try {
-    const updated = await prisma.permissionGroup.update({ where: { id }, data });
+    const updated = await req.db.permissionGroup.update({ where: { id }, data });
 
     if (permissionsChanged) {
-      await prisma.user.updateMany({
+      await req.db.user.updateMany({
         where: { permissionGroupId: id },
         data: { permissionsVersion: { increment: 1 } },
       });
@@ -143,21 +143,23 @@ async function updatePermissionGroup(req, res) {
 async function archivePermissionGroup(req, res) {
   const id = parseInt(req.params.id);
   if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' });
-  const existing = await prisma.permissionGroup.findUnique({ where: { id } });
+  const existing = await req.db.permissionGroup.findUnique({ where: { id } });
   if (!existing || existing.archivedAt) return res.status(404).json({ error: 'Permission group not found' });
 
-  const assignees = await prisma.user.findMany({
+  const assignees = await req.db.user.findMany({
     where: { permissionGroupId: id },
     select: { id: true },
   });
 
-  await prisma.$transaction([
-    prisma.user.updateMany({
+  // Batch $transaction([...]) arrays are not supported on the extended
+  // tenant client — use an interactive transaction instead.
+  await tenantTransaction(req.user.agencyId, async (tx) => {
+    await tx.user.updateMany({
       where: { permissionGroupId: id },
       data: { permissionGroupId: null, permissionsVersion: { increment: 1 } },
-    }),
-    prisma.permissionGroup.update({ where: { id }, data: { archivedAt: new Date() } }),
-  ]);
+    });
+    await tx.permissionGroup.update({ where: { id }, data: { archivedAt: new Date() } });
+  });
 
   audit.logAction({
     userId: req.user.id, userName: req.user.name, userRole: req.user.role,
@@ -177,7 +179,7 @@ async function assignUserPermissionGroup(req, res) {
   if (!Number.isInteger(userId)) return res.status(400).json({ error: 'Invalid id' });
   const { permissionGroupId } = req.body || {};
 
-  const target = await prisma.user.findUnique({
+  const target = await req.db.user.findUnique({
     where: { id: userId },
     include: { permissionGroup: { select: { name: true } } },
   });
@@ -190,13 +192,13 @@ async function assignUserPermissionGroup(req, res) {
   if (permissionGroupId !== null && permissionGroupId !== undefined) {
     const intId = parseInt(permissionGroupId);
     if (!Number.isInteger(intId)) return res.status(400).json({ error: 'Invalid permissionGroupId' });
-    const group = await prisma.permissionGroup.findUnique({ where: { id: intId } });
+    const group = await req.db.permissionGroup.findUnique({ where: { id: intId } });
     if (!group || group.archivedAt) return res.status(404).json({ error: 'Permission group not found' });
     newGroupId = group.id;
     newGroupName = group.name;
   }
 
-  const updated = await prisma.user.update({
+  const updated = await req.db.user.update({
     where: { id: userId },
     data: {
       permissionGroupId: newGroupId,

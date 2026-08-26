@@ -19,6 +19,17 @@ jest.mock('../../lib/prisma', () => ({
   },
 }));
 
+// Public-token handlers wrap post-lookup data access in enterTokenTenant.
+// Unit tests here exercise the pre-tenant token-resolution + business logic,
+// so bypass the real tenant machinery and just hand back the mocked prisma
+// module as req.db (mirrors what tenantClient(agencyId) would produce).
+jest.mock('../../lib/tokenTenant', () => ({
+  enterTokenTenant: jest.fn((req, res, agencyId, fn) => {
+    req.db = require('../../lib/prisma');
+    return fn();
+  }),
+}));
+
 jest.mock('../../services/auditService', () => ({ logAction: jest.fn(), diffFields: () => [] }));
 jest.mock('../../services/timesheetIntegrityService', () => ({
   computeAndStoreIntegrityHash: jest.fn().mockResolvedValue('hash'),
@@ -45,6 +56,7 @@ const activeLink = {
   clientId: 10,
   pcaName: 'Jane Doe',
   active: true,
+  agencyId: 1,
   client: {
     id: 10,
     clientName: 'John Client',

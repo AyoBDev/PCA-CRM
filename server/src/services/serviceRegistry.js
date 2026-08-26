@@ -1,7 +1,10 @@
-const prisma = require('../lib/prisma');
 const { SERVICE_DEFAULTS } = require('../lib/serviceDefaults');
+const { getAgencyId, getTenantDb } = require('../lib/tenantContext');
 
-let cache = null;
+// Per-agency cache: two agencies can define the same service code with
+// different settings (name/color/account/etc), so the merged map must never
+// be shared across tenants.
+const cacheByAgency = new Map();
 
 function buildMap(rows) {
   const map = {};
@@ -24,12 +27,31 @@ function buildMap(rows) {
   return map;
 }
 
-async function getServiceMap() {
-  if (cache) return cache;
+// Resolves which tenant client to query with: an explicit agencyId always
+// wins (callers that already have req.db/agencyId in scope should pass it);
+// otherwise fall back to the ambient tenant context set by tenantMiddleware.
+function resolveDb(agencyId) {
+  if (agencyId != null) {
+    const { tenantClient } = require('../lib/tenantPrisma');
+    return { db: tenantClient(agencyId), key: agencyId };
+  }
+  const ctxAgencyId = getAgencyId();
+  if (ctxAgencyId != null) {
+    return { db: getTenantDb(), key: ctxAgencyId };
+  }
+  return null;
+}
+
+async function getServiceMap(agencyId) {
+  const resolved = resolveDb(agencyId);
+  if (!resolved) return buildMap([]); // no tenant context — defaults-only
+  const { db, key } = resolved;
+  if (cacheByAgency.has(key)) return cacheByAgency.get(key);
   try {
-    const rows = await prisma.service.findMany({ where: { archivedAt: null } });
-    cache = buildMap(rows);
-    return cache;
+    const rows = await db.service.findMany({ where: { archivedAt: null } });
+    const map = buildMap(rows);
+    cacheByAgency.set(key, map);
+    return map;
   } catch (err) {
     // DB unavailable — fall back to defaults-only, but don't cache so a later
     // successful call can still populate the real cache.
@@ -37,20 +59,38 @@ async function getServiceMap() {
   }
 }
 
-function getServiceMapSync() {
-  if (cache) return cache;
-  return buildMap([]); // defaults-only until first async load
+function getServiceMapSync(agencyId) {
+  const key = agencyId != null ? agencyId : getAgencyId();
+  if (key != null && cacheByAgency.has(key)) return cacheByAgency.get(key);
+  return buildMap([]); // defaults-only until first async load for this agency
 }
 
-function invalidate() { cache = null; }
+// Clears one tenant's cache entry so one agency's edit doesn't force every
+// other agency to re-fetch. An explicit agencyId always wins; with no arg,
+// falls back to the ambient tenant context (mirrors resolveDb/getServiceMap)
+// so a controller mutation inside runWithTenant only busts its own agency's
+// cache. If there is no explicit agencyId AND no ambient context, there is no
+// well-defined single agency to clear — do nothing rather than guess (callers
+// that really want to clear everything must call invalidateAll()).
+function invalidate(agencyId) {
+  const key = agencyId != null ? agencyId : getAgencyId();
+  if (key != null) cacheByAgency.delete(key);
+}
 
-async function sectionEnforcesLimit(section) {
+// Explicit escape hatch that clears every agency's cache. Used defensively /
+// in tests — real request-driven invalidation should always go through
+// invalidate(), which is tenant-scoped.
+function invalidateAll() {
+  cacheByAgency.clear();
+}
+
+async function sectionEnforcesLimit(section, agencyId) {
   if (!section) return false;
-  const map = await getServiceMap();
+  const map = await getServiceMap(agencyId);
   return Object.values(map).some(s => s.timesheetSection === section && s.enforceAuthLimit === true);
 }
 
-function deriveTimesheetSection(code, serviceName) {
+function deriveTimesheetSection(code, serviceName, agencyId) {
   if (code === 'COPE' || code === 'PAS') {
     const name = (serviceName || '').toLowerCase();
     if (name.includes('homemaker')) return 'Homemaker';
@@ -58,10 +98,10 @@ function deriveTimesheetSection(code, serviceName) {
     if (name.includes('companion')) return 'Companion';
     return 'PAS';
   }
-  const map = getServiceMapSync();
+  const map = getServiceMapSync(agencyId);
   const entry = map[code];
   if (entry && entry.timesheetSection) return entry.timesheetSection;
   return null;
 }
 
-module.exports = { getServiceMap, getServiceMapSync, invalidate, deriveTimesheetSection, sectionEnforcesLimit };
+module.exports = { getServiceMap, getServiceMapSync, invalidate, invalidateAll, deriveTimesheetSection, sectionEnforcesLimit };

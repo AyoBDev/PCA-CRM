@@ -1,4 +1,3 @@
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 const serviceRegistry = require('../services/serviceRegistry');
 const { computeAndStoreIntegrityHash, computeSignaturesHash, verifyTimesheetIntegrity } = require('../services/timesheetIntegrityService');
@@ -31,7 +30,7 @@ async function listTimesheets(req, res, next) {
             const [y, m, d] = req.query.weekStart.split('-').map(Number);
             where.weekStart = new Date(Date.UTC(y, m - 1, d));
         }
-        const timesheets = await prisma.timesheet.findMany({
+        const timesheets = await req.db.timesheet.findMany({
             where,
             include: { client: { select: { id: true, clientName: true } }, entries: true },
             orderBy: { weekStart: 'desc' },
@@ -39,7 +38,7 @@ async function listTimesheets(req, res, next) {
 
         // Build auth limits per client, filtered by each timesheet's week dates
         const clientIds = [...new Set(timesheets.map(t => t.clientId).filter(Boolean))];
-        const auths = clientIds.length > 0 ? await prisma.authorization.findMany({
+        const auths = clientIds.length > 0 ? await req.db.authorization.findMany({
             where: { clientId: { in: clientIds } },
             select: { clientId: true, serviceCode: true, serviceName: true, serviceCategory: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true, manualStatus: true, archivedAt: true },
         }) : [];
@@ -78,7 +77,7 @@ async function getTimesheet(req, res, next) {
         // Warm the service registry cache so deriveTimesheetService (sync) reflects DB values
         await serviceRegistry.getServiceMap();
         const id = Number(req.params.id);
-        const ts = await prisma.timesheet.findUnique({
+        const ts = await req.db.timesheet.findUnique({
             where: { id },
             include: { client: true, entries: { orderBy: { dayOfWeek: 'asc' } } },
         });
@@ -86,7 +85,7 @@ async function getTimesheet(req, res, next) {
 
         let authLimits = null;
         if (ts.clientId) {
-            const auths = await prisma.authorization.findMany({
+            const auths = await req.db.authorization.findMany({
                 where: { clientId: ts.clientId },
                 select: { serviceCode: true, serviceName: true, serviceCategory: true, authorizedUnits: true, authorizationStartDate: true, authorizationEndDate: true, manualStatus: true, archivedAt: true },
             });
@@ -128,7 +127,7 @@ async function createTimesheet(req, res, next) {
         const pName = pcaName.trim();
 
         // Check for existing timesheet (active or archived)
-        const existing = await prisma.timesheet.findFirst({
+        const existing = await req.db.timesheet.findFirst({
             where: { clientId: cId, pcaName: pName, weekStart: ws },
             include: { client: { select: { id: true, clientName: true } }, entries: { orderBy: { dayOfWeek: 'asc' } } },
         });
@@ -136,8 +135,8 @@ async function createTimesheet(req, res, next) {
         if (existing) {
             if (existing.archivedAt) {
                 // Archived — hard-delete it so we can create fresh
-                await prisma.timesheetEntry.deleteMany({ where: { timesheetId: existing.id } });
-                await prisma.timesheet.delete({ where: { id: existing.id } });
+                await req.db.timesheetEntry.deleteMany({ where: { timesheetId: existing.id } });
+                await req.db.timesheet.delete({ where: { id: existing.id } });
             } else {
                 // Active — just return it instead of erroring
                 return res.status(200).json(existing);
@@ -149,12 +148,13 @@ async function createTimesheet(req, res, next) {
             const date = new Date(ws);
             date.setUTCDate(ws.getUTCDate() + dow);
             return {
+                agencyId: req.user.agencyId,
                 dayOfWeek: dow,
                 dateOfService: date.toISOString().split('T')[0],
             };
         });
 
-        const ts = await prisma.timesheet.create({
+        const ts = await req.db.timesheet.create({
             data: {
                 clientId: cId,
                 pcaName: pName,
@@ -182,7 +182,7 @@ async function createTimesheet(req, res, next) {
 async function updateTimesheet(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const existing = await prisma.timesheet.findUnique({ where: { id } });
+        const existing = await req.db.timesheet.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Timesheet not found' });
         // Submitted/accepted timesheets are signed Medicaid records — immutable
         // for everyone, admins included. To correct one, reject it back to draft
@@ -209,7 +209,7 @@ async function updateTimesheet(req, res, next) {
                 totalRespiteHours += respiteHours;
                 totalCompanionHours += companionHours;
 
-                await prisma.timesheetEntry.update({
+                await req.db.timesheetEntry.update({
                     where: { id: entry.id },
                     data: {
                         dateOfService: entry.dateOfService || '',
@@ -262,7 +262,7 @@ async function updateTimesheet(req, res, next) {
         if (clientPhone !== undefined) updateData.clientPhone = clientPhone;
         if (clientIdNumber !== undefined) updateData.clientIdNumber = clientIdNumber;
 
-        const ts = await prisma.timesheet.update({
+        const ts = await req.db.timesheet.update({
             where: { id },
             data: updateData,
             include: { client: { select: { id: true, clientName: true } }, entries: { orderBy: { dayOfWeek: 'asc' } } },
@@ -282,11 +282,11 @@ async function updateTimesheet(req, res, next) {
 async function submitTimesheet(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const existing = await prisma.timesheet.findUnique({ where: { id } });
+        const existing = await req.db.timesheet.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Timesheet not found' });
         if (existing.status === 'submitted' || existing.status === 'accepted') return res.status(400).json({ error: 'Already submitted' });
 
-        let ts = await prisma.timesheet.update({
+        let ts = await req.db.timesheet.update({
             where: { id },
             data: { status: 'submitted', submittedAt: new Date() },
             include: { client: { select: { id: true, clientName: true } }, entries: { orderBy: { dayOfWeek: 'asc' } } },
@@ -298,7 +298,7 @@ async function submitTimesheet(req, res, next) {
         // exactly the tamper case the hash exists to expose.
         if (!ts.signedPayloadHash || computeSignaturesHash(ts) !== ts.signaturesHash) {
             await computeAndStoreIntegrityHash(ts.id);
-            ts = await prisma.timesheet.findUnique({
+            ts = await req.db.timesheet.findUnique({
                 where: { id },
                 include: { client: { select: { id: true, clientName: true } }, entries: { orderBy: { dayOfWeek: 'asc' } } },
             });
@@ -316,12 +316,12 @@ async function submitTimesheet(req, res, next) {
 async function deleteTimesheet(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const existing = await prisma.timesheet.findUnique({ where: { id } });
+        const existing = await req.db.timesheet.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Timesheet not found' });
         if (existing.status !== 'draft' && (!req.user || req.user.role !== 'admin')) {
             return res.status(400).json({ error: 'Only admins can delete submitted timesheets' });
         }
-        const archived = await prisma.timesheet.update({ where: { id }, data: { archivedAt: new Date() } });
+        const archived = await req.db.timesheet.update({ where: { id }, data: { archivedAt: new Date() } });
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,
             action: 'ARCHIVE', entityType: 'Timesheet', entityId: id,
@@ -334,9 +334,9 @@ async function deleteTimesheet(req, res, next) {
 async function restoreTimesheet(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const existing = await prisma.timesheet.findUnique({ where: { id } });
+        const existing = await req.db.timesheet.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Timesheet not found' });
-        const restored = await prisma.timesheet.update({
+        const restored = await req.db.timesheet.update({
             where: { id }, data: { archivedAt: null },
             include: { client: { select: { id: true, clientName: true } }, entries: true },
         });
@@ -352,11 +352,11 @@ async function restoreTimesheet(req, res, next) {
 async function permanentlyDeleteTimesheet(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const existing = await prisma.timesheet.findUnique({ where: { id } });
+        const existing = await req.db.timesheet.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Timesheet not found' });
         if (!existing.archivedAt) return res.status(400).json({ error: 'Only archived timesheets can be permanently deleted' });
-        await prisma.timesheetEntry.deleteMany({ where: { timesheetId: id } });
-        await prisma.timesheet.delete({ where: { id } });
+        await req.db.timesheetEntry.deleteMany({ where: { timesheetId: id } });
+        await req.db.timesheet.delete({ where: { id } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'PERMANENT_DELETE', entityType: 'Timesheet', entityId: id, entityName: existing.pcaName });
         res.json({ success: true });
     } catch (err) { next(err); }
@@ -377,10 +377,76 @@ function parseBlocks(json) {
     try { return JSON.parse(json || '[]'); } catch { return []; }
 }
 
+// Compute the exact total drawn height of a rendered timesheet page, mirroring
+// the top-to-bottom draw pass in renderTimesheetPage. Used to auto-fit the
+// record onto a single page so tall (4-section) timesheets can never overflow
+// into dozens of PDFKit auto-generated blank pages.
+function measureTimesheetHeight(ts) {
+    const RH = 12;
+    const activityCounts = { PAS: ADL_ACTIVITIES.length, Homemaker: IADL_ACTIVITIES.length, Respite: RESPITE_ACTIVITIES.length, Companion: COMPANION_ACTIVITIES.length };
+
+    const maxShiftsFor = (section) => {
+        let maxShifts = 1;
+        for (const e of ts.entries) {
+            const blocks = parseBlocks(e[`${section}TimeBlocks`]);
+            if (blocks.length + 1 > maxShifts) maxShifts = blocks.length + 1;
+        }
+        return maxShifts;
+    };
+
+    const sectionHeight = (label, section) => {
+        let h = 14;                                  // section header (hh)
+        h += activityCounts[label] * RH;             // activity check rows
+        h += RH * 2;                                 // PCA + Client initials
+        h += maxShiftsFor(section) * RH;             // shift rows
+        h += RH;                                     // "+ Add Shift"
+        h += 1;                                      // section bottom border (gridY += 1)
+        return h;
+    };
+
+    const hasRespite = (ts.totalRespiteHours || 0) > 0 || ts.entries.some(e => {
+        try { return Object.values(JSON.parse(e.respiteActivities || '{}')).some(Boolean); } catch { return false; }
+    });
+    const hasCompanion = (ts.totalCompanionHours || 0) > 0 || ts.entries.some(e => {
+        try { return Object.values(JSON.parse(e.companionActivities || '{}')).some(Boolean); } catch { return false; }
+    });
+
+    let y = 14;              // gridY starts at mL
+    y += 48 + 4;             // header + gap
+    y += 22;                 // column header bar (colH)
+    y += sectionHeight('PAS', 'adl');
+    y += sectionHeight('Homemaker', 'iadl');
+    if (hasRespite) y += sectionHeight('Respite', 'respite');
+    if (hasCompanion) y += sectionHeight('Companion', 'companion');
+    y += 30 + 8;            // daily totals bar (barH) + gap
+    y += 58;                // signature block (sigH)
+    return y;
+}
+
 function renderTimesheetPage(doc, ts) {
         const mL = 14;
         const pageW = doc.page.width - 28;
         const pageBottom = doc.page.height - 14;
+
+        // Never let overflowing text silently spawn extra pages. This is the
+        // safety net: with auto-pagination off, tall content clips instead of
+        // exploding into 40+ blank pages. The scale transform below is what
+        // actually makes the full record fit.
+        doc.options.bufferPages = true;
+        const originalAddPage = doc.addPage.bind(doc);
+        doc.addPage = () => doc;   // no-op during this page render
+
+        // Auto-fit: if the content is taller than the printable area, squeeze it
+        // vertically (widths unchanged) so everything — including signatures —
+        // lands on this single landscape page.
+        const printableH = doc.page.height - 28;   // top + bottom margins (14 each)
+        const contentH = measureTimesheetHeight(ts);
+        const scaleY = contentH > printableH ? printableH / contentH : 1;
+        const scaled = scaleY < 1;
+        if (scaled) {
+            doc.save();
+            doc.scale(1, scaleY, { origin: [mL, mL] });
+        }
 
         const labelW = 190;
         const totalsW = 72;
@@ -650,8 +716,8 @@ function renderTimesheetPage(doc, ts) {
         gridY += barH + 8;
 
         // ═══ SIGNATURE SECTION ═══
-        if (gridY + 60 > pageBottom) { doc.addPage(); gridY = 14; }
-
+        // Always on this page — the content is scaled to fit (see measureTimesheetHeight),
+        // so the signatures never spill onto a second page.
         const sigH = 58;
         doc.save().rect(mL, gridY, pageW, sigH).lineWidth(0.7).stroke('#ccc').restore();
 
@@ -706,12 +772,15 @@ function renderTimesheetPage(doc, ts) {
         doc.fontSize(5.5).font('Helvetica-Bold').fillColor(integrityColor);
         doc.text(`Integrity: ${integrityLabel}${ts.signedPayloadHash ? `   Digest: ${ts.signedPayloadHash.slice(0, 16)}` : ''}`, cols[3], gridY + 48, { width: sw });
 
+        if (scaled) doc.restore();
+        // Restore real pagination so the bulk export can start a fresh page per timesheet.
+        doc.addPage = originalAddPage;
 }
 
 async function exportTimesheetPdf(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const ts = await prisma.timesheet.findUnique({
+        const ts = await req.db.timesheet.findUnique({
             where: { id },
             include: { client: true, entries: { orderBy: { dayOfWeek: 'asc' } } },
         });
@@ -732,7 +801,7 @@ async function exportBulkTimesheetPdf(req, res, next) {
         if (!ids || !Array.isArray(ids) || ids.length === 0) {
             return res.status(400).json({ error: 'Provide an array of timesheet ids' });
         }
-        const timesheets = await prisma.timesheet.findMany({
+        const timesheets = await req.db.timesheet.findMany({
             where: { id: { in: ids.map(Number) } },
             include: { client: true, entries: { orderBy: { dayOfWeek: 'asc' } } },
             orderBy: [{ pcaName: 'asc' }, { weekStart: 'asc' }],
@@ -760,7 +829,7 @@ async function updateTimesheetStatus(req, res, next) {
         if (!['draft', 'submitted', 'accepted', 'rejected'].includes(status)) {
             return res.status(400).json({ error: 'Invalid status' });
         }
-        const existing = await prisma.timesheet.findUnique({ where: { id } });
+        const existing = await req.db.timesheet.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Timesheet not found' });
 
         const data = { status };
@@ -776,7 +845,7 @@ async function updateTimesheetStatus(req, res, next) {
             data.correctionNote = '';
         }
 
-        let ts = await prisma.timesheet.update({
+        let ts = await req.db.timesheet.update({
             where: { id },
             data,
             include: { client: { select: { id: true, clientName: true } }, entries: { orderBy: { dayOfWeek: 'asc' } } },
@@ -785,7 +854,7 @@ async function updateTimesheetStatus(req, res, next) {
         // only refresh the integrity hash when the attesting signatures changed.
         if (data.status === 'submitted' && (!ts.signedPayloadHash || computeSignaturesHash(ts) !== ts.signaturesHash)) {
             await computeAndStoreIntegrityHash(ts.id);
-            ts = await prisma.timesheet.findUnique({
+            ts = await req.db.timesheet.findUnique({
                 where: { id },
                 include: { client: { select: { id: true, clientName: true } }, entries: { orderBy: { dayOfWeek: 'asc' } } },
             });
@@ -808,20 +877,20 @@ async function updateTimesheetStatus(req, res, next) {
 
 async function bulkPermanentlyDeleteTimesheets(req, res, next) {
     try {
-        const result = await prisma.timesheet.deleteMany({ where: { archivedAt: { not: null } } });
+        const result = await req.db.timesheet.deleteMany({ where: { archivedAt: { not: null } } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'BULK_DELETE', entityType: 'Timesheet', entityId: 0, metadata: { count: result.count } });
         res.json({ success: true, count: result.count });
     } catch (err) { next(err); }
 }
 
 async function sendTimesheetReminders(req, res) {
-    const { sendOverdueReminders } = require('../jobs/timesheetReminders');
+    const { sendOverdueRemindersForAgency } = require('../jobs/timesheetReminders');
     try {
-        const result = await sendOverdueReminders();
+        const result = await sendOverdueRemindersForAgency(req.db);
         res.json({ success: true, ...result });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 }
 
-module.exports = { listTimesheets, getTimesheet, getActivities, createTimesheet, updateTimesheet, submitTimesheet, deleteTimesheet, restoreTimesheet, permanentlyDeleteTimesheet, bulkPermanentlyDeleteTimesheets, exportTimesheetPdf, exportBulkTimesheetPdf, updateTimesheetStatus, sendTimesheetReminders };
+module.exports = { listTimesheets, getTimesheet, getActivities, createTimesheet, updateTimesheet, submitTimesheet, deleteTimesheet, restoreTimesheet, permanentlyDeleteTimesheet, bulkPermanentlyDeleteTimesheets, exportTimesheetPdf, exportBulkTimesheetPdf, updateTimesheetStatus, sendTimesheetReminders, renderTimesheetPage };

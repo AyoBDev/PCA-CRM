@@ -8,7 +8,8 @@ Full-stack web app for a PCA (Personal Care Attendant) agency to manage client a
 ## Tech Stack
 - **Frontend**: React 19 + Vite, page-per-file under `client/src/pages/`
 - **Backend**: Express.js + Prisma ORM + PostgreSQL
-- **Auth**: JWT with role-based access (`admin` / `user` / `pca`)
+- **Auth**: JWT with role-based access (`superadmin` / `admin` / `user` / `pca`). JWTs carry `agencyId` + `agencySlug` and only work on that agency's subdomain — a token minted on `nvbest.<BASE_DOMAIN>` is rejected on any other agency's subdomain. The platform console lives at `admin.<BASE_DOMAIN>` (reserved slug — no agency can claim it); superadmin login and all `/api/platform` routes require that host in production. The apex domain (`<BASE_DOMAIN>`) serves a public landing page, not a login form — `LoginPage.jsx` calls `GET /api/host-info` on mount and renders the platform login, the agency login, or `LandingPage.jsx` accordingly.
+- **Multi-tenancy**: every agency's data lives in the same database, isolated by Postgres Row-Level Security keyed on `agency_id`. See the Backend Structure section below for `tenantPrisma.js` / `tenantContext.js` / `resolveAgency.js` / `tenantMiddleware.js`.
 - **Styling**: Custom CSS (`client/src/index.css`) using shadcn/ui zinc design tokens
 
 ## Key Commands
@@ -19,16 +20,18 @@ cd client && npm run dev          # Start Vite dev server (port 5173, proxies /a
 
 # Database
 cd server && npx prisma migrate dev --name <name>   # Create + apply migration
-cd server && npm run db:seed                         # Seed admin user (uses ADMIN_EMAIL/ADMIN_PASSWORD env vars)
-cd server && node prisma/import-xlsx.js             # Import clients from data/all-data.xlsx
+cd server && node prisma/setup-app-role.js          # Provision/refresh the RLS-constrained app_user DB role (needs APP_DB_PASSWORD)
+cd server && npm run db:seed                         # Seed default agency + admin; superadmin credentials synced from env every run (ADMIN_EMAIL/ADMIN_PASSWORD, SUPERADMIN_EMAIL/SUPERADMIN_PASSWORD, NVBEST_AGENCY_NAME/NVBEST_AGENCY_SLUG env vars)
+cd server && node prisma/import-xlsx.js --agency <slug>   # Import clients from data/all-data.xlsx into one agency (flag required)
 cd server && npm run db:migrate-data                # One-time SQLite → PostgreSQL data migration
 
 # Build & Production
 cd client && npm run build        # Build to client/dist (served by Express at port 4000)
-npm start                         # Run migrations → seed → start server
+npm start                         # prisma migrate deploy → setup-app-role.js → seed → start server
 
 # Tests
-cd server && npm test             # Run Jest tests (--verbose)
+cd server && npm test             # Run Jest unit tests (--verbose) — auto-provisions its DB, see note below
+cd server && npm run test:integration   # Run Postgres-backed integration tests (RLS, tenant isolation, cross-agency guards) — spins up/migrates a nvbestpca_test DB automatically
 cd server && npx jest --testPathPattern=authorizationService  # Run a single test file
 
 # Backup
@@ -48,15 +51,22 @@ server/src/
   routes/api.js     # All route definitions
   controllers/      # Route handlers (thin layer, delegate to services)
   services/         # Business logic
-  middleware/authMiddleware.js  # authenticate() + requireRole(...roles)
-  lib/prisma.js     # Singleton Prisma client instance
+  middleware/authMiddleware.js     # authenticate() + requireRole(...roles)
+  middleware/resolveAgency.js      # Parses Host header → subdomain slug → req.agency (cached 60s); 404s unknown subdomains on /api, sets req.agencyNotFound otherwise
+  middleware/tenantMiddleware.js   # Requires req.user.agencyId, rejects superadmin tokens, checks agency status, sets req.db = tenantClient(agencyId), runs the rest of the request inside runWithTenant()
+  lib/prisma.js       # Owner-connection Prisma client — ALLOWLIST-ONLY, see rule below
+  lib/tenantPrisma.js # tenantClient(agencyId) / tenantTransaction(agencyId, fn) — Prisma client extension that auto-stamps agencyId on creates and scopes every query via `SET LOCAL app.agency_id` so RLS applies
+  lib/tenantContext.js # AsyncLocalStorage-backed getTenantDb()/getAgencyId() — lets services read the current request's tenant client without req being threaded through
   lib/timesheetUtils.js  # Shared: roundTo15, computeHours, computeTotalHoursWithBlocks, deriveTimesheetService, activity lists
 prisma/
-  schema.prisma     # PostgreSQL schema with @@map snake_case names
-  seed.js           # Creates admin user (skips if already exists, uses ADMIN_EMAIL/ADMIN_PASSWORD env vars)
+  schema.prisma     # PostgreSQL schema with @@map snake_case names; Agency model + agency_id on every tenant table
+  seed.js           # Creates default agency + admin once (skips if exists); syncSuperadmin() creates-or-updates the superadmin from SUPERADMIN_EMAIL/SUPERADMIN_PASSWORD on every run. Uses ADMIN_EMAIL/ADMIN_PASSWORD, NVBEST_AGENCY_NAME/NVBEST_AGENCY_SLUG env vars
+  setup-app-role.js # Idempotently provisions the `app_user` Postgres role (NOBYPASSRLS) that tenantClient connects as via APP_DATABASE_URL
   migrate-data.js   # One-time SQLite → PostgreSQL data migration script
-  migrations/       # Timestamped SQL migrations
+  migrations/       # Timestamped SQL migrations (includes the RLS-enabling migration: ENABLE ROW LEVEL SECURITY + tenant_isolation policy per tenant table, keyed on current_setting('app.agency_id'))
 ```
+
+**Tenant data-access rule (enforced by test):** controllers read/write the database via `req.db` (set by `tenantMiddleware`); services that don't have `req` in scope call `getTenantDb()` from `lib/tenantContext.js` instead. `lib/prisma.js` (the owner connection, bypasses RLS) is allowlist-only — see `server/src/__tests__/prismaImportGuard.test.js`, which greps the codebase for `lib/prisma'` imports and fails if any file outside its allowlist (auth/tenant middleware, platform + backup controllers, auditService, public-token controllers, cron jobs) imports it directly.
 
 ### Frontend Structure
 Pages are split into individual files under `client/src/pages/`:
@@ -73,6 +83,10 @@ Shared components under `client/src/components/`:
 - `common/DropdownMenu.jsx` — Reusable dropdown (trigger + panel)
 - `common/ActivityDrawer.jsx` — `ActivityButton` (page-level) and `EntityActivityButton` (entity-level) audit log viewers
 - `common/Modal.jsx`, `common/ConfirmModal.jsx`, `common/SignaturePad.jsx`
+- `common/DocViewer.jsx` — the shared pdf.js/image **rendering engine**; both `PreviewModal` (full-screen) and `FilePreviewPane` (docked) render it. See "File Preview & Thumbnails" below.
+- `common/FilePreviewPane.jsx` — **docked** split-view alternative to the full-screen `PreviewModal`. See "File Preview & Thumbnails" below.
+- `common/CertViewerPanel.jsx` — **persistent** DocViewer panel for the two-column certification portfolio layout. See "File Preview & Thumbnails" below.
+- `common/ToggleSwitch.jsx` — reusable sliding on/off switch (`role="switch"`, keyboard-toggleable).
 - `common/Tooltip.jsx` — **App-wide tooltip** (see below). Use this for all hover/focus hints; do not add new native `title=` attributes.
 - `layout/Layout.jsx`, `layout/Sidebar.jsx`, `layout/Toast.jsx`
 
@@ -335,7 +349,8 @@ Program codes (`COPE`, `PAS`) allow **multiple active authorizations** with diff
 - **Client detail badges** use composite keys to show distinct badges (e.g., "COPE - Homemaker", "COPE - Personal Care Services")
 
 ## Data Model
-- **Users** — staff accounts (admin/user/pca roles), `active` boolean, `archivedAt` soft delete
+- **Agency** — one row per tenant (`name`, `slug` unique, `status` active/suspended, `settings` JSON). Every tenant table carries a required `agency_id` FK (cascade delete) enforced by Postgres RLS `tenant_isolation` policies; `User.agencyId` is the exception (nullable, since `superadmin` accounts are platform-level and belong to no agency). Managed via the `/platform` console (superadmin-only).
+- **Users** — staff accounts (superadmin/admin/user/pca roles), `active` boolean, `archivedAt` soft delete
 - **Employees** — caregivers with optional `userId` link, schedule links
 - **Clients** — care recipients with Medicaid ID, insurance type, `enabledServices` JSON
 - **Authorizations** — per client (PCS, SDPC, S5130, S5150, etc.) with start/end dates and `authorizedUnits` (15-min units, not hours)
@@ -509,11 +524,17 @@ All of them take a **`fetchBlob` function** (not a URL): `() => Promise<Response
 
 | Component / util | File | Purpose |
 |------------------|------|---------|
-| `PreviewModal` | `common/PreviewModal.jsx` | Full-screen in-app **document viewer**. Portals to `<body>`; PDFs render via **pdf.js multi-page canvas**, images via `<img>`. Toolbar: zoom −/reset/+, fit-to-width, page ‹ n/total ›, rotate, download, print, and an **optional** delete. Unpreviewable/oversized → download fallback. Keyboard: Esc closes, ←/→ page. |
+| `PreviewModal` | `common/PreviewModal.jsx` | Full-screen in-app **document viewer**. Portals to `<body>`; renders `DocViewer` internally for the actual PDF/image rendering, plus its own modal chrome (backdrop, Esc/←/→ close/page handling, optional delete). Unpreviewable/oversized → download fallback. |
+| `DocViewer` | `common/DocViewer.jsx` | The **single rendering engine** for PDFs/images — both `PreviewModal` (full-screen) and `FilePreviewPane` (docked) render it; never duplicate pdf.js/image rendering elsewhere. Props: `{ fileName, fetchBlob, maxBytes?, showToolbar?, extraToolbarActions? }`. PDFs render via **pdf.js multi-page canvas**, images via `<img>`. Toolbar (when `showToolbar`): zoom −/reset/+, fit-to-width, page ‹ n/total ›, rotate, download, print. `extraToolbarActions` lets a host inject buttons (e.g. "Expand" in the docked pane). |
+| `FilePreviewPane` | `common/FilePreviewPane.jsx` | **Docked** split-view alternative to the full-screen `PreviewModal` — a file list on the left, `DocViewer` rendering the selected file on the right. Props: `{ items, selectedId, onSelect, open, onExpand, onDownload, emptyText }`. Item shape: `{ id, fileName, fileType, fetchBlob, cacheKey?, meta?, badge? }`. The **Preview toggle lives in the host page's toolbar** (not inside the component) — the host owns `open`/`selectedId` state. Uses `useIsWide(900)` to auto-collapse to modal-only (call `onExpand` instead of docking) on narrow screens, so it degrades gracefully without separate mobile logic. |
+| `useIsWide` | `hooks/useIsWide.js` | `(minWidth)` → boolean, tracks `window.innerWidth >= minWidth` via a resize listener. Backs `FilePreviewPane`'s docked/modal-only breakpoint; reusable anywhere a component needs a live viewport-width gate. |
 | `FileThumbnail` | `common/FileThumbnail.jsx` | Inline file thumbnail button (lazy via IntersectionObserver). Renders a first-page PDF / image thumbnail, or a type icon fallback. Hover shows an enlarged **popover portalled to `<body>`** (`position: fixed`, viewport-clamped) so no panel/overflow can clip it (`z-index: 2000`). |
 | `FileThumbnailStrip` | `common/FileThumbnailStrip.jsx` | A row of `FileThumbnail`s with a `+N` overflow gallery. |
 | `CertFileRow` | `files/CertFileRow.jsx` | A **file row** styled like the File Manager list (`.file-row`): thumbnail · name · meta line · Preview + Download. Used for both a current file and history items. Optional `fetchBlob`/`cacheKey`/`badge`/`expiresText`. |
 | `FileRow` | `files/FileRow.jsx` | The File Manager list row (checkbox · thumbnail · name · meta · actions). Reuse for file lists; use `CertFileRow` for lighter, badge-carrying rows. |
+| `CertViewerPanel` | `common/CertViewerPanel.jsx` | **Persistent** (non-modal) DocViewer panel used as the right-hand column of a two-column "certification portfolio" layout — header, a file-bar (filename + status badge), and `DocViewer` underneath. Props: `{ fileName, fetchBlob, status?, statusClass?, onHistory?, onReplace?, emptyText? }`; `onHistory`/`onReplace` are injected into `DocViewer` via `extraToolbarActions`. Renders an empty state when `fetchBlob` is falsy (nothing selected yet). |
+| `CertCard` | `employee/CertCard.jsx` | A selectable card for one certification in the portfolio's cards grid: icon, status badge, expiry date + days-remaining, a status-colored progress bar (via `progressForCert`), and View/Upload/Replace actions. Props: `{ label, icon, colors, status, statusLabel, days, expDate, renewalLabel, hasFile, selected, onSelect, onView, onUpload }`. |
+| `progressForCert` | `utils/certProgress.js` | `({ status, days, renewalYears, hasFile }) → { pct, variant }` — pure function computing a `CertCard`'s progress-bar fill percent and color variant (`expired`/`expiring`/`active`/`complete`/`notset`). Route any cert progress-bar math through this instead of re-deriving inline. |
 | `useFileThumbnail` | `hooks/useFileThumbnail.js` | `(cacheKey, fetchBlob, mimeType, { enabled, maxPdfBytes })` → `{ status, thumbUrl }`. LRU-cached, lazy. Backs `FileThumbnail`. |
 | `renderPdfFirstPage` / `loadPdfDocument` / `getPdfjs` | `lib/pdfThumbnail.js` | pdf.js helpers: first-page thumbnail dataURL; open a doc for the viewer; shared worker setup. **Always** go through these so the pdf.js worker is configured once. |
 | `getFileTypeInfo` / `FileTypeIcon` / `formatFileSize` / `formatUploadDate` | `files/fileTypeUtils.jsx` | File-type label/icon and size/date formatters used by the rows. |
@@ -549,7 +570,9 @@ const [preview, setPreview] = useState(null);
 ```
 
 ### Rules
-- **`PreviewModal` is the only in-app document viewer.** Never open files in a new tab or embed a bare `<iframe>` for preview; route through it.
+- **`DocViewer` is the only rendering engine for previewing a file in-app** (never open files in a new tab or embed a bare `<iframe>` for preview) — route through either `PreviewModal` (full-screen) or `FilePreviewPane` (docked), which both render `DocViewer`. Don't duplicate pdf.js/image rendering in a new component.
+- Prefer `PreviewModal` for a single ad-hoc preview action; use `FilePreviewPane` when a page wants a persistent, dockable split-view (list + preview side by side) with a toolbar toggle — see `FilesPage.jsx` and the certifications tab for reference usage.
+- **Two-column "certification portfolio" pattern** (`CertificationsTab` in `EmployeeDetailPage.jsx`): a cards grid (`CertCard`, one per certification) on the left plus a persistent `CertViewerPanel` on the right. The viewer column is only rendered on wide viewports — gated by `useIsWide(1024)` — and collapses to the existing full-screen `PreviewModal` on narrow screens (single-column card list; tapping a card opens the modal instead of docking). Each `CertCard`'s progress bar is driven by `progressForCert()` from `utils/certProgress.js`, never ad-hoc math.
 - Pass `onDelete` only where deletion is supported (it renders the Delete tool and should trigger the caller's existing confirm flow).
 - Thumbnails/previews are **lazy** and **cached** (`useFileThumbnail`) — reuse a stable `cacheKey` per file (`file:{id}`, `cert-upload:{id}`, `cert:{id}`).
 - PDF rendering must go through `lib/pdfThumbnail.js` (shared worker). The pdf.js bundle is code-split (`pdf-*.js`) — don't import `pdfjs-dist` directly elsewhere.
@@ -582,6 +605,14 @@ const [preview, setPreview] = useState(null);
 - **Seed script**: `seed.js` only creates admin if none exists (never overwrites). Uses `ADMIN_EMAIL` and `ADMIN_PASSWORD` env vars with fallback defaults.
 - **Data migration**: `prisma/migrate-data.js` transfers data from SQLite `dev.db` to PostgreSQL (one-time use, requires `better-sqlite3` devDependency)
 
+## Unit Test Environment (`server/jest.setup.js` + `jest.globalSetup.js`)
+`npm test` runs against a dedicated `nvbestpca_authlifecycle_test` Postgres database — never the dev DB — and is fully reproducible from a cold checkout:
+- **Auto-provisioning**: `jest.globalSetup.js` runs once before any test worker starts. It resolves the target DB URL (from `server/.env.test` if present, else the hardcoded `nvbestpca_authlifecycle_test` fallback), runs `createdb` (no-op if it already exists), then `prisma migrate deploy`, then `node prisma/seed.js` (idempotent — creates the default agency + an `admin`-role user only if missing; several suites, e.g. `permissionGroupController.test.js`, assume an admin user exists). No manual `createdb`/`migrate`/`seed` step is required — `npm test` on a brand-new clone provisions everything itself.
+- **`.env.test` override**: copy `server/.env.test.example` → `server/.env.test` (gitignored) to point at a different DB or override the keys below. `jest.setup.js` refuses to run if the resolved `DATABASE_URL` doesn't end in `_test` (guards against ever touching dev/prod data).
+- **`ENCRYPTION_KEY` / `INTEGRITY_KEY` defaults**: `jest.setup.js` defaults both to fixed dev values (`'e'.repeat(64)` / `'f'.repeat(64)`) when not set via `.env.test`, mirroring `src/__integration__/setupEnv.js` — so PHI-field writes and signed-timesheet tests work out of the box with no key setup.
+- **`TZ=UTC` requirement unchanged**: the `test` npm script sets it; `jest.setup.js` throws if the effective timezone isn't UTC (date-assertion drift otherwise). Prefix `TZ=UTC` on any direct `npx jest` invocation.
+- Integration tests (`npm run test:integration`) are a separate, unaffected harness against `nvbestpca_test` — see `src/__integration__/globalSetup.js` / `setupEnv.js`, which this unit-test setup mirrors.
+
 ## Admin File Manager
 
 Full-featured file management system for administrative documents (insurance, eligibility, contracts).
@@ -598,9 +629,16 @@ Full-featured file management system for administrative documents (insurance, el
 
 ## Deployment (Railway)
 - Single service: Express serves the React build from `client/dist`
-- Start command: `prisma migrate deploy` → `seed.js` → `node src/index.js`
+- Start command: `prisma migrate deploy` → `setup-app-role.js` → `seed.js` → `node src/index.js`
 - **Storage Bucket**: Create bucket on Railway canvas → Connect to service → env vars auto-injected
-- Environment variables: `DATABASE_URL` (PostgreSQL), `JWT_SECRET`, `PORT`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `BREVO_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`, `ENCRYPTION_KEY` (64 hex chars — PHI-at-rest encryption; losing it makes encrypted PHI unrecoverable, including in backups), `INTEGRITY_KEY` (64 hex chars — timesheet signature HMAC; falls back to a key derived from `ENCRYPTION_KEY`)
+- Environment variables: `DATABASE_URL` (PostgreSQL, owner connection used by `lib/prisma.js`), `JWT_SECRET`, `PORT`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `BREVO_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`, `ENCRYPTION_KEY` (64 hex chars — PHI-at-rest encryption; losing it makes encrypted PHI unrecoverable, including in backups), `INTEGRITY_KEY` (64 hex chars — timesheet signature HMAC; falls back to a key derived from `ENCRYPTION_KEY`)
+- **Multi-tenancy env vars**:
+  - `BASE_DOMAIN` — the root domain agencies are subdomained under (e.g. `pcalink.com`); drives `resolveAgency.js` subdomain parsing, CORS origin matching (`lib/corsOrigin.js`), and socket auth. Defaults to `localhost` for local dev.
+  - `APP_DATABASE_URL` — connection string for the RLS-constrained `app_user` role that `tenantClient()` uses for all tenant-scoped queries; falls back to `DATABASE_URL` if unset (fine locally before `setup-app-role.js` has run, unsafe in production — always set it on Railway).
+  - `APP_DB_PASSWORD` — password `setup-app-role.js` assigns to the `app_user` Postgres role (`NOBYPASSRLS`); must match the credential embedded in `APP_DATABASE_URL`.
+  - `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` — platform-console login, synced by `seed.js` on **every** boot (not just first-create): if a superadmin row exists, its email + password hash are overwritten to match whatever these env vars currently hold (only the vars that are set — an unset var leaves that field untouched). Rotation = edit the env var + restart, no manual DB work. Production refuses to create a default-credential superadmin if `SUPERADMIN_PASSWORD` is unset on first boot — set both before first deploy.
+  - `NVBEST_AGENCY_NAME` / `NVBEST_AGENCY_SLUG` — only apply on a fresh DB via `seed.js` (agency #1 is otherwise created with static values inside migration 1, since migrations can't read env vars). The agency's name is editable afterward from the platform console via `PATCH /api/platform/agencies/:id` (superadmin-only; the slug is immutable).
+- **Railway wildcard-domain requirement**: subdomain routing (`acme.<BASE_DOMAIN>`) needs a wildcard custom domain (`*.<BASE_DOMAIN>`) added on the Railway service plus a wildcard CNAME at the DNS provider pointing to Railway. This wildcard also covers the reserved `admin.<BASE_DOMAIN>` platform-console host — no separate DNS entry needed. Until the wildcard is provisioned, agencies without a working wildcard entry fall back to being reached via their exact per-agency custom domain (added individually on the Railway service) — `resolveAgency.js` matches on whatever `Host` header actually arrives, so either path works as long as the agency's slug/domain resolves to this service.
 
 ## Service Code System — Cross-Entity Trace
 

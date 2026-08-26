@@ -1,6 +1,7 @@
 const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, DeleteObjectsCommand } = require('@aws-sdk/client-s3');
 const fs = require('fs');
 const path = require('path');
+const { getAgencyId } = require('../lib/tenantContext');
 
 const LOCAL_DIR = path.join(__dirname, '..', '..', 'uploads', 'admin-files');
 
@@ -29,6 +30,11 @@ if (isS3) {
     console.log(`[Storage] S3 mode — endpoint: ${endpoint}, bucket: ${bucket}`);
 } else {
     console.log('[Storage] Local filesystem mode — no ENDPOINT env var detected');
+}
+
+function tenantKey(key) {
+    const agencyId = getAgencyId();
+    return agencyId ? `agency/${agencyId}/${key}` : key;
 }
 
 async function upload(key, buffer, contentType) {
@@ -81,4 +87,4 @@ async function removeBatch(keys) {
     }
 }
 
-module.exports = { upload, download, remove, removeBatch };
+module.exports = { tenantKey, upload, download, remove, removeBatch };

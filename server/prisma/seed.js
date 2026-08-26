@@ -1,14 +1,79 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const { seedPermissionGroups } = require('./seed-permission-groups');
+const { seedAgencyDefaults } = require('./seedAgencyDefaults');
 
 const prisma = new PrismaClient();
 
+// Finds the single platform superadmin row (oldest by id if more than one
+// somehow exists) and syncs its email + password hash from
+// SUPERADMIN_EMAIL/SUPERADMIN_PASSWORD on every run. Rotation is then just
+// "edit env, restart" — no manual DB surgery. When neither env var is set
+// (local dev without them configured), an existing row is left untouched;
+// only a brand-new row falls back to the default dev credentials.
+async function syncSuperadmin(db) {
+    const isProd = process.env.NODE_ENV === 'production';
+    const existing = await db.user.findFirst({
+        where: { role: 'superadmin', agencyId: null },
+        orderBy: { id: 'asc' },
+    });
+
+    if (!existing) {
+        if (isProd && !process.env.SUPERADMIN_PASSWORD) {
+            throw new Error('SUPERADMIN_PASSWORD is not set. Refusing to create a default-credential superadmin in production.');
+        }
+        const email = process.env.SUPERADMIN_EMAIL || 'superadmin@nvbestpca.com';
+        const password = process.env.SUPERADMIN_PASSWORD || 'superadmin123';
+        const passwordHash = await bcrypt.hash(password, 10);
+        await db.user.create({
+            data: { email, passwordHash, name: 'Super Admin', role: 'superadmin', agencyId: null },
+        });
+        console.log(`✅ Superadmin created: ${email}`);
+        if (!process.env.SUPERADMIN_EMAIL || !process.env.SUPERADMIN_PASSWORD) {
+            console.warn('⚠️  Set SUPERADMIN_EMAIL and SUPERADMIN_PASSWORD env vars for production');
+        }
+        return;
+    }
+
+    const data = {};
+    if (process.env.SUPERADMIN_EMAIL) data.email = process.env.SUPERADMIN_EMAIL;
+    if (process.env.SUPERADMIN_PASSWORD) data.passwordHash = await bcrypt.hash(process.env.SUPERADMIN_PASSWORD, 10);
+
+    if (Object.keys(data).length === 0) {
+        console.log(`✅ Superadmin already exists — no SUPERADMIN_EMAIL/SUPERADMIN_PASSWORD set, leaving as-is (${existing.email})`);
+        return;
+    }
+
+    await db.user.update({ where: { id: existing.id }, data });
+    console.log(`✅ Superadmin synced from env: ${data.email || existing.email}`);
+}
+
 async function main() {
+    // 1. Ensure agency #1 exists (single-agency dev/legacy deployments get one
+    // automatically; the platform console creates additional agencies).
+    let agency = await prisma.agency.findFirst({ orderBy: { id: 'asc' } });
+    if (!agency) {
+        agency = await prisma.agency.create({
+            data: {
+                name: process.env.NVBEST_AGENCY_NAME || 'NV Best PCA',
+                slug: process.env.NVBEST_AGENCY_SLUG || 'nvbest',
+            },
+        });
+        console.log(`✅ Agency created: ${agency.name} (${agency.slug})`);
+    } else {
+        console.log(`✅ Agency already exists — skipping agency creation (${agency.slug})`);
+    }
+
+    // 2. Superadmin bootstrap — platform-level account, no agencyId. Synced
+    // from env on every boot (see syncSuperadmin below): rotation = edit env
+    // + restart, no manual DB surgery.
+    await syncSuperadmin(prisma);
+
+    // 3. Agency-scoped admin bootstrap (legacy ADMIN_EMAIL/ADMIN_PASSWORD flow).
     const email = process.env.ADMIN_EMAIL || 'admin@nvbestpca.com';
 
     // Check if admin already exists — never overwrite an existing account
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const existing = await prisma.user.findFirst({ where: { email, agencyId: agency.id } });
 
     if (existing) {
         console.log('✅ Admin already exists — skipping admin creation');
@@ -30,6 +95,7 @@ async function main() {
                 passwordHash,
                 name: 'Admin',
                 role: 'admin',
+                agencyId: agency.id,
             },
         });
 
@@ -39,86 +105,26 @@ async function main() {
         }
     }
 
-    // Seed insurance types (always runs)
-    const insuranceTypes = ['MEDICAID', 'Molina', 'SilverSummit', 'CareSource', 'Aging and Disability', 'CognitiveCare', 'Private Pay', 'Other'];
-    for (const name of insuranceTypes) {
-        await prisma.insuranceType.upsert({
-            where: { name },
-            update: {},
-            create: { name },
-        });
-    }
-    console.log('✅ Insurance types seeded');
+    // 4. Reference data (insurance types, services, workflow triggers, admin folders)
+    await seedAgencyDefaults(prisma, agency.id);
+    console.log('✅ Agency defaults seeded');
 
-    // Seed default workflow triggers
-    const defaultTriggers = [
-        { name: 'Authorization Expiry Warning', type: 'auth_expiry', thresholdDays: 30, urgency: 'high' },
-        { name: 'Overdue Timesheet Follow-up', type: 'timesheet_overdue', thresholdDays: 1, urgency: 'medium' },
-        { name: 'Credential Expiry Warning', type: 'credential_expiry', thresholdDays: 14, urgency: 'high' },
-        // Shift replacement auto-offering. Seeded DISABLED: it messages
-        // caregivers without a human in the loop, so it must be switched on
-        // deliberately once the ranking has been validated against real
-        // callouts. thresholdDays carries responseWindowMinutes here.
-        { name: 'Shift Replacement', type: 'shift_replacement', thresholdDays: 10, urgency: 'high', enabled: false },
-    ];
-    for (const trigger of defaultTriggers) {
-        const existing = await prisma.workflowTrigger.findFirst({ where: { type: trigger.type } });
-        if (!existing) {
-            await prisma.workflowTrigger.create({ data: trigger });
-        }
-    }
-    console.log('✅ Workflow triggers seeded');
-
-    // Seed default admin file folders (skip if table doesn't exist yet)
-    try {
-        const defaultFolders = [
-            { name: 'Insurance', path: '/Insurance', parentId: null },
-            { name: 'Eligibility', path: '/Eligibility', parentId: null },
-        ];
-        for (const folder of defaultFolders) {
-            const existing = await prisma.adminFolder.findFirst({
-                where: { name: folder.name, parentId: null },
-            });
-            if (!existing) {
-                const created = await prisma.adminFolder.create({ data: folder });
-                if (folder.name === 'Insurance') {
-                    const subs = ['Medicaid', 'UnitedHealth', 'Blue Cross Blue Shield', 'Aetna'];
-                    for (const sub of subs) {
-                        await prisma.adminFolder.create({
-                            data: { name: sub, path: `/Insurance/${sub}`, parentId: created.id },
-                        });
-                    }
-                } else if (folder.name === 'Eligibility') {
-                    const subs = ['Active', 'Pending', 'Expired'];
-                    for (const sub of subs) {
-                        await prisma.adminFolder.create({
-                            data: { name: sub, path: `/Eligibility/${sub}`, parentId: created.id },
-                        });
-                    }
-                }
-            }
-        }
-        console.log('✅ Admin file folders seeded');
-    } catch (err) {
-        if (err.code === 'P2021') {
-            console.log('⚠️  admin_folders table not found — skipping folder seed (run migrations first)');
-        } else {
-            throw err;
-        }
-    }
-
-    await seedPermissionGroups(prisma);
+    await seedPermissionGroups(prisma, agency.id);
 
     // Seed the onboarding requirement catalogs (documents / cert types / policies).
     // Non-fatal: a hiccup here must never block the rest of the deploy/seed chain.
     try {
-        await require('./seed-requirements').seedRequirements();
+        await require('./seed-requirements').seedRequirements(prisma, agency.id);
         console.log('✅ Requirement catalogs seeded');
     } catch (e) {
         console.error('⚠️  Requirement seed skipped:', e.message);
     }
 }
 
-main()
-    .catch((e) => { console.error(e); process.exit(1); })
-    .finally(() => prisma.$disconnect());
+if (require.main === module) {
+    main()
+        .catch((e) => { console.error(e); process.exit(1); })
+        .finally(() => prisma.$disconnect());
+}
+
+module.exports = { syncSuperadmin };

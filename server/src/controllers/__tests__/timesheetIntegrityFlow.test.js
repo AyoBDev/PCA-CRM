@@ -4,13 +4,20 @@
 // attestation (changed pca/recipient signatures) or a first-time submit
 // computes it.
 
-jest.mock('../../lib/prisma', () => ({
+// timesheetController reads/writes via req.db (the tenant-scoped client set
+// by tenantMiddleware), not a module-level prisma import — mock that surface
+// directly rather than lib/prisma.
+const mockPrisma = {
     timesheet: { findUnique: jest.fn(), update: jest.fn() },
     timesheetEntry: { update: jest.fn() },
+};
+jest.mock('../../lib/tenantContext', () => ({
+    getTenantDb: jest.fn(() => mockPrisma),
 }));
 jest.mock('../../services/auditService', () => ({ logAction: jest.fn(), diffFields: () => [] }));
 
-const prisma = require('../../lib/prisma');
+const prisma = mockPrisma;
+
 const integrity = require('../../services/timesheetIntegrityService');
 const { submitTimesheet, updateTimesheetStatus } = require('../timesheetController');
 
@@ -30,6 +37,7 @@ const adminReq = (body = {}) => ({
     params: { id: '5' },
     user: { id: 1, name: 'Admin', role: 'admin' },
     body,
+    db: prisma,
 });
 
 function makeTimesheet(overrides = {}) {

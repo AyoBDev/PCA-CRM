@@ -143,3 +143,25 @@ export const CERT_COLORS = {
     background_check: '#06b6d4',
     other: '#64748b',
 };
+
+// ─── Employee Onboarding Lifecycle Status Labels ───
+// Canonical display labels for Employee.onboardingStatus — keep in sync with
+// server/src/services/onboardingLifecycle.js STATUSES.
+export const ONBOARDING_STATUS_LABELS = {
+    invitation_pending: 'Invited',
+    onboarding_in_progress: 'Onboarding',
+    pending_review: 'Pending Review',
+    changes_requested: 'Changes Requested',
+    active: 'Active',
+    inactive: 'Inactive',
+};
+
+// ts-badge visual variant per onboarding status (reuses existing classes —
+// see index.css .ts-badge--*). Only statuses that appear as an "in-flight"
+// badge (i.e. not yet fully active) are listed here.
+export const ONBOARDING_STATUS_BADGE_VARIANT = {
+    invitation_pending: 'draft',
+    onboarding_in_progress: 'draft',
+    pending_review: 'submitted',
+    changes_requested: 'warning',
+};

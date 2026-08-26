@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 const { uploadFile, downloadFile } = require('../lib/storage');
 
@@ -8,7 +7,7 @@ const { uploadFile, downloadFile } = require('../lib/storage');
 async function uploadDocument(req, res, next) {
     try {
         const clientId = Number(req.params.clientId);
-        const client = await prisma.client.findUnique({ where: { id: clientId } });
+        const client = await req.db.client.findUnique({ where: { id: clientId } });
         if (!client) return res.status(404).json({ error: 'Client not found' });
 
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
@@ -21,7 +20,7 @@ async function uploadDocument(req, res, next) {
         const bucketKey = `client-documents/${clientId}/${Date.now()}-${req.file.originalname}`;
         await uploadFile(bucketKey, req.file.buffer, req.file.mimetype || 'application/octet-stream');
 
-        const doc = await prisma.clientDocument.create({
+        const doc = await req.db.clientDocument.create({
             data: {
                 clientId,
                 category,
@@ -51,7 +50,7 @@ async function uploadDocument(req, res, next) {
 async function downloadDocument(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const doc = await prisma.clientDocument.findUnique({ where: { id } });
+        const doc = await req.db.clientDocument.findUnique({ where: { id } });
         if (!doc) return res.status(404).json({ error: 'Document not found' });
 
         const mimeType = doc.mimeType || 'application/octet-stream';
@@ -90,10 +89,10 @@ async function downloadDocument(req, res, next) {
 async function deleteDocument(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const doc = await prisma.clientDocument.findUnique({ where: { id }, include: { client: true } });
+        const doc = await req.db.clientDocument.findUnique({ where: { id }, include: { client: true } });
         if (!doc) return res.status(404).json({ error: 'Document not found' });
 
-        await prisma.clientDocument.delete({ where: { id } });
+        await req.db.clientDocument.delete({ where: { id } });
 
         audit.logAction({
             userId: req.user.id, userName: req.user.name, userRole: req.user.role,

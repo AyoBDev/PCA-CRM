@@ -1,7 +1,6 @@
-const prisma = require('../../lib/prisma');
 
 async function getTasks(req, res) {
-  const tasks = await prisma.employeeTask.findMany({
+  const tasks = await req.db.employeeTask.findMany({
     where: { employeeId: req.employee.id },
     orderBy: [{ completedAt: 'asc' }, { createdAt: 'desc' }],
   });
@@ -10,7 +9,7 @@ async function getTasks(req, res) {
 
 async function completeTask(req, res) {
   const id = parseInt(req.params.id);
-  const task = await prisma.employeeTask.findFirst({
+  const task = await req.db.employeeTask.findFirst({
     where: { id, employeeId: req.employee.id },
   });
   if (!task) return res.status(404).json({ error: 'Task not found' });
@@ -18,7 +17,7 @@ async function completeTask(req, res) {
     return res.status(400).json({ error: 'Compliance tasks auto-resolve when certification is approved' });
   }
 
-  const updated = await prisma.employeeTask.update({
+  const updated = await req.db.employeeTask.update({
     where: { id },
     data: { completedAt: new Date() },
   });

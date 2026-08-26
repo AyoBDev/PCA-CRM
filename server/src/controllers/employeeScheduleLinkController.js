@@ -1,5 +1,6 @@
 const prisma = require('../lib/prisma');
 const { getWeekRange, SERVICE_COLOR_MAP } = require('../services/schedulingService');
+const { enterTokenTenant } = require('../lib/tokenTenant');
 const { buildLiveSandataMap, resolveShiftAccountNumber, resolveShiftSandataId } = require('../lib/sandataResolver');
 
 // POST /api/employee-schedule-links
@@ -9,16 +10,16 @@ async function createLink(req, res, next) {
         if (!employeeId) return res.status(400).json({ error: 'employeeId is required' });
 
         // Upsert: reactivate if exists but inactive, or create new
-        const existing = await prisma.employeeScheduleLink.findUnique({ where: { employeeId: Number(employeeId) } });
+        const existing = await req.db.employeeScheduleLink.findUnique({ where: { employeeId: Number(employeeId) } });
         let link;
         if (existing) {
-            link = await prisma.employeeScheduleLink.update({
+            link = await req.db.employeeScheduleLink.update({
                 where: { id: existing.id },
                 data: { active: true },
                 include: { employee: true },
             });
         } else {
-            link = await prisma.employeeScheduleLink.create({
+            link = await req.db.employeeScheduleLink.create({
                 data: { employeeId: Number(employeeId) },
                 include: { employee: true },
             });
@@ -34,7 +35,7 @@ async function createLink(req, res, next) {
 // GET /api/employee-schedule-links
 async function listLinks(req, res, next) {
     try {
-        const links = await prisma.employeeScheduleLink.findMany({
+        const links = await req.db.employeeScheduleLink.findMany({
             include: { employee: true },
             orderBy: { createdAt: 'desc' },
         });
@@ -48,7 +49,7 @@ async function listLinks(req, res, next) {
 // DELETE /api/employee-schedule-links/:id
 async function deleteLink(req, res, next) {
     try {
-        await prisma.employeeScheduleLink.update({
+        await req.db.employeeScheduleLink.update({
             where: { id: Number(req.params.id) },
             data: { active: false },
         });
@@ -66,99 +67,103 @@ async function getScheduleView(req, res) {
         include: { employee: true },
     });
     if (!link) return res.status(404).json({ error: 'Invalid link' });
-    if (!link.active) return res.status(403).json({ error: 'This schedule link has been deactivated' });
 
-    // Determine which week to show — default to current week
-    const dateParam = req.query.weekStart || new Date().toISOString().split('T')[0];
-    const { weekStart, weekEnd } = getWeekRange(dateParam);
+    await enterTokenTenant(req, res, link.agencyId, async () => {
+        const db = req.db;
+        if (!link.active) return res.status(403).json({ error: 'This schedule link has been deactivated' });
 
-    const shifts = await prisma.shift.findMany({
-        where: {
-            employeeId: link.employeeId,
-            shiftDate: { gte: new Date(weekStart + 'T00:00:00.000Z'), lte: new Date(weekEnd + 'T23:59:59.999Z') },
-            status: { not: 'cancelled' },
-            archivedAt: null,
-        },
-        include: {
-            client: {
-                select: {
-                    clientName: true, address: true,
-                    phone: true, gateCode: true, notes: true,
+        // Determine which week to show — default to current week
+        const dateParam = req.query.weekStart || new Date().toISOString().split('T')[0];
+        const { weekStart, weekEnd } = getWeekRange(dateParam);
+
+        const shifts = await db.shift.findMany({
+            where: {
+                employeeId: link.employeeId,
+                shiftDate: { gte: new Date(weekStart + 'T00:00:00.000Z'), lte: new Date(weekEnd + 'T23:59:59.999Z') },
+                status: { not: 'cancelled' },
+                archivedAt: null,
+            },
+            include: {
+                client: {
+                    select: {
+                        clientName: true, address: true,
+                        phone: true, gateCode: true, notes: true,
+                    },
                 },
             },
-        },
-        orderBy: [{ shiftDate: 'asc' }, { startTime: 'asc' }],
-    });
+            orderBy: [{ shiftDate: 'asc' }, { startTime: 'asc' }],
+        });
 
-    // Resolve the Sandata Client ID LIVE from each client's authorization for the
-    // shift's service code — never trust the copy stored on the shift row, which
-    // can drift from the source of truth (Authorization). A wrong value typed onto
-    // one shift must not leak into the shared PDF while the profile stays correct.
-    const clientIds = [...new Set(shifts.map(s => s.clientId).filter(Boolean))];
-    const auths = clientIds.length
-        ? await prisma.authorization.findMany({
-            where: { clientId: { in: clientIds }, archivedAt: null },
-        })
-        : [];
+        // Resolve the Sandata Client ID LIVE from each client's authorization for the
+        // shift's service code — never trust the copy stored on the shift row, which
+        // can drift from the source of truth (Authorization). A wrong value typed onto
+        // one shift must not leak into the shared PDF while the profile stays correct.
+        const clientIds = [...new Set(shifts.map(s => s.clientId).filter(Boolean))];
+        const auths = clientIds.length
+            ? await db.authorization.findMany({
+                where: { clientId: { in: clientIds }, archivedAt: null },
+            })
+            : [];
 
-    // Build live resolver bundle (clientId|serviceCode keyed maps) shared with
-    // the one-time shift-cleanup script so the two can never drift.
-    const liveMaps = buildLiveSandataMap(auths);
+        // Build live resolver bundle (clientId|serviceCode keyed maps) shared with
+        // the one-time shift-cleanup script so the two can never drift.
+        const liveMaps = buildLiveSandataMap(auths);
 
-    const enrichedShifts = shifts.map(s => {
-        const accountNumber = resolveShiftAccountNumber(s, liveMaps);
-        return {
-            ...s,
-            accountNumber,
-            sandataClientId: resolveShiftSandataId(s, accountNumber, liveMaps),
-            serviceLabel: (SERVICE_COLOR_MAP[s.serviceCode] || {}).label || s.serviceCode,
-        };
-    });
+        const enrichedShifts = shifts.map(s => {
+            const accountNumber = resolveShiftAccountNumber(s, liveMaps);
+            return {
+                ...s,
+                accountNumber,
+                sandataClientId: resolveShiftSandataId(s, accountNumber, liveMaps),
+                serviceLabel: (SERVICE_COLOR_MAP[s.serviceCode] || {}).label || s.serviceCode,
+            };
+        });
 
-    // Fetch submitted timesheet hours for this PCA + week
-    const wsDate = new Date(weekStart + 'T00:00:00.000Z');
-    const timesheets = await prisma.timesheet.findMany({
-        where: {
-            pcaName: link.employee.name,
-            weekStart: wsDate,
-            archivedAt: null,
-        },
-        select: {
-            clientId: true,
-            status: true,
-            totalPasHours: true,
-            totalHmHours: true,
-            totalRespiteHours: true,
-            totalCompanionHours: true,
-            totalHours: true,
-            client: { select: { clientName: true } },
-            entries: {
-                select: { dayOfWeek: true, adlHours: true, iadlHours: true, respiteHours: true, companionHours: true },
-                orderBy: { dayOfWeek: 'asc' },
+        // Fetch submitted timesheet hours for this PCA + week
+        const wsDate = new Date(weekStart + 'T00:00:00.000Z');
+        const timesheets = await db.timesheet.findMany({
+            where: {
+                pcaName: link.employee.name,
+                weekStart: wsDate,
+                archivedAt: null,
             },
-        },
-    });
+            select: {
+                clientId: true,
+                status: true,
+                totalPasHours: true,
+                totalHmHours: true,
+                totalRespiteHours: true,
+                totalCompanionHours: true,
+                totalHours: true,
+                client: { select: { clientName: true } },
+                entries: {
+                    select: { dayOfWeek: true, adlHours: true, iadlHours: true, respiteHours: true, companionHours: true },
+                    orderBy: { dayOfWeek: 'asc' },
+                },
+            },
+        });
 
-    const timesheetSummary = timesheets.map(ts => ({
-        clientName: ts.client?.clientName || '',
-        status: ts.status,
-        totalHours: ts.totalHours,
-        totalPasHours: ts.totalPasHours,
-        totalHmHours: ts.totalHmHours,
-        totalRespiteHours: ts.totalRespiteHours,
-        totalCompanionHours: ts.totalCompanionHours,
-        dailyHours: ts.entries.map(e => ({
-            dayOfWeek: e.dayOfWeek,
-            hours: Math.round(((e.adlHours || 0) + (e.iadlHours || 0) + (e.respiteHours || 0) + (e.companionHours || 0)) * 100) / 100,
-        })),
-    }));
+        const timesheetSummary = timesheets.map(ts => ({
+            clientName: ts.client?.clientName || '',
+            status: ts.status,
+            totalHours: ts.totalHours,
+            totalPasHours: ts.totalPasHours,
+            totalHmHours: ts.totalHmHours,
+            totalRespiteHours: ts.totalRespiteHours,
+            totalCompanionHours: ts.totalCompanionHours,
+            dailyHours: ts.entries.map(e => ({
+                dayOfWeek: e.dayOfWeek,
+                hours: Math.round(((e.adlHours || 0) + (e.iadlHours || 0) + (e.respiteHours || 0) + (e.companionHours || 0)) * 100) / 100,
+            })),
+        }));
 
-    res.json({
-        employee: { id: link.employee.id, name: link.employee.name },
-        weekStart,
-        weekEnd,
-        shifts: enrichedShifts,
-        timesheets: timesheetSummary,
+        res.json({
+            employee: { id: link.employee.id, name: link.employee.name },
+            weekStart,
+            weekEnd,
+            shifts: enrichedShifts,
+            timesheets: timesheetSummary,
+        });
     });
 }
 

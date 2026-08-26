@@ -14,7 +14,6 @@
 // Calling geocodingService from here would put a metered API on the request
 // path. Un-geocoded candidates are ranked last, never geocoded on demand.
 
-const prisma = require('../lib/prisma');
 const { haversineMiles } = require('../lib/haversine');
 
 // Compliance certifications that gate eligibility. The data model has no
@@ -87,11 +86,12 @@ function computeDistances(client, employees) {
 /**
  * Rank employees for a shift.
  *
+ * @param {object} db tenant-scoped Prisma client (req.db / getTenantDb() / a per-agency tenantClient)
  * @param {object} request clientId, serviceCode, date, startTime, endTime, excludeEmployeeId
  * @param {object} [options] mode: 'strict'|'soft' (default 'strict'), limit (default 5)
  * @returns {Promise<{status: string, eligible: object[], ineligible: object[]}>}
  */
-async function rankCandidates(request = {}, options = {}) {
+async function rankCandidates(db, request = {}, options = {}) {
     const { clientId, date, startTime, endTime, excludeEmployeeId } = request;
     const mode = options.mode || 'strict';
     const limit = options.limit ?? 5;
@@ -105,10 +105,10 @@ async function rankCandidates(request = {}, options = {}) {
         return { status: 'insufficient_input', ...empty };
     }
 
-    const client = await prisma.client.findUnique({ where: { id: Number(clientId) } });
+    const client = await db.client.findUnique({ where: { id: Number(clientId) } });
     if (!client) return { status: 'missing_client', ...empty };
 
-    const employees = await prisma.employee.findMany({
+    const employees = await db.employee.findMany({
         where: {
             active: true,
             archivedAt: null,
@@ -123,14 +123,14 @@ async function rankCandidates(request = {}, options = {}) {
     const shiftDate = new Date(`${date}T00:00:00.000Z`);
 
     const [weekShifts, timeOff, careTeam, certifications] = await Promise.all([
-        prisma.shift.findMany({
+        db.shift.findMany({
             where: {
                 employeeId: { in: employeeIds },
                 archivedAt: null,
                 shiftDate: { gte: weekStart, lte: weekEnd },
             },
         }),
-        prisma.timeOffRequest.findMany({
+        db.timeOffRequest.findMany({
             where: {
                 employeeId: { in: employeeIds },
                 status: 'approved',
@@ -138,8 +138,8 @@ async function rankCandidates(request = {}, options = {}) {
                 dateTo: { gte: shiftDate },
             },
         }),
-        prisma.clientCareTeam.findMany({ where: { clientId: Number(clientId) } }),
-        prisma.employeeCertification.findMany({
+        db.clientCareTeam.findMany({ where: { clientId: Number(clientId) } }),
+        db.employeeCertification.findMany({
             where: { employeeId: { in: employeeIds }, certType: { in: REQUIRED_CERT_TYPES } },
         }),
     ]);

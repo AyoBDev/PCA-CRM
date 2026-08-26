@@ -23,13 +23,13 @@ beforeAll(async () => {
     const userHash = await bcrypt.hash(OLD_PASSWORD, 10);
 
     await prisma.user.create({
-        data: { email: ADMIN_EMAIL, passwordHash: adminHash, name: 'PwLogout Admin', role: 'admin' },
+        data: { email: ADMIN_EMAIL, passwordHash: adminHash, name: 'PwLogout Admin', role: 'admin', agencyId: 1 },
     });
     targetUser = await prisma.user.create({
-        data: { email: USER_EMAIL, passwordHash: userHash, name: 'PwLogout User', role: 'user', status: 'active', active: true },
+        data: { email: USER_EMAIL, passwordHash: userHash, name: 'PwLogout User', role: 'user', status: 'active', active: true, agencyId: 1 },
     });
 
-    adminToken = (await request(app).post('/api/auth/login').send({ email: ADMIN_EMAIL, password: 'secret123' })).body.token;
+    adminToken = (await request(app).post('/api/auth/login').set('Host', 'nvbest.localhost').send({ email: ADMIN_EMAIL, password: 'secret123' })).body.token;
 });
 
 afterAll(async () => {
@@ -40,7 +40,7 @@ afterAll(async () => {
 describe('admin reset-password logs the user out of existing sessions', () => {
     it('invalidates the old token and lets the user back in with the new password', async () => {
         // 1. User logs in and gets a working token.
-        const loginRes = await request(app).post('/api/auth/login').send({ email: USER_EMAIL, password: OLD_PASSWORD });
+        const loginRes = await request(app).post('/api/auth/login').set('Host', 'nvbest.localhost').send({ email: USER_EMAIL, password: OLD_PASSWORD });
         expect(loginRes.status).toBe(200);
         const oldToken = loginRes.body.token;
 
@@ -61,10 +61,10 @@ describe('admin reset-password logs the user out of existing sessions', () => {
         expect(after.body.error).toBe('permissions_changed');
 
         // 4. The old password no longer works, the new one does.
-        const oldPwLogin = await request(app).post('/api/auth/login').send({ email: USER_EMAIL, password: OLD_PASSWORD });
+        const oldPwLogin = await request(app).post('/api/auth/login').set('Host', 'nvbest.localhost').send({ email: USER_EMAIL, password: OLD_PASSWORD });
         expect(oldPwLogin.status).toBe(401);
 
-        const newPwLogin = await request(app).post('/api/auth/login').send({ email: USER_EMAIL, password: NEW_PASSWORD });
+        const newPwLogin = await request(app).post('/api/auth/login').set('Host', 'nvbest.localhost').send({ email: USER_EMAIL, password: NEW_PASSWORD });
         expect(newPwLogin.status).toBe(200);
         expect(newPwLogin.body.token).toBeTruthy();
     });
@@ -73,7 +73,7 @@ describe('admin reset-password logs the user out of existing sessions', () => {
 describe('self-service reset-password-with-token logs the user out of existing sessions', () => {
     it('invalidates the old token after the user resets their own password', async () => {
         // Start from the NEW_PASSWORD state left by the previous test.
-        const loginRes = await request(app).post('/api/auth/login').send({ email: USER_EMAIL, password: NEW_PASSWORD });
+        const loginRes = await request(app).post('/api/auth/login').set('Host', 'nvbest.localhost').send({ email: USER_EMAIL, password: NEW_PASSWORD });
         expect(loginRes.status).toBe(200);
         const oldToken = loginRes.body.token;
 
@@ -82,12 +82,13 @@ describe('self-service reset-password-with-token logs the user out of existing s
 
         // Create a valid reset token directly (mirrors what forgot-password issues).
         const resetToken = await prisma.passwordResetToken.create({
-            data: { userId: targetUser.id, expiresAt: new Date(Date.now() + 60 * 60 * 1000) },
+            data: { userId: targetUser.id, expiresAt: new Date(Date.now() + 60 * 60 * 1000), agencyId: 1 },
         });
 
         const finalPassword = 'finalpass789';
         const res = await request(app)
             .post('/api/auth/reset-password-with-token')
+            .set('Host', 'nvbest.localhost')
             .send({ token: resetToken.token, password: finalPassword });
         expect(res.status).toBe(200);
 
@@ -97,7 +98,7 @@ describe('self-service reset-password-with-token logs the user out of existing s
         expect(after.body.error).toBe('permissions_changed');
 
         // The new password works.
-        const newLogin = await request(app).post('/api/auth/login').send({ email: USER_EMAIL, password: finalPassword });
+        const newLogin = await request(app).post('/api/auth/login').set('Host', 'nvbest.localhost').send({ email: USER_EMAIL, password: finalPassword });
         expect(newLogin.status).toBe(200);
     });
 });

@@ -2,6 +2,35 @@
 
 A running log of notable build-vs-adopt and design decisions, most recent first.
 
+## 2026-08-25 — Edit User + reuse office email on inactive account
+
+**Options considered:** (a) build in-house edit endpoint + modal; (b) adopt an off-the-shelf admin/user-management library (e.g. AdminJS, react-admin).
+
+**Choice:** Build in-house.
+
+**Why:** User accounts here are a bespoke domain (custom roles, permission groups, PHI-adjacent audit logging, JWT `permissionsVersion` session invalidation) tightly coupled to existing Express/Prisma controllers. An off-the-shelf admin panel would duplicate auth, fight our schema, and add a heavy dependency for a single dialog + one endpoint. The edit path reuses existing `Modal`/design-system primitives and the established audit + undo patterns.
+## 2026-08-21 — Employee Portal v3 Areas 3+4: Visit Care-Plan + Cert/Catalog Management
+
+**Decision:** Build in-house by extending existing modules — no new libraries, no new tables, no migration. Reuse the Area 1 requirement ledger for employee certs, the DB `Service`-style catalog tables for catalog management, and the existing `complianceService` for reminders.
+
+**Options considered:**
+- **Admin catalog CRUD** — considered a generic admin-CRUD/table library (e.g. react-admin). Rejected: the three catalogs (Documents/Certifications/Policies) are small, and the app already has a settings-page + two-tier-toolbar + `InlineEditable` + undo/redo convention every other page follows; a CRUD framework would fight those conventions and add a large dependency for three tables. Built a `CatalogManagementPage` in the house style with PATCH edit/active(soft-delete)/reorder endpoints on the existing `catalogController`.
+- **Employee cert list** — could have kept the hardcoded `CERT_TYPES` list. Rejected: it drifts from what the admin actually assigned. Re-projected the endpoint from the Area 1 ledger (single source of truth) instead.
+- **Reminder tuning** — could have added a new reminder system. Rejected (YAGNI): re-pointed the existing `complianceService` at the `CertType` catalog (`requiresExpiry`/`renewalYears`) so tuning a cert in the admin UI changes reminders everywhere.
+- **Shared `CertCard`** — the spec asked for one shared card across admin + employee apps. Attempted, but `client/` and `employee-app/` are separate Vite build roots with no shared module system, and adopting the compact shared card in the admin employee-detail tab **broke** that tab's richer file-history portfolio (preview/download/records). Reverted the admin adoption; instead the employee cert page was rebuilt to mirror the admin's `.pa-service-card` portfolio design. **Net: the "identical shared component" goal is intentionally dropped** — admin and employee each carry their own copy of the portfolio markup (kept visually consistent by convention), which is the accepted tradeoff for not regressing the working admin tab across two un-shareable build roots.
+
+**Why:** every piece slots into an existing, tested convention; the only cross-app duplication (CertCard) is forced by the two apps being separate build roots, and duplicating ~150 lines of markup is cheaper and safer than a shared-package build step for two screens.
+
+## 2026-08-14 — Timesheet PDF blowing up to ~43 pages: fix in-house on PDFKit
+
+**Options considered:**
+- Adopt a higher-level PDF/layout library that paginates automatically (e.g. `pdfmake`, `@react-pdf/renderer`, or an HTML→PDF path via `puppeteer`). Signals: `pdfmake` and `@react-pdf/renderer` both handle flow layout and page breaks for you, but adopting either means rewriting the entire hand-tuned landscape grid (absolute-positioned day columns, merged totals cell, signature block) from scratch; `puppeteer` adds a headless-Chromium native dependency that is deploy-fragile on Railway. All three are large swaps for what is a single-page document that already renders correctly when it fits.
+- Build in-house: keep PDFKit, fix the actual defect.
+
+**Choice:** Build in-house — keep PDFKit; fix the pagination bug directly.
+
+**Why:** The bug is in our own layout logic, not a missing capability. `renderTimesheetPage` draws everything at manually-tracked absolute `gridY` coordinates; when a timesheet has enough sections (PAS + Homemaker + Respite + Companion) the content grows past the page's bottom margin, and PDFKit's *automatic* pagination then flushes a fresh page on every subsequent `doc.text()` call — producing dozens of near-blank pages with the signature block stranded far down. Fix (two parts, both at root cause): (1) disable auto-pagination during a single page's render so overflow can never silently spawn pages (safety net), restoring real `addPage` afterward so bulk export still gets one page per timesheet; (2) measure total content height up front and apply a uniform vertical `doc.scale()` when it exceeds the printable area, so the whole record — including signatures — always fits one landscape page. A library swap would discard the existing grid/signature layout for no benefit. Built test-first: a failing test reproduced the 45-page explosion; after the fix, four-section and two-section timesheets render 1 page and bulk export renders exactly N pages.
+
 ## 2026-08-09 — Reusable Tooltip: adopt Radix over building or floating-ui
 
 **Feature:** A reusable `<Tooltip>` for the whole app, replacing the native `title`
@@ -162,3 +191,100 @@ blanks a shift — and is idempotent.
 **Choice:** Build in-house — a generic `PillTabs` (`client/src/components/common/PillTabs.jsx`) reusing the existing pill CSS; client-side role filtering.
 
 **Why:** The need is a lightweight, presentational filter toggle that already has a house style in the repo (`.lead-view-switcher`). A dependency (even the already-present Radix) would add a panel/focus model we'd fight to restyle, for behavior that is one `useState` + `Array.filter`. Reusing `LeadViewSwitcher` verbatim would couple Users to a Leads constant; extracting a 40-line generic component instead decouples the pattern and makes the switcher available to any future page, following the app's DRY-shared-component convention. No API, backend, or mutation changes — filtering is client-side per the app's data-flow convention — so undo/redo/Activity wiring is untouched. Verified end-to-end in the running app (three tabs, correct counts, correct role filtering).
+
+## 2026-08-18 — Future-dated authorization renewals no longer retire the current auth early (Scheduler/Care Plan)
+
+**Options considered:**
+- Adopt a temporal/effective-dated data library (e.g. a "valid-time" ORM layer or a bitemporal package) to model authorization validity windows. Signals: solves the general problem, but heavyweight — the app already stores `authorizationStartDate`/`authorizationEndDate` and already filters by date-range overlap (`filterAuthsByWeek`). A library would duplicate a model we have and fragment the existing audit/undo/renewal-chain logic for no gain.
+- Patch only the symptom in the Scheduler view. Signals: smallest diff, but the root cause is upstream in the renewal handler, so Care Plan and any other date-driven consumer would still break.
+- Build in-house: fix the root cause — stop the renewal handler from eagerly flipping the current auth to `inactive` when the new start date is in the future; let the (already-correct) date-range filtering govern visibility.
+
+**Choice:** Build in-house — root-cause fix in `renewAuthorization`, plus close two latent date-guard gaps it exposed.
+
+**Why:** The bug is in our own logic, not a missing capability. `renewAuthorization` set the renewed-from auth to `manualStatus: 'inactive'` immediately, and both the server (`filterAuthsByWeek`) and the client Scheduler reject non-active auths — so a future renewal made the current auth vanish (0 units) before its effective date. Fix: keep the old auth **active** on a future renewal (its end date is already moved to the day before the new start), so date-range filtering keeps showing current units until the new auth's start date, then switches automatically. Two guards the change surfaced were also fixed: (1) `deactivatePreviousAuths` now accepts an id array so the still-active renewed-from auth isn't swept as "superseded"; (2) the Scheduler's `authorizedServiceMap` now skips not-yet-effective auths (missing start-date check) so current + future units don't double-count during the gap. Also made the Programs tab pick the auth effective *today* for its card so a future renewal doesn't display its future units early. Immediate/backdated renewals (start ≤ today) still close the old auth now. Built test-first: failing test reproducing the vanished current auth → root-cause fix → green; added an end-to-end `filterAuthsByWeek` test proving current units before the new start and new units after. Server 720/721 (1 pre-existing cross-suite flake, passes in isolation), auth+scheduling 75/75, client 70/70.
+
+**Rows broken before the fix are corrected manually in the app (no migration
+script shipped):** existing authorizations retired early by this bug are not
+self-healing, but they are fixed by hand on prod via the client's Programs tab —
+filter to Inactive, open the affected auth, and re-activate it (or edit its
+dates). No one-time script is included in this PR.
+
+**Model refinement (single source of truth):** per the SSOT rule that the
+authorization is the source of truth and only the *current active*
+authorization should drive the system, the fix was reworked so an auth's
+START/END dates decide what is "current today", with `manualStatus` as a manual
+override on top. The immediate-vs-scheduled decision is now an EXPLICIT choice
+in the renewal confirmation modal ("Wait until start date" — recommended — vs
+"Start immediately"), sent as `renewalActivation` and honored server-side (no
+date inference except as back-compat). A shared helper
+`client/src/utils/authorizations.js` (`isAuthEffectiveOn` / `currentAuthorizations`
+/ `currentAuthForCode`) is the single place any consumer asks "is this the
+current auth?", and the Scheduler unit maps + Programs card + account/Sandata
+auto-fill all route through it — so nothing reads raw `manualStatus` without the
+date window and a not-yet-effective scheduled renewal can never be counted.
+
+**Renewal modal UX + payroll banner (follow-up):** the "wait vs start
+immediately" choice moved to its OWN confirmation modal shown after "Save
+Renewal" (only for a future start), and the pre-save "auto-closes on <date>"
+preview banner was removed. Extended the single-source-of-truth (date-effective)
+rule to the Payroll run: the banner's authorized-units map (`buildClientAuthMap`
+in `payrollController.js`) now filters authorizations to those effective for the
+run's pay period via `filterAuthsByWeek` (falling back to "today" when a run has
+no period), so a scheduled future renewal is no longer summed on top of the
+current auth (e.g. SDPC 28 + 28 = 56). The payroll processing pipeline and
+manual-unit-limit cap already used `filterAuthsByWeek` per visit week, so only
+the banner map needed the fix.
+
+**App-wide single-source-of-truth audit + expired-drops-to-history:** audited
+every surface that reads authorizations. Server operational paths were already
+date-correct: Timesheet limits use a per-week filter (`filterActiveAuthsForWeek`
+in `timesheetController.js`), Scheduling uses `filterAuthsByWeek` per shift week,
+the PCA form uses `filterAuthsByWeek`/`classifyWeekAuthBySection` per week, and
+payroll processing/manual-cap use `filterAuthsByWeek` per visit week — so a
+future renewal never leaks into a past/current period. The only server gap
+(payroll banner) was fixed earlier this session. On the client, the ledger LISTS
+were status-only (`manualStatus==='active'`), so a date-expired auth lingered in
+"Active" after its end date. Per the decision "hide expired from Active, keep in
+History", added `isAuthListedActive` / `isAuthExpired` to `utils/authorizations.js`
+and routed the master sheet (AuthorizationsPage), Programs tab card, Profile
+overview, ClientServicePage current-auth, and the client-detail header chips
+through the shared helpers — so once a renewal starts, the old program drops out
+of Active views and remains under authorization history. Also added an advisory
+coverage-gap/overlap WARNING (`coverageIssue`) in the auth modal (never
+auto-edits dates) after finding a real 1-day SDPC gap (old ends Aug 30, renewal
+starts Sep 1 → Aug 31 uncovered) in existing data.
+
+**Pre-fix data — two categories, both corrected manually in the app.** Auditing
+live data surfaced two pre-existing problems from renewals created before the
+fixes: (1) early-retired renewals (old auth flipped inactive while its successor
+hasn't started — e.g. Frank Wilson PCS, Andranik Zadoyan S5125); (2) coverage
+gaps/overlaps between same-code auths (e.g. Andranik SDPC + S5125, 1-day gap on
+Aug 31; overlaps on Cheryl Johnson S5150, Evan Moreland S5130). No migration
+script is shipped — staff correct these by hand on the client's Programs tab
+(re-activate an early-retired auth; edit an auth's start/end dates to close a gap
+or overlap). Going forward, the modal's coverage warning catches new gaps at
+entry time.
+
+**"Mark as Active" reactivation (fills the manual-fix gap).** The app had no way
+to re-activate an authorization that was wrongly inactivated (e.g. one an old
+renewal retired early) — the Edit modal only offers Renewal/Inactive. Added a
+"Mark as Active" button on the Programs-tab authorization-history row (where a
+superseded auth shows), visible to admins only, and only when the auth is
+`inactive`, not archived, and NOT date-expired (reactivating a genuinely-expired
+auth makes no sense). It calls the full-record PUT with `skipDeactivate: true`
+(the proven renew-undo path) so it does NOT sweep the same-code successor — the
+reactivated auth and the renewal coexist by date. Wired with undo/redo (undo →
+inactive) and audit. This is the in-app way to fix the pre-fix early-retired
+rows on prod without a script. Verified end-to-end against the running API:
+reactivating #2895 set it active while its renewal #3261 stayed active and all
+dates were unchanged.
+## 2026-08-14 — Employee Portal v3 Area 2: Lifecycle + Agency Review
+
+**Decision:** Build in-house (extend the existing Area 1 requirement ledger + a small status-machine module), not adopt a workflow/state-machine library (e.g. XState, `javascript-state-machine`).
+
+**Options considered:**
+- **XState / javascript-state-machine** — mature, well-documented, large community. Rejected: our machine is 7 states / 8 edges with DB-persisted status and audit side-effects on every edge; a library adds a dependency and an interpreter abstraction for a table that fits in ~30 lines, and the transitions must run inside Prisma transactions alongside other writes. Poor fit for the effort saved.
+- **New dedicated review table** — rejected per spec: the Area 1 `EmployeeRequirement` ledger already holds per-item state; adding `reviewStatus` reuses it and keeps one source of truth. Audit log already captures who/when per decision, so no separate history table (YAGNI).
+- **Custom (chosen)** — `onboardingLifecycle.transition()` as the single gate for status writes + a pure `reviewSummary()` derivation. Minimal surface, fully testable, no new deps.
+
+**Why:** the domain is small and tightly coupled to our persistence + audit conventions; a library would constrain more than it helps.

@@ -1,14 +1,14 @@
-const prisma = require('../lib/prisma');
 const XLSX = require('xlsx');
 const { enrichClient } = require('../services/authorizationService');
 const audit = require('../services/auditService');
+const { tenantTransaction } = require('../lib/tenantPrisma');
 const { geocodeOnWrite } = require('../services/geocodeOnWrite');
 
 // GET /api/clients
 async function listClients(req, res, next) {
     try {
         const where = req.query.archived === 'true' ? { archivedAt: { not: null } } : { archivedAt: null };
-        const clients = await prisma.client.findMany({
+        const clients = await req.db.client.findMany({
             where,
             include: {
                 authorizations: {
@@ -38,7 +38,7 @@ async function listClients(req, res, next) {
 async function getClient(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const client = await prisma.client.findUnique({
+        const client = await req.db.client.findUnique({
             where: { id },
             include: {
                 authorizations: {
@@ -74,7 +74,7 @@ async function createClient(req, res, next) {
         if (!clientName || typeof clientName !== 'string' || !clientName.trim()) {
             return res.status(400).json({ error: 'clientName is required' });
         }
-        const client = await prisma.client.create({
+        const client = await req.db.client.create({
             data: {
                 clientName: clientName.trim(),
                 medicaidId: (medicaidId || '').trim(),
@@ -124,8 +124,8 @@ async function updateClient(req, res, next) {
         if (!clientName || typeof clientName !== 'string' || !clientName.trim()) {
             return res.status(400).json({ error: 'clientName is required' });
         }
-        const oldClient = await prisma.client.findUnique({ where: { id } });
-        const updated = await prisma.client.update({
+        const oldClient = await req.db.client.findUnique({ where: { id } });
+        const updated = await req.db.client.update({
             where: { id },
             data: {
                 clientName: clientName.trim(),
@@ -212,7 +212,7 @@ async function patchClient(req, res, next) {
         if (touchesCompliance && req.user.role !== 'admin') {
             return res.status(403).json({ error: 'Only an administrator can change authorization settings.' });
         }
-        const oldClientForCompliance = touchesCompliance ? await prisma.client.findUnique({ where: { id } }) : null;
+        const oldClientForCompliance = touchesCompliance ? await req.db.client.findUnique({ where: { id } }) : null;
         if (authorizationRequired !== undefined) {
             const changing = (oldClientForCompliance?.authorizationRequired !== false) !== (authorizationRequired !== false);
             if (changing && !(reasonNote && String(reasonNote).trim())) {
@@ -229,27 +229,27 @@ async function patchClient(req, res, next) {
             return res.status(400).json({ error: 'No valid fields provided' });
         }
 
-        const oldClient = await prisma.client.findUnique({ where: { id } });
-        const updated = await prisma.client.update({
+        const oldClient = await req.db.client.findUnique({ where: { id } });
+        const updated = await req.db.client.update({
             where: { id },
             data,
             include: { authorizations: true },
         });
 
         if (clientStatus === 'inactive' || clientStatus === 'discharged' || clientStatus === 'transferred') {
-            await prisma.authorization.updateMany({
+            await req.db.authorization.updateMany({
                 where: { clientId: id, archivedAt: null, manualStatus: 'active' },
                 data: { manualStatus: 'inactive' },
             });
             const today = new Date();
             today.setUTCHours(0, 0, 0, 0);
-            await prisma.shift.updateMany({
+            await req.db.shift.updateMany({
                 where: { clientId: id, archivedAt: null, shiftDate: { gt: today } },
                 data: { archivedAt: new Date() },
             });
         }
         if (clientStatus === 'active' && oldClient.client_status !== 'active') {
-            await prisma.authorization.updateMany({
+            await req.db.authorization.updateMany({
                 where: { clientId: id, manualStatus: 'inactive', archivedAt: null },
                 data: { manualStatus: 'active' },
             });
@@ -260,7 +260,7 @@ async function patchClient(req, res, next) {
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Client', entityId: id, entityName: updated.clientName, changes, metadata: auditMeta });
         geocodeOnWrite('client', id, { oldAddress: oldClient?.address, newAddress: data.address });
 
-        const final = await prisma.client.findUnique({
+        const final = await req.db.client.findUnique({
             where: { id },
             include: { authorizations: true },
         });
@@ -275,14 +275,14 @@ async function patchClient(req, res, next) {
 async function deleteClient(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const client = await prisma.client.findUnique({ where: { id } });
+        const client = await req.db.client.findUnique({ where: { id } });
         if (!client) return res.status(404).json({ error: 'Client not found' });
         const now = new Date();
-        await prisma.shift.updateMany({ where: { clientId: id, archivedAt: null }, data: { archivedAt: now } });
-        await prisma.timesheet.updateMany({ where: { clientId: id, archivedAt: null }, data: { archivedAt: now } });
-        await prisma.authorization.updateMany({ where: { clientId: id, archivedAt: null }, data: { archivedAt: now } });
-        await prisma.permanentLink.updateMany({ where: { clientId: id, active: true }, data: { active: false } });
-        const archived = await prisma.client.update({ where: { id }, data: { archivedAt: now }, include: { authorizations: true } });
+        await req.db.shift.updateMany({ where: { clientId: id, archivedAt: null }, data: { archivedAt: now } });
+        await req.db.timesheet.updateMany({ where: { clientId: id, archivedAt: null }, data: { archivedAt: now } });
+        await req.db.authorization.updateMany({ where: { clientId: id, archivedAt: null }, data: { archivedAt: now } });
+        await req.db.permanentLink.updateMany({ where: { clientId: id, active: true }, data: { active: false } });
+        const archived = await req.db.client.update({ where: { id }, data: { archivedAt: now }, include: { authorizations: true } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'ARCHIVE', entityType: 'Client', entityId: id, entityName: client.clientName });
         res.json(archived);
     } catch (err) {
@@ -299,11 +299,11 @@ async function bulkDelete(req, res, next) {
         }
         const numericIds = ids.map(Number).filter(n => !isNaN(n));
         const now = new Date();
-        await prisma.shift.updateMany({ where: { clientId: { in: numericIds }, archivedAt: null }, data: { archivedAt: now } });
-        await prisma.timesheet.updateMany({ where: { clientId: { in: numericIds }, archivedAt: null }, data: { archivedAt: now } });
-        await prisma.authorization.updateMany({ where: { clientId: { in: numericIds }, archivedAt: null }, data: { archivedAt: now } });
-        await prisma.permanentLink.updateMany({ where: { clientId: { in: numericIds }, active: true }, data: { active: false } });
-        await prisma.client.updateMany({ where: { id: { in: numericIds } }, data: { archivedAt: now } });
+        await req.db.shift.updateMany({ where: { clientId: { in: numericIds }, archivedAt: null }, data: { archivedAt: now } });
+        await req.db.timesheet.updateMany({ where: { clientId: { in: numericIds }, archivedAt: null }, data: { archivedAt: now } });
+        await req.db.authorization.updateMany({ where: { clientId: { in: numericIds }, archivedAt: null }, data: { archivedAt: now } });
+        await req.db.permanentLink.updateMany({ where: { clientId: { in: numericIds }, active: true }, data: { active: false } });
+        await req.db.client.updateMany({ where: { id: { in: numericIds } }, data: { archivedAt: now } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'ARCHIVE', entityType: 'Client', entityId: 0, metadata: { count: numericIds.length } });
         res.json({ archived: numericIds.length });
     } catch (err) {
@@ -315,14 +315,14 @@ async function bulkDelete(req, res, next) {
 async function restoreClient(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const client = await prisma.client.findUnique({ where: { id } });
+        const client = await req.db.client.findUnique({ where: { id } });
         if (!client) return res.status(404).json({ error: 'Client not found' });
         const clientArchivedAt = client.archivedAt;
-        await prisma.shift.updateMany({ where: { clientId: id, archivedAt: clientArchivedAt }, data: { archivedAt: null } });
-        await prisma.timesheet.updateMany({ where: { clientId: id, archivedAt: clientArchivedAt }, data: { archivedAt: null } });
-        await prisma.authorization.updateMany({ where: { clientId: id, archivedAt: clientArchivedAt }, data: { archivedAt: null } });
-        await prisma.permanentLink.updateMany({ where: { clientId: id, active: false }, data: { active: true } });
-        const restored = await prisma.client.update({
+        await req.db.shift.updateMany({ where: { clientId: id, archivedAt: clientArchivedAt }, data: { archivedAt: null } });
+        await req.db.timesheet.updateMany({ where: { clientId: id, archivedAt: clientArchivedAt }, data: { archivedAt: null } });
+        await req.db.authorization.updateMany({ where: { clientId: id, archivedAt: clientArchivedAt }, data: { archivedAt: null } });
+        await req.db.permanentLink.updateMany({ where: { clientId: id, active: false }, data: { active: true } });
+        const restored = await req.db.client.update({
             where: { id }, data: { archivedAt: null },
             include: { authorizations: { orderBy: { createdAt: 'asc' } } },
         });
@@ -388,7 +388,7 @@ async function bulkImport(req, res, next) {
         }
 
         // Load existing clients by Medicaid ID
-        const existingClients = await prisma.client.findMany({ include: { authorizations: true } });
+        const existingClients = await req.db.client.findMany({ include: { authorizations: true } });
         const clientByMedicaid = {};
         for (const c of existingClients) {
             if (c.medicaidId) clientByMedicaid[c.medicaidId] = c;
@@ -404,7 +404,7 @@ async function bulkImport(req, res, next) {
                 if (c.clientName && c.clientName !== existing.clientName) updates.clientName = c.clientName;
                 if (c.insuranceType && c.insuranceType !== existing.insuranceType) updates.insuranceType = c.insuranceType;
                 if (Object.keys(updates).length > 0) {
-                    await prisma.client.update({ where: { id: existing.id }, data: updates });
+                    await req.db.client.update({ where: { id: existing.id }, data: updates });
                 }
 
                 for (const auth of c.authorizations) {
@@ -421,11 +421,11 @@ async function bulkImport(req, res, next) {
                         if (auth.serviceCategory && auth.serviceCategory !== match.serviceCategory) authUpdates.serviceCategory = auth.serviceCategory;
                         if (auth.notes && auth.notes !== (match.notes || '')) authUpdates.notes = auth.notes;
                         if (Object.keys(authUpdates).length > 0) {
-                            await prisma.authorization.update({ where: { id: match.id }, data: authUpdates });
+                            await req.db.authorization.update({ where: { id: match.id }, data: authUpdates });
                             authsUpdated++;
                         }
                     } else {
-                        await prisma.authorization.create({
+                        await req.db.authorization.create({
                             data: {
                                 clientId: existing.id,
                                 serviceCategory: auth.serviceCategory,
@@ -443,6 +443,7 @@ async function bulkImport(req, res, next) {
                 clientsUpdated++;
             } else {
                 const auths = c.authorizations.map(a => ({
+                    agencyId: req.user.agencyId,
                     serviceCategory: a.serviceCategory,
                     serviceCode: a.serviceCode,
                     serviceName: a.serviceName,
@@ -452,7 +453,7 @@ async function bulkImport(req, res, next) {
                     notes: a.notes,
                 }));
 
-                const newClient = await prisma.client.create({
+                const newClient = await req.db.client.create({
                     data: {
                         clientName: c.clientName,
                         medicaidId: c.medicaidId,
@@ -467,7 +468,7 @@ async function bulkImport(req, res, next) {
         }
 
         // Return refreshed client list
-        const allClients = await prisma.client.findMany({
+        const allClients = await req.db.client.findMany({
             where: { archivedAt: null },
             include: {
                 authorizations: {
@@ -520,10 +521,10 @@ function sameDay(a, b) {
 async function permanentlyDeleteClient(req, res, next) {
     try {
         const id = Number(req.params.id);
-        const client = await prisma.client.findUnique({ where: { id } });
+        const client = await req.db.client.findUnique({ where: { id } });
         if (!client) return res.status(404).json({ error: 'Client not found' });
         if (!client.archivedAt) return res.status(400).json({ error: 'Only archived clients can be permanently deleted' });
-        await prisma.client.delete({ where: { id } });
+        await req.db.client.delete({ where: { id } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'PERMANENT_DELETE', entityType: 'Client', entityId: id, entityName: client.clientName });
         res.json({ success: true });
     } catch (err) { next(err); }
@@ -531,7 +532,7 @@ async function permanentlyDeleteClient(req, res, next) {
 
 async function bulkPermanentlyDeleteClients(req, res, next) {
     try {
-        const result = await prisma.client.deleteMany({ where: { archivedAt: { not: null } } });
+        const result = await req.db.client.deleteMany({ where: { archivedAt: { not: null } } });
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'BULK_DELETE', entityType: 'Client', entityId: 0, metadata: { count: result.count } });
         res.json({ success: true, count: result.count });
     } catch (err) { next(err); }
@@ -543,27 +544,29 @@ async function mergeClients(req, res, next) {
         const { mergeId } = req.body;
         if (!mergeId || keepId === Number(mergeId)) return res.status(400).json({ error: 'Invalid merge target' });
 
-        const keep = await prisma.client.findUnique({ where: { id: keepId } });
-        const merge = await prisma.client.findUnique({ where: { id: Number(mergeId) } });
+        const keep = await req.db.client.findUnique({ where: { id: keepId } });
+        const merge = await req.db.client.findUnique({ where: { id: Number(mergeId) } });
         if (!keep || !merge) return res.status(404).json({ error: 'Client not found' });
 
-        await prisma.$transaction([
-            prisma.timesheet.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } }),
-            prisma.authorization.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } }),
-            prisma.permanentLink.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } }),
-            prisma.shift.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } }),
-            prisma.clientNote.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } }),
-            prisma.clientCareTeam.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } }),
-            prisma.clientDocument.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } }),
-            prisma.hospitalVisit.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } }),
-            prisma.incident.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } }),
-            prisma.clientActivity.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } }),
-            prisma.client.delete({ where: { id: Number(mergeId) } }),
-        ]);
+        // Batch $transaction([...]) arrays are not supported on the extended
+        // tenant client — use an interactive transaction instead.
+        await tenantTransaction(req.user.agencyId, async (tx) => {
+            await tx.timesheet.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } });
+            await tx.authorization.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } });
+            await tx.permanentLink.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } });
+            await tx.shift.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } });
+            await tx.clientNote.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } });
+            await tx.clientCareTeam.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } });
+            await tx.clientDocument.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } });
+            await tx.hospitalVisit.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } });
+            await tx.incident.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } });
+            await tx.clientActivity.updateMany({ where: { clientId: Number(mergeId) }, data: { clientId: keepId } });
+            await tx.client.delete({ where: { id: Number(mergeId) } });
+        });
 
         audit.logAction({ userId: req.user.id, userName: req.user.name, userRole: req.user.role, action: 'UPDATE', entityType: 'Client', entityId: keepId, entityName: keep.clientName, metadata: { mergedFrom: merge.clientName, mergedId: Number(mergeId) } });
 
-        const updated = await prisma.client.findUnique({ where: { id: keepId }, include: { authorizations: { orderBy: { createdAt: 'asc' } } } });
+        const updated = await req.db.client.findUnique({ where: { id: keepId }, include: { authorizations: { orderBy: { createdAt: 'asc' } } } });
         res.json(enrichClient(updated));
     } catch (err) { next(err); }
 }
@@ -576,14 +579,14 @@ async function restoreClients(req, res, next) {
             return res.status(400).json({ error: 'clientIds array is required' });
         }
         const numericIds = clientIds.map(Number);
-        const clients = await prisma.client.findMany({ where: { id: { in: numericIds }, archivedAt: { not: null } } });
+        const clients = await req.db.client.findMany({ where: { id: { in: numericIds }, archivedAt: { not: null } } });
         for (const client of clients) {
-            await prisma.shift.updateMany({ where: { clientId: client.id, archivedAt: client.archivedAt }, data: { archivedAt: null } });
-            await prisma.timesheet.updateMany({ where: { clientId: client.id, archivedAt: client.archivedAt }, data: { archivedAt: null } });
-            await prisma.authorization.updateMany({ where: { clientId: client.id, archivedAt: client.archivedAt }, data: { archivedAt: null } });
-            await prisma.permanentLink.updateMany({ where: { clientId: client.id, active: false }, data: { active: true } });
+            await req.db.shift.updateMany({ where: { clientId: client.id, archivedAt: client.archivedAt }, data: { archivedAt: null } });
+            await req.db.timesheet.updateMany({ where: { clientId: client.id, archivedAt: client.archivedAt }, data: { archivedAt: null } });
+            await req.db.authorization.updateMany({ where: { clientId: client.id, archivedAt: client.archivedAt }, data: { archivedAt: null } });
+            await req.db.permanentLink.updateMany({ where: { clientId: client.id, active: false }, data: { active: true } });
         }
-        const result = await prisma.client.updateMany({
+        const result = await req.db.client.updateMany({
             where: { id: { in: numericIds }, archivedAt: { not: null } },
             data: { archivedAt: null },
         });
@@ -599,7 +602,7 @@ async function restoreClients(req, res, next) {
 // GET /api/clients/archived
 async function listArchivedClients(req, res, next) {
     try {
-        const clients = await prisma.client.findMany({
+        const clients = await req.db.client.findMany({
             where: { archivedAt: { not: null } },
             orderBy: { archivedAt: 'desc' },
             take: 200,

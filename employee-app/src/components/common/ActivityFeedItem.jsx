@@ -1,14 +1,15 @@
 import { Link } from 'react-router-dom';
+import CertIcons from './CertIcons';
 
 const ICONS = {
-  'new-shift': '📅',
-  'shift-changed': '📅',
-  'admin-message': '💬',
-  'cert-uploaded': '📋',
-  'cert-approved': '✅',
-  'cert-rejected': '⚠️',
-  'task-assigned': '✅',
-  'time-off-decided': '🌴',
+  'new-shift': CertIcons.calendar,
+  'shift-changed': CertIcons.calendar,
+  'admin-message': CertIcons.mail,
+  'cert-uploaded': CertIcons.fileText,
+  'cert-approved': CertIcons.checkCircle,
+  'cert-rejected': CertIcons.alertTriangle,
+  'task-assigned': CertIcons.checkCircle,
+  'time-off-decided': CertIcons.calendar,
 };
 
 function timeAgo(ts) {
@@ -23,7 +24,7 @@ function timeAgo(ts) {
 export default function ActivityFeedItem({ item }) {
   const body = (
     <>
-      <span className="activity-item__icon" aria-hidden>{ICONS[item.type] || '•'}</span>
+      <span className="activity-item__icon" aria-hidden>{ICONS[item.type] || CertIcons.bell}</span>
       <span className="activity-item__body">
         <strong>{item.title}</strong>
         {item.subtitle && <span>{item.subtitle}</span>}

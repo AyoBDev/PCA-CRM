@@ -29,6 +29,10 @@ export default function UsersPage() {
     const [confirmBulkPermanentDelete, setConfirmBulkPermanentDelete] = useState(false);
     const [permissionGroups, setPermissionGroups] = useState([]);
     const [manageRolesOpen, setManageRolesOpen] = useState(false);
+    const [editUser, setEditUser] = useState(null);
+    const [editForm, setEditForm] = useState(null);
+    const [showEditPassword, setShowEditPassword] = useState(false);
+    const [savingEdit, setSavingEdit] = useState(false);
     // Role tab: 'all' (every non-admin user), 'staff' (role='user'), 'caregivers' (role='pca').
     const [tab, setTab] = useState('all');
 
@@ -41,6 +45,20 @@ export default function UsersPage() {
     useEffect(() => {
         api.listPermissionGroups().then(setPermissionGroups).catch(() => {});
     }, [manageRolesOpen]);
+
+    useEffect(() => {
+        if (!editUser) { setEditForm(null); return; }
+        setEditForm({
+            name: editUser.name || '',
+            email: editUser.email || '',
+            role: editUser.role,
+            phone: editUser.phone || '',
+            permissionGroupId: editUser.permissionGroupId ?? null,
+            password: '',
+            reactivate: false,
+        });
+        setShowEditPassword(false);
+    }, [editUser]);
 
     const handleCreate = async (e) => {
         e.preventDefault();
@@ -129,6 +147,38 @@ export default function UsersPage() {
                 async () => { await api.toggleUserActive(user.id); fetchUsers(); }
             );
         } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    const handleEditUser = async (e) => {
+        e.preventDefault();
+        if (!editForm?.name || !editForm?.email) return;
+        setSavingEdit(true);
+        const prev = {
+            name: editUser.name, email: editUser.email, role: editUser.role,
+            phone: editUser.phone || '', permissionGroupId: editUser.permissionGroupId ?? null,
+            active: editUser.active,
+        };
+        const payload = {
+            name: editForm.name.trim(),
+            email: editForm.email.trim(),
+            role: editForm.role,
+            phone: editForm.phone.trim(),
+            permissionGroupId: editForm.role === 'user' ? editForm.permissionGroupId : null,
+        };
+        if (editForm.password) payload.password = editForm.password;
+        if (!editUser.active && editForm.reactivate) payload.active = true;
+        try {
+            await api.updateUser(editUser.id, payload);
+            showToast('User updated');
+            const id = editUser.id;
+            setEditUser(null);
+            fetchUsers();
+            undoState.pushAction(`Edited user "${payload.name}"`,
+                async () => { await api.updateUser(id, prev); fetchUsers(); },
+                async () => { await api.updateUser(id, payload); fetchUsers(); }
+            );
+        } catch (err) { showToast(err.message, 'error'); }
+        finally { setSavingEdit(false); }
     };
 
     // Admins are never listed on this page. Split the rest by role so the tabs can
@@ -263,6 +313,9 @@ export default function UsersPage() {
                                                 </div>
                                             ) : (
                                                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                                                    <button className="btn btn--ghost btn--icon" title="Edit user" onClick={() => setEditUser(u)}>
+                                                        {Icons.edit}
+                                                    </button>
                                                     <button
                                                         className="btn btn--ghost btn--icon"
                                                         title={u.active ? 'Deactivate user' : 'Activate user'}
@@ -320,6 +373,73 @@ export default function UsersPage() {
                         <div className="form-actions">
                             <button type="button" className="btn btn--outline" onClick={() => setShowModal(false)}>Cancel</button>
                             <button type="submit" className="btn btn--primary" disabled={saving || !form.name || !form.email || !form.password}>{saving ? 'Creating...' : 'Create User'}</button>
+                        </div>
+                    </form>
+                </Modal>
+            )}
+            {editUser && editForm && (
+                <Modal onClose={() => setEditUser(null)}>
+                    <h2 className="modal__title">Edit User</h2>
+                    <p className="modal__desc">Update account details for <strong>{editUser.name}</strong>.</p>
+                    <form onSubmit={handleEditUser}>
+                        <div className="form-group"><label>Name</label><input type="text" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} placeholder="Full name" required /></div>
+                        <div className="form-group"><label>Email</label><input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} placeholder="user@example.com" required /></div>
+                        <div className="form-group">
+                            <label>Role</label>
+                            <select value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}>
+                                <option value="pca">PCA (Caregiver)</option>
+                                <option value="user">User (Staff)</option>
+                            </select>
+                        </div>
+                        {editForm.role === 'user' && (
+                            <div className="form-group">
+                                <label className="form-label">Permission Group</label>
+                                <select
+                                    className="form-input"
+                                    value={editForm.permissionGroupId ?? ''}
+                                    onChange={(e) => setEditForm({ ...editForm, permissionGroupId: e.target.value === '' ? null : parseInt(e.target.value) })}
+                                >
+                                    <option value="">No restrictions</option>
+                                    {permissionGroups.map(g => (
+                                        <option key={g.id} value={g.id}>{g.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+                        <div className="form-group"><label>Phone</label><input type="text" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} placeholder="Optional" /></div>
+                        <div className="form-group">
+                            <label>New Password <span style={{ color: 'hsl(var(--muted-foreground))', fontWeight: 400 }}>(leave blank to keep current)</span></label>
+                            <div style={{ position: 'relative' }}>
+                                <input
+                                    type={showEditPassword ? 'text' : 'password'}
+                                    value={editForm.password}
+                                    onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                                    placeholder="Minimum 4 characters"
+                                    minLength={4}
+                                    style={{ paddingRight: 40 }}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowEditPassword(v => !v)}
+                                    title={showEditPassword ? 'Hide password' : 'Show password'}
+                                    style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 4, color: 'hsl(var(--muted-foreground))' }}
+                                >
+                                    {showEditPassword ? Icons.eyeOff : Icons.eye}
+                                </button>
+                            </div>
+                            {editForm.password.length > 0 && editForm.password.length < 4 && (
+                                <p style={{ color: 'hsl(var(--destructive))', fontSize: 12, margin: '4px 0 0' }}>Password must be at least 4 characters</p>
+                            )}
+                        </div>
+                        {!editUser.active && (
+                            <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <input id="edit-reactivate" type="checkbox" checked={editForm.reactivate} onChange={(e) => setEditForm({ ...editForm, reactivate: e.target.checked })} style={{ width: 'auto', margin: 0 }} />
+                                <label htmlFor="edit-reactivate" style={{ margin: 0 }}>Reactivate this account (allow login)</label>
+                            </div>
+                        )}
+                        <div className="form-actions">
+                            <button type="button" className="btn btn--outline" onClick={() => setEditUser(null)}>Cancel</button>
+                            <button type="submit" className="btn btn--primary" disabled={savingEdit || !editForm.name || !editForm.email || (editForm.password.length > 0 && editForm.password.length < 4)}>{savingEdit ? 'Saving...' : 'Save Changes'}</button>
                         </div>
                     </form>
                 </Modal>

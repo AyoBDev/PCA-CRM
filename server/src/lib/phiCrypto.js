@@ -93,4 +93,22 @@ function decryptDeep(value) {
     return value;
 }
 
-module.exports = { PHI_FIELDS, CIPHERTEXT_RE, encryptWriteArgs, decryptDeep };
+// Shared Prisma query-extension config: encrypts PHI fields on write and
+// deep-decrypts every result. Both the owner client (lib/prisma.js) and the
+// tenant client (lib/tenantPrisma.js) apply this SAME extension so PHI is
+// never stored or returned in plaintext regardless of which connection wrote
+// or read it. Keeping this definition in one place prevents the two clients'
+// crypto behavior from drifting apart.
+const phiQueryExtension = {
+    query: {
+        $allModels: {
+            async $allOperations({ model, args, query }) {
+                encryptWriteArgs(model, args);
+                const result = await query(args);
+                return decryptDeep(result);
+            },
+        },
+    },
+};
+
+module.exports = { PHI_FIELDS, CIPHERTEXT_RE, encryptWriteArgs, decryptDeep, phiQueryExtension };

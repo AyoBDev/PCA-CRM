@@ -1,4 +1,3 @@
-const prisma = require('../../lib/prisma');
 const { computeHours, roundTo15, computeTotalHoursWithBlocks } = require('../../lib/timesheetUtils');
 
 function getCurrentWeekStart() {
@@ -10,9 +9,9 @@ function getCurrentWeekStart() {
 async function getTimesheet(req, res, next) {
     try {
         const employeeId = req.employee.id;
-        const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+        const employee = await req.db.employee.findUnique({ where: { id: employeeId } });
 
-        const link = await prisma.permanentLink.findFirst({
+        const link = await req.db.permanentLink.findFirst({
             where: { pcaName: employee.name, active: true },
             include: { client: { include: { authorizations: true } } },
         });
@@ -22,7 +21,7 @@ async function getTimesheet(req, res, next) {
         const weekStart = req.query.weekStart || getCurrentWeekStart();
         const weekStartDate = new Date(weekStart + 'T00:00:00.000Z');
 
-        let timesheet = await prisma.timesheet.findFirst({
+        let timesheet = await req.db.timesheet.findFirst({
             where: { clientId: link.clientId, pcaName: link.pcaName, weekStart: weekStartDate, archivedAt: null },
             include: { entries: { orderBy: { dayOfWeek: 'asc' } } },
         });

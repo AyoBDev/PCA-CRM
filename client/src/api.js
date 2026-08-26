@@ -124,6 +124,8 @@ export const resetUserPassword = (id, password) =>
     request(`/auth/users/${id}/reset-password`, { method: 'PUT', body: JSON.stringify({ password }) });
 export const toggleUserActive = (id) =>
     request(`/auth/users/${id}/toggle-active`, { method: 'PUT' });
+export const updateUser = (id, data) =>
+    request(`/auth/users/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 
 // Clients
 export const getClients = ({ archived } = {}) => request(`/clients${archived ? '?archived=true' : ''}`);
@@ -326,13 +328,7 @@ export const uploadAuthDocument = (authId, formData) => {
 export const downloadAuthDocument = (id) => {
     const headers = {};
     if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-    return fetch(`${BASE}/auth-documents/${id}/download`, { headers })
-        .then(async res => {
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const contentType = res.headers.get('Content-Type') || 'application/octet-stream';
-            const arrayBuffer = await res.arrayBuffer();
-            return new Blob([arrayBuffer], { type: contentType });
-        });
+    return fetch(`${BASE}/auth-documents/${id}/download`, { headers });
 };
 export const deleteAuthDocument = (id) =>
     request(`/auth-documents/${id}`, { method: 'DELETE' });
@@ -942,17 +938,17 @@ export async function resendOnboardingInvite(employeeId) {
     return request(`/employees/${employeeId}/resend-invite`, { method: 'POST' });
 }
 
-export async function approveOnboarding(employeeId) {
-    return request(`/employees/${employeeId}/approve-onboarding`, { method: 'PATCH' });
-}
-
-export async function rejectOnboarding(employeeId, note) {
-    return request(`/employees/${employeeId}/reject-onboarding`, { method: 'PATCH', body: JSON.stringify({ note }) });
-}
-
-export async function requestOnboardingChange(employeeId, note) {
-    return request(`/employees/${employeeId}/request-onboarding-change`, { method: 'PATCH', body: JSON.stringify({ note }) });
-}
+export const reviewRequirementItem = (employeeId, reqId, decision, reason) =>
+  request(`/employees/${employeeId}/requirements/${reqId}/review`, { method: 'PATCH', body: JSON.stringify({ decision, reason }) });
+export const finalizeOnboarding = (employeeId) =>
+  request(`/employees/${employeeId}/onboarding/finalize`, { method: 'POST' });
+// Whole-submission review decisions (the 3 review-modal buttons).
+export const approveOnboardingSubmission = (employeeId) =>
+  request(`/employees/${employeeId}/onboarding/approve`, { method: 'POST' });
+export const sendBackOnboarding = (employeeId, note) =>
+  request(`/employees/${employeeId}/onboarding/send-back`, { method: 'POST', body: JSON.stringify({ note }) });
+export const rejectOnboardingSubmission = (employeeId, note) =>
+  request(`/employees/${employeeId}/onboarding/reject`, { method: 'POST', body: JSON.stringify({ note }) });
 
 export async function getEmployeeAvailability(employeeId) {
     return request(`/employees/${employeeId}/availability`);
@@ -994,7 +990,49 @@ export const markAttentionSeen = (keys) => {
     return request('/admin/employee-attention/mark-seen', { method: 'POST', body: JSON.stringify(body) });
 };
 
+// ── Platform Console (superadmin only) ──
+export const listPlatformAgencies = () => request('/platform/agencies');
+export const createPlatformAgency = (payload) => request('/platform/agencies', { method: 'POST', body: JSON.stringify(payload) });
+export const suspendAgency = (id) => request(`/platform/agencies/${id}/suspend`, { method: 'PUT' });
+export const reactivateAgency = (id) => request(`/platform/agencies/${id}/reactivate`, { method: 'PUT' });
+export const impersonateAgency = (id) => request(`/platform/agencies/${id}/impersonate`, { method: 'POST', body: JSON.stringify({}) });
+
+// ── Agency Info (public — resolves current subdomain, no auth token) ──
+export const getAgencyInfo = () =>
+    fetch(`${BASE}/agency-info`).then(async (res) => {
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            const err = new Error(body.error || `HTTP ${res.status}`);
+            err.status = res.status;
+            throw err;
+        }
+        return res.json();
+    });
+
+// ── Host Info (public — tells the client what kind of host it's on:
+// platform console, agency login, or the public landing page) ──
+export const getHostInfo = () =>
+    fetch(`${BASE}/host-info`).then(async (res) => {
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            const err = new Error(body.error || `HTTP ${res.status}`);
+            err.status = res.status;
+            throw err;
+        }
+        return res.json();
+    });
+
 // ── Onboarding Catalogs ──
-export const getCatalogDocuments = () => request('/catalogs/documents');
-export const getCatalogCertTypes = () => request('/catalogs/cert-types');
-export const getCatalogPolicies = () => request('/catalogs/policies');
+// Pass { all: true } to include inactive rows (admin management page).
+// Default (no arg) stays active-only, e.g. for assign-picker consumers.
+export const getCatalogDocuments = ({ all } = {}) => request(`/catalogs/documents${all ? '?all=1' : ''}`);
+export const getCatalogCertTypes = ({ all } = {}) => request(`/catalogs/cert-types${all ? '?all=1' : ''}`);
+export const getCatalogPolicies = ({ all } = {}) => request(`/catalogs/policies${all ? '?all=1' : ''}`);
+export const createCatalog = (kind, body) =>
+    request(`/catalogs/${kind}`, { method: 'POST', body: JSON.stringify(body) });
+export const updateCatalog = (kind, id, body) =>
+    request(`/catalogs/${kind}/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+export const setCatalogActive = (kind, id, active) =>
+    request(`/catalogs/${kind}/${id}/active`, { method: 'PATCH', body: JSON.stringify({ active }) });
+export const reorderCatalog = (kind, ids) =>
+    request(`/catalogs/${kind}/reorder`, { method: 'PATCH', body: JSON.stringify({ ids }) });

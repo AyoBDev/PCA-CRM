@@ -12,11 +12,11 @@ jest.mock('../../services/authorizationService', () => ({
 }));
 
 const prisma = require('../../lib/prisma');
-const { createClient, updateClient } = require('../clientController');
+const { createClient, updateClient, patchClient } = require('../clientController');
 
 
 function mockReqRes(overrides = {}) {
-  const req = { params: {}, body: {}, query: {}, user: { id: 1, name: 'Test Admin', role: 'admin' }, ...overrides };
+  const req = { params: {}, body: {}, query: {}, user: { id: 1, name: 'Test Admin', role: 'admin', agencyId: 1 }, db: prisma, ...overrides };
   const res = {
     status: jest.fn().mockReturnThis(),
     json: jest.fn().mockReturnThis(),
@@ -197,5 +197,47 @@ describe('updateClient — new fields', () => {
         }),
       })
     );
+  });
+});
+
+describe('patchClient — authorization compliance fields', () => {
+  beforeEach(() => {
+    // This file has no global mock reset; clear so call-count assertions below
+    // don't see calls leaked from earlier tests sharing the same prisma mock.
+    prisma.client.findUnique.mockReset();
+    prisma.client.update.mockReset();
+  });
+
+  test('reads the current client via req.db (not an undefined prisma) when touching compliance fields', async () => {
+    // Regression: the compliance read once used a bare `prisma` that this file
+    // never imports, throwing ReferenceError and 500ing the PATCH. It must use req.db.
+    const { req, res, next } = mockReqRes({
+      params: { id: '1' },
+      body: { authorizationRequired: false, reasonNote: 'Private-pay client' },
+      user: { id: 1, name: 'Test Admin', role: 'admin', agencyId: 1 },
+    });
+    prisma.client.findUnique.mockResolvedValue({ id: 1, authorizationRequired: true });
+    prisma.client.update.mockResolvedValue({ id: 1, authorizationRequired: false, authorizations: [] });
+
+    await patchClient(req, res, next);
+
+    expect(next).not.toHaveBeenCalled(); // no ReferenceError bubbled to the error handler
+    expect(prisma.client.findUnique).toHaveBeenCalledWith({ where: { id: 1 } });
+    expect(prisma.client.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ authorizationRequired: false }) })
+    );
+  });
+
+  test('rejects a compliance change from a non-admin with 403', async () => {
+    const { req, res, next } = mockReqRes({
+      params: { id: '1' },
+      body: { overrideActive: true },
+      user: { id: 2, name: 'Staff', role: 'user', agencyId: 1 },
+    });
+
+    await patchClient(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(prisma.client.update).not.toHaveBeenCalled();
   });
 });

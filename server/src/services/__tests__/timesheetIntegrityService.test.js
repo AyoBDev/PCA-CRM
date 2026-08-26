@@ -2,11 +2,14 @@
 // timesheet content: any post-signature edit to hours, activities, times, or
 // the attesting signatures themselves must surface as 'tampered'.
 
-jest.mock('../../lib/prisma', () => ({
+const mockDb = {
     timesheet: { findUnique: jest.fn(), update: jest.fn() },
+};
+jest.mock('../../lib/tenantContext', () => ({
+    getTenantDb: jest.fn(() => mockDb),
 }));
 
-const prisma = require('../../lib/prisma');
+const prisma = mockDb;
 const {
     buildCanonicalPayload,
     computeHash,

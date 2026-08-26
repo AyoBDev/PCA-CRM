@@ -15,15 +15,20 @@
 // audit.logAction is used elsewhere in the codebase.
 
 const crypto = require('crypto');
-const prisma = require('../lib/prisma');
+const { getTenantDb } = require('../lib/tenantContext');
 
 const PROVIDERS = {
     mapbox: require('./geocoding/providers/mapbox'),
 };
 
+// Resolved lazily (not at require time) so each call reads whichever tenant
+// client is active for the request/job currently running — geocodeOnWrite's
+// fire-and-forget call is issued synchronously inside the request's
+// runWithTenant() context, and AsyncLocalStorage follows that promise chain
+// even though the caller never awaits it.
 const ENTITIES = {
-    client: { delegate: () => prisma.client },
-    employee: { delegate: () => prisma.employee },
+    client: { delegate: () => getTenantDb().client },
+    employee: { delegate: () => getTenantDb().employee },
 };
 
 function getProvider() {

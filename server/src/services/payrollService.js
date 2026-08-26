@@ -454,6 +454,9 @@ function applyAuthCap(visits, clientsWithAuths) {
         // Build auth balance map filtered to this week's date range
         const balanceMap = new Map();
         for (const client of clientsWithAuths) {
+            // Skip archived clients — a duplicate/archived client record sharing the
+            // same normalized name would otherwise double-count its auth units.
+            if (client.archivedAt) continue;
             const normClient = normalizeName(client.clientName);
             const activeAuths = filterAuthsByWeek(client.authorizations, weekStart, weekEnd);
             for (const auth of activeAuths) {
@@ -587,6 +590,9 @@ function computeManualUnitLimit(edited, runVisits, clientsWithAuths) {
         let authorized = 0;
         let hasAuth = false;
         for (const client of clientsWithAuths) {
+            // Skip archived clients — a duplicate/archived client record sharing the
+            // same normalized name would otherwise double-count its auth units.
+            if (client.archivedAt) continue;
             if (normalizeName(client.clientName) !== normClient) continue;
             for (const auth of filterAuthsByWeek(client.authorizations, weekStart, weekEnd)) {
                 if (auth.serviceCode === edited.serviceCode) {

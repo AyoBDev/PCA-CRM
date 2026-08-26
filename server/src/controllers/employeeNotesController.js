@@ -11,7 +11,6 @@
 // signal the record is meant to capture.
 
 const PDFDocument = require('pdfkit');
-const prisma = require('../lib/prisma');
 const audit = require('../services/auditService');
 
 const PAGE_SIZE = 25;
@@ -23,25 +22,25 @@ const PAGE_SIZE = 25;
  *
  * @returns {Promise<{employee: object|null, entries: object[]}>}
  */
-async function buildEmployeeTimeline(employeeId) {
-    const employee = await prisma.employee.findUnique({
+async function buildEmployeeTimeline(db, employeeId) {
+    const employee = await db.employee.findUnique({
         where: { id: employeeId },
         select: { id: true, name: true, notes: true, updatedAt: true },
     });
     if (!employee) return { employee: null, entries: [] };
 
     const [callouts, offers, auditEntries] = await Promise.all([
-            prisma.shiftCallout.findMany({
+            db.shiftCallout.findMany({
                 where: { calloutEmployeeId: employeeId },
                 include: { shift: { include: { client: { select: { clientName: true } } } } },
             }),
-            prisma.shiftOffer.findMany({
+            db.shiftOffer.findMany({
                 where: { employeeId },
                 include: { shift: { include: { client: { select: { clientName: true } } } } },
             }),
             // Phone-response notes live in audit metadata rather than on the
             // offer row, so they are read back from there.
-            prisma.auditLog.findMany({
+            db.auditLog.findMany({
                 where: { entityType: 'ShiftOffer' },
                 orderBy: { createdAt: 'desc' },
                 take: 500,
@@ -139,7 +138,7 @@ async function listEmployeeNotesTimeline(req, res, next) {
         const employeeId = Number(req.params.employeeId);
         const page = Math.max(1, Number(req.query.page) || 1);
 
-        const { employee, entries } = await buildEmployeeTimeline(employeeId);
+        const { employee, entries } = await buildEmployeeTimeline(req.db, employeeId);
         if (!employee) return res.status(404).json({ error: 'Employee not found' });
 
         const total = entries.length;
@@ -166,7 +165,7 @@ async function exportEmployeeNotesPdf(req, res, next) {
         const employeeId = Number(req.params.employeeId);
         const { from = '', to = '' } = req.query;
 
-        const { employee, entries } = await buildEmployeeTimeline(employeeId);
+        const { employee, entries } = await buildEmployeeTimeline(req.db, employeeId);
         if (!employee) return res.status(404).json({ error: 'Employee not found' });
 
         const notes = filterByRange(entries, from, to);

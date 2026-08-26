@@ -1,10 +1,11 @@
 import { LEAD_CONTACT_OUTCOMES, LEAD_CONTACT_METHODS } from '../../utils/leadConstants';
 import { formatDate } from '../../utils/dates';
+import Icons from '../common/Icons';
 
 const OUTCOME_BY_ID = Object.fromEntries(LEAD_CONTACT_OUTCOMES.map((o) => [o.id, o]));
-const METHOD_ICONS = { call: '📞', text: '💬', email: '✉️', in_person: '🤝' };
+const METHOD_ICONS = { call: Icons.phone, text: Icons.mail, email: Icons.mail, in_person: Icons.users };
 const METHOD_BY_ID = Object.fromEntries(
-    LEAD_CONTACT_METHODS.map((m) => [m.id, { label: m.label, icon: METHOD_ICONS[m.id] || '•' }])
+    LEAD_CONTACT_METHODS.map((m) => [m.id, { label: m.label, icon: METHOD_ICONS[m.id] || null }])
 );
 
 /**
@@ -25,7 +26,7 @@ export default function FollowUpHistoryList({ contacts, intakeNote, emptyText = 
                 <ul className="lead-history__list">
                     {contacts.map((c) => {
                         const meta = OUTCOME_BY_ID[c.outcome] || { label: c.outcome || 'Unknown', color: '#94a3b8' };
-                        const methodMeta = METHOD_BY_ID[c.method] || { label: c.method, icon: '•' };
+                        const methodMeta = METHOD_BY_ID[c.method] || { label: c.method, icon: null };
                         return (
                             <li key={c.id} className="lead-history__item">
                                 <div className="lead-history__item-head">

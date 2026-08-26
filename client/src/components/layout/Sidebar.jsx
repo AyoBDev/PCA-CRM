@@ -21,14 +21,16 @@ const PATH_TO_PAGE = {
     '/employees': 'employees',
     '/insurance-types': 'insuranceTypes',
     '/services': 'services',
+    '/catalogs': 'catalogs',
     '/users': 'users',
     '/history': 'history',
     '/sandata': 'sandata',
     '/files': 'files',
+    '/platform': 'platform',
 };
 
 export default function Sidebar({ onMobileClose }) {
-    const { user, isAdmin, isOffice, isStaff, hasPermission, logout } = useAuth();
+    const { user, isAdmin, isOffice, isStaff, isSuperadmin, hasPermission, logout } = useAuth();
     const { unreadConversations } = useMessaging();
     const { totalCount: employeeAttentionTotal } = useEmployeeAttention();
     const navigate = useNavigate();
@@ -79,6 +81,15 @@ export default function Sidebar({ onMobileClose }) {
             </div>
 
             <nav className="sidebar__nav">
+                {isSuperadmin ? (
+                    <>
+                        <div className="sidebar__section-label">Platform</div>
+                        <button className={`sidebar__nav-item ${activePage === 'platform' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/platform')} title="Platform">
+                            {Icons.building} Platform
+                        </button>
+                    </>
+                ) : (
+                <>
                 <div className="sidebar__section-label">Home</div>
                 {isStaff && (
                     <button className={`sidebar__nav-item ${activePage === 'dashboard' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/dashboard')} title="Dashboard">
@@ -151,10 +162,12 @@ export default function Sidebar({ onMobileClose }) {
                         {Icons.paperclip} Receipts
                     </button>
                 )}
+                </>
+                )}
             </nav>
 
             <div className="sidebar__footer">
-                {isStaff && (
+                {!isSuperadmin && isStaff && (
                     <>
                         <div className="sidebar__section-label">Settings</div>
                         {hasPermission('insurance-types') && (
@@ -165,6 +178,11 @@ export default function Sidebar({ onMobileClose }) {
                         {hasPermission('services') && (
                             <button className={`sidebar__nav-item ${activePage === 'services' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/services')} title="Services">
                                 {Icons.settings} Services
+                            </button>
+                        )}
+                        {hasPermission('employees') && (
+                            <button className={`sidebar__nav-item ${activePage === 'catalogs' ? 'sidebar__nav-item--active' : ''}`} onClick={() => nav('/catalogs')} title="Onboarding Catalogs">
+                                {Icons.clipboard} Catalogs
                             </button>
                         )}
                         {hasPermission('users') && (

@@ -4,11 +4,30 @@
 // leak more about a client than a caregiver needs to decide on a shift, and
 // every mutation must be audited (CLAUDE.md requires it for the History page).
 
-jest.mock('../../lib/prisma', () => ({
+// The controller reads/writes authenticated routes via req.db (set by
+// tenantMiddleware), matching the established pattern (see
+// clientController.test.js): the mock plays the role of req.db, passed into
+// mockReqRes below.
+//
+// The two public token endpoints (getOffer / respondToOffer) are different —
+// they resolve the offer's agencyId on the OWNER connection (lib/prisma) via
+// a stub lookup, then call enterTokenTenant, which is the thing that actually
+// assigns req.db before running the rest of the handler. So those two need
+// the owner-connection mock (aliased below as ownerPrisma) plus a mocked
+// enterTokenTenant that plays its real role: set req.db and invoke the fn.
+const prisma = {
     shift: { findUnique: jest.fn() },
     shiftOffer: { findMany: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn() },
     shiftCallout: { findFirst: jest.fn() },
     client: { findUnique: jest.fn() },
+};
+
+jest.mock('../../lib/prisma', () => ({
+    shiftOffer: { findUnique: jest.fn() },
+}));
+
+jest.mock('../../lib/tokenTenant', () => ({
+    enterTokenTenant: jest.fn(),
 }));
 
 jest.mock('../../services/replacementService', () => ({
@@ -22,7 +41,8 @@ jest.mock('../../services/replacementService', () => ({
 jest.mock('../../services/candidateRankingService', () => ({ rankCandidates: jest.fn() }));
 jest.mock('../../services/auditService', () => ({ logAction: jest.fn(), diffFields: jest.fn(() => []) }));
 
-const prisma = require('../../lib/prisma');
+const ownerPrisma = require('../../lib/prisma');
+const { enterTokenTenant } = require('../../lib/tokenTenant');
 const replacement = require('../../services/replacementService');
 const ranking = require('../../services/candidateRankingService');
 const audit = require('../../services/auditService');
@@ -32,6 +52,7 @@ function mockReqRes(overrides = {}) {
     const req = {
         params: {}, query: {}, body: {},
         user: { id: 2, name: 'Admin', role: 'admin' },
+        db: prisma,
         ...overrides,
     };
     const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
@@ -39,7 +60,24 @@ function mockReqRes(overrides = {}) {
     return { req, res, next };
 }
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+    jest.clearAllMocks();
+    prisma.shift.findUnique.mockReset();
+    prisma.shiftOffer.findMany.mockReset();
+    prisma.shiftOffer.findUnique.mockReset();
+    prisma.shiftOffer.findFirst.mockReset();
+    prisma.shiftCallout.findFirst.mockReset();
+    prisma.client.findUnique.mockReset();
+    ownerPrisma.shiftOffer.findUnique.mockReset();
+    // Default: token resolves to some agency, and entering that tenant just
+    // sets req.db to the tenant mock and runs the handler — mirrors the real
+    // enterTokenTenant's contract without needing a real tenantClient.
+    ownerPrisma.shiftOffer.findUnique.mockResolvedValue({ agencyId: 99 });
+    enterTokenTenant.mockImplementation((req, res, agencyId, fn) => {
+        req.db = prisma;
+        return fn();
+    });
+});
 
 describe('POST /shifts/:id/callout', () => {
     test('records the callout and returns ranked candidates', async () => {
@@ -52,7 +90,7 @@ describe('POST /shifts/:id/callout', () => {
         const { req, res, next } = mockReqRes({ params: { id: '7' }, body: { reason: 'sick' } });
         await controller.recordCallout(req, res, next);
 
-        expect(replacement.recordCallout).toHaveBeenCalledWith(7, expect.objectContaining({
+        expect(replacement.recordCallout).toHaveBeenCalledWith(prisma, 7, expect.objectContaining({
             reason: 'sick', reportedById: 2,
         }));
         expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ noCoverage: false }));
@@ -91,6 +129,7 @@ describe('GET /shifts/:id/replacement-candidates', () => {
         await controller.getReplacementCandidates(req, res, next);
 
         expect(ranking.rankCandidates).toHaveBeenCalledWith(
+            prisma,
             expect.objectContaining({ clientId: 1, excludeEmployeeId: 3 }),
             expect.objectContaining({ mode: 'strict' }),
         );
@@ -116,6 +155,7 @@ describe('GET /employees/nearby', () => {
         await controller.getNearbyEmployees(req, res, next);
 
         expect(ranking.rankCandidates).toHaveBeenCalledWith(
+            prisma,
             expect.objectContaining({ clientId: '1', date: '2026-08-03' }),
             expect.objectContaining({ mode: 'soft' }),
         );
@@ -136,6 +176,7 @@ describe('GET /employees/nearby', () => {
 
 describe('GET /shift-offers/:token (public)', () => {
     test('returns only what a caregiver needs to decide', async () => {
+        ownerPrisma.shiftOffer.findUnique.mockResolvedValue({ agencyId: 99 });
         prisma.shiftOffer.findUnique.mockResolvedValue({
             id: 21, token: 'tok', response: '', expiresAt: new Date(Date.now() + 60_000),
             employee: { id: 5, name: 'Sam' },
@@ -163,7 +204,7 @@ describe('GET /shift-offers/:token (public)', () => {
     });
 
     test('404s for an unknown token', async () => {
-        prisma.shiftOffer.findUnique.mockResolvedValue(null);
+        ownerPrisma.shiftOffer.findUnique.mockResolvedValue(null);
 
         const { req, res, next } = mockReqRes({ params: { token: 'nope' } });
         await controller.getOffer(req, res, next);
@@ -172,6 +213,7 @@ describe('GET /shift-offers/:token (public)', () => {
     });
 
     test('reports an already-answered offer without exposing shift details', async () => {
+        ownerPrisma.shiftOffer.findUnique.mockResolvedValue({ agencyId: 99 });
         prisma.shiftOffer.findUnique.mockResolvedValue({
             id: 21, token: 'tok', response: 'expired', expiresAt: new Date(Date.now() - 1000),
             employee: { id: 5, name: 'Sam' },
@@ -199,7 +241,7 @@ describe('POST /shifts/:id/offers/:offerId/record-response (phone callouts)', ()
         const { req, res, next } = mockReqRes({ params: { id: '7', offerId: '21' }, body: { response: 'accept', note: 'called at 9:05, said yes' } });
         await controller.recordOfferResponse(req, res, next);
 
-        expect(replacement.acceptOffer).toHaveBeenCalledWith('tok-21');
+        expect(replacement.acceptOffer).toHaveBeenCalledWith(prisma, 'tok-21');
         expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: 'accepted' }));
     });
 
@@ -209,7 +251,7 @@ describe('POST /shifts/:id/offers/:offerId/record-response (phone callouts)', ()
         const { req, res, next } = mockReqRes({ params: { id: '7', offerId: '21' }, body: { response: 'decline' } });
         await controller.recordOfferResponse(req, res, next);
 
-        expect(replacement.declineOffer).toHaveBeenCalledWith('tok-21');
+        expect(replacement.declineOffer).toHaveBeenCalledWith(prisma, 'tok-21');
     });
 
     test('attributes the response to the admin who took the call, not the caregiver', async () => {
@@ -259,7 +301,7 @@ describe('POST /shifts/:id/offers with channel phone', () => {
         await controller.createOffer(req, res, next);
 
         expect(replacement.offerToCandidate).toHaveBeenCalledWith(
-            7, 5, expect.objectContaining({ channel: 'phone' }),
+            prisma, 7, 5, expect.objectContaining({ channel: 'phone' }),
         );
     });
 });
@@ -271,7 +313,7 @@ describe('POST /shift-offers/:token/respond (public)', () => {
         const { req, res, next } = mockReqRes({ params: { token: 'tok' }, body: { response: 'accept' } });
         await controller.respondToOffer(req, res, next);
 
-        expect(replacement.acceptOffer).toHaveBeenCalledWith('tok');
+        expect(replacement.acceptOffer).toHaveBeenCalledWith(prisma, 'tok');
         expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: 'accepted' }));
     });
 
@@ -281,7 +323,7 @@ describe('POST /shift-offers/:token/respond (public)', () => {
         const { req, res, next } = mockReqRes({ params: { token: 'tok' }, body: { response: 'decline' } });
         await controller.respondToOffer(req, res, next);
 
-        expect(replacement.declineOffer).toHaveBeenCalledWith('tok');
+        expect(replacement.declineOffer).toHaveBeenCalledWith(prisma, 'tok');
     });
 
     test('rejects an unrecognised response', async () => {

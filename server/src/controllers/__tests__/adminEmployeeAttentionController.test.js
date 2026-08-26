@@ -9,8 +9,8 @@ jest.mock('../../lib/prisma', () => ({
 const prisma = require('../../lib/prisma');
 const { getEmployeeAttention, markAttentionSeen } = require('../adminEmployeeAttentionController');
 
-function mockReqRes(user = { id: 11, name: 'Admin', role: 'admin' }) {
-  const req = { user };
+function mockReqRes(user = { id: 11, name: 'Admin', role: 'admin', agencyId: 1 }) {
+  const req = { user, db: prisma };
   const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
   return { req, res };
 }
@@ -181,7 +181,7 @@ describe('getEmployeeAttention', () => {
 
 describe('markAttentionSeen', () => {
   test('returns 400 when no keys provided', async () => {
-    const req = { user: { id: 11 }, body: {} };
+    const req = { user: { id: 11 }, body: {}, db: prisma };
     const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
     await markAttentionSeen(req, res);
     expect(res.status).toHaveBeenCalledWith(400);
@@ -189,7 +189,7 @@ describe('markAttentionSeen', () => {
 
   test('upserts a single eventKey', async () => {
     prisma.adminEventSeen.upsert.mockResolvedValue({ id: 1 });
-    const req = { user: { id: 11 }, body: { eventKey: 'cert-pending:42' } };
+    const req = { user: { id: 11 }, body: { eventKey: 'cert-pending:42' }, db: prisma };
     const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
 
     await markAttentionSeen(req, res);
@@ -204,7 +204,7 @@ describe('markAttentionSeen', () => {
 
   test('upserts multiple eventKeys from an array', async () => {
     prisma.adminEventSeen.upsert.mockResolvedValue({ id: 1 });
-    const req = { user: { id: 11 }, body: { eventKeys: ['cert-pending:42', 'profile-change:100'] } };
+    const req = { user: { id: 11 }, body: { eventKeys: ['cert-pending:42', 'profile-change:100'] }, db: prisma };
     const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
 
     await markAttentionSeen(req, res);

@@ -1,0 +1,63 @@
+const prisma = require('../lib/prisma');
+
+const CACHE_TTL_MS = 60_000;
+const cache = new Map(); // slug -> { agency, expires }
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', '[::1]']);
+
+function baseDomain() {
+  return (process.env.BASE_DOMAIN || 'localhost').toLowerCase();
+}
+
+async function lookupAgency(slug) {
+  const hit = cache.get(slug);
+  if (hit && hit.expires > Date.now()) return hit.agency;
+  const agency = await prisma.agency.findUnique({ where: { slug } });
+  cache.set(slug, { agency, expires: Date.now() + CACHE_TTL_MS });
+  return agency;
+}
+
+function clearAgencyCache() {
+  cache.clear();
+}
+
+async function resolveAgency(req, res, next) {
+  try {
+    const domain = baseDomain();
+    const host = (req.hostname || '').toLowerCase();
+    if (host === `admin.${domain}`) {
+      req.agency = null;
+      req.isPlatformHost = true;
+      return next();
+    }
+    if (host === domain || host === `www.${domain}` || LOOPBACK_HOSTS.has(host)) {
+      req.agency = null;
+      // Apex/loopback are the platform host only outside production (dev/test
+      // convenience so local flows and integration suites keep working
+      // without a real admin.<BASE_DOMAIN> host). In production the apex is
+      // the public landing page, not a platform host.
+      req.isPlatformHost = process.env.NODE_ENV !== 'production';
+      return next();
+    }
+    if (host.endsWith(`.${domain}`)) {
+      const slug = host.slice(0, -(domain.length + 1));
+      if (slug && !slug.includes('.')) {
+        const agency = await lookupAgency(slug);
+        if (agency) {
+          req.agency = agency;
+          return next();
+        }
+      }
+    }
+    // Unknown subdomain or foreign host (e.g. *.up.railway.app healthcheck).
+    if (req.path.startsWith('/api')) {
+      return res.status(404).json({ error: 'Agency not found' });
+    }
+    req.agency = null;
+    req.agencyNotFound = true;
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { resolveAgency, clearAgencyCache };
