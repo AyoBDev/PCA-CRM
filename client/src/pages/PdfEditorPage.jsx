@@ -175,8 +175,21 @@ export default function PdfEditorPage() {
             setAnnotations([]);
             setUndoStack([]);
             setRedoStack([]);
-            setFormFields([]);
-            setFormValues({});
+            try {
+                const fields = await extractFormFields(newBytes.slice());
+                if (fields.length > 0) {
+                    setFormFields(fields);
+                    const initialValues = {};
+                    fields.forEach(f => { initialValues[f.name] = f.value; });
+                    setFormValues(initialValues);
+                } else {
+                    setFormFields([]);
+                    setFormValues({});
+                }
+            } catch {
+                setFormFields([]);
+                setFormValues({});
+            }
             showToast('PDF saved successfully', 'success');
         } catch (err) {
             showToast('Failed to save: ' + err.message, 'error');
@@ -219,7 +232,7 @@ export default function PdfEditorPage() {
             if (annotations.length > 0) {
                 modified = await flattenAnnotations(modified, annotations, zoom);
             }
-            if (hasFormChanges) {
+            if (hasFormFields) {
                 modified = await fillFormFields(modified, formValues, { flatten: flattenOnSaveAsRef.current });
             }
             const finalName = name.toLowerCase().endsWith('.pdf') ? name : `${name}.pdf`;
@@ -238,7 +251,7 @@ export default function PdfEditorPage() {
             flattenOnSaveAsRef.current = false;
             setSaving(false);
         }
-    }, [pdfBytes, annotations, zoom, hasFormChanges, formValues, showToast]);
+    }, [pdfBytes, annotations, zoom, hasFormChanges, hasFormFields, formValues, showToast]);
 
     const handleClose = useCallback(() => {
         if (hasChanges) {
