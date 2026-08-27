@@ -36,8 +36,12 @@ export default function PdfPageCanvas({
         if (!canvas || !pdfPage) return;
         const vp = pdfPage.getViewport({ scale: zoom });
         const ctx = canvas.getContext('2d');
-        canvas.width = vp.width;
-        canvas.height = vp.height;
+        const ratio = window.devicePixelRatio || 1;
+        canvas.width = Math.ceil(vp.width * ratio);
+        canvas.height = Math.ceil(vp.height * ratio);
+        canvas.style.width = `${vp.width}px`;
+        canvas.style.height = `${vp.height}px`;
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
         const renderTask = pdfPage.render({ canvasContext: ctx, viewport: vp });
         renderTask.promise.then(() => setRendered(true)).catch(() => {});
         return () => renderTask.cancel();
