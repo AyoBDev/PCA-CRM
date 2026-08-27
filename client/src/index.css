@@ -11244,14 +11244,24 @@ button.sdr-section-tag:hover:not(:disabled) {
   flex-direction: column;
   gap: 16px;
 }
-/* Inside the portfolio list column (~55% width, beside the doc viewer) two grid
-   columns leave each card too narrow (~300px) for comfortable padding/content.
-   Collapse to a single flowing column so cards get full list-column width.
-   The __left/__right sub-columns are already flex columns, so stacking the grid
-   itself to one column makes them flow one after another correctly. Scoped to
-   .cert-portfolio__list so the standalone (non-portfolio) grid is unaffected. */
-.cert-portfolio__list .pa-services-grid {
+/* Inside the portfolio list column (~55% width, beside the doc viewer) the older
+   roomy authorization/program cards were too narrow at two columns, so that grid
+   collapses to one flowing column. The compact certification cards
+   (.pa-service-card--cert) are small enough to stay two-up even beside the
+   viewer, so they keep the 2-column grid; only narrow the gap to fit.
+   The exclusion below keeps the single-column behavior for any non-cert grid. */
+.cert-portfolio__list .pa-services-grid:not(:has(.pa-service-card--cert)) {
   grid-template-columns: 1fr;
+}
+.cert-portfolio__list .pa-services-grid:has(.pa-service-card--cert) {
+  gap: 12px;
+}
+/* Below ~1200px the list column gets too tight for two compact cards beside the
+   viewer — stack them so each card keeps comfortable width. */
+@media (max-width: 1200px) {
+  .cert-portfolio__list .pa-services-grid:has(.pa-service-card--cert) {
+    grid-template-columns: 1fr;
+  }
 }
 .pa-service-card {
   border: 2px solid var(--card-border, hsl(var(--border)));
@@ -13059,7 +13069,55 @@ tr:hover .auth-note-icon--empty {
     background: hsl(var(--muted));
 }
 
-/* ─── Employee Certification Cards (reuses pa-service-card pattern) ─── */
+/* ─── Employee Certification Cards (compact variant of pa-service-card) ─── */
+/* Scoped to --cert so authorization/program cards keep their roomier layout. */
+.pa-service-card--cert {
+  padding: 14px 16px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+}
+.pa-service-card--cert .pa-service-card__header {
+  margin-bottom: 10px;
+  align-items: center;
+}
+.pa-service-card--cert .pa-service-card__icon-wrap {
+  width: 34px;
+  height: 34px;
+}
+.pa-service-card--cert .pa-service-card__icon-wrap svg {
+  width: 18px;
+  height: 18px;
+}
+.pa-service-card--cert .pa-service-card__title {
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.pa-service-card--cert .pa-service-card__body {
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.pa-service-card--cert .pa-service-card__detail {
+  font-size: 12px;
+}
+/* Progress bar + renewal row reuse the shared .cert-card__progress /
+   .cert-card__renewal styles defined later in this file. Tighten their
+   vertical rhythm inside the compact card. */
+.pa-service-card--cert .cert-card__progress {
+  margin-bottom: 10px;
+}
+.pa-service-card--cert .cert-card__renewal {
+  margin: 0 0 10px;
+}
+.pa-service-card--cert .cert-card__renewal-label {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+}
+.pa-service-card--cert .pa-service-card__footer {
+  margin-top: auto;
+  padding-top: 10px;
+}
 
 /* ─── Undo Banner ─── */
 .undo-banner {
