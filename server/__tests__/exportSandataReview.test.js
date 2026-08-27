@@ -3,11 +3,9 @@ jest.mock('../src/lib/prisma', () => ({
     authorization: { findMany: jest.fn() },
     $disconnect: jest.fn(),
 }));
-jest.mock('fs', () => ({ mkdirSync: jest.fn(), writeFileSync: jest.fn() }));
-jest.mock('xlsx', () => ({
-    utils: { aoa_to_sheet: jest.fn(() => ({})), book_new: jest.fn(() => ({})), book_append_sheet: jest.fn() },
-    writeFile: jest.fn(),
-}));
+// This suite only exercises the pure `buildAoa` helper — it never calls main(),
+// so it needs no fs stub. (exceljs, pulled in transitively, requires the real
+// fs module at load time, so mocking fs here would break the import.)
 
 const { buildAoa } = require('../prisma/export-sandata-review');
 

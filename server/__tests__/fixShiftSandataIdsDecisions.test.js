@@ -1,4 +1,4 @@
-const XLSX = require('xlsx');
+const ExcelJS = require('exceljs');
 const os = require('os');
 const nodePath = require('path');
 
@@ -18,15 +18,15 @@ const shift = (id, clientId, serviceCode, sandataClientId) => ({
     client: { clientName: `Client ${clientId}` },
 });
 
-function writeDecisions(rows) {
+async function writeDecisions(rows) {
     const header = ['Client', 'Service', 'Current ID', 'Proposed ID', '# shifts', 'Date range',
         'Category', 'Owner decision', 'Correct ID', 'Notes', 'group_key'];
     const aoa = [header, ...rows.map(r => ['', '', '', '', '', '', '', r.decision, r.correctId || '', '', r.group_key])];
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Review');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Review');
+    for (const row of aoa) ws.addRow(row);
     const p = nodePath.join(os.tmpdir(), `dec-${Date.now()}-${Math.random()}.xlsx`);
-    XLSX.writeFile(wb, p);
+    await wb.xlsx.writeFile(p);
     return p;
 }
 
@@ -38,9 +38,9 @@ beforeEach(() => {
 });
 afterEach(() => { console.log.mockRestore(); console.warn.mockRestore(); });
 
-test('parseDecisionsFile keys by group_key with normalized decision', () => {
-    const p = writeDecisions([{ group_key: '42|PCS|JAVIER|HEIDI', decision: 'Use Proposed' }]);
-    const m = parseDecisionsFile(p);
+test('parseDecisionsFile keys by group_key with normalized decision', async () => {
+    const p = await writeDecisions([{ group_key: '42|PCS|JAVIER|HEIDI', decision: 'Use Proposed' }]);
+    const m = await parseDecisionsFile(p);
     expect(m.get('42|PCS|JAVIER|HEIDI')).toEqual({ decision: 'use proposed', correctId: '' });
 });
 
@@ -57,7 +57,7 @@ test('applies Use proposed and Enter correct ID; skips Keep current and unknown'
         { clientId: 9, serviceCode: 'PCS', sandataClientId: 'NEW', manualStatus: 'active' },
         { clientId: 5, serviceCode: 'PCS', sandataClientId: 'NEW2', manualStatus: 'active' },
     ]);
-    const p = writeDecisions([
+    const p = await writeDecisions([
         { group_key: '42|PCS|JAVIER|HEIDI', decision: 'Use proposed' },
         { group_key: '7|S5130|X|Y', decision: 'Enter correct ID', correctId: 'Z' },
         { group_key: '9|PCS|OLD|NEW', decision: 'Keep current' },
@@ -78,7 +78,7 @@ test('Enter correct ID with blank Correct ID skips and never blanks the shift', 
     prisma.authorization.findMany.mockResolvedValue([
         { clientId: 42, serviceCode: 'PCS', sandataClientId: 'HEIDI', manualStatus: 'active' },
     ]);
-    const p = writeDecisions([{ group_key: '42|PCS|JAVIER|HEIDI', decision: 'Enter correct ID', correctId: '' }]);
+    const p = await writeDecisions([{ group_key: '42|PCS|JAVIER|HEIDI', decision: 'Enter correct ID', correctId: '' }]);
     const summary = await main(true, null, p);
     expect(summary.corrected).toBe(0);
     expect(prisma.shift.update).not.toHaveBeenCalled();

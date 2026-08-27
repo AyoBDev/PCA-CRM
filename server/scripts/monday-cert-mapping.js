@@ -1,7 +1,5 @@
 // server/scripts/monday-cert-mapping.js
 
-const XLSX = require('xlsx');
-
 // Note: the CPR expiration column title in the export has TWO spaces
 // ("Act  Due Date CPR") — copied verbatim from the board.
 const FILE_COLUMN_MAP = [
@@ -40,8 +38,15 @@ function rankFiles(files) {
 function parseExcelDate(val) {
   if (val === undefined || val === null || val === '') return null;
   if (typeof val === 'number') {
-    const d = XLSX.SSF.parse_date_code(val);
-    return d ? new Date(Date.UTC(d.y, d.m - 1, d.d)) : null;
+    // Excel serial (days since 1899-12-30) → the SAME calendar day at UTC
+    // midnight. Compute directly rather than via the shared helper because that
+    // one anchors to LOCAL midnight, which would shift the day in non-UTC zones.
+    if (!(val > 0)) return null;
+    const utcMs = Math.round((val - 25569) * 86400 * 1000); // 25569 = 1899-12-30 → 1970-01-01
+    const base = new Date(utcMs);
+    return isNaN(base.getTime())
+      ? null
+      : new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate()));
   }
   const str = String(val).trim();
   if (!str) return null;

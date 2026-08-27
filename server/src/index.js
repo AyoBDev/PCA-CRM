@@ -1,4 +1,8 @@
 require('dotenv').config();
+// Initialize Sentry BEFORE requiring the app or other modules so its
+// auto-instrumentation can hook the HTTP layer. No-op unless SENTRY_DSN is set.
+const observability = require('./lib/observability');
+observability.initObservability();
 const { validateEnv } = require('./lib/validateEnv');
 validateEnv(); // fail fast if security-critical env vars are missing/malformed
 const http = require('http');
@@ -30,6 +34,7 @@ server.listen(PORT, () => {
             await sendOverdueReminders();
         } catch (err) {
             console.error('[Cron] Reminder job failed:', err);
+            observability.captureError(err);
         }
     }, { timezone: 'UTC' });
 
@@ -41,6 +46,7 @@ server.listen(PORT, () => {
             await runTaskTriggers();
         } catch (err) {
             console.error('[Cron] Task triggers job failed:', err);
+            observability.captureError(err);
         }
     }, { timezone: 'UTC' });
 
@@ -50,6 +56,7 @@ server.listen(PORT, () => {
             await sendTaskReminders();
         } catch (err) {
             console.error('[Cron] Task reminders job failed:', err);
+            observability.captureError(err);
         }
     }, { timezone: 'UTC' });
 
@@ -62,6 +69,7 @@ server.listen(PORT, () => {
             await runComplianceCheck();
         } catch (err) {
             console.error('[Cron] Compliance check failed:', err);
+            observability.captureError(err);
         }
     }, { timezone: 'America/Los_Angeles' });
 
@@ -73,6 +81,7 @@ server.listen(PORT, () => {
             await runLeadDormancySweep();
         } catch (err) {
             console.error('[Cron] Lead dormancy sweep failed:', err);
+            observability.captureError(err);
         }
     }, { timezone: 'UTC' });
 
