@@ -53,6 +53,8 @@ export default function PdfEditorPage() {
     const scrollRef = useRef(null);
     const hasFormChanges = formFields.length > 0 && formFields.some(f => formValues[f.name] !== f.value);
     const hasChanges = annotations.length > 0 || hasFormChanges;
+    const hasFormFields = formFields.length > 0;
+    const flattenOnSaveAsRef = useRef(false);
 
     useEffect(() => {
         async function loadPdf() {
@@ -155,7 +157,7 @@ export default function PdfEditorPage() {
                 modified = await flattenAnnotations(modified, annotations, zoom);
             }
             if (hasFormChanges) {
-                modified = await fillFormFields(modified, formValues);
+                modified = await fillFormFields(modified, formValues, { flatten: false });
             }
             const blob = new Blob([modified], { type: 'application/pdf' });
             await api.replaceAdminFile(fileId, blob);
@@ -199,8 +201,15 @@ export default function PdfEditorPage() {
 
     const handleSaveAs = useCallback(() => {
         if (!pdfBytes || (!annotations.length && !hasFormChanges)) return;
+        flattenOnSaveAsRef.current = false;
         setSaveAsOpen(true);
     }, [pdfBytes, annotations.length, hasFormChanges]);
+
+    const handleSaveAsFinal = useCallback(() => {
+        if (!pdfBytes || !hasFormFields) return;
+        flattenOnSaveAsRef.current = true;
+        setSaveAsOpen(true);
+    }, [pdfBytes, hasFormFields]);
 
     const handleSaveAsConfirm = useCallback(async ({ name, folderId: targetFolderId }) => {
         if (!pdfBytes) throw new Error('PDF not loaded');
@@ -211,7 +220,7 @@ export default function PdfEditorPage() {
                 modified = await flattenAnnotations(modified, annotations, zoom);
             }
             if (hasFormChanges) {
-                modified = await fillFormFields(modified, formValues);
+                modified = await fillFormFields(modified, formValues, { flatten: flattenOnSaveAsRef.current });
             }
             const finalName = name.toLowerCase().endsWith('.pdf') ? name : `${name}.pdf`;
             const blob = new File([modified], finalName, { type: 'application/pdf' });
@@ -226,6 +235,7 @@ export default function PdfEditorPage() {
             setSaveAsOpen(false);
             showToast(`Saved as ${finalName}`, 'success');
         } finally {
+            flattenOnSaveAsRef.current = false;
             setSaving(false);
         }
     }, [pdfBytes, annotations, zoom, hasFormChanges, formValues, showToast]);
@@ -277,6 +287,8 @@ export default function PdfEditorPage() {
                 onPageChange={handlePageChange}
                 onSave={handleSave}
                 onSaveAs={handleSaveAs}
+                onSaveAsFinal={handleSaveAsFinal}
+                hasFormFields={hasFormFields}
                 onClose={handleClose}
                 saving={saving}
                 hasChanges={hasChanges}
