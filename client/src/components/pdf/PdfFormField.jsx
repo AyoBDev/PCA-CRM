@@ -25,6 +25,9 @@ export default function PdfFormField({ field, pageHeight, zoom, value, onChange 
 
     if (field.type === 'text') {
         const narrow = pos.width < 60;
+        // Narrow boxes (e.g. date Month/Day/Year, ~18px) need a smaller font
+        // floor than the general 7px minimum so 2 digits don't clip.
+        const effFont = narrow ? Math.min(fontSize, Math.max(6, pos.height * 0.6)) : fontSize;
         // Only use a textarea for fields that are both flagged multiline AND
         // tall enough to show more than one line. Small/short fields (e.g. the
         // Month/Day/Year date boxes, which are multiline in the PDF but tiny)
@@ -35,10 +38,13 @@ export default function PdfFormField({ field, pageHeight, zoom, value, onChange 
         // small multiline boxes (e.g. date Month/Day/Year) get a single-line input.
         const useTextarea = field.multiline && field.rect.height >= 24 && field.rect.width >= 60;
         const InputTag = useTextarea ? 'textarea' : 'input';
+        const textStyle = narrow
+            ? { ...style, fontSize: effFont, width: pos.width + 8, marginLeft: -4, padding: 0, textAlign: 'center', boxSizing: 'border-box', whiteSpace: 'nowrap' }
+            : { ...style, fontSize: effFont, padding: '2px 6px', textAlign: 'left', whiteSpace: useTextarea ? 'normal' : 'nowrap' };
         return (
             <InputTag
                 className="pdf-form-field pdf-form-field--text"
-                style={{ ...style, padding: narrow ? '0 1px' : '2px 6px', textAlign: narrow ? 'center' : 'left', whiteSpace: useTextarea ? 'normal' : 'nowrap' }}
+                style={textStyle}
                 value={value || ''}
                 onChange={(e) => onChange(field.name, e.target.value)}
                 disabled={field.readOnly}

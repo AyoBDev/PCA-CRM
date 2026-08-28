@@ -164,7 +164,7 @@ export default function PdfPageCanvas({
                 className="pdf-page__overlay"
                 width={width}
                 height={height}
-                style={{ position: 'absolute', top: 0, left: 0, zIndex: 1, cursor: activeTool === 'draw' ? 'crosshair' : activeTool === 'text' ? 'text' : 'default', pointerEvents: editingText ? 'none' : 'auto' }}
+                style={{ position: 'absolute', top: 0, left: 0, zIndex: 1, cursor: activeTool === 'draw' ? 'crosshair' : activeTool === 'text' ? 'text' : 'default', pointerEvents: (editingText || activeTool === 'select') ? 'none' : 'auto' }}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
@@ -183,6 +183,7 @@ export default function PdfPageCanvas({
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
                                 className={selectedId === ann.id ? 'pdf-ann--selected' : ''}
+                                style={{ pointerEvents: 'auto' }}
                             />
                         );
                     }
@@ -197,6 +198,7 @@ export default function PdfPageCanvas({
                                 fill={ann.color}
                                 opacity={0.3}
                                 className={selectedId === ann.id ? 'pdf-ann--selected' : ''}
+                                style={{ pointerEvents: 'auto' }}
                             />
                         );
                     }
@@ -210,6 +212,7 @@ export default function PdfPageCanvas({
                                 fill={ann.color}
                                 fontFamily="Helvetica, Arial, sans-serif"
                                 className={selectedId === ann.id ? 'pdf-ann--selected' : ''}
+                                style={{ pointerEvents: 'auto' }}
                             >
                                 {ann.content || ' '}
                             </text>
