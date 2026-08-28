@@ -9,8 +9,11 @@ export async function extractFormFields(pdfBytes) {
     for (const field of fields) {
         const name = field.getName();
         const widgets = field.acroField.getWidgets();
+        const exportValues = field instanceof PDFRadioGroup
+            ? field.acroField.getExportValues?.()
+            : undefined;
 
-        for (const widget of widgets) {
+        for (const [widgetIndex, widget] of widgets.entries()) {
             const rect = widget.getRectangle();
             const pageRef = widget.P();
             const pageIndex = pageRef ? pdfDoc.getPages().findIndex(p => p.ref === pageRef) : 0;
@@ -30,9 +33,23 @@ export async function extractFormFields(pdfBytes) {
                 fieldInfo.type = 'checkbox';
                 fieldInfo.value = field.isChecked();
             } else if (field instanceof PDFRadioGroup) {
-                fieldInfo.type = 'radio';
+                let optionValue = '';
+                try {
+                    // Export values (/Opt), when present, are index-aligned with the
+                    // widgets/on-values and hold the friendly option name (e.g. "Yes").
+                    // Without /Opt, the widget's own on-value IS the friendly name.
+                    const exportName = exportValues?.[widgetIndex];
+                    if (exportName) {
+                        optionValue = exportName.decodeText();
+                    } else {
+                        const on = widget.getOnValue();
+                        optionValue = on ? (on.decodeText ? on.decodeText() : on.asString?.() || String(on)) : '';
+                    }
+                } catch { optionValue = ''; }
+                if (!optionValue) continue; // widget with no selectable on-value
+                fieldInfo.type = 'radio-option';
+                fieldInfo.optionValue = optionValue;
                 fieldInfo.value = field.getSelected() || '';
-                fieldInfo.options = field.getOptions();
             } else if (field instanceof PDFDropdown) {
                 fieldInfo.type = 'dropdown';
                 fieldInfo.value = field.getSelected()?.[0] || '';
