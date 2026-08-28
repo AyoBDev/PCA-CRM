@@ -36,7 +36,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const XLSX = require('xlsx');
+const { readSheetObjects } = require('../src/lib/xlsxHelper');
 const prisma = require('../src/lib/prisma');
 const {
     buildLiveSandataMap,
@@ -64,10 +64,8 @@ function parseDecisionsPath(argv) {
     return arg.includes('=') ? arg.split('=')[1] : (argv[argv.indexOf(arg) + 1] || '');
 }
 
-function parseDecisionsFile(filePath) {
-    const wb = XLSX.readFile(filePath);
-    const ws = wb.Sheets['Review'] || wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+async function parseDecisionsFile(filePath) {
+    const rows = await readSheetObjects(fs.readFileSync(filePath), { sheetName: 'Review' });
     const map = new Map();
     for (const r of rows) {
         const key = String(r['group_key'] || '').trim();
@@ -83,7 +81,7 @@ function parseDecisionsFile(filePath) {
 async function main(apply = process.argv.includes('--apply'), only = parseOnly(process.argv), decisionsPath = parseDecisionsPath(process.argv)) {
     const APPLY = apply;
     const ONLY = only; // null = all categories
-    const decisions = decisionsPath ? parseDecisionsFile(decisionsPath) : null;
+    const decisions = decisionsPath ? await parseDecisionsFile(decisionsPath) : null;
     const shifts = await prisma.shift.findMany({
         where: { archivedAt: null },
         select: {

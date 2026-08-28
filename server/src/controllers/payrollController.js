@@ -1,6 +1,6 @@
 'use strict';
 
-const XLSX = require('xlsx');
+const { namedSheetsToRows, rowsToXlsxBuffer } = require('../lib/xlsxHelper');
 const { processPayrollRows, parseTimeToMinutes, minutesToHHMM, applyTimeRules, calcUnits, normalizeName, computeManualUnitLimit } = require('../services/payrollService');
 const { filterAuthsByWeek } = require('../services/authorizationService');
 const audit = require('../services/auditService');
@@ -107,20 +107,19 @@ async function uploadPayrollRun(req, res, next) {
 
     try {
         // ── Parse XLSX ──────────────────────────────────────
-        const workbook = XLSX.read(req.file.buffer, { type: 'buffer', raw: true, cellDates: false });
+        const sheets = await namedSheetsToRows(req.file.buffer);
 
         // Find the right sheet
-        const sheetName =
-            workbook.SheetNames.find((n) => /^visits$/i.test(n)) ||
-            workbook.SheetNames.find((n) => /^result$/i.test(n)) ||
-            workbook.SheetNames[0];
+        const chosen =
+            sheets.find((s) => /^visits$/i.test(s.name)) ||
+            sheets.find((s) => /^result$/i.test(s.name)) ||
+            sheets[0];
 
-        if (!sheetName) {
+        if (!chosen) {
             throw new Error('XLSX file contains no sheets.');
         }
 
-        const sheet = workbook.Sheets[sheetName];
-        const rows  = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true });
+        const rows = chosen.rows;
 
         if (rows.length < 2) {
             throw new Error('Sheet has fewer than 2 rows (no data).');
@@ -613,20 +612,8 @@ async function exportPayrollRun(req, res, next) {
             aoa.push(['', '', '', '', '', '', 'TOTAL', '', total, '', '', '', '']);
         }
 
-        const ws = XLSX.utils.aoa_to_sheet(aoa);
-
-        // Column widths
-        ws['!cols'] = [
-            { wch: 30 }, { wch: 25 }, { wch: 20 }, { wch: 12 },
-            { wch: 8  }, { wch: 8  }, { wch: 12 }, { wch: 12 },
-            { wch: 12 }, { wch: 6  }, { wch: 35 }, { wch: 8  },
-            { wch: 40 },
-        ];
-
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Payroll');
-
-        const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+        const colWidths = [30, 25, 20, 12, 8, 8, 12, 12, 12, 6, 35, 8, 40];
+        const buf = await rowsToXlsxBuffer(aoa, { sheetName: 'Payroll', colWidths });
         const safeName = run.name.replace(/[^a-z0-9_\-]/gi, '_');
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

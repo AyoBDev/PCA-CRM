@@ -303,3 +303,28 @@ dates were unchanged.
 - **Delete the dead file, add no parser (chosen)** — removes `xlsx` from `package.json`/lockfile/`node_modules`, deletes the 979-line orphan, and adds no new client dependency. Smallest attack surface and smallest diff; the live import flow (server-side parsing) is unaffected.
 
 **Why:** The security goal (no advisory-flagged parser in the client) is fully met by deletion. Adding any in-browser parser would ship an unreachable code path and new dependency weight for a feature that was intentionally moved server-side months ago. Net change: −1 dependency, −979 lines, no new deps. All 139 client tests pass; production build is clean (no `xlsx`/`exceljs` artifacts in any chunk).
+## 2026-08-27 — Production hardening: error tracking + replace vulnerable `xlsx`
+
+Two items from a production-readiness review, done together on `feat/hardening-errortracking-xlsx`.
+
+### (a) Centralized error tracking
+
+**Options considered:**
+- Adopt **Sentry** (`@sentry/node` 10.x). Signals: the de-facto standard for error tracking (recognized by name in enterprise security reviews), self-hostable, free tier, first-class Express support (`setupExpressErrorHandler`), grouping + alerting out of the box.
+- Build a lightweight in-house error store (a DB table + queryable admin view). Signals: no external dependency and full control, but we'd hand-build grouping, dedup, rate-limiting, and alerting — the exact things Sentry already does — for a worse result.
+- Do nothing / keep `console.error`. Signals: zero cost, but errors vanish into the Railway container log with no grouping, retention, or alerting — the gap the review flagged.
+
+**Choice:** Adopt Sentry, wired behind a thin `server/src/lib/observability.js` wrapper.
+
+**Why:** Error aggregation is a solved, commodity problem; re-implementing grouping/alerting in-house is pure cost for a worse outcome, and a named tool like Sentry is what a buyer's security team expects to see. The wrapper keeps Sentry swappable in one file and makes it a **strict no-op unless `SENTRY_DSN` is set**, so dev/test/CI are untouched and nothing is ever sent without an explicit DSN. Init runs before the app so auto-instrumentation hooks HTTP; the Express error handler captures unhandled 5xx; user context is limited to `id`+`role` (`sendDefaultPii:false`) so **no PHI** leaks into reports; cron-job failures also report via `captureError`. 5 tests pin the no-DSN no-op contract.
+
+### (b) Replace `xlsx` (SheetJS) with `exceljs`
+
+**Options considered:**
+- **Replace with `exceljs`** (4.4.0). Signals: actively maintained, no equivalent unfixable advisories, streaming reads, real `Date` cell values (removes our Excel-serial/`SSF` date hacks). Requires rewriting the read/write call sites.
+- **Harden `xlsx` in place** (size/type limits, sandboxed parse). Signals: smaller diff, but the CVE stays in the dependency tree — an `npm audit` in a security review still flags it, so it doesn't actually clear the finding.
+- Keep `xlsx`. Signals: none — it carries **prototype-pollution + ReDoS advisories with _no fix available_** and parses hostile uploads (payroll / client / employee / Sandata imports) over HTTP.
+
+**Choice:** Replace `xlsx` with `exceljs` across all 11 usages and remove `xlsx` from `package.json`.
+
+**Why:** The `xlsx` advisories have *no upstream fix*, so hardening-in-place can't clear them from `npm audit` — the only way to close the finding a buyer's review will run is to remove the package. All spreadsheet I/O now routes through one shared `server/src/lib/xlsxHelper.js` (read as array-of-arrays matching the old `sheet_to_json({header:1})` contract; named-sheet, header-keyed-object, file-path, and multi-sheet-write variants for the 4 runtime controllers + 6 CLI scripts), so the library stays swappable in one place. Migrated test-first: a 14-case helper suite pins the exact read/write contract (blank-cell alignment, raw numbers, Date cells, CSV, multi-sheet), and an end-to-end smoke test confirms client-import / payroll named-sheet-pick / payroll-export round-trips. The `xlsx` CVEs are gone from `npm audit`; the only remaining exceljs-related advisory is a *fixable, non-reachable* transitive `uuid` buffer-bounds note, not the unfixable prototype-pollution/ReDoS we removed.

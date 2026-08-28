@@ -1,4 +1,4 @@
-const xlsx = require('xlsx');
+const { sheetsToRows } = require('../lib/xlsxHelper');
 const audit = require('../services/auditService');
 
 const VALID_ACCOUNTS = ['71040', '71120', '71119', '71635'];
@@ -18,7 +18,7 @@ async function previewSandata(req, res, next) {
             return res.status(400).json({ error: `Invalid account number. Must be one of: ${VALID_ACCOUNTS.join(', ')}` });
         }
 
-        const sandataRows = parseXlsx(req.file.buffer);
+        const sandataRows = await parseXlsx(req.file.buffer);
         if (!sandataRows) return res.status(400).json({ error: 'Missing required columns: CLIENT ID and CLIENT MEDICAID ID' });
         if (sandataRows.length === 0) return res.status(400).json({ error: 'File is empty or has no valid data rows' });
 
@@ -224,15 +224,13 @@ async function undoSandata(req, res, next) {
     }
 }
 
-function parseXlsx(buffer) {
-    const wb = xlsx.read(buffer, { type: 'buffer' });
+async function parseXlsx(buffer) {
+    const allSheets = await sheetsToRows(buffer);
 
     // Find the sheet containing the data headers (may be first or second sheet)
     let rows = null;
     let headerRowIdx = -1;
-    for (const name of wb.SheetNames) {
-        const sheet = wb.Sheets[name];
-        const sheetRows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+    for (const sheetRows of allSheets) {
         for (let i = 0; i < Math.min(10, sheetRows.length); i++) {
             const row = sheetRows[i];
             if (!row) continue;
