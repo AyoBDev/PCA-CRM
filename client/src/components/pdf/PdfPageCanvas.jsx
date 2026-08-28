@@ -223,7 +223,7 @@ export default function PdfPageCanvas({
                 .filter(f => f.page === pageIndex)
                 .map(field => (
                     <PdfFormField
-                        key={field.name + '-' + field.page}
+                        key={`${field.name}-${field.page}-${field.optionValue ?? ''}-${Math.round(field.rect.x)}-${Math.round(field.rect.y)}`}
                         field={field}
                         pageHeight={pageHeight || height}
                         zoom={zoom}
