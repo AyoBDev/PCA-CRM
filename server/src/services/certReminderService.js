@@ -1,3 +1,10 @@
+const { getTenantDb, getAgencyId } = require('../lib/tenantContext');
+const emailChannel = require('./reminderChannels/emailChannel');
+const inAppChannel = require('./reminderChannels/inAppChannel');
+const pushChannel = require('./reminderChannels/pushChannel');
+const { buildMessage } = require('./certReminderMessages');
+const audit = require('./auditService');
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Whole calendar days from `now` to `expDate`, floored to midnight UTC so the
@@ -21,4 +28,37 @@ function versionKeyFor(cert) {
   return cert.currentVersionKey ? String(cert.currentVersionKey) : 'v0';
 }
 
-module.exports = { daysBetween, computeStage, versionKeyFor };
+async function deliverReminder(cert, stage, versionKey) {
+  const db = getTenantDb();
+  const msg = buildMessage(stage, {
+    name: cert.employee.name,
+    certLabel: cert.certLabel || cert.certType,
+    expDate: cert.expirationDate,
+  });
+
+  const channels = {
+    email: await emailChannel.send(cert.employee, msg),
+    inApp: await inAppChannel.send(cert.employee, stage, msg),
+    push: await pushChannel.send(cert.employee, msg),
+  };
+
+  try {
+    await db.certReminderLog.create({
+      data: { certificationId: cert.id, versionKey, stage, channels, agencyId: getAgencyId() },
+    });
+  } catch (err) {
+    if (err.code === 'P2002') return { skipped: true }; // already sent for this version+stage
+    throw err;
+  }
+
+  audit.logAction({
+    userId: 0, userName: 'System', userRole: 'system',
+    action: 'UPDATE', entityType: 'EmployeeCertification', entityId: cert.id,
+    entityName: cert.certLabel || cert.certType, changes: [],
+    metadata: { action: 'cert_reminder_sent', stage, channels },
+  });
+
+  return { skipped: false, channels };
+}
+
+module.exports = { daysBetween, computeStage, versionKeyFor, deliverReminder };
