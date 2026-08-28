@@ -71,6 +71,7 @@ model Agency {
   EmployeeRequirement     EmployeeRequirement[]
   EmployeeDocument        EmployeeDocument[]
   EmployeePolicyAck       EmployeePolicyAck[]
+  certReminderLogs        CertReminderLog[]
 
   @@map("agencies")
 }
@@ -264,14 +265,36 @@ model EmployeeCertification {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  employee Employee              @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  uploads  CertificationUpload[]
-  agencyId Int                   @map("agency_id")
-  agency   Agency                @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  currentVersionKey String?   @map("current_version_key")
+  approvedAt        DateTime? @map("approved_at")
+  approvedById      Int?      @map("approved_by_id")
+  approvedByName    String    @default("") @map("approved_by_name")
+
+  employee  Employee              @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  uploads   CertificationUpload[]
+  reminders CertReminderLog[]
+  agencyId  Int                   @map("agency_id")
+  agency    Agency                @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId, certType])
   @@index([agencyId])
   @@map("employee_certifications")
+}
+
+model CertReminderLog {
+  id              Int                   @id @default(autoincrement())
+  certificationId Int                   @map("certification_id")
+  versionKey      String                @map("version_key")
+  stage           String
+  channels        Json
+  sentAt          DateTime              @default(now()) @map("sent_at")
+  certification   EmployeeCertification @relation(fields: [certificationId], references: [id], onDelete: Cascade)
+  agencyId        Int                   @map("agency_id")
+  agency          Agency                @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@unique([certificationId, versionKey, stage])
+  @@index([agencyId])
+  @@map("cert_reminder_logs")
 }
 
 model CertificationUpload {
