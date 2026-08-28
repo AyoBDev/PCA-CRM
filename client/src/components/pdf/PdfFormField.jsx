@@ -2,6 +2,7 @@ import { pdfRectToScreen } from '../../utils/pdfFormFields';
 
 export default function PdfFormField({ field, pageHeight, zoom, value, onChange }) {
     const pos = pdfRectToScreen(field.rect, pageHeight, zoom);
+    const fontSize = Math.max(8, Math.min(pos.height * 0.7, 13 * (zoom || 1)));
 
     const style = {
         position: 'absolute',
@@ -9,6 +10,7 @@ export default function PdfFormField({ field, pageHeight, zoom, value, onChange 
         top: pos.top,
         width: pos.width,
         height: pos.height,
+        fontSize,
         zIndex: 20,
     };
 
@@ -19,13 +21,14 @@ export default function PdfFormField({ field, pageHeight, zoom, value, onChange 
 
     if (field.type === 'text') {
         const InputTag = field.multiline ? 'textarea' : 'input';
+        const narrow = pos.width < 60;
         return (
             <InputTag
                 className="pdf-form-field pdf-form-field--text"
-                style={style}
+                style={{ ...style, padding: narrow ? '0 2px' : '2px 6px', textAlign: narrow ? 'center' : 'left' }}
                 value={value || ''}
                 onChange={(e) => onChange(field.name, e.target.value)}
-                placeholder={field.name}
+                placeholder={field.multiline ? '' : ''}
                 disabled={field.readOnly}
             />
         );
@@ -39,27 +42,23 @@ export default function PdfFormField({ field, pageHeight, zoom, value, onChange 
                     checked={!!value}
                     onChange={(e) => onChange(field.name, e.target.checked)}
                     disabled={field.readOnly}
+                    style={{ width: '100%', height: '100%', margin: 0 }}
                 />
             </div>
         );
     }
 
-    if (field.type === 'radio') {
+    if (field.type === 'radio-option') {
         return (
-            <div className="pdf-form-field pdf-form-field--radio" style={style}>
-                {(field.options || []).map(opt => (
-                    <label key={opt} className="pdf-form-field__radio-label">
-                        <input
-                            type="radio"
-                            name={field.name}
-                            value={opt}
-                            checked={value === opt}
-                            onChange={() => onChange(field.name, opt)}
-                            disabled={field.readOnly}
-                        />
-                        <span>{opt}</span>
-                    </label>
-                ))}
+            <div className="pdf-form-field pdf-form-field--checkbox" style={style}>
+                <input
+                    type="radio"
+                    name={field.name}
+                    checked={value === field.optionValue}
+                    onChange={() => onChange(field.name, field.optionValue)}
+                    disabled={field.readOnly}
+                    style={{ width: '100%', height: '100%', margin: 0 }}
+                />
             </div>
         );
     }
