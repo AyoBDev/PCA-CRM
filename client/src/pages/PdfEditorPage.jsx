@@ -9,6 +9,7 @@ import { useToast } from '../hooks/useToast';
 import { flattenAnnotations } from '../utils/pdfSave';
 import { extractFormFields } from '../utils/pdfFormFields';
 import { fillFormFields } from '../utils/pdfSave';
+import { computeFitScale } from '../utils/pdfFit';
 import * as api from '../api';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -51,6 +52,8 @@ export default function PdfEditorPage() {
     const [saveAsOpen, setSaveAsOpen] = useState(false);
 
     const scrollRef = useRef(null);
+    const userZoomedRef = useRef(false);
+    const fitAppliedRef = useRef(false);
     const hasFormChanges = formFields.length > 0 && formFields.some(f => formValues[f.name] !== f.value);
     const hasChanges = annotations.length > 0 || hasFormChanges;
     const hasFormFields = formFields.length > 0;
@@ -102,6 +105,20 @@ export default function PdfEditorPage() {
         }
         loadPdf();
     }, [fileId]);
+
+    // Default to fit-to-width the first time pages are available and the
+    // container has a measured width. Skipped once the user zooms manually.
+    useEffect(() => {
+        if (fitAppliedRef.current || userZoomedRef.current) return;
+        if (!pages.length || !scrollRef.current) return;
+        const containerWidth = scrollRef.current.clientWidth;
+        const pageWidth = pages[0].getViewport({ scale: 1 }).width;
+        const fit = computeFitScale(containerWidth, pageWidth);
+        if (fit !== 1) {
+            setZoom(fit);
+        }
+        fitAppliedRef.current = true;
+    }, [pages]);
 
     const pushUndo = useCallback((prevAnnotations) => {
         setUndoStack(s => [...s, prevAnnotations]);
@@ -268,6 +285,11 @@ export default function PdfEditorPage() {
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, [pages.length]);
 
+    const handleSetZoom = useCallback((updater) => {
+        userZoomedRef.current = true;
+        setZoom(updater);
+    }, []);
+
     useEffect(() => {
         const handler = (e) => {
             if (hasChanges) {
@@ -294,7 +316,7 @@ export default function PdfEditorPage() {
                 onUndo={handleUndo}
                 onRedo={handleRedo}
                 zoom={zoom}
-                setZoom={setZoom}
+                setZoom={handleSetZoom}
                 currentPage={currentPage}
                 totalPages={pages.length}
                 onPageChange={handlePageChange}
