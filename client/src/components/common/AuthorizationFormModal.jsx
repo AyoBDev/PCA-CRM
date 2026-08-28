@@ -19,8 +19,8 @@ function fmtDayBefore(dateStr) {
 /**
  * Shared Add / Edit / Renew Authorization form.
  *
- * Single source of the authorization form used across AuthorizationsPage,
- * ClientsPage, and ClientDetailPage. Supports both Weekly Units (Medicaid,
+ * Single source of the authorization form used across AuthorizationsPage
+ * and ClientDetailPage. Supports both Weekly Units (Medicaid,
  * Waiver, PAS, Homemaker, Respite, Companion) and Annual Visits (GUIDE)
  * authorization types.
  *
