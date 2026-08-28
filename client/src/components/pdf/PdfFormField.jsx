@@ -2,7 +2,11 @@ import { pdfRectToScreen } from '../../utils/pdfFormFields';
 
 export default function PdfFormField({ field, pageHeight, zoom, value, onChange }) {
     const pos = pdfRectToScreen(field.rect, pageHeight, zoom);
-    const fontSize = Math.max(8, Math.min(pos.height * 0.7, 13 * (zoom || 1)));
+    // Fit font to the smaller of height-based and a width-based bound so
+    // content in very narrow boxes (date Month/Day/Year) isn't clipped.
+    const heightFont = pos.height * 0.7;
+    const widthFont = pos.width * 0.5; // ~2 chars fit comfortably
+    const fontSize = Math.max(7, Math.min(heightFont, widthFont, 13 * (zoom || 1)));
 
     const style = {
         position: 'absolute',
@@ -20,15 +24,19 @@ export default function PdfFormField({ field, pageHeight, zoom, value, onChange 
     }
 
     if (field.type === 'text') {
-        const InputTag = field.multiline ? 'textarea' : 'input';
         const narrow = pos.width < 60;
+        // Only use a textarea for fields that are both flagged multiline AND
+        // tall enough to show more than one line. Small/short fields (e.g. the
+        // Month/Day/Year date boxes, which are multiline in the PDF but tiny)
+        // render as single-line inputs so their content isn't clipped/garbled.
+        const useTextarea = field.multiline && pos.height >= 28 && pos.width >= 60;
+        const InputTag = useTextarea ? 'textarea' : 'input';
         return (
             <InputTag
                 className="pdf-form-field pdf-form-field--text"
-                style={{ ...style, padding: narrow ? '0 2px' : '2px 6px', textAlign: narrow ? 'center' : 'left' }}
+                style={{ ...style, padding: narrow ? '0 1px' : '2px 6px', textAlign: narrow ? 'center' : 'left', whiteSpace: useTextarea ? 'normal' : 'nowrap' }}
                 value={value || ''}
                 onChange={(e) => onChange(field.name, e.target.value)}
-                placeholder={field.multiline ? '' : ''}
                 disabled={field.readOnly}
             />
         );
