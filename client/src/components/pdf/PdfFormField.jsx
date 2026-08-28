@@ -29,7 +29,11 @@ export default function PdfFormField({ field, pageHeight, zoom, value, onChange 
         // tall enough to show more than one line. Small/short fields (e.g. the
         // Month/Day/Year date boxes, which are multiline in the PDF but tiny)
         // render as single-line inputs so their content isn't clipped/garbled.
-        const useTextarea = field.multiline && pos.height >= 28 && pos.width >= 60;
+        // Decide textarea vs single-line from the PDF-authored (unscaled) rect
+        // size so the choice doesn't flip as the user zooms. Raw point units:
+        // tall+wide multiline boxes (e.g. a comments field) get a textarea;
+        // small multiline boxes (e.g. date Month/Day/Year) get a single-line input.
+        const useTextarea = field.multiline && field.rect.height >= 24 && field.rect.width >= 60;
         const InputTag = useTextarea ? 'textarea' : 'input';
         return (
             <InputTag
