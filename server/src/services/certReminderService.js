@@ -4,6 +4,7 @@ const inAppChannel = require('./reminderChannels/inAppChannel');
 const pushChannel = require('./reminderChannels/pushChannel');
 const { buildMessage } = require('./certReminderMessages');
 const audit = require('./auditService');
+const compliance = require('./complianceService');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -61,4 +62,52 @@ async function deliverReminder(cert, stage, versionKey) {
   return { skipped: false, channels };
 }
 
-module.exports = { daysBetween, computeStage, versionKeyFor, deliverReminder };
+function isApprovedForCycle(cert) {
+  const approvedStatus = cert.status === 'approved' || cert.status === 'active';
+  if (!approvedStatus || !cert.approvedAt) return false;
+  // Approved AFTER the current expiration means a renewal was accepted for this cycle.
+  return new Date(cert.approvedAt) > new Date(cert.expirationDate);
+}
+
+async function sweepCertRemindersForAgency(now = new Date()) {
+  const db = getTenantDb();
+  const [certs, certTypes] = await Promise.all([
+    db.employeeCertification.findMany({
+      where: { expirationDate: { not: null } },
+      include: { employee: { select: { id: true, name: true, email: true } } },
+    }),
+    db.certType.findMany(),
+  ]);
+  const typeByKey = Object.fromEntries(certTypes.map(t => [t.key, t]));
+
+  let sent = 0, blocked = 0, checked = 0;
+  for (const cert of certs) {
+    const type = typeByKey[cert.certType];
+    const requiresExpiry = type ? Boolean(type.requiresExpiry) : true; // unknown type gated
+    if (!requiresExpiry || !cert.expirationDate) continue;
+    checked++;
+
+    const versionKey = versionKeyFor(cert);
+    const days = daysBetween(now, new Date(cert.expirationDate));
+    const stage = computeStage(days);
+    if (!stage) continue;
+
+    const already = await db.certReminderLog.findFirst({
+      where: { certificationId: cert.id, versionKey, stage },
+    });
+    if (!already) {
+      const certLabel = type ? type.label : cert.certType;
+      const res = await deliverReminder({ ...cert, certLabel }, stage, versionKey);
+      if (!res.skipped) sent++;
+    }
+
+    if (stage === 'expired_final' && !isApprovedForCycle(cert)) {
+      const status = await compliance.evaluateCompliance(cert.employee.id);
+      if (status === 'blocked') blocked++;
+    }
+  }
+  console.log(`[CertReminder] checked ${checked} certs, sent ${sent}, blocked ${blocked}`);
+  return { sent, blocked, checked };
+}
+
+module.exports = { daysBetween, computeStage, versionKeyFor, deliverReminder, sweepCertRemindersForAgency };
