@@ -2,6 +2,18 @@
 
 A running log of notable build-vs-adopt and design decisions, most recent first.
 
+## 2026-08-28 — Audit-log immutability (append-only at the DB level)
+
+**Feature:** Make the audit trail tamper-resistant — the *"audit records cannot be silently altered"* production-readiness item. App code already only appends, but `audit_logs` was a normal table the application connection could `UPDATE`/`DELETE`.
+
+**Options considered:**
+- **Adopt append-only infrastructure** — a WORM/immutable store, ledger DB (e.g. QLDB/immudb), or event-sourcing the audit trail. Signals: strong cryptographic immutability, but a whole new datastore + sync path for one modest relational table that already has a History UI, tenant FKs, and RLS. Massive over-build for the threat (a compromised *app* connection), and it fragments audit reads/writes away from `auditService`.
+- **Postgres trigger** that raises on UPDATE/DELETE of `audit_logs`. Signals: enforces at the DB, but blocks *everyone* including the owner connection — which would break the legitimate retention purge and any operator maintenance, and adds a trigger to maintain.
+- **Revoke UPDATE/DELETE from the app role** (`app_user`) on `audit_logs`, in the existing idempotent `setup-app-role.js`. The owner connection keeps full access.
+
+**Choice:** Revoke `UPDATE, DELETE` on `public.audit_logs` from `app_user`.
+
+**Why:** The realistic threat is a compromised or buggy *application* path (which connects as `app_user` via `APP_DATABASE_URL`), not the owner connection used for deliberate maintenance. A Postgres GRANT/REVOKE is the precise, native tool: it makes the table append-only for `app_user` (keeps SELECT for the History page + INSERT for `auditService`) while the owner connection — `lib/prisma`, used by `auditService` writes and the retention purge — is unaffected, so nothing legitimate breaks. This is a one-line-of-intent change bolted onto the role script that already runs on every deploy (idempotent: REVOKE of a not-held privilege is a no-op), versus standing up an immutable datastore or maintaining a trigger. Verified with a DB-level integration test (`auditLogImmutable.itest.js`): as `app_user`, INSERT/SELECT succeed and UPDATE/DELETE are rejected with "permission denied"; the seeded row survives the tamper attempts; the owner connection can still delete (retention path). Full unit (870) + integration (75) suites green.
 ## 2026-08-29 — Reusable fillable-PDF editor (FA-24): adopt pdf-lib + pdf.js, keep forms editable
 
 **Feature:** An in-app editor for fillable government PDF forms (Nevada Medicaid FA-24), so admins fill a master template once per client, save a per-client copy, and reopen it every year for renewals/annual updates/transfers — editing fields in place rather than retyping the whole form. Also: sharp rendering, and annotation tools (draw/highlight/text).

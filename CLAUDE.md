@@ -61,7 +61,7 @@ server/src/
 prisma/
   schema.prisma     # PostgreSQL schema with @@map snake_case names; Agency model + agency_id on every tenant table
   seed.js           # Creates default agency + admin once (skips if exists); syncSuperadmin() creates-or-updates the superadmin from SUPERADMIN_EMAIL/SUPERADMIN_PASSWORD on every run. Uses ADMIN_EMAIL/ADMIN_PASSWORD, NVBEST_AGENCY_NAME/NVBEST_AGENCY_SLUG env vars
-  setup-app-role.js # Idempotently provisions the `app_user` Postgres role (NOBYPASSRLS) that tenantClient connects as via APP_DATABASE_URL
+  setup-app-role.js # Idempotently provisions the `app_user` Postgres role (NOBYPASSRLS) that tenantClient connects as via APP_DATABASE_URL. Also REVOKEs UPDATE/DELETE on `audit_logs` from app_user, so the request path can only APPEND audit rows (owner connection retains full access for the retention purge)
   migrate-data.js   # One-time SQLite → PostgreSQL data migration script
   migrations/       # Timestamped SQL migrations (includes the RLS-enabling migration: ENABLE ROW LEVEL SECURITY + tenant_isolation policy per tenant table, keyed on current_setting('app.agency_id'))
 ```
@@ -379,6 +379,8 @@ All FK relationships use cascade delete. Prisma schema uses `@@map` for snake_ca
 - Frontend: `ActivityButton` (page-level) and `EntityActivityButton` (entity-level) in `ActivityDrawer.jsx`
 - **History Page** (`HistoryPage.jsx`): shows all audit logs with filters by action, entity type, and date range. Entity types: Client, Employee, User, Shift, Timesheet, Authorization, PayrollRun, PermanentLink, InsuranceType, Service, Task, Receipt
 
+### Audit-log immutability (append-only at the DB level)
+The `audit_logs` table is **append-only for the application request path**, enforced by Postgres — not just convention. `setup-app-role.js` REVOKEs `UPDATE, DELETE` on `public.audit_logs` from `app_user` (the role every tenant request connects as via `req.db` / `APP_DATABASE_URL`); it keeps `SELECT` (History page reads) and `INSERT` (`auditService` writes). So a compromised app connection can append audit rows but can never rewrite or erase them. The **owner** connection (`DATABASE_URL`, used by `lib/prisma` — `auditService` writes and any retention purge) retains full access. Proof: `src/__integration__/auditLogImmutable.itest.js` asserts app_user INSERT/SELECT succeed while UPDATE/DELETE are rejected with "permission denied". Do not grant those privileges back or route audit-log deletes through `req.db`.
 ### Audit-log retention
 - **Default: keep forever.** Audit history is never auto-deleted unless an operator explicitly opts in — the safe default for a healthcare-adjacent trail.
 - **Opt in** by setting `AUDIT_LOG_RETENTION_DAYS` (positive integer, e.g. `2555` ≈ 7 years). A daily cron (`jobs/auditLogRetention.js`, 4:00 AM UTC) then deletes `audit_logs` rows older than that window **across all agencies** (platform maintenance, owner connection). When the var is unset/invalid the job is a no-op.
