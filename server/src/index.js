@@ -8,7 +8,7 @@ const { initSocket } = require('./socket');
 const { sendOverdueReminders } = require('./jobs/timesheetReminders');
 const { runTaskTriggers } = require('./jobs/taskTriggers');
 const { sendTaskReminders } = require('./jobs/taskReminders');
-const { runComplianceCheck } = require('./jobs/complianceCron');
+const { runCertReminderSweep } = require('./jobs/certReminderCron');
 const { runLeadDormancySweep } = require('./jobs/leadDormancySweep');
 const { startWorker } = require('./workers/replacementWorker');
 
@@ -57,15 +57,15 @@ server.listen(PORT, () => {
     console.log('[Cron] Scheduled: task reminders (daily 8:00 AM UTC)');
 
     cron.schedule('0 6 * * *', async () => {
-        console.log('[Cron] Running compliance check...');
+        console.log('[Cron] Running certification reminder + compliance sweep...');
         try {
-            await runComplianceCheck();
+            await runCertReminderSweep();
         } catch (err) {
-            console.error('[Cron] Compliance check failed:', err);
+            console.error('[Cron] Cert reminder sweep failed:', err);
         }
     }, { timezone: 'America/Los_Angeles' });
 
-    console.log('[Cron] Scheduled: compliance check (daily 6:00 AM PT)');
+    console.log('[Cron] Scheduled: certification reminder + compliance sweep (daily 6:00 AM PT)');
 
     cron.schedule('0 3 * * *', async () => {
         console.log('[Cron] Running lead dormancy sweep...');
