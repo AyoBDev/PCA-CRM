@@ -37,6 +37,7 @@ const ALLOWLIST = new Set([
   'src/jobs/taskTriggers.js',
   'src/jobs/timesheetReminders.js',
   'src/jobs/leadDormancySweep.js',
+  'src/jobs/certReminderCron.js',
   // Same cron-driver shape as the jobs above, just living under services/:
   // enumerates active agencies on the owner connection, then runs the
   // per-agency geocode backfill inside runWithTenant with a tenantClient.
