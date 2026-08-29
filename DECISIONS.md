@@ -2,6 +2,19 @@
 
 A running log of notable build-vs-adopt and design decisions, most recent first.
 
+## 2026-08-29 — Reusable fillable-PDF editor (FA-24): adopt pdf-lib + pdf.js, keep forms editable
+
+**Feature:** An in-app editor for fillable government PDF forms (Nevada Medicaid FA-24), so admins fill a master template once per client, save a per-client copy, and reopen it every year for renewals/annual updates/transfers — editing fields in place rather than retyping the whole form. Also: sharp rendering, and annotation tools (draw/highlight/text).
+
+**Options considered:**
+- **pdf-lib (form fill/flatten) + pdf.js (render)** — both already in the client deps (used by the existing DocViewer/thumbnail stack), no new dependency. pdf-lib reads/writes AcroForm fields (109 on the real FA-24), fills them, and can flatten on demand; pdf.js renders pages to canvas at devicePixelRatio for sharpness. Large, actively-maintained, permissive-licensed. Chosen.
+- **A commercial PDF SDK (PSPDFKit/Nutrient, Apryse/PDFTron)** — turnkey form editor, but heavy paid license, large bundle, and overkill for AcroForm fill on a single form family. Rejected.
+- **Server-side fill (pdftk / a headless service)** — adds a native binary or an extra service on Railway (deploy-fragile), and moves an interactive editing UX to a round-trip model. Rejected; the whole value is in-browser click-to-edit.
+
+**Choice:** Adopt pdf-lib + pdf.js (already present); build the thin editor UI on top.
+
+**Why:** the capability we needed (AcroForm read/fill/flatten + crisp render) is exactly what these two libraries provide, and they were already dependencies — so "adopt" added zero new supply-chain surface. The key product decision inside the build: **default Save keeps form fields live (`flatten:false`) and re-extracts them after write, so a saved client file reopens fully editable** — this is what makes yearly renewals possible without retyping. **Save as Final** flattens (`flatten:true`) for a locked copy. Verified end-to-end on the real FA-24: fill → save-as new file (109 fields retained) → reopen → edit again → save (renewal), and flatten → 0 editable fields. XFA-based forms are out of scope (pdf-lib doesn't fill XFA); FA-24 is a clean AcroForm.
+
 ## 2026-08-25 — Edit User + reuse office email on inactive account
 
 **Options considered:** (a) build in-house edit endpoint + modal; (b) adopt an off-the-shelf admin/user-management library (e.g. AdminJS, react-admin).
