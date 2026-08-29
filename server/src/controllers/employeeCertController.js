@@ -113,11 +113,12 @@ async function updateCertification(req, res, next) {
                 ? (expirationDate ? new Date(expirationDate) : old.expirationDate)
                 : old.expirationDate;
             const cert = await approveCertRenewal(id, newExp, req.user);
-            audit.logAction(
-                req.user.id, req.user.name, req.user.role,
-                'UPDATE', 'EmployeeCertification', id,
-                cert.certType || old.certType, [], { action: 'cert_renewal_approved' }
-            );
+            audit.logAction({
+                userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+                action: 'UPDATE', entityType: 'EmployeeCertification', entityId: id,
+                entityName: cert.certType || old.certType, changes: [],
+                metadata: { action: 'cert_renewal_approved' },
+            });
             const { fileData, ...result } = cert;
             return res.json(result);
         }
