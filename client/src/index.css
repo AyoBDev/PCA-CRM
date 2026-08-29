@@ -14097,27 +14097,6 @@ tr:hover .auth-note-icon--empty {
     cursor: pointer;
 }
 
-.pdf-form-field--radio {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    background: hsl(210 100% 97%);
-    border: 1.5px solid hsl(215 60% 75%);
-    padding: 4px 6px;
-    border-radius: 3px;
-    overflow-y: auto;
-}
-
-.pdf-form-field__radio-label {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 10px;
-    cursor: pointer;
-}
-
-.pdf-form-field__radio-label input { accent-color: hsl(var(--primary)); }
-
 .pdf-form-field--dropdown {
     background: hsl(210 100% 97%);
     border: 1.5px solid hsl(215 60% 75%);
