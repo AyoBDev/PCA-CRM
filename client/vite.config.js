@@ -9,11 +9,10 @@ export default defineConfig({
         proxy: {
             '/api': {
                 target: 'http://localhost:4000',
-                // Do NOT rewrite Host — the backend resolves the agency from the
-                // subdomain (e.g. nvbest.localhost) via resolveAgency.js. With
-                // changeOrigin:true, Vite rewrites Host to localhost:4000 and every
-                // request looks like the platform/apex host, so the agency login
-                // never renders in local dev.
+                // Preserve the browser's Host (e.g. nvbest.localhost) so the
+                // API's tenant resolver (resolveAgency) maps the request to the
+                // right agency. changeOrigin:true would rewrite it to the target
+                // host (localhost) and force every request onto the platform host.
                 changeOrigin: false,
             },
         },

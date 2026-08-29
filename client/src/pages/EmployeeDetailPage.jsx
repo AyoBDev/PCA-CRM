@@ -68,6 +68,24 @@ function getCertStatus(dateStr) {
     return { status: 'valid', label: `Valid (${days}d)`, days };
 }
 
+// Human-readable renewal cadence shown at the bottom of each cert card.
+// ID renews on its own printed date; any other cert with no cadence never
+// expires ("Not required").
+function renewalLabel(ct) {
+    if (ct.type === 'id_expiration') return 'Per ID date';
+    if (ct.renewalYears) return ct.renewalYears === 1 ? '1 year' : `${ct.renewalYears} years`;
+    return 'Not required';
+}
+
+// Fraction (0–1) of the renewal window still remaining, for the card progress
+// bar. Full bar = just renewed, empty = due/overdue. Falls back to a full bar
+// when there's no expiration date or no known renewal cadence.
+function certProgress(ct, days) {
+    if (days === null || !ct.renewalYears) return 1;
+    const windowDays = ct.renewalYears * 365;
+    return Math.max(0, Math.min(1, days / windowDays));
+}
+
 function EditEmployeeModal({ employee, users, onSave, onClose }) {
     const [form, setForm] = useState({
         name: employee.name || '',
@@ -1123,7 +1141,7 @@ function CertificationsTab({ employee, onEdit }) {
             : allRecords.filter(r => r.fileName).length;
 
         return (
-            <div key={ct.type} className="pa-service-card" style={{ '--card-accent': colors.accent, '--card-bg': colors.bg, '--card-border': colors.border }}>
+            <div key={ct.type} className="pa-service-card pa-service-card--cert" style={{ '--card-accent': colors.accent, '--card-bg': colors.bg, '--card-border': colors.border }}>
                 <div className="pa-service-card__header">
                     <div className="pa-service-card__icon-wrap" style={{ background: colors.bg, color: colors.accent }}>
                         {Icons[colors.icon]}
@@ -1139,12 +1157,6 @@ function CertificationsTab({ employee, onEdit }) {
                             {statusLabel(status)}
                         </span>
                     </div>
-                    {ct.renewalYears && (
-                        <div className="pa-service-card__account">
-                            <span className="pa-service-card__account-label">Renewal</span>
-                            <span style={{ fontSize: 13, fontWeight: 600 }}>{ct.renewalYears}yr</span>
-                        </div>
-                    )}
                 </div>
 
                 <div className="pa-service-card__body">
@@ -1159,8 +1171,19 @@ function CertificationsTab({ employee, onEdit }) {
                     </div>
                 </div>
 
+                <div className="cert-card__progress" aria-hidden="true">
+                    <div
+                        className="cert-card__progress-fill"
+                        style={{ width: `${Math.round(certProgress(ct, days) * 100)}%`, background: status === 'expired' ? '#dc2626' : status === 'critical' ? '#d97706' : colors.accent }}
+                    />
+                </div>
+
+                <div className="cert-card__renewal">
+                    <span className="cert-card__renewal-label">Renewal</span>
+                    <span className="cert-card__renewal-value">{renewalLabel(ct)}</span>
+                </div>
+
                 <div className="pa-service-card__footer">
-                    <button className="btn btn--outline btn--sm" onClick={() => setShowUploadModal(ct.type)}>{Icons.upload} Upload</button>
                     <button
                         className="btn btn--outline btn--sm pa-btn--view-details"
                         style={{ color: colors.accent, borderColor: colors.accent }}
@@ -1168,6 +1191,7 @@ function CertificationsTab({ employee, onEdit }) {
                     >
                         {isExpanded ? Icons.chevronDown : Icons.chevronRight} {isExpanded ? 'Hide Details' : 'View Details'}
                     </button>
+                    <button className="btn btn--outline btn--sm" onClick={() => setShowUploadModal(ct.type)}>{Icons.upload} Upload</button>
                 </div>
 
                 {isExpanded && (
