@@ -1,57 +1,22 @@
 /**
- * Import data from a JSON backup file into PostgreSQL.
+ * Restore data from a JSON backup file into PostgreSQL.
  *
  * Usage:
  *   DATABASE_URL="postgresql://..." node prisma/import-backup.js /path/to/backup.json
+ *
+ * This is a thin CLI wrapper around lib/restoreBackup, which is SCHEMA-DRIVEN:
+ * it restores every table present in the backup (matched against the live
+ * schema's columns), coerces timestamp/json columns, and loads with FK checks
+ * deferred — so it stays correct as the schema grows. Restore into an EMPTY
+ * database (a fresh restore target); ON CONFLICT DO NOTHING makes re-runs safe
+ * but it does not overwrite existing rows.
  */
 require('dotenv').config();
 const fs = require('fs');
 const { PrismaClient } = require('@prisma/client');
+const { restoreBackup } = require('../src/lib/restoreBackup');
 
 const prisma = new PrismaClient();
-
-// Tables in FK dependency order — must match backup keys
-// [backupKey, prismaModelName]
-const TABLES = [
-  ['insurance_types', 'insuranceType'],
-  ['users', 'user'],
-  ['employees', 'employee'],
-  ['clients', 'client'],
-  ['authorizations', 'authorization'],
-  ['services', 'service'],
-  ['timesheets', 'timesheet'],
-  ['timesheet_entries', 'timesheetEntry'],
-  ['signing_tokens', 'signingToken'],
-  ['permanent_links', 'permanentLink'],
-  ['payroll_runs', 'payrollRun'],
-  ['payroll_visits', 'payrollVisit'],
-  ['shifts', 'shift'],
-  ['employee_schedule_links', 'employeeScheduleLink'],
-  ['schedule_notifications', 'scheduleNotification'],
-  ['audit_logs', 'auditLog'],
-  ['password_reset_tokens', 'passwordResetToken'],
-];
-
-// DateTime fields that need conversion from ISO strings to Date objects
-const DATETIME_FIELDS = new Set([
-  'createdAt', 'updatedAt', 'archivedAt', 'expiresAt', 'usedAt',
-  'confirmedAt', 'sentAt', 'submittedAt', 'weekStart', 'visitDate',
-  'authorizationStartDate', 'authorizationEndDate', 'periodStart',
-  'periodEnd', 'shiftDate',
-]);
-
-function convertRow(row) {
-  const converted = {};
-  for (const [key, val] of Object.entries(row)) {
-    if (DATETIME_FIELDS.has(key) && val != null) {
-      const d = new Date(val);
-      converted[key] = isNaN(d.getTime()) ? null : d;
-    } else {
-      converted[key] = val;
-    }
-  }
-  return converted;
-}
 
 async function main() {
   const backupPath = process.argv[2];
@@ -62,50 +27,15 @@ async function main() {
 
   console.log(`\nReading backup: ${backupPath}`);
   const backup = JSON.parse(fs.readFileSync(backupPath, 'utf-8'));
-  console.log(`Backup from: ${backup.exportedAt} (${backup.totalRows} total rows)\n`);
-
+  console.log(`Backup from: ${backup.exportedAt} (${backup.totalRows} total rows)`);
   console.log(`Writing to: ${process.env.DATABASE_URL}\n`);
 
-  let totalImported = 0;
+  const { imported, skipped } = await restoreBackup(prisma, backup, { log: (m) => console.log(m) });
 
-  for (const [tableName, modelName] of TABLES) {
-    const rows = backup.tables[tableName];
-    if (!rows || rows.length === 0) {
-      console.log(`  skip  ${tableName} — 0 rows`);
-      continue;
-    }
-
-    const converted = rows.map(convertRow);
-
-    // Insert in batches of 100
-    const BATCH_SIZE = 100;
-    for (let i = 0; i < converted.length; i += BATCH_SIZE) {
-      const batch = converted.slice(i, i + BATCH_SIZE);
-      await prisma[modelName].createMany({
-        data: batch,
-        skipDuplicates: true,
-      });
-    }
-
-    console.log(`  done  ${tableName} — ${rows.length} rows`);
-    totalImported += rows.length;
+  console.log(`\nImport complete: ${imported} rows imported.`);
+  if (skipped.length) {
+    console.log(`Skipped ${skipped.length} table(s) not in the current schema: ${skipped.join(', ')}`);
   }
-
-  // Reset auto-increment sequences
-  console.log('\nResetting sequences...');
-  for (const [tableName] of TABLES) {
-    try {
-      await prisma.$executeRawUnsafe(
-        `SELECT setval(pg_get_serial_sequence('${tableName}', 'id'), COALESCE((SELECT MAX(id) FROM "${tableName}"), 0) + 1, false)`
-      );
-    } catch (err) {
-      // Table might not have a sequence — skip
-    }
-  }
-  console.log('  done\n');
-
-  console.log(`Import complete: ${totalImported} rows imported.`);
-
   await prisma.$disconnect();
 }
 

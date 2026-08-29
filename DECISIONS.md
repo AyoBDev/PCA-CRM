@@ -2,6 +2,21 @@
 
 A running log of notable build-vs-adopt and design decisions, most recent first.
 
+## 2026-08-28 — Schema-driven restore + tested backup round-trip
+
+**Feature:** Make "restore has been tested" true — and fix the restore path, which testing revealed was badly broken.
+
+**What testing surfaced:** the JSON backup *export* is schema-driven (lists tables from `information_schema`, ~57 tables), but the *restore* (`prisma/import-backup.js`) used a **hardcoded 17-table list** — so restoring a real backup silently dropped ~40 tables (leads, tasks, care team, incidents, admin files, employee certs/docs, payroll profiles, permission groups, receipts, onboarding, messages, …). It also assumed backup keys equal Prisma field names (false for snake_case/`@map` fields, e.g. `client_status`) and couldn't bind `jsonb` columns.
+
+**Options considered:**
+- Adopt `pg_dump`/`pg_restore` (physical/logical Postgres dumps) as the restore path. Signals: battle-tested and complete, and Railway's managed physical backups already cover total-loss recovery. But the app's portable, human-readable, per-tenant JSON export is a deliberate secondary (the Dashboard "Backup" button, tenant-scoped exports) — `pg_dump` doesn't consume that format, needs the `pg_*` binaries on the host, and can't do the per-agency filtering the JSON export does. Kept `pg_dump`/Railway as the primary DR story (documented in the runbook), but it doesn't restore the JSON artifact.
+- Extend the hardcoded restore list to all 57 tables. Rejected: it just re-creates the same drift the export already solved — the list would rot again on the next new table.
+- Build a **schema-driven** restore that mirrors the export: derive tables + columns + types from the live DB, restore whatever the backup contains.
+
+**Choice:** Build the schema-driven restore (`src/lib/restoreBackup.js`); keep `import-backup.js` as a thin CLI wrapper. Restore via raw parameterized `INSERT` on real column names (not Prisma field names), with FK checks deferred via `session_replication_role='replica'`, timestamp/`jsonb` coercion from `information_schema`, and id-sequence resets.
+
+**Why:** A backup you can't fully restore is not a backup, and the *test* is what proved the gap — so the fix and the test ship together. Mirroring the export's schema-driven approach keeps the two halves from drifting apart again (the root cause), and raw-SQL-by-column sidesteps the Prisma field-name mismatch that made a generic Prisma-delegate restore impossible. `session_replication_role` removes the need to hand-maintain FK ordering and handles self-references/cycles. Proven end-to-end: `backupRoundTrip.itest.js` exports a real platform backup, restores into a fresh scratch DB, and asserts every table's row count matches with no silent drops (plus 6 unit tests for the pure helpers). The one irreducible operational caveat the test forced into the open — the restore target needs the same `ENCRYPTION_KEY` or PHI is unrecoverable — is now documented in `docs/ops/backup-restore.md`.
+
 ## 2026-08-28 — Audit-log immutability (append-only at the DB level)
 
 **Feature:** Make the audit trail tamper-resistant — the *"audit records cannot be silently altered"* production-readiness item. App code already only appends, but `audit_logs` was a normal table the application connection could `UPDATE`/`DELETE`.

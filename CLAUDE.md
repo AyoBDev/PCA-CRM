@@ -608,7 +608,8 @@ const [preview, setPreview] = useState(null);
 - **Database**: PostgreSQL (migrated from SQLite, April 2026)
 - **Local dev**: Postgres.app or Docker (`postgresql://mac@localhost:5432/nvbestpca`)
 - **Production**: Railway managed PostgreSQL with automatic daily backups
-- **On-demand backup**: `GET /api/backup/export` (admin-only) — downloads all tables as JSON. Dashboard has a "Backup" button.
+- **On-demand backup**: `GET /api/backup/export` (admin-only) — downloads all tables as JSON. Dashboard has a "Backup" button. Export is **schema-driven** (`backupController.js` lists tables from `information_schema`), so it covers every table automatically.
+- **Restore**: `node prisma/import-backup.js <backup.json>` → wraps the **schema-driven** `src/lib/restoreBackup.js`, which restores every table in the backup (matched to the live schema's real columns), coerces timestamp/json columns, loads with FK checks deferred (`session_replication_role='replica'` — no hardcoded FK order), and resets id sequences. Restore into an EMPTY target DB; `ON CONFLICT DO NOTHING` makes re-runs safe but does not overwrite. **The restore target must have the same `ENCRYPTION_KEY` or encrypted PHI is unreadable.** Full runbook: `docs/ops/backup-restore.md`. Round-trip tested: `src/__integration__/backupRoundTrip.itest.js` exports → restores into a fresh scratch DB → asserts every table's row count matches. **Do not reintroduce a hardcoded restore table list** — that's the bug this replaced (old script covered 17 of 57 tables).
 - **Seed script**: `seed.js` only creates admin if none exists (never overwrites). Uses `ADMIN_EMAIL` and `ADMIN_PASSWORD` env vars with fallback defaults.
 - **Data migration**: `prisma/migrate-data.js` transfers data from SQLite `dev.db` to PostgreSQL (one-time use, requires `better-sqlite3` devDependency)
 
