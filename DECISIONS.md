@@ -14,6 +14,18 @@ A running log of notable build-vs-adopt and design decisions, most recent first.
 **Choice:** Revoke `UPDATE, DELETE` on `public.audit_logs` from `app_user`.
 
 **Why:** The realistic threat is a compromised or buggy *application* path (which connects as `app_user` via `APP_DATABASE_URL`), not the owner connection used for deliberate maintenance. A Postgres GRANT/REVOKE is the precise, native tool: it makes the table append-only for `app_user` (keeps SELECT for the History page + INSERT for `auditService`) while the owner connection — `lib/prisma`, used by `auditService` writes and the retention purge — is unaffected, so nothing legitimate breaks. This is a one-line-of-intent change bolted onto the role script that already runs on every deploy (idempotent: REVOKE of a not-held privilege is a no-op), versus standing up an immutable datastore or maintaining a trigger. Verified with a DB-level integration test (`auditLogImmutable.itest.js`): as `app_user`, INSERT/SELECT succeed and UPDATE/DELETE are rejected with "permission denied"; the seeded row survives the tamper attempts; the owner connection can still delete (retention path). Full unit (870) + integration (75) suites green.
+## 2026-08-29 — Reusable fillable-PDF editor (FA-24): adopt pdf-lib + pdf.js, keep forms editable
+
+**Feature:** An in-app editor for fillable government PDF forms (Nevada Medicaid FA-24), so admins fill a master template once per client, save a per-client copy, and reopen it every year for renewals/annual updates/transfers — editing fields in place rather than retyping the whole form. Also: sharp rendering, and annotation tools (draw/highlight/text).
+
+**Options considered:**
+- **pdf-lib (form fill/flatten) + pdf.js (render)** — both already in the client deps (used by the existing DocViewer/thumbnail stack), no new dependency. pdf-lib reads/writes AcroForm fields (109 on the real FA-24), fills them, and can flatten on demand; pdf.js renders pages to canvas at devicePixelRatio for sharpness. Large, actively-maintained, permissive-licensed. Chosen.
+- **A commercial PDF SDK (PSPDFKit/Nutrient, Apryse/PDFTron)** — turnkey form editor, but heavy paid license, large bundle, and overkill for AcroForm fill on a single form family. Rejected.
+- **Server-side fill (pdftk / a headless service)** — adds a native binary or an extra service on Railway (deploy-fragile), and moves an interactive editing UX to a round-trip model. Rejected; the whole value is in-browser click-to-edit.
+
+**Choice:** Adopt pdf-lib + pdf.js (already present); build the thin editor UI on top.
+
+**Why:** the capability we needed (AcroForm read/fill/flatten + crisp render) is exactly what these two libraries provide, and they were already dependencies — so "adopt" added zero new supply-chain surface. The key product decision inside the build: **default Save keeps form fields live (`flatten:false`) and re-extracts them after write, so a saved client file reopens fully editable** — this is what makes yearly renewals possible without retyping. **Save as Final** flattens (`flatten:true`) for a locked copy. Verified end-to-end on the real FA-24: fill → save-as new file (109 fields retained) → reopen → edit again → save (renewal), and flatten → 0 editable fields. XFA-based forms are out of scope (pdf-lib doesn't fill XFA); FA-24 is a clean AcroForm.
 
 ## 2026-08-25 — Edit User + reuse office email on inactive account
 
@@ -302,6 +314,20 @@ dates were unchanged.
 
 **Why:** the domain is small and tightly coupled to our persistence + audit conventions; a library would constrain more than it helps.
 
+## 2026-08-28 — Remove client-side `xlsx` (SheetJS) — no replacement parser needed
+
+**Decision:** Remove the `xlsx` dependency from the client entirely and delete the orphaned `ClientsPage.jsx` that used it — do NOT adopt `exceljs` or any other in-browser parser on the client.
+
+**Context:** The server already migrated off vulnerable `xlsx` to `exceljs` (branch `feat/hardening-errortracking-xlsx`). The task was to do the same on the client, where `ClientsPage.jsx:204` parsed client-import spreadsheets in-browser via `xlsx` (`XLSX.read` / `sheet_to_json` / `SSF.parse_date_code`). `xlsx@0.18.5` has HIGH-severity prototype-pollution + ReDoS advisories with **no upstream fix**, so a security review flags the client `package.json`.
+
+**Investigation finding (changed the outcome):** `ClientsPage.jsx` is **dead, unrouted code**. On 2026-05-01 (commit `0e8163c` "rename ClientsPage to AuthorizationsPage") the clients/authorizations UI was rebuilt: the live `AuthorizationsPage.jsx` bulk-import now sends the raw upload to the server (`api.bulkImport(file)` → server-side `exceljs`) and does **not** parse in-browser; the new `ClientsListPage.jsx` took over `/clients`. The old `ClientsPage.jsx` was copied into the new page and left orphaned — nothing imports it, and it never appears in the build. It was the *only* client consumer of `xlsx`.
+
+**Options considered:**
+- **Adopt `exceljs` on the client (initial plan)** — actively maintained (~1.9M weekly downloads), advisory-free once `uuid` is overridden to ≥11.1.1, matches the server. Its browser build reads `.xlsx` from an ArrayBuffer (`workbook.xlsx.load`), but does **not** support CSV in the browser (CSV path would need a hand-rolled parser), and its package `main` is the Node build — you must import `exceljs/dist/exceljs.min.js` explicitly for Rollup to resolve it. ~950 KB raw / ~258 KB gz, lazy-loaded. **Rejected:** it would only ever be imported by a file that is dead code, adding a large dependency + transitive-advisory management (`uuid` override) for zero reachable benefit.
+- **`read-excel-file`** — ~7x smaller, advisory-free, Web Workers. Rejected for the same reason (no live consumer) and because it enforces a strict schema and doesn't parse CSV or expose raw array-of-arrays cleanly.
+- **Delete the dead file, add no parser (chosen)** — removes `xlsx` from `package.json`/lockfile/`node_modules`, deletes the 979-line orphan, and adds no new client dependency. Smallest attack surface and smallest diff; the live import flow (server-side parsing) is unaffected.
+
+**Why:** The security goal (no advisory-flagged parser in the client) is fully met by deletion. Adding any in-browser parser would ship an unreachable code path and new dependency weight for a feature that was intentionally moved server-side months ago. Net change: −1 dependency, −979 lines, no new deps. All 139 client tests pass; production build is clean (no `xlsx`/`exceljs` artifacts in any chunk).
 ## 2026-08-27 — Production hardening: error tracking + replace vulnerable `xlsx`
 
 Two items from a production-readiness review, done together on `feat/hardening-errortracking-xlsx`.
@@ -327,3 +353,15 @@ Two items from a production-readiness review, done together on `feat/hardening-e
 **Choice:** Replace `xlsx` with `exceljs` across all 11 usages and remove `xlsx` from `package.json`.
 
 **Why:** The `xlsx` advisories have *no upstream fix*, so hardening-in-place can't clear them from `npm audit` — the only way to close the finding a buyer's review will run is to remove the package. All spreadsheet I/O now routes through one shared `server/src/lib/xlsxHelper.js` (read as array-of-arrays matching the old `sheet_to_json({header:1})` contract; named-sheet, header-keyed-object, file-path, and multi-sheet-write variants for the 4 runtime controllers + 6 CLI scripts), so the library stays swappable in one place. Migrated test-first: a 14-case helper suite pins the exact read/write contract (blank-cell alignment, raw numbers, Date cells, CSV, multi-sheet), and an end-to-end smoke test confirms client-import / payroll named-sheet-pick / payroll-export round-trips. The `xlsx` CVEs are gone from `npm audit`; the only remaining exceljs-related advisory is a *fixable, non-reachable* transitive `uuid` buffer-bounds note, not the unfixable prototype-pollution/ReDoS we removed.
+
+## 2026-08-28 — Audit-log retention policy + purge job
+
+**Feature:** Define how long `audit_logs` are kept (a production-readiness / compliance item) and enforce it with a scheduled purge.
+
+**Options considered:**
+- Adopt a log-retention/lifecycle tool (e.g. a time-series DB TTL, Postgres `pg_partman` partition drop, or a managed log platform's retention). Signals: robust for high-volume log streams, but our audit log is a modest relational table with tenant + entity FKs and its own History UI — introducing partitioning or an external platform is heavy machinery for a row count that a single indexed `DELETE ... WHERE created_at < cutoff` handles, and it would fragment the existing `auditService` ownership.
+- Build in-house: a `resolveRetentionDays()` + `purgeExpiredLogs()` pair in the existing `auditService` (already the single owner of audit-log reads/writes and already allowlisted for the owner connection), driven by a daily cron mirroring the other `jobs/*` sweeps.
+
+**Choice:** Build in-house in `auditService` + a `jobs/auditLogRetention.js` cron. **Retention is OFF by default** (keep forever); operators opt in via `AUDIT_LOG_RETENTION_DAYS`.
+
+**Why:** The requirement is *"state how long records are kept and why,"* and enforce it — not a high-volume log-pipeline problem. A dependency (partitioning/TTL/external platform) adds operational surface for a table that a bounded `deleteMany` already covers, and it would split audit-log lifecycle away from `auditService`, which already owns every write and is allowlisted for the owner connection. Defaulting to keep-forever is the safety-correct choice for a healthcare-adjacent trail — silently losing audit history is worse than keeping too much — so deletion is strictly opt-in and any invalid value fails safe to "keep." The purge runs cross-tenant (one cutoff for all agencies, no per-agency filter) since it's platform maintenance, and it records its own `PERMANENT_DELETE` summary entry so the deletion is itself auditable. Built test-first: 7 unit tests for the resolve/purge contract, 3 for the cron driver's summary-logging, plus a live integration check against the test DB proving old rows are deleted and recent rows kept.

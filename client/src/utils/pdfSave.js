@@ -55,7 +55,7 @@ export async function flattenAnnotations(pdfBytes, annotations, scale) {
     return pdfDoc.save();
 }
 
-export async function fillFormFields(pdfBytes, formValues) {
+export async function fillFormFields(pdfBytes, formValues, { flatten = false } = {}) {
     const pdfDoc = await PDFDocument.load(pdfBytes);
     const form = pdfDoc.getForm();
     const fields = form.getFields();
@@ -80,6 +80,6 @@ export async function fillFormFields(pdfBytes, formValues) {
         }
     }
 
-    form.flatten();
+    if (flatten) form.flatten();
     return pdfDoc.save();
 }

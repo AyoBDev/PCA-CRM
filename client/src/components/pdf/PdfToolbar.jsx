@@ -20,9 +20,10 @@ export default function PdfToolbar({
     canUndo, canRedo, onUndo, onRedo,
     zoom, setZoom,
     currentPage, totalPages, onPageChange,
-    onSave, onSaveAs, onClose,
+    onSave, onSaveAs, onSaveAsFinal, onClose,
     saving,
     hasChanges,
+    hasFormFields,
 }) {
     const [showOptions, setShowOptions] = useState(false);
 
@@ -86,6 +87,16 @@ export default function PdfToolbar({
                     >
                         Save as Version
                     </button>
+                    {hasFormFields && (
+                        <button
+                            className="btn btn--secondary"
+                            onClick={onSaveAsFinal}
+                            disabled={saving}
+                            title="Fill and lock the form into a non-editable copy"
+                        >
+                            Save as Final
+                        </button>
+                    )}
                 </div>
                 <button className="pdf-toolbar__btn" onClick={onClose} title="Close">
                     ✕

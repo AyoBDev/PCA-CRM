@@ -36,8 +36,12 @@ export default function PdfPageCanvas({
         if (!canvas || !pdfPage) return;
         const vp = pdfPage.getViewport({ scale: zoom });
         const ctx = canvas.getContext('2d');
-        canvas.width = vp.width;
-        canvas.height = vp.height;
+        const ratio = window.devicePixelRatio || 1;
+        canvas.width = Math.ceil(vp.width * ratio);
+        canvas.height = Math.ceil(vp.height * ratio);
+        canvas.style.width = `${vp.width}px`;
+        canvas.style.height = `${vp.height}px`;
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
         const renderTask = pdfPage.render({ canvasContext: ctx, viewport: vp });
         renderTask.promise.then(() => setRendered(true)).catch(() => {});
         return () => renderTask.cancel();
@@ -160,7 +164,7 @@ export default function PdfPageCanvas({
                 className="pdf-page__overlay"
                 width={width}
                 height={height}
-                style={{ position: 'absolute', top: 0, left: 0, zIndex: 1, cursor: activeTool === 'draw' ? 'crosshair' : activeTool === 'text' ? 'text' : 'default', pointerEvents: editingText ? 'none' : 'auto' }}
+                style={{ position: 'absolute', top: 0, left: 0, zIndex: 1, cursor: activeTool === 'draw' ? 'crosshair' : activeTool === 'text' ? 'text' : 'default', pointerEvents: (editingText || activeTool === 'select') ? 'none' : 'auto' }}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
@@ -179,6 +183,7 @@ export default function PdfPageCanvas({
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
                                 className={selectedId === ann.id ? 'pdf-ann--selected' : ''}
+                                style={{ pointerEvents: 'auto' }}
                             />
                         );
                     }
@@ -193,6 +198,7 @@ export default function PdfPageCanvas({
                                 fill={ann.color}
                                 opacity={0.3}
                                 className={selectedId === ann.id ? 'pdf-ann--selected' : ''}
+                                style={{ pointerEvents: 'auto' }}
                             />
                         );
                     }
@@ -206,6 +212,7 @@ export default function PdfPageCanvas({
                                 fill={ann.color}
                                 fontFamily="Helvetica, Arial, sans-serif"
                                 className={selectedId === ann.id ? 'pdf-ann--selected' : ''}
+                                style={{ pointerEvents: 'auto' }}
                             >
                                 {ann.content || ' '}
                             </text>
@@ -219,7 +226,7 @@ export default function PdfPageCanvas({
                 .filter(f => f.page === pageIndex)
                 .map(field => (
                     <PdfFormField
-                        key={field.name + '-' + field.page}
+                        key={`${field.name}-${field.page}-${field.optionValue ?? ''}-${Math.round(field.rect.x)}-${Math.round(field.rect.y)}`}
                         field={field}
                         pageHeight={pageHeight || height}
                         zoom={zoom}
