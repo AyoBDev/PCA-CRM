@@ -379,6 +379,11 @@ All FK relationships use cascade delete. Prisma schema uses `@@map` for snake_ca
 - Frontend: `ActivityButton` (page-level) and `EntityActivityButton` (entity-level) in `ActivityDrawer.jsx`
 - **History Page** (`HistoryPage.jsx`): shows all audit logs with filters by action, entity type, and date range. Entity types: Client, Employee, User, Shift, Timesheet, Authorization, PayrollRun, PermanentLink, InsuranceType, Service, Task, Receipt
 
+### Audit-log retention
+- **Default: keep forever.** Audit history is never auto-deleted unless an operator explicitly opts in — the safe default for a healthcare-adjacent trail.
+- **Opt in** by setting `AUDIT_LOG_RETENTION_DAYS` (positive integer, e.g. `2555` ≈ 7 years). A daily cron (`jobs/auditLogRetention.js`, 4:00 AM UTC) then deletes `audit_logs` rows older than that window **across all agencies** (platform maintenance, owner connection). When the var is unset/invalid the job is a no-op.
+- Logic lives in `auditService.resolveRetentionDays()` + `purgeExpiredLogs({retentionDays, now})`. A purge that removes rows records its own `PERMANENT_DELETE` / `AuditLog` summary entry (count, cutoff, retentionDays) so the deletion is itself auditable. Tests: `src/services/__tests__/auditRetention.test.js`, `src/jobs/__tests__/auditLogRetention.test.js`.
+
 ### Audit Logging — Required for All New Features
 **Every new page or feature that performs mutations MUST log audit events.** This ensures the History page always reflects all system activity. When adding a new feature:
 1. Import `audit` from `../services/auditService` in the controller
