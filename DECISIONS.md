@@ -289,6 +289,20 @@ dates were unchanged.
 
 **Why:** the domain is small and tightly coupled to our persistence + audit conventions; a library would constrain more than it helps.
 
+## 2026-08-28 — Remove client-side `xlsx` (SheetJS) — no replacement parser needed
+
+**Decision:** Remove the `xlsx` dependency from the client entirely and delete the orphaned `ClientsPage.jsx` that used it — do NOT adopt `exceljs` or any other in-browser parser on the client.
+
+**Context:** The server already migrated off vulnerable `xlsx` to `exceljs` (branch `feat/hardening-errortracking-xlsx`). The task was to do the same on the client, where `ClientsPage.jsx:204` parsed client-import spreadsheets in-browser via `xlsx` (`XLSX.read` / `sheet_to_json` / `SSF.parse_date_code`). `xlsx@0.18.5` has HIGH-severity prototype-pollution + ReDoS advisories with **no upstream fix**, so a security review flags the client `package.json`.
+
+**Investigation finding (changed the outcome):** `ClientsPage.jsx` is **dead, unrouted code**. On 2026-05-01 (commit `0e8163c` "rename ClientsPage to AuthorizationsPage") the clients/authorizations UI was rebuilt: the live `AuthorizationsPage.jsx` bulk-import now sends the raw upload to the server (`api.bulkImport(file)` → server-side `exceljs`) and does **not** parse in-browser; the new `ClientsListPage.jsx` took over `/clients`. The old `ClientsPage.jsx` was copied into the new page and left orphaned — nothing imports it, and it never appears in the build. It was the *only* client consumer of `xlsx`.
+
+**Options considered:**
+- **Adopt `exceljs` on the client (initial plan)** — actively maintained (~1.9M weekly downloads), advisory-free once `uuid` is overridden to ≥11.1.1, matches the server. Its browser build reads `.xlsx` from an ArrayBuffer (`workbook.xlsx.load`), but does **not** support CSV in the browser (CSV path would need a hand-rolled parser), and its package `main` is the Node build — you must import `exceljs/dist/exceljs.min.js` explicitly for Rollup to resolve it. ~950 KB raw / ~258 KB gz, lazy-loaded. **Rejected:** it would only ever be imported by a file that is dead code, adding a large dependency + transitive-advisory management (`uuid` override) for zero reachable benefit.
+- **`read-excel-file`** — ~7x smaller, advisory-free, Web Workers. Rejected for the same reason (no live consumer) and because it enforces a strict schema and doesn't parse CSV or expose raw array-of-arrays cleanly.
+- **Delete the dead file, add no parser (chosen)** — removes `xlsx` from `package.json`/lockfile/`node_modules`, deletes the 979-line orphan, and adds no new client dependency. Smallest attack surface and smallest diff; the live import flow (server-side parsing) is unaffected.
+
+**Why:** The security goal (no advisory-flagged parser in the client) is fully met by deletion. Adding any in-browser parser would ship an unreachable code path and new dependency weight for a feature that was intentionally moved server-side months ago. Net change: −1 dependency, −979 lines, no new deps. All 139 client tests pass; production build is clean (no `xlsx`/`exceljs` artifacts in any chunk).
 ## 2026-08-27 — Production hardening: error tracking + replace vulnerable `xlsx`
 
 Two items from a production-readiness review, done together on `feat/hardening-errortracking-xlsx`.
