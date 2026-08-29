@@ -2,8 +2,17 @@
 //
 // Per agency, for every EmployeeCertification with a non-null expirationDate
 // whose CertType is renewable (requiresExpiry !== false):
-//   1. Sets currentVersionKey (if currently null) to the id of its latest
-//      CertificationUpload, or 'v0' if it has none.
+//   1. Resolves versionKey using the EXACT same precedence as versionKeyFor()
+//      in certReminderService.js — cert.currentVersionKey if already set,
+//      else the id of its latest CertificationUpload, else 'v0' — and sets
+//      currentVersionKey to that resolved value if it was null. This is
+//      critical: the production sweep keys off currentVersionKey ONLY (it
+//      never looks at uploads), so a cert mid-renewal (an approved version
+//      plus a newer PENDING upload awaiting HR review) must keep its
+//      seeded ledger rows under the SAME key the sweep will look up —
+//      keying off the latest upload id instead would seed suppression rows
+//      under a version the sweep never checks, and the stale reminder would
+//      still fire.
 //   2. Pre-seeds CertReminderLog rows (channels all 'skipped') for every
 //      reminder stage that is already in the past for the cert's current
 //      expiration — so the FIRST production sweep does not fire a burst of
@@ -67,14 +76,20 @@ async function backfillAgency(agency) {
       const requiresExpiry = type ? Boolean(type.requiresExpiry) : true; // unknown type gated (renewable by default)
       if (!requiresExpiry || !cert.expirationDate) continue;
 
-      // 1. Resolve + set currentVersionKey if missing.
-      const latestUpload = await db.certificationUpload.findFirst({
-        where: { certificationId: cert.id },
-        orderBy: { id: 'desc' },
-      });
-      const versionKey = latestUpload
-        ? String(latestUpload.id)
-        : (cert.currentVersionKey || 'v0');
+      // 1. Resolve versionKey with the SAME precedence as versionKeyFor() in
+      // certReminderService.js: currentVersionKey wins if already set;
+      // otherwise fall back to the latest upload id, then 'v0'. Only look up
+      // the latest upload when we actually need the fallback.
+      let versionKey;
+      if (cert.currentVersionKey) {
+        versionKey = String(cert.currentVersionKey);
+      } else {
+        const latestUpload = await db.certificationUpload.findFirst({
+          where: { certificationId: cert.id },
+          orderBy: { id: 'desc' },
+        });
+        versionKey = latestUpload ? String(latestUpload.id) : 'v0';
+      }
 
       if (cert.currentVersionKey == null) {
         await db.employeeCertification.update({
@@ -110,7 +125,7 @@ async function backfillAgency(agency) {
 }
 
 async function main() {
-  const agencies = await prisma.agency.findMany({ orderBy: { id: 'asc' } });
+  const agencies = await prisma.agency.findMany({ where: { status: 'active' }, orderBy: { id: 'asc' } });
   if (agencies.length === 0) {
     console.log('No agencies found — nothing to backfill.');
     return;
