@@ -250,12 +250,17 @@ approveCertRenewal(cert, newExpiration, hrUser):
 
 - Each channel is wrapped: a failure records `'failed'` in the ledger `channels`
   JSON and continues. Email down never blocks in-app or the block logic.
-- **Stage completion signal (decided):** the ledger row is written once the in-app
-  channel succeeds, which marks the stage done. Email/push results are recorded in
-  the `channels` JSON for observability but do **not** gate completion. Email is
-  therefore **not** retried on the next sweep in v1 (a failed email is logged, not
-  re-sent) — this keeps "exactly-once" unambiguous. Automatic email retry is
-  explicitly out of scope for v1.
+- **Stage completion signal (as implemented):** the ledger row is written
+  unconditionally after the fan-out completes, which marks the stage done. Every
+  channel's result (`'sent'`/`'failed'`/`'skipped'`/`'stubbed'`) is recorded in the
+  `channels` JSON for observability, but **no channel gates completion** — not even
+  in-app. A stage therefore fires exactly once and is **never retried** on a later
+  sweep, regardless of which channels succeeded (a failed email or a failed in-app
+  write is logged in `channels`, not re-sent). This keeps "exactly-once" unambiguous
+  and matches the DB `@@unique` backstop. Per-channel retry is explicitly out of
+  scope for v1. (An earlier draft gated completion on in-app success; the shipped
+  engine writes the ledger row regardless, which is the stronger exactly-once
+  guarantee.)
 - `@@unique([certificationId, versionKey, stage])` throws `P2002` on a duplicate
   attempt; the engine catches it as "already sent."
 - Per-agency sweep is try/caught; one tenant error does not abort the rest.
