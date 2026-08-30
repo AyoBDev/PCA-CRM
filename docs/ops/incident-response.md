@@ -27,9 +27,10 @@ and how customers hear about it.**
   errors and caught background-job failures are captured, grouped, and alertable.
   Configure a Sentry alert rule to notify the on-call engineer on a new issue or a
   spike. See `server/src/lib/observability.js`.
-- **Availability** — an external uptime monitor on `GET /health` (see the
-  Operability checklist item; set this up if not yet done). Sentry sees errors, not
-  a hard-down site.
+- **Availability** — an external UptimeRobot monitor on `https://careomnios.com/health`,
+  alerting the on-call engineer by email on downtime. `/health` is a liveness check
+  (process up), so a DB-down-but-app-up condition surfaces via Sentry, not here. See
+  `monitoring.md`. Sentry sees errors, not a hard-down site.
 - **Platform** — Railway service logs and deploy history (rollback lives here).
 
 ---
