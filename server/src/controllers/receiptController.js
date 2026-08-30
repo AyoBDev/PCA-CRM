@@ -162,7 +162,11 @@ async function generateReceipts(req, res) {
         }
 
         created.push(receipt);
-        audit.logAction(req.user.id, req.user.name, req.user.role, 'CREATE', 'PayReceipt', receipt.id, profile.employee.name, [], {});
+        audit.logAction({
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            action: 'CREATE', entityType: 'PayReceipt', entityId: receipt.id,
+            entityName: profile.employee.name, changes: [], metadata: {},
+        });
     }
 
     res.json(created);
@@ -176,7 +180,11 @@ async function updateReceipt(req, res) {
 
     const data = req.body;
     const updated = await req.db.payReceipt.update({ where: { id: Number(id) }, data });
-    audit.logAction(req.user.id, req.user.name, req.user.role, 'UPDATE', 'PayReceipt', updated.id, '', [], {});
+    audit.logAction({
+        userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+        action: 'UPDATE', entityType: 'PayReceipt', entityId: updated.id,
+        entityName: '', changes: [], metadata: {},
+    });
     res.json(updated);
 }
 
