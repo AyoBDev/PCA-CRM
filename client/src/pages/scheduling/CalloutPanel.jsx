@@ -5,6 +5,15 @@ import { useToast } from '../../hooks/useToast';
 import { hhmm12 } from '../../utils/time';
 import { formatDate } from '../../utils/dates';
 
+// Maps a ranking conflict reason to a human label + severity token. Any reason
+// not listed falls back to the raw string in muted styling.
+const CONFLICT_LABELS = {
+    already_scheduled:   { label: 'Already scheduled', tone: 'warning' },
+    time_off:            { label: 'Time off',          tone: 'warning' },
+    compliance_expired:  { label: 'Compliance expired', tone: 'danger' },
+    blackout_date:       { label: 'Blackout',          tone: 'danger' },
+};
+
 /**
  * Records a caregiver calling out of a shift, then shows the ranked
  * replacement candidates with a one-click Offer per row.
@@ -24,6 +33,10 @@ export default function CalloutPanel({ shift, employees, onClose, onShiftChanged
     const [candidates, setCandidates] = useState([]);
     const [offers, setOffers] = useState([]);
     const [offeringId, setOfferingId] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [showAll, setShowAll] = useState(false);
+    const [fullCandidates, setFullCandidates] = useState(null); // { eligible, ineligible } | null — lazy-loaded once
+    const [loadingAll, setLoadingAll] = useState(false);
 
     const employeeName = shift?.employee?.name || shift?.displayEmployeeName || 'Unassigned';
 
@@ -35,6 +48,19 @@ export default function CalloutPanel({ shift, employees, onClose, onShiftChanged
             /* offer history is supplementary — never block the panel on it */
         }
     }, [shift?.id]);
+
+    const ensureFullCandidates = useCallback(async () => {
+        if (fullCandidates || !shift?.id) return;
+        setLoadingAll(true);
+        try {
+            const all = await api.getAllReplacementCandidates(shift.id);
+            setFullCandidates({ eligible: all.eligible || [], ineligible: all.ineligible || [] });
+        } catch (err) {
+            showToast(err.message || 'Could not load full caregiver list', 'error');
+        } finally {
+            setLoadingAll(false);
+        }
+    }, [fullCandidates, shift?.id, showToast]);
 
     // A shift already pending replacement re-opens straight into the candidate
     // list rather than asking the user to record a callout twice.
@@ -52,6 +78,12 @@ export default function CalloutPanel({ shift, employees, onClose, onShiftChanged
         })();
         loadOffers();
     }, [shift?.id, shift?.status, loadOffers, showToast]);
+
+    useEffect(() => {
+        if (stage === 'candidates' && (showAll || searchTerm.trim().length > 0)) {
+            ensureFullCandidates();
+        }
+    }, [stage, showAll, searchTerm, ensureFullCandidates]);
 
     const handleRecordCallout = async () => {
         setSaving(true);
@@ -177,6 +209,18 @@ export default function CalloutPanel({ shift, employees, onClose, onShiftChanged
 
     const offeredIds = new Set(offers.map(o => o.employeeId));
 
+    const usingFullList = showAll || searchTerm.trim().length > 0;
+    const term = searchTerm.trim().toLowerCase();
+
+    const fullOrdered = fullCandidates
+        ? [...fullCandidates.eligible, ...fullCandidates.ineligible]
+        : [];
+    const filteredFull = term
+        ? fullOrdered.filter(c => (c.employeeName || '').toLowerCase().includes(term))
+        : fullOrdered;
+
+    const displayed = usingFullList ? filteredFull : candidates;
+
     return (
         <Modal onClose={onClose} wide>
             <h3 className="modal__title">
@@ -231,13 +275,40 @@ export default function CalloutPanel({ shift, employees, onClose, onShiftChanged
                         </div>
                     )}
 
-                    {candidates.length === 0 ? (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+                        <input
+                            type="search"
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            placeholder="Search all caregivers by name…"
+                            autoComplete="off"
+                            style={{ flex: 1 }}
+                        />
+                        <button
+                            type="button"
+                            className={showAll ? 'btn btn--sm btn--primary' : 'btn btn--sm btn--outline'}
+                            onClick={() => setShowAll(v => !v)}
+                        >
+                            {showAll ? 'Show top 5' : 'Show all caregivers'}
+                        </button>
+                    </div>
+                    {usingFullList && (
+                        <p style={{ margin: '0 0 10px', fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
+                            Showing all caregivers, including unavailable ones (flagged). Availability still outranks distance.
+                        </p>
+                    )}
+
+                    {displayed.length === 0 ? (
                         <div style={{
                             padding: 20, textAlign: 'center', borderRadius: 'var(--radius)',
                             background: 'hsl(var(--danger-bg))', color: 'hsl(var(--danger))',
                             fontSize: 13, fontWeight: 500,
                         }}>
-                            No eligible replacements found. This shift needs manual coverage.
+                            {loadingAll
+                                ? 'Loading caregivers…'
+                                : usingFullList
+                                    ? 'No caregivers match your search.'
+                                    : 'No eligible replacements found. This shift needs manual coverage.'}
                         </div>
                     ) : (
                         <div className="table-scroll">
@@ -252,11 +323,11 @@ export default function CalloutPanel({ shift, employees, onClose, onShiftChanged
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {candidates.map(c => {
+                                    {displayed.map(c => {
                                         const alreadyOffered = offeredIds.has(c.employeeId);
                                         return (
                                             <tr key={c.employeeId}>
-                                                <td style={{ color: 'hsl(var(--muted-foreground))' }}>{c.rank}</td>
+                                                <td style={{ color: 'hsl(var(--muted-foreground))' }}>{c.rank ?? '—'}</td>
                                                 <td style={{ fontWeight: 500 }}>
                                                     {c.employeeName}
                                                     {c.onCareTeam && (
@@ -266,6 +337,25 @@ export default function CalloutPanel({ shift, employees, onClose, onShiftChanged
                                                             background: 'hsl(var(--primary) / 0.1)', color: 'hsl(var(--primary))',
                                                         }}>Care team</span>
                                                     )}
+                                                    {c.conflicts && c.conflicts.length > 0 && (() => {
+                                                        const info = CONFLICT_LABELS[c.conflicts[0]] || { label: c.conflicts[0], tone: 'muted' };
+                                                        const color = info.tone === 'danger'
+                                                            ? 'hsl(var(--danger))'
+                                                            : info.tone === 'warning'
+                                                                ? 'hsl(var(--warning))'
+                                                                : 'hsl(var(--muted-foreground))';
+                                                        const bg = info.tone === 'danger'
+                                                            ? 'hsl(var(--danger-bg))'
+                                                            : info.tone === 'warning'
+                                                                ? 'hsl(var(--warning-bg))'
+                                                                : 'hsl(var(--muted))';
+                                                        return (
+                                                            <span style={{
+                                                                marginLeft: 6, padding: '1px 6px', borderRadius: 4,
+                                                                fontSize: 10, fontWeight: 600, background: bg, color,
+                                                            }}>{info.label}</span>
+                                                        );
+                                                    })()}
                                                 </td>
                                                 {/* Click-to-call and click-to-email: most replacements are
                                                     arranged by phone, and looking the number up elsewhere
