@@ -82,6 +82,40 @@ async function getReplacementCandidates(req, res, next) {
     }
 }
 
+// GET /api/shifts/:id/replacement-candidates/all
+//
+// The full ranked roster, not just the top 5: soft mode returns every eligible
+// candidate in rank order PLUS the ineligible ones annotated with why they
+// cannot take the shift. Used by the panel's search / "show all" view so a
+// scheduler can reach someone ranked 6+ or knowingly offer a shift to a
+// caregiver with a conflict. Same ranking service as the top-5 endpoint, so
+// order and scoring are identical.
+async function getAllReplacementCandidates(req, res, next) {
+    try {
+        const shift = await req.db.shift.findUnique({ where: { id: Number(req.params.id) } });
+        if (!shift) return res.status(404).json({ error: 'Shift not found' });
+
+        const result = await ranking.rankCandidates(req.db, {
+            clientId: shift.clientId,
+            serviceCode: shift.serviceCode,
+            date: toDateStr(shift.shiftDate),
+            startTime: shift.startTime,
+            endTime: shift.endTime,
+            excludeEmployeeId: shift.employeeId ?? undefined,
+        }, { mode: 'soft' });
+
+        const callout = await req.db.shiftCallout.findFirst({
+            where: { shiftId: shift.id, resolution: 'open' },
+            orderBy: { createdAt: 'desc' },
+            include: { calloutEmployee: { select: { id: true, name: true, phone: true } } },
+        });
+
+        res.json({ ...result, callout });
+    } catch (err) {
+        next(err);
+    }
+}
+
 // GET /api/employees/nearby — shared proximity lookup for shift creation
 async function getNearbyEmployees(req, res, next) {
     try {
@@ -391,6 +425,7 @@ async function resolveCallout(req, res, next) {
 module.exports = {
     recordCallout,
     getReplacementCandidates,
+    getAllReplacementCandidates,
     getNearbyEmployees,
     getOffer,
     respondToOffer,
