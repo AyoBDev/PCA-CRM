@@ -83,11 +83,11 @@ async function createCertification(req, res, next) {
         if (file) await writeUploadRow(req.db, cert, file, req.user, bucketKey);
 
         const employee = await req.db.employee.findUnique({ where: { id: employeeId } });
-        audit.logAction(
-            req.user.id, req.user.name, req.user.role,
-            'CREATE', 'EmployeeCertification', cert.id,
-            `${certType} - ${employee?.name || employeeId}`, [], {}
-        );
+        audit.logAction({
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            action: 'CREATE', entityType: 'EmployeeCertification', entityId: cert.id,
+            entityName: `${certType} - ${employee?.name || employeeId}`, changes: [], metadata: {},
+        });
 
         const { fileData, ...result } = cert;
         res.status(201).json(result);
@@ -122,11 +122,11 @@ async function updateCertification(req, res, next) {
         if (file) await writeUploadRow(req.db, cert, file, req.user, bucketKey);
 
         const changes = audit.diffFields(old, cert, ['expirationDate', 'status', 'notes', 'fileName']);
-        audit.logAction(
-            req.user.id, req.user.name, req.user.role,
-            'UPDATE', 'EmployeeCertification', id,
-            `${cert.certType}`, changes, {}
-        );
+        audit.logAction({
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            action: 'UPDATE', entityType: 'EmployeeCertification', entityId: id,
+            entityName: `${cert.certType}`, changes, metadata: {},
+        });
 
         const { fileData, ...result } = cert;
         res.json(result);
@@ -141,11 +141,11 @@ async function deleteCertification(req, res, next) {
 
         await req.db.employeeCertification.delete({ where: { id } });
 
-        audit.logAction(
-            req.user.id, req.user.name, req.user.role,
-            'DELETE', 'EmployeeCertification', id,
-            cert.certType, [], {}
-        );
+        audit.logAction({
+            userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+            action: 'DELETE', entityType: 'EmployeeCertification', entityId: id,
+            entityName: cert.certType, changes: [], metadata: {},
+        });
 
         res.json({ success: true });
     } catch (err) { next(err); }
