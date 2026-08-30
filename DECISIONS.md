@@ -288,3 +288,15 @@ dates were unchanged.
 - **Custom (chosen)** — `onboardingLifecycle.transition()` as the single gate for status writes + a pure `reviewSummary()` derivation. Minimal surface, fully testable, no new deps.
 
 **Why:** the domain is small and tightly coupled to our persistence + audit conventions; a library would constrain more than it helps.
+
+## 2026-08-28 — Certification Renewal Automation (app-owned, no Monday.com)
+
+**Decision:** Build the renewal automation in-app by extending existing infrastructure (compliance cron, `complianceService`, `Notification`+socket, Brevo email, `CertificationUpload` history) rather than continuing to depend on Monday.com or adopting a third-party reminder/scheduler service.
+
+**Options considered:**
+- **Keep Monday.com for reminders** — rejected per product requirement: the finished employee app must own its renewal workflow and not depend on an external board.
+- **Adopt a job/reminder SaaS or a heavier scheduler (e.g. Agenda/BullMQ-driven reminders)** — rejected: the app already runs a per-agency `node-cron` sweep pattern (timesheet/task/compliance jobs) and a `Notification`+socket delivery path; a new scheduler adds a dependency and a second delivery mechanism for a daily idempotent sweep that fits the existing pattern. BullMQ already exists here only for offer-expiry (Redis-gated) — not needed for a daily date-driven sweep.
+- **Boolean sent-flags on the cert** — rejected in favor of a `CertReminderLog` ledger keyed on `(certificationId, versionKey, stage)` with a DB unique constraint: gives exactly-once per cert *version*, natural schedule-reset on HR approval (version key changes), and an auditable send history, with no reset column to clear.
+- **Custom in-app (chosen)** — a `certReminderService` engine (pure stage/version helpers + fan-out) behind a failure-isolated channel abstraction (email live, in-app live, push a stub with the final signature), driven by a per-agency cron, with HR approval routed through `approveCertRenewal` (old file → Portfolio History, new upload → current, stages re-arm). Compliance block sets `complianceStatus='blocked'` and arms a dormant `isClockInBlocked()` gate for the future in-app clock.
+
+**Why:** the domain is small, date-driven, and tightly coupled to our tenant/RLS, audit, and notification conventions; reusing the established cron + notification infrastructure (and adding one ledger table) is a smaller, more testable surface than any external system, and removes the Monday.com dependency outright.
