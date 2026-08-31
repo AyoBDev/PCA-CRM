@@ -15,7 +15,16 @@ async function listEmployees(req, res, next) {
             include: { user: { select: { id: true, name: true, email: true, role: true } } },
             orderBy: { name: 'asc' },
         });
-        res.json(employees);
+
+        // Decorate each employee with certReviewPending so the list can be filtered
+        // to those with a certification awaiting HR review (the dashboard's
+        // "N certifications awaiting review" item links here with ?certReview=pending).
+        const pendingCerts = await req.db.employeeCertification.findMany({
+            where: { status: 'pending' },
+            select: { employeeId: true },
+        });
+        const pendingSet = new Set(pendingCerts.map(c => c.employeeId));
+        res.json(employees.map(e => ({ ...e, certReviewPending: pendingSet.has(e.id) })));
     } catch (err) { next(err); }
 }
 

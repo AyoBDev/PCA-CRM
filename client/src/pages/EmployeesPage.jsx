@@ -308,6 +308,7 @@ export default function EmployeesPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const onboardingFilter = searchParams.get('onboarding');
+    const certReviewFilter = searchParams.get('certReview'); // 'pending' → only employees with a cert awaiting HR review
     const [employees, setEmployees] = useState([]);
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -501,6 +502,8 @@ export default function EmployeesPage() {
         if (!matchesSearch) return false;
 
         if (onboardingFilter && e.onboardingStatus !== onboardingFilter) return false;
+
+        if (certReviewFilter === 'pending' && !e.certReviewPending) return false;
 
         if (statusFilter === 'OK') return getEmpCertStatus(e) === 'valid' && !e.critical;
         if (statusFilter === 'Critical') return e.critical || getEmpCertStatus(e) === 'expiring';

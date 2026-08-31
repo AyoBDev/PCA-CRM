@@ -6,7 +6,11 @@ jest.mock('../../lib/tenantPrisma', () => {
         update: jest.fn(),
         delete: jest.fn(),
     };
+    const employeeCertification = {
+        findMany: jest.fn().mockResolvedValue([]),
+    };
     return {
+        __employeeCertification: employeeCertification,
         // createEmployee wraps its create in tenantTransaction; the mock tx just
         // proxies to the same jest.fn()s so existing per-test mockResolvedValue
         // calls on prisma.employee.create continue to work unchanged.
@@ -26,7 +30,7 @@ jest.mock('../../services/geocodeOnWrite', () => ({ geocodeOnWrite: jest.fn() })
 // build a req.db double sharing the SAME employee jest.fn()s as the tenantTransaction
 // mock's tx, so a test that sets up prisma.employee.create.mockResolvedValue(...) works
 // whether the code path under test goes through req.db or the tx.
-const prisma = { employee: require('../../lib/tenantPrisma').__employee };
+const prisma = { employee: require('../../lib/tenantPrisma').__employee, employeeCertification: require('../../lib/tenantPrisma').__employeeCertification };
 const { geocodeOnWrite } = require('../../services/geocodeOnWrite');
 const { listEmployees, createEmployee } = require('../employeeController');
 
@@ -41,11 +45,30 @@ function mockReqRes(overrides = {}) {
 }
 
 describe('listEmployees', () => {
-    test('returns all employees', async () => {
+    test('returns all employees, decorated with certReviewPending=false when none pending', async () => {
         prisma.employee.findMany.mockResolvedValue([{ id: 1, name: 'Test' }]);
+        prisma.employeeCertification.findMany.mockResolvedValue([]);
         const { req, res, next } = mockReqRes();
         await listEmployees(req, res, next);
-        expect(res.json).toHaveBeenCalledWith([{ id: 1, name: 'Test' }]);
+        expect(res.json).toHaveBeenCalledWith([{ id: 1, name: 'Test', certReviewPending: false }]);
+    });
+
+    test('flags employees who have a pending certification with certReviewPending=true', async () => {
+        prisma.employee.findMany.mockResolvedValue([
+            { id: 1, name: 'Has Pending' },
+            { id: 2, name: 'No Pending' },
+        ]);
+        // The controller queries pending certs and derives the set of employeeIds.
+        prisma.employeeCertification.findMany.mockResolvedValue([{ employeeId: 1 }]);
+        const { req, res, next } = mockReqRes();
+        await listEmployees(req, res, next);
+        const payload = res.json.mock.calls[0][0];
+        expect(payload.find(e => e.id === 1).certReviewPending).toBe(true);
+        expect(payload.find(e => e.id === 2).certReviewPending).toBe(false);
+        // Only pending certs are queried.
+        expect(prisma.employeeCertification.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({ where: expect.objectContaining({ status: 'pending' }) })
+        );
     });
 
     test('filters by active status', async () => {
