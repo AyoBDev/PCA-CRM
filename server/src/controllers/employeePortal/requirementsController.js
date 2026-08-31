@@ -19,19 +19,31 @@ async function getCertifications(req, res) {
     }),
   ]);
 
-  const catById = Object.fromEntries(certTypes.map(c => [c.id, c]));
   const certById = Object.fromEntries(certs.map(c => [c.id, c]));
+  // Requirement rows and cert records, indexed by cert-type KEY so we can build
+  // one card per catalog type (parity with the admin's full-catalog view) and
+  // merge in this employee's requirement + record where they exist.
+  const reqByCatalogId = Object.fromEntries(reqs.map(r => [r.catalogTypeId, r]));
+  const certByType = {};
+  for (const c of certs) {
+    // Prefer an active/approved record; otherwise keep the most recent one.
+    const cur = certByType[c.certType];
+    if (!cur || (c.status === 'active' || c.status === 'approved') || (c.id > cur.id)) certByType[c.certType] = c;
+  }
 
-  const certifications = reqs.map(r => {
-    const cat = catById[r.catalogTypeId] || {};
-    const cert = r.certificationId ? certById[r.certificationId] : null;
+  // Base the list on every ACTIVE catalog cert type, so a type the employee has
+  // no record/requirement for still appears (as 'required'), matching admin.
+  const activeTypes = certTypes.filter(t => t.active !== false);
+  const certifications = activeTypes.map(cat => {
+    const r = reqByCatalogId[cat.id] || null;
+    const cert = (r && r.certificationId ? certById[r.certificationId] : null) || certByType[cat.key] || null;
     return {
-      requirementId: r.id,
+      requirementId: r ? r.id : null,
       certificationId: cert ? cert.id : null,
-      certType: cat.key || (cert ? cert.certType : ''),
-      label: cat.label || (cert ? cert.certType : ''),
+      certType: cat.key,
+      label: cat.label || cat.key,
       status: cert ? cert.status : 'required',
-      reviewStatus: r.reviewStatus || 'pending',
+      reviewStatus: (r && r.reviewStatus) || 'pending',
       expirationDate: cert ? cert.expirationDate : null,
       requiresExpiry: Boolean(cat.requiresExpiry),
       renewalYears: cat.renewalYears ?? null,

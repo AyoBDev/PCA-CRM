@@ -164,11 +164,12 @@ export default function CertificationsPage() {
     const colors = CERT_COLORS[item.certType] || CERT_COLORS.other;
     const uploads = Array.isArray(item.uploads) ? item.uploads : [];
     const attachCount = uploads.length > 0 ? uploads.length : (item.currentFile ? 1 : 0);
-    const isExpanded = expandedId === item.requirementId;
+    const cardKey = item.certType || item.requirementId;
+    const isExpanded = expandedId === cardKey;
 
     return (
       <div
-        key={item.requirementId}
+        key={cardKey}
         className="pa-service-card"
         style={{ '--card-accent': colors.accent, '--card-bg': colors.bg, '--card-border': colors.border }}
       >
@@ -209,7 +210,7 @@ export default function CertificationsPage() {
           <button
             className="btn btn--outline btn--sm pa-btn--view-details"
             style={{ color: colors.accent, borderColor: colors.accent }}
-            onClick={() => setExpandedId(isExpanded ? null : item.requirementId)}
+            onClick={() => setExpandedId(isExpanded ? null : cardKey)}
           >
             {isExpanded ? CertIcons.chevronDown : CertIcons.chevronRight} {isExpanded ? 'Hide Details' : 'View Details'}
           </button>
