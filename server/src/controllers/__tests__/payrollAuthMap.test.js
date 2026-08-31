@@ -40,9 +40,17 @@ describe('buildClientAuthMap — future renewal must not double the authorized t
     });
 
     it('no period set → falls back to "today", still excludes a not-yet-started renewal', () => {
-        // With today ~2026-08-18 (session date), the renewal (starts Sep 1) is excluded.
-        const map = buildClientAuthMap([client], null, null);
-        expect(map[norm].SDPC).toBe(28);
+        // The fallback uses new Date(), so pin "today" to a fixed date instead of
+        // the wall clock — otherwise this test rots once the real date crosses the
+        // renewal boundary (Sep 1 2026). With today = Aug 18 2026, the current auth
+        // is effective and the renewal is still excluded.
+        jest.useFakeTimers().setSystemTime(new Date('2026-08-18T12:00:00Z'));
+        try {
+            const map = buildClientAuthMap([client], null, null);
+            expect(map[norm].SDPC).toBe(28);
+        } finally {
+            jest.useRealTimers();
+        }
     });
 
     it('a manually inactivated auth is excluded regardless of dates', () => {
