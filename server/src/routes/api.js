@@ -125,6 +125,7 @@ const {
 const {
     recordCallout,
     getReplacementCandidates,
+    getAllReplacementCandidates,
     getNearbyEmployees,
     getOffer,
     respondToOffer,
@@ -547,6 +548,7 @@ router.get('/shifts/archived',              requireRole('admin', 'user'), requir
 // paths are not shadowed by the parameterised route.
 router.post('/shifts/:id/callout',                  requireRole('admin', 'user'), requirePermission('scheduling'), recordCallout);
 router.get('/shifts/:id/replacement-candidates',    requireRole('admin', 'user'), requirePermission('scheduling'), getReplacementCandidates);
+router.get('/shifts/:id/replacement-candidates/all', requireRole('admin', 'user'), requirePermission('scheduling'), getAllReplacementCandidates);
 router.post('/shifts/:id/offers',                   requireRole('admin', 'user'), requirePermission('scheduling'), createOffer);
 router.post('/shifts/:id/auto-offer',               requireRole('admin', 'user'), requirePermission('scheduling'), startAutoOffer);
 router.get('/shifts/:id/offers',                    requireRole('admin', 'user'), requirePermission('scheduling'), listOffers);

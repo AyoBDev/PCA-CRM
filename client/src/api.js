@@ -550,6 +550,8 @@ export const recordCallout = (shiftId, body) =>
     request(`/shifts/${shiftId}/callout`, { method: 'POST', body: JSON.stringify(body) });
 export const getReplacementCandidates = (shiftId) =>
     request(`/shifts/${shiftId}/replacement-candidates`);
+export const getAllReplacementCandidates = (shiftId) =>
+    request(`/shifts/${shiftId}/replacement-candidates/all`);
 export const createShiftOffer = (shiftId, body) =>
     request(`/shifts/${shiftId}/offers`, { method: 'POST', body: JSON.stringify(body) });
 export const listShiftOffers = (shiftId) =>
