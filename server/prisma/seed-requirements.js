@@ -13,7 +13,11 @@ const DEFAULT_CERT_TYPES = [
   { key: 'tb_test', label: 'TB Test', renewalYears: 1, requiresExpiry: true, sortOrder: 2 },
   { key: 'cpr', label: 'CPR', renewalYears: 2, requiresExpiry: true, sortOrder: 3 },
   { key: 'annual_training', label: '8hr Annual Training', renewalYears: 1, requiresExpiry: true, sortOrder: 4 },
-  { key: 'background_check', label: 'Background Check', renewalYears: 5, requiresExpiry: true, sortOrder: 5 },
+  { key: 'cultural_competency', label: 'Cultural Competency Training', renewalYears: 2, requiresExpiry: true, sortOrder: 5 },
+  { key: 'infection_control', label: 'Infection Control Training', renewalYears: 1, requiresExpiry: true, sortOrder: 6 },
+  { key: 'background_check', label: 'Background Check', renewalYears: 5, requiresExpiry: true, sortOrder: 7 },
+  // 'other' has no fixed renewal cadence and does not gate compliance.
+  { key: 'other', label: 'Other', renewalYears: null, requiresExpiry: false, sortOrder: 8 },
 ];
 
 const DEFAULT_POLICIES = [
