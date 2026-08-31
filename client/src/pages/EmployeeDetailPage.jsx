@@ -14,6 +14,7 @@ import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
 import { TIMESHEET_STATUS_STYLES, TIMESHEET_SERVICE_COLORS, ONBOARDING_STATUS_LABELS, ONBOARDING_STATUS_BADGE_VARIANT } from '../utils/constants';
 import { formatDate, formatTimestamp } from '../utils/dates';
+import { getCertStatusForRecords, certStatusLabel } from '../utils/certStatus';
 import PreviewModal from '../components/common/PreviewModal';
 import CertFileRow from '../components/files/CertFileRow';
 import CertViewerPanel from '../components/common/CertViewerPanel';
@@ -886,17 +887,11 @@ function CertificationsTab({ employee, onEdit }) {
     const getCertStatusForType = (certType) => {
         const typeDef = CERT_TYPES.find(t => t.type === certType);
         const records = certRecords.filter(r => r.certType === certType);
-        const activeRecord = records.find(r => r.status === 'active');
         const legacyDate = typeDef?.legacyKey ? employee[typeDef.legacyKey] : null;
-        const expDate = activeRecord?.expirationDate || legacyDate;
-
-        if (!expDate) return { status: 'unknown', days: null, expDate: null, record: activeRecord };
-        const now = new Date();
-        const d = new Date(expDate);
-        const days = Math.ceil((d - now) / 86400000);
-        if (days < 0) return { status: 'expired', days, expDate, record: activeRecord };
-        if (days <= 30) return { status: 'critical', days, expDate, record: activeRecord };
-        return { status: 'ok', days, expDate, record: activeRecord };
+        // Shared pure logic: a record awaiting HR review ('pending'/'submitted')
+        // reads as 'pending' regardless of its (stale) date, so a just-uploaded
+        // renewal no longer misreads as "Not Set"/"Expired". See utils/certStatus.
+        return getCertStatusForRecords(records, legacyDate);
     };
 
     const counts = { all: CERT_TYPES.length, ok: 0, critical: 0, expired: 0 };
@@ -985,7 +980,7 @@ function CertificationsTab({ employee, onEdit }) {
         } catch (err) { showToast(err.message, 'error'); }
     };
 
-    const statusLabel = (s) => s === 'ok' ? 'Active' : s === 'critical' ? 'Expiring Soon' : s === 'expired' ? 'Expired' : 'Not Set';
+    const statusLabel = certStatusLabel;
     const statusBadgeClass = (s) => s === 'ok' ? 'submitted' : s === 'critical' ? 'draft' : s === 'expired' ? 'critical' : 'draft';
 
     // Stable fetchBlob closures for the docked FilePreviewPane, keyed by
@@ -1127,9 +1122,11 @@ function CertificationsTab({ employee, onEdit }) {
         const colors = CERT_COLORS[ct.type] || CERT_COLORS.other;
         const allRecords = certRecords.filter(r => r.certType === ct.type);
         const activeRecords = allRecords.filter(r => r.status === 'active');
-        const pendingRecords = allRecords.filter(r => r.status === 'pending');
+        const pendingRecords = allRecords.filter(r => r.status === 'pending' || r.status === 'submitted');
         const expiredRecords = allRecords.filter(r => r.status === 'expired');
-        const currentAttachment = activeRecords.find(r => r.fileName);
+        // A cert awaiting review still has a file to show — fall back to a pending
+        // record so a just-uploaded renewal is not treated as having no attachment.
+        const currentAttachment = activeRecords.find(r => r.fileName) || pendingRecords.find(r => r.fileName);
         const allUploads = allRecords.flatMap(r => r.uploads || []);
         // Count distinct files. Each CertificationUpload row IS one stored file
         // (the active file already has its own "Active (imported)" upload row), so
@@ -1149,6 +1146,7 @@ function CertificationsTab({ employee, onEdit }) {
                     <div className="pa-service-card__title-area">
                         <h4 className="pa-service-card__title">{colors.label}</h4>
                         <span className={`pa-badge pa-badge--active`} style={
+                            status === 'pending' ? { background: 'hsl(217 91% 93%)', color: '#2563eb' } :
                             status === 'ok' ? { background: 'hsl(142 76% 92%)', color: '#16a34a' } :
                             status === 'critical' ? { background: 'hsl(38 92% 92%)', color: '#d97706' } :
                             status === 'expired' ? { background: 'hsl(0 84% 94%)', color: '#dc2626' } :
@@ -1196,11 +1194,13 @@ function CertificationsTab({ employee, onEdit }) {
 
                 {isExpanded && (
                     <div className="pa-service-card__expanded">
-                        {activeRecords.length === 0 && expiredRecords.length === 0 ? (
+                        {activeRecords.length === 0 && pendingRecords.length === 0 && expiredRecords.length === 0 ? (
                             <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', padding: '12px 0' }}>No certification records on file.</div>
                         ) : (
                             <div className="pa-auth-list">
-                                {activeRecords.map(rec => {
+                                {/* Show the active record if present, else the pending renewal awaiting
+                                    review, so a just-uploaded cert is not hidden behind an empty state. */}
+                                {(activeRecords.length > 0 ? activeRecords : pendingRecords).map(rec => {
                                     if (!rec.fileName) {
                                         return (
                                             <div key={rec.id} className="pa-auth-item pa-auth-item--active">
