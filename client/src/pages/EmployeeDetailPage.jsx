@@ -700,7 +700,7 @@ export default function EmployeeDetailPage() {
                         </div>
                     )}
                     {activeTab === 'certifications' && (
-                        <CertificationsTab employee={employee} onEdit={() => setShowCertModal(true)} />
+                        <CertificationsTab employee={employee} onEdit={() => setShowCertModal(true)} onEmployeeChanged={fetchEmployee} />
                     )}
                     {activeTab === 'timesheets' && (
                         <TimesheetsTab employeeName={employee.name} navigate={navigate} />
@@ -845,7 +845,7 @@ const CERT_COLORS = {
     other: { accent: '#a855f7', bg: 'hsl(270 76% 96%)', border: '#a855f7', label: 'OTHER', icon: 'fileText' },
 };
 
-function CertificationsTab({ employee, onEdit }) {
+function CertificationsTab({ employee, onEdit, onEmployeeChanged }) {
     const { showToast } = useToast();
     const [certRecords, setCertRecords] = useState([]);
     const [loadingCerts, setLoadingCerts] = useState(true);
@@ -857,6 +857,7 @@ function CertificationsTab({ employee, onEdit }) {
     // The attachment shown in the tab-level docked Interactive Attachment Viewer
     // (client-tab parity): { fileName, fetchBlob }. Set by clicking a cert's file.
     const [selectedCertDoc, setSelectedCertDoc] = useState(null);
+    const [approvingCert, setApprovingCert] = useState(null); // { rec, certLabel } — open the approve dialog
     const certViewerWide = useIsWide(900);
 
     // Clicking a cert file opens it in the inline viewer — even with the Preview
@@ -916,6 +917,36 @@ function CertificationsTab({ employee, onEdit }) {
             await api.createEmployeeCertification(employee.id, formData);
             showToast('Certification uploaded');
             setShowUploadModal(null);
+            fetchCerts();
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    // HR approves an employee-submitted renewal. Sends status:'active' + the new
+    // expiration to PUT /certifications/:id, which routes through approveCertRenewal
+    // server-side: the old file drops to Portfolio History, the new upload becomes
+    // current, the renewal task resolves, and compliance re-evaluates (clearing a
+    // block). No file is sent, so the server takes the approval branch.
+    const handleApproveCert = async (rec, newExpirationDate) => {
+        try {
+            const fd = new FormData();
+            fd.append('status', 'active');
+            if (newExpirationDate) fd.append('expirationDate', newExpirationDate);
+            await api.updateEmployeeCertification(rec.id, fd);
+            showToast('Certification approved');
+            setApprovingCert(null);
+            fetchCerts();
+            if (onEmployeeChanged) onEmployeeChanged(); // refresh compliance-block badge
+        } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    // HR rejects a submitted renewal: send it back to a non-approved state so the
+    // employee must re-upload. Uses the plain update path (status only).
+    const handleRejectCert = async (rec) => {
+        try {
+            const fd = new FormData();
+            fd.append('status', 'expired');
+            await api.updateEmployeeCertification(rec.id, fd);
+            showToast('Certification sent back to the employee');
             fetchCerts();
         } catch (err) { showToast(err.message, 'error'); }
     };
@@ -1111,6 +1142,14 @@ function CertificationsTab({ employee, onEdit }) {
                     fileName={previewUpload.fileName}
                     onClose={() => setPreviewUpload(null)}
                     fetchBlob={previewUpload.fetchBlob || (() => api.downloadCertificationUpload(previewUpload.id))}
+                />
+            )}
+            {approvingCert && (
+                <CertApproveModal
+                    certLabel={approvingCert.certLabel}
+                    renewalYears={CERT_TYPES.find(t => t.type === approvingCert.rec.certType)?.renewalYears}
+                    onApprove={(newExp) => handleApproveCert(approvingCert.rec, newExp)}
+                    onClose={() => setApprovingCert(null)}
                 />
             )}
         </div>
@@ -1311,6 +1350,22 @@ function CertificationsTab({ employee, onEdit }) {
                                                         />
                                                     ))}
                                                 </div>
+                                                {/* HR decision on the employee-submitted renewal. Approve fires
+                                                    the server-side approveCertRenewal (history/current/re-arm). */}
+                                                <div className="pa-auth-item__actions" style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                                                    <button
+                                                        className="btn btn--primary btn--sm"
+                                                        onClick={() => setApprovingCert({ rec, certLabel: colors.label })}
+                                                    >
+                                                        {Icons.checkCircle} Approve
+                                                    </button>
+                                                    <button
+                                                        className="btn btn--outline btn--sm"
+                                                        onClick={() => handleRejectCert(rec)}
+                                                    >
+                                                        {Icons.x || Icons.close} Reject
+                                                    </button>
+                                                </div>
                                             </div>
                                         ))}
                                     </>
@@ -1384,6 +1439,44 @@ function CertUploadModal({ certType, certLabel, onUpload, onClose }) {
                 <div className="form-actions">
                     <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
                     <button type="submit" className="btn btn--primary">Upload</button>
+                </div>
+            </form>
+        </Modal>
+    );
+}
+
+// HR-approval dialog for an employee-submitted certification renewal. Defaults
+// the new expiration to renewalYears out from today (HR can adjust). Approving
+// PUTs status:'active' + expiration, which the server routes through
+// approveCertRenewal (old file → history, new upload → current, stages re-arm).
+function CertApproveModal({ certLabel, renewalYears, onApprove, onClose }) {
+    const defaultExp = () => {
+        const d = new Date();
+        d.setFullYear(d.getFullYear() + (renewalYears || 1));
+        return d.toISOString().slice(0, 10);
+    };
+    const [expDate, setExpDate] = useState(defaultExp());
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onApprove(expDate ? new Date(expDate).toISOString() : '');
+    };
+
+    return (
+        <Modal onClose={onClose}>
+            <h2 className="modal__title">Approve {certLabel}</h2>
+            <p className="modal__desc">
+                Approve the renewal the employee uploaded. The previous file is kept in Portfolio
+                History, the new upload becomes current, and reminders reset to the new expiration.
+            </p>
+            <form onSubmit={handleSubmit}>
+                <div className="form-group">
+                    <label htmlFor="approveExpDate">New Expiration Date</label>
+                    <input id="approveExpDate" type="date" value={expDate} onChange={e => setExpDate(e.target.value)} required />
+                </div>
+                <div className="form-actions">
+                    <button type="button" className="btn btn--outline" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn--primary">Approve Renewal</button>
                 </div>
             </form>
         </Modal>
