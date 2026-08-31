@@ -2,6 +2,46 @@
 
 A running log of notable build-vs-adopt and design decisions, most recent first.
 
+## 2026-08-28 — Schema-driven restore + tested backup round-trip
+
+**Feature:** Make "restore has been tested" true — and fix the restore path, which testing revealed was badly broken.
+
+**What testing surfaced:** the JSON backup *export* is schema-driven (lists tables from `information_schema`, ~57 tables), but the *restore* (`prisma/import-backup.js`) used a **hardcoded 17-table list** — so restoring a real backup silently dropped ~40 tables (leads, tasks, care team, incidents, admin files, employee certs/docs, payroll profiles, permission groups, receipts, onboarding, messages, …). It also assumed backup keys equal Prisma field names (false for snake_case/`@map` fields, e.g. `client_status`) and couldn't bind `jsonb` columns.
+
+**Options considered:**
+- Adopt `pg_dump`/`pg_restore` (physical/logical Postgres dumps) as the restore path. Signals: battle-tested and complete, and Railway's managed physical backups already cover total-loss recovery. But the app's portable, human-readable, per-tenant JSON export is a deliberate secondary (the Dashboard "Backup" button, tenant-scoped exports) — `pg_dump` doesn't consume that format, needs the `pg_*` binaries on the host, and can't do the per-agency filtering the JSON export does. Kept `pg_dump`/Railway as the primary DR story (documented in the runbook), but it doesn't restore the JSON artifact.
+- Extend the hardcoded restore list to all 57 tables. Rejected: it just re-creates the same drift the export already solved — the list would rot again on the next new table.
+- Build a **schema-driven** restore that mirrors the export: derive tables + columns + types from the live DB, restore whatever the backup contains.
+
+**Choice:** Build the schema-driven restore (`src/lib/restoreBackup.js`); keep `import-backup.js` as a thin CLI wrapper. Restore via raw parameterized `INSERT` on real column names (not Prisma field names), with FK checks deferred via `session_replication_role='replica'`, timestamp/`jsonb` coercion from `information_schema`, and id-sequence resets.
+
+**Why:** A backup you can't fully restore is not a backup, and the *test* is what proved the gap — so the fix and the test ship together. Mirroring the export's schema-driven approach keeps the two halves from drifting apart again (the root cause), and raw-SQL-by-column sidesteps the Prisma field-name mismatch that made a generic Prisma-delegate restore impossible. `session_replication_role` removes the need to hand-maintain FK ordering and handles self-references/cycles. Proven end-to-end: `backupRoundTrip.itest.js` exports a real platform backup, restores into a fresh scratch DB, and asserts every table's row count matches with no silent drops (plus 6 unit tests for the pure helpers). The one irreducible operational caveat the test forced into the open — the restore target needs the same `ENCRYPTION_KEY` or PHI is unrecoverable — is now documented in `docs/ops/backup-restore.md`.
+
+## 2026-08-28 — Audit-log immutability (append-only at the DB level)
+
+**Feature:** Make the audit trail tamper-resistant — the *"audit records cannot be silently altered"* production-readiness item. App code already only appends, but `audit_logs` was a normal table the application connection could `UPDATE`/`DELETE`.
+
+**Options considered:**
+- **Adopt append-only infrastructure** — a WORM/immutable store, ledger DB (e.g. QLDB/immudb), or event-sourcing the audit trail. Signals: strong cryptographic immutability, but a whole new datastore + sync path for one modest relational table that already has a History UI, tenant FKs, and RLS. Massive over-build for the threat (a compromised *app* connection), and it fragments audit reads/writes away from `auditService`.
+- **Postgres trigger** that raises on UPDATE/DELETE of `audit_logs`. Signals: enforces at the DB, but blocks *everyone* including the owner connection — which would break the legitimate retention purge and any operator maintenance, and adds a trigger to maintain.
+- **Revoke UPDATE/DELETE from the app role** (`app_user`) on `audit_logs`, in the existing idempotent `setup-app-role.js`. The owner connection keeps full access.
+
+**Choice:** Revoke `UPDATE, DELETE` on `public.audit_logs` from `app_user`.
+
+**Why:** The realistic threat is a compromised or buggy *application* path (which connects as `app_user` via `APP_DATABASE_URL`), not the owner connection used for deliberate maintenance. A Postgres GRANT/REVOKE is the precise, native tool: it makes the table append-only for `app_user` (keeps SELECT for the History page + INSERT for `auditService`) while the owner connection — `lib/prisma`, used by `auditService` writes and the retention purge — is unaffected, so nothing legitimate breaks. This is a one-line-of-intent change bolted onto the role script that already runs on every deploy (idempotent: REVOKE of a not-held privilege is a no-op), versus standing up an immutable datastore or maintaining a trigger. Verified with a DB-level integration test (`auditLogImmutable.itest.js`): as `app_user`, INSERT/SELECT succeed and UPDATE/DELETE are rejected with "permission denied"; the seeded row survives the tamper attempts; the owner connection can still delete (retention path). Full unit (870) + integration (75) suites green.
+## 2026-08-29 — Reusable fillable-PDF editor (FA-24): adopt pdf-lib + pdf.js, keep forms editable
+
+**Feature:** An in-app editor for fillable government PDF forms (Nevada Medicaid FA-24), so admins fill a master template once per client, save a per-client copy, and reopen it every year for renewals/annual updates/transfers — editing fields in place rather than retyping the whole form. Also: sharp rendering, and annotation tools (draw/highlight/text).
+
+**Options considered:**
+- **pdf-lib (form fill/flatten) + pdf.js (render)** — both already in the client deps (used by the existing DocViewer/thumbnail stack), no new dependency. pdf-lib reads/writes AcroForm fields (109 on the real FA-24), fills them, and can flatten on demand; pdf.js renders pages to canvas at devicePixelRatio for sharpness. Large, actively-maintained, permissive-licensed. Chosen.
+- **A commercial PDF SDK (PSPDFKit/Nutrient, Apryse/PDFTron)** — turnkey form editor, but heavy paid license, large bundle, and overkill for AcroForm fill on a single form family. Rejected.
+- **Server-side fill (pdftk / a headless service)** — adds a native binary or an extra service on Railway (deploy-fragile), and moves an interactive editing UX to a round-trip model. Rejected; the whole value is in-browser click-to-edit.
+
+**Choice:** Adopt pdf-lib + pdf.js (already present); build the thin editor UI on top.
+
+**Why:** the capability we needed (AcroForm read/fill/flatten + crisp render) is exactly what these two libraries provide, and they were already dependencies — so "adopt" added zero new supply-chain surface. The key product decision inside the build: **default Save keeps form fields live (`flatten:false`) and re-extracts them after write, so a saved client file reopens fully editable** — this is what makes yearly renewals possible without retyping. **Save as Final** flattens (`flatten:true`) for a locked copy. Verified end-to-end on the real FA-24: fill → save-as new file (109 fields retained) → reopen → edit again → save (renewal), and flatten → 0 editable fields. XFA-based forms are out of scope (pdf-lib doesn't fill XFA); FA-24 is a clean AcroForm.
+
 ## 2026-08-25 — Edit User + reuse office email on inactive account
 
 **Options considered:** (a) build in-house edit endpoint + modal; (b) adopt an off-the-shelf admin/user-management library (e.g. AdminJS, react-admin).
@@ -300,3 +340,54 @@ dates were unchanged.
 - **Custom in-app (chosen)** — a `certReminderService` engine (pure stage/version helpers + fan-out) behind a failure-isolated channel abstraction (email live, in-app live, push a stub with the final signature), driven by a per-agency cron, with HR approval routed through `approveCertRenewal` (old file → Portfolio History, new upload → current, stages re-arm). Compliance block sets `complianceStatus='blocked'` and arms a dormant `isClockInBlocked()` gate for the future in-app clock.
 
 **Why:** the domain is small, date-driven, and tightly coupled to our tenant/RLS, audit, and notification conventions; reusing the established cron + notification infrastructure (and adding one ledger table) is a smaller, more testable surface than any external system, and removes the Monday.com dependency outright.
+## 2026-08-28 — Remove client-side `xlsx` (SheetJS) — no replacement parser needed
+
+**Decision:** Remove the `xlsx` dependency from the client entirely and delete the orphaned `ClientsPage.jsx` that used it — do NOT adopt `exceljs` or any other in-browser parser on the client.
+
+**Context:** The server already migrated off vulnerable `xlsx` to `exceljs` (branch `feat/hardening-errortracking-xlsx`). The task was to do the same on the client, where `ClientsPage.jsx:204` parsed client-import spreadsheets in-browser via `xlsx` (`XLSX.read` / `sheet_to_json` / `SSF.parse_date_code`). `xlsx@0.18.5` has HIGH-severity prototype-pollution + ReDoS advisories with **no upstream fix**, so a security review flags the client `package.json`.
+
+**Investigation finding (changed the outcome):** `ClientsPage.jsx` is **dead, unrouted code**. On 2026-05-01 (commit `0e8163c` "rename ClientsPage to AuthorizationsPage") the clients/authorizations UI was rebuilt: the live `AuthorizationsPage.jsx` bulk-import now sends the raw upload to the server (`api.bulkImport(file)` → server-side `exceljs`) and does **not** parse in-browser; the new `ClientsListPage.jsx` took over `/clients`. The old `ClientsPage.jsx` was copied into the new page and left orphaned — nothing imports it, and it never appears in the build. It was the *only* client consumer of `xlsx`.
+
+**Options considered:**
+- **Adopt `exceljs` on the client (initial plan)** — actively maintained (~1.9M weekly downloads), advisory-free once `uuid` is overridden to ≥11.1.1, matches the server. Its browser build reads `.xlsx` from an ArrayBuffer (`workbook.xlsx.load`), but does **not** support CSV in the browser (CSV path would need a hand-rolled parser), and its package `main` is the Node build — you must import `exceljs/dist/exceljs.min.js` explicitly for Rollup to resolve it. ~950 KB raw / ~258 KB gz, lazy-loaded. **Rejected:** it would only ever be imported by a file that is dead code, adding a large dependency + transitive-advisory management (`uuid` override) for zero reachable benefit.
+- **`read-excel-file`** — ~7x smaller, advisory-free, Web Workers. Rejected for the same reason (no live consumer) and because it enforces a strict schema and doesn't parse CSV or expose raw array-of-arrays cleanly.
+- **Delete the dead file, add no parser (chosen)** — removes `xlsx` from `package.json`/lockfile/`node_modules`, deletes the 979-line orphan, and adds no new client dependency. Smallest attack surface and smallest diff; the live import flow (server-side parsing) is unaffected.
+
+**Why:** The security goal (no advisory-flagged parser in the client) is fully met by deletion. Adding any in-browser parser would ship an unreachable code path and new dependency weight for a feature that was intentionally moved server-side months ago. Net change: −1 dependency, −979 lines, no new deps. All 139 client tests pass; production build is clean (no `xlsx`/`exceljs` artifacts in any chunk).
+## 2026-08-27 — Production hardening: error tracking + replace vulnerable `xlsx`
+
+Two items from a production-readiness review, done together on `feat/hardening-errortracking-xlsx`.
+
+### (a) Centralized error tracking
+
+**Options considered:**
+- Adopt **Sentry** (`@sentry/node` 10.x). Signals: the de-facto standard for error tracking (recognized by name in enterprise security reviews), self-hostable, free tier, first-class Express support (`setupExpressErrorHandler`), grouping + alerting out of the box.
+- Build a lightweight in-house error store (a DB table + queryable admin view). Signals: no external dependency and full control, but we'd hand-build grouping, dedup, rate-limiting, and alerting — the exact things Sentry already does — for a worse result.
+- Do nothing / keep `console.error`. Signals: zero cost, but errors vanish into the Railway container log with no grouping, retention, or alerting — the gap the review flagged.
+
+**Choice:** Adopt Sentry, wired behind a thin `server/src/lib/observability.js` wrapper.
+
+**Why:** Error aggregation is a solved, commodity problem; re-implementing grouping/alerting in-house is pure cost for a worse outcome, and a named tool like Sentry is what a buyer's security team expects to see. The wrapper keeps Sentry swappable in one file and makes it a **strict no-op unless `SENTRY_DSN` is set**, so dev/test/CI are untouched and nothing is ever sent without an explicit DSN. Init runs before the app so auto-instrumentation hooks HTTP; the Express error handler captures unhandled 5xx; user context is limited to `id`+`role` (`sendDefaultPii:false`) so **no PHI** leaks into reports; cron-job failures also report via `captureError`. 5 tests pin the no-DSN no-op contract.
+
+### (b) Replace `xlsx` (SheetJS) with `exceljs`
+
+**Options considered:**
+- **Replace with `exceljs`** (4.4.0). Signals: actively maintained, no equivalent unfixable advisories, streaming reads, real `Date` cell values (removes our Excel-serial/`SSF` date hacks). Requires rewriting the read/write call sites.
+- **Harden `xlsx` in place** (size/type limits, sandboxed parse). Signals: smaller diff, but the CVE stays in the dependency tree — an `npm audit` in a security review still flags it, so it doesn't actually clear the finding.
+- Keep `xlsx`. Signals: none — it carries **prototype-pollution + ReDoS advisories with _no fix available_** and parses hostile uploads (payroll / client / employee / Sandata imports) over HTTP.
+
+**Choice:** Replace `xlsx` with `exceljs` across all 11 usages and remove `xlsx` from `package.json`.
+
+**Why:** The `xlsx` advisories have *no upstream fix*, so hardening-in-place can't clear them from `npm audit` — the only way to close the finding a buyer's review will run is to remove the package. All spreadsheet I/O now routes through one shared `server/src/lib/xlsxHelper.js` (read as array-of-arrays matching the old `sheet_to_json({header:1})` contract; named-sheet, header-keyed-object, file-path, and multi-sheet-write variants for the 4 runtime controllers + 6 CLI scripts), so the library stays swappable in one place. Migrated test-first: a 14-case helper suite pins the exact read/write contract (blank-cell alignment, raw numbers, Date cells, CSV, multi-sheet), and an end-to-end smoke test confirms client-import / payroll named-sheet-pick / payroll-export round-trips. The `xlsx` CVEs are gone from `npm audit`; the only remaining exceljs-related advisory is a *fixable, non-reachable* transitive `uuid` buffer-bounds note, not the unfixable prototype-pollution/ReDoS we removed.
+
+## 2026-08-28 — Audit-log retention policy + purge job
+
+**Feature:** Define how long `audit_logs` are kept (a production-readiness / compliance item) and enforce it with a scheduled purge.
+
+**Options considered:**
+- Adopt a log-retention/lifecycle tool (e.g. a time-series DB TTL, Postgres `pg_partman` partition drop, or a managed log platform's retention). Signals: robust for high-volume log streams, but our audit log is a modest relational table with tenant + entity FKs and its own History UI — introducing partitioning or an external platform is heavy machinery for a row count that a single indexed `DELETE ... WHERE created_at < cutoff` handles, and it would fragment the existing `auditService` ownership.
+- Build in-house: a `resolveRetentionDays()` + `purgeExpiredLogs()` pair in the existing `auditService` (already the single owner of audit-log reads/writes and already allowlisted for the owner connection), driven by a daily cron mirroring the other `jobs/*` sweeps.
+
+**Choice:** Build in-house in `auditService` + a `jobs/auditLogRetention.js` cron. **Retention is OFF by default** (keep forever); operators opt in via `AUDIT_LOG_RETENTION_DAYS`.
+
+**Why:** The requirement is *"state how long records are kept and why,"* and enforce it — not a high-volume log-pipeline problem. A dependency (partitioning/TTL/external platform) adds operational surface for a table that a bounded `deleteMany` already covers, and it would split audit-log lifecycle away from `auditService`, which already owns every write and is allowlisted for the owner connection. Defaulting to keep-forever is the safety-correct choice for a healthcare-adjacent trail — silently losing audit history is worse than keeping too much — so deletion is strictly opt-in and any invalid value fails safe to "keep." The purge runs cross-tenant (one cutoff for all agencies, no per-agency filter) since it's platform maintenance, and it records its own `PERMANENT_DELETE` summary entry so the deletion is itself auditable. Built test-first: 7 unit tests for the resolve/purge contract, 3 for the cron driver's summary-logging, plus a live integration check against the test DB proving old rows are deleted and recent rows kept.

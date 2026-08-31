@@ -125,6 +125,7 @@ const {
 const {
     recordCallout,
     getReplacementCandidates,
+    getAllReplacementCandidates,
     getNearbyEmployees,
     getOffer,
     respondToOffer,
@@ -200,6 +201,7 @@ const {
 const { authenticate, requireRole, requireSurface } = require('../middleware/authMiddleware');
 const { requirePermission } = require('../middleware/permissionMiddleware');
 const rateLimit = require('express-rate-limit');
+const { heavyOperationLimiter, uploadParseLimiter } = require('../middleware/rateLimiters');
 const employeeRoutes = require('./employee');
 
 const router = express.Router();
@@ -329,7 +331,7 @@ router.delete('/clients/bulk-permanent', requireRole('admin'), requirePermission
 router.get('/clients/:id', requireRole('admin', 'user'), requirePermission('clients'), getClient);
 router.get('/clients/:id/lead-contacts', requireRole('admin', 'user'), requirePermission('clients'), getClientLeadContacts);
 router.post('/clients', requireRole('admin', 'user'), requirePermission('clients'), createClient);
-router.post('/clients/bulk-import', requireRole('admin'), requirePermission('clients'), upload.single('file'), bulkImport);
+router.post('/clients/bulk-import', requireRole('admin'), requirePermission('clients'), uploadParseLimiter, upload.single('file'), bulkImport);
 router.post('/clients/bulk-delete', requireRole('admin', 'user'), requirePermission('clients'), bulkDelete);
 router.put('/clients/:id/restore', requireRole('admin', 'user'), requirePermission('clients'), restoreClient);
 router.put('/clients/:id', requireRole('admin', 'user'), requirePermission('clients'), updateClient);
@@ -402,7 +404,7 @@ router.put('/files/:id', requireRole('admin', 'user'), requirePermission('files'
 router.patch('/files/:id', requireRole('admin', 'user'), requirePermission('files'), updateFile);
 router.delete('/files/:id', requireRole('admin', 'user'), requirePermission('files'), deleteFile);
 router.post('/files/copy', requireRole('admin', 'user'), requirePermission('files'), copyFile);
-router.get('/files/export', requireRole('admin', 'user'), requirePermission('files'), exportFiles);
+router.get('/files/export', requireRole('admin', 'user'), requirePermission('files'), heavyOperationLimiter, exportFiles);
 
 // Hospital Visits
 router.get('/clients/:clientId/hospital-visits', requireRole('admin', 'user'), listHospitalVisits);
@@ -439,7 +441,7 @@ router.get('/timesheets/activities', requirePermission('timesheets'), getActivit
 router.get('/timesheets', requirePermission('timesheets'), listTimesheets);
 router.delete('/timesheets/bulk-permanent', requireRole('admin'), requirePermission('timesheets'), bulkPermanentlyDeleteTimesheets);
 router.post('/timesheets/send-reminders', requireRole('admin'), requirePermission('timesheets'), sendTimesheetReminders);
-router.post('/timesheets/bulk-export-pdf', requireRole('admin', 'user'), requirePermission('timesheets'), exportBulkTimesheetPdf);
+router.post('/timesheets/bulk-export-pdf', requireRole('admin', 'user'), requirePermission('timesheets'), heavyOperationLimiter, exportBulkTimesheetPdf);
 router.get('/timesheets/:id', requirePermission('timesheets'), getTimesheet);
 router.post('/timesheets', requirePermission('timesheets'), createTimesheet);
 router.put('/timesheets/:id/restore', requireRole('admin'), requirePermission('timesheets'), restoreTimesheet);
@@ -448,7 +450,7 @@ router.put('/timesheets/:id/submit', requireRole('admin'), requirePermission('ti
 router.post('/timesheets/:id/signing-links', requireRole('admin', 'user'), requirePermission('timesheets'), generateSigningLinks);
 router.delete('/timesheets/:id', requireRole('admin'), requirePermission('timesheets'), deleteTimesheet);
 router.delete('/timesheets/:id/permanent', requireRole('admin'), requirePermission('timesheets'), permanentlyDeleteTimesheet);
-router.get('/timesheets/:id/export-pdf', requireRole('admin', 'user'), requirePermission('timesheets'), exportTimesheetPdf);
+router.get('/timesheets/:id/export-pdf', requireRole('admin', 'user'), requirePermission('timesheets'), heavyOperationLimiter, exportTimesheetPdf);
 router.put('/timesheets/:id/status', requireRole('admin', 'user'), requirePermission('timesheets'), updateTimesheetStatus);
 
 // Permanent link routes
@@ -465,7 +467,7 @@ router.patch('/payroll/runs/:id',          requireRole('admin'), requirePermissi
 router.put('/payroll/runs/:id/restore',    requireRole('admin'), requirePermission('payroll'), restorePayrollRun);
 router.delete('/payroll/runs/:id',         requireRole('admin'), requirePermission('payroll'), deletePayrollRun);
 router.delete('/payroll/runs/:id/permanent', requireRole('admin'), requirePermission('payroll'), permanentlyDeletePayrollRun);
-router.get('/payroll/runs/:id/export',     requireRole('admin', 'user'), requirePermission('payroll'), exportPayrollRun);
+router.get('/payroll/runs/:id/export',     requireRole('admin', 'user'), requirePermission('payroll'), heavyOperationLimiter, exportPayrollRun);
 router.patch('/payroll/visits/:id',        requireRole('admin'), requirePermission('payroll'), updatePayrollVisit);
 router.patch('/payroll/visits/:id/notes',  requireRole('admin', 'user'), requirePermission('payroll'), updatePayrollVisitNotes);
 
@@ -479,7 +481,7 @@ router.post('/employees/restore', requireRole('admin', 'user'), requirePermissio
 router.delete('/employees/bulk-permanent', requireRole('admin'), requirePermission('employees'), bulkPermanentlyDeleteEmployees);
 router.get('/employees/:id',   requireRole('admin', 'user'), requirePermission('employees'), getEmployee);
 router.post('/employees',      requireRole('admin', 'user'), requirePermission('employees'), createEmployee);
-router.post('/employees/bulk-import', requireRole('admin'), requirePermission('employees'), upload.single('file'), bulkImportEmployees);
+router.post('/employees/bulk-import', requireRole('admin'), requirePermission('employees'), uploadParseLimiter, upload.single('file'), bulkImportEmployees);
 router.put('/employees/:id/restore', requireRole('admin', 'user'), requirePermission('employees'), restoreEmployee);
 router.put('/employees/:id',   requireRole('admin', 'user'), requirePermission('employees'), updateEmployee);
 router.delete('/employees/:id', requireRole('admin', 'user'), requirePermission('employees'), deleteEmployee);
@@ -498,7 +500,7 @@ router.get('/employees/:id/availability', requireRole('admin', 'user'), requireP
 router.get('/employees/:employeeId/certifications', requireRole('admin', 'user'), requirePermission('employees'), listCertifications);
 // Internal record — admin/office only, never reachable from the employee portal.
 router.get('/employees/:employeeId/notes-timeline', requireRole('admin', 'user'), requirePermission('employees'), listEmployeeNotesTimeline);
-router.get('/employees/:employeeId/notes-timeline/export', requireRole('admin', 'user'), requirePermission('employees'), exportEmployeeNotesPdf);
+router.get('/employees/:employeeId/notes-timeline/export', requireRole('admin', 'user'), requirePermission('employees'), heavyOperationLimiter, exportEmployeeNotesPdf);
 router.post('/employees/:employeeId/certifications', requireRole('admin', 'user'), requirePermission('employees'), upload.single('file'), createCertification);
 router.put('/certifications/:id', requireRole('admin', 'user'), requirePermission('employees'), upload.single('file'), updateCertification);
 router.delete('/certifications/:id', requireRole('admin', 'user'), requirePermission('employees'), deleteCertification);
@@ -546,6 +548,7 @@ router.get('/shifts/archived',              requireRole('admin', 'user'), requir
 // paths are not shadowed by the parameterised route.
 router.post('/shifts/:id/callout',                  requireRole('admin', 'user'), requirePermission('scheduling'), recordCallout);
 router.get('/shifts/:id/replacement-candidates',    requireRole('admin', 'user'), requirePermission('scheduling'), getReplacementCandidates);
+router.get('/shifts/:id/replacement-candidates/all', requireRole('admin', 'user'), requirePermission('scheduling'), getAllReplacementCandidates);
 router.post('/shifts/:id/offers',                   requireRole('admin', 'user'), requirePermission('scheduling'), createOffer);
 router.post('/shifts/:id/auto-offer',               requireRole('admin', 'user'), requirePermission('scheduling'), startAutoOffer);
 router.get('/shifts/:id/offers',                    requireRole('admin', 'user'), requirePermission('scheduling'), listOffers);
@@ -574,7 +577,7 @@ router.delete('/activities/:id', requireRole('admin'), deleteActivity);
 
 // Client Notes Timeline (read-only aggregation of every note tied to a client)
 router.get('/clients/:clientId/notes-timeline', requirePermission('clients'), listNotesTimeline);
-router.get('/clients/:clientId/notes-timeline/export', requirePermission('clients'), exportClientNotesPdf);
+router.get('/clients/:clientId/notes-timeline/export', requirePermission('clients'), heavyOperationLimiter, exportClientNotesPdf);
 
 // Audit Logs (admin only)
 router.get('/audit-logs',                     requireRole('admin'), requirePermission('history'), getAuditLogs);
@@ -600,15 +603,15 @@ router.get('/employees/:employeeId/payroll-profile/reveal', requireRole('admin')
 
 // Receipts (admin-only)
 router.get('/receipts', requireRole('admin'), requirePermission('receipts'), listReceipts);
-router.post('/receipts/preview', requireRole('admin'), requirePermission('receipts'), previewReceipts);
-router.post('/receipts/generate', requireRole('admin'), requirePermission('receipts'), generateReceipts);
+router.post('/receipts/preview', requireRole('admin'), requirePermission('receipts'), heavyOperationLimiter, previewReceipts);
+router.post('/receipts/generate', requireRole('admin'), requirePermission('receipts'), heavyOperationLimiter, generateReceipts);
 router.patch('/receipts/:id', requireRole('admin'), requirePermission('receipts'), updateReceipt);
 router.post('/receipts/finalize', requireRole('admin'), requirePermission('receipts'), finalizeReceipts);
 router.post('/receipts/send', requireRole('admin'), requirePermission('receipts'), sendReceipts);
-router.get('/receipts/:id/pdf', requireRole('admin'), requirePermission('receipts'), downloadReceiptPdf);
+router.get('/receipts/:id/pdf', requireRole('admin'), requirePermission('receipts'), heavyOperationLimiter, downloadReceiptPdf);
 
 // SANDATA Import (admin only)
-router.post('/sandata/preview', requireRole('admin'), requirePermission('sandata'), upload.single('file'), previewSandata);
+router.post('/sandata/preview', requireRole('admin'), requirePermission('sandata'), uploadParseLimiter, upload.single('file'), previewSandata);
 router.post('/sandata/apply', requireRole('admin'), requirePermission('sandata'), applySandata);
 router.post('/sandata/undo', requireRole('admin'), requirePermission('sandata'), undoSandata);
 

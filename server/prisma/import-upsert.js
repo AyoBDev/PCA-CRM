@@ -8,8 +8,8 @@
  * Run:  node prisma/import-upsert.js [path-to-xlsx]
  */
 
-const XLSX = require('xlsx');
 const path = require('path');
+const { readRowsFromFile, excelSerialToDate } = require('../src/lib/xlsxHelper');
 
 const prisma = require('../src/lib/prisma');
 const FILE = process.argv[2] || path.resolve(__dirname, '../../data/all-data.xlsx');
@@ -18,9 +18,7 @@ function parseDate(val) {
     if (!val && val !== 0) return null;
     if (val instanceof Date) return val;
     if (typeof val === 'number') {
-        const d = XLSX.SSF.parse_date_code(val);
-        if (d) return new Date(d.y, d.m - 1, d.d);
-        return null;
+        return excelSerialToDate(val);
     }
     const str = String(val).trim();
     if (!str) return null;
@@ -42,9 +40,7 @@ function sameDay(a, b) {
 
 async function main() {
     console.log(`\n📂 Reading: ${FILE}\n`);
-    const wb = XLSX.readFile(FILE);
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true });
+    const rows = await readRowsFromFile(FILE);
 
     // Parse spreadsheet into client groups
     const parsed = [];

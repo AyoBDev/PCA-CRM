@@ -1,4 +1,4 @@
-const XLSX = require('xlsx');
+const { sheetToRows, excelSerialToDate } = require('../lib/xlsxHelper');
 const { enrichClient } = require('../services/authorizationService');
 const audit = require('../services/auditService');
 const { tenantTransaction } = require('../lib/tenantPrisma');
@@ -340,9 +340,8 @@ async function bulkImport(req, res, next) {
             return res.status(400).json({ error: 'File upload required (.xlsx, .xls, or .csv)' });
         }
 
-        const wb = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: false, raw: true });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true });
+        const isCsv = /\.csv$/i.test(req.file.originalname || '') || req.file.mimetype === 'text/csv';
+        const rows = await sheetToRows(req.file.buffer, { csv: isCsv });
 
         // Parse parent/child rows
         const parsed = [];
@@ -502,9 +501,8 @@ function parseExcelDate(val) {
     if (!val && val !== 0) return null;
     if (val instanceof Date) return val;
     if (typeof val === 'number') {
-        const d = XLSX.SSF.parse_date_code(val);
-        if (d) return new Date(d.y, d.m - 1, d.d);
-        return null;
+        // A plausible Excel serial date is > 0; anything else isn't a date.
+        return excelSerialToDate(val);
     }
     const str = String(val).trim();
     if (!str) return null;

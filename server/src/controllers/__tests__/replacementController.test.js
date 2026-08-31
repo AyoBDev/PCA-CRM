@@ -145,6 +145,57 @@ describe('GET /shifts/:id/replacement-candidates', () => {
     });
 });
 
+describe('GET /shifts/:id/replacement-candidates/all', () => {
+    test('ranks in soft mode (full list) and returns eligible + ineligible', async () => {
+        prisma.shift.findUnique.mockResolvedValue({
+            id: 7, clientId: 1, employeeId: 3, serviceCode: 'PCS',
+            shiftDate: new Date('2026-08-03T00:00:00Z'), startTime: '09:00', endTime: '13:00',
+        });
+        ranking.rankCandidates.mockResolvedValue({
+            status: 'ok',
+            eligible: [{ employeeId: 5, employeeName: 'Ann', rank: 1, conflicts: [] }],
+            ineligible: [{ employeeId: 9, employeeName: 'Bo', conflicts: ['already_scheduled'] }],
+        });
+        prisma.shiftCallout.findFirst.mockResolvedValue(null);
+
+        const { req, res, next } = mockReqRes({ params: { id: '7' } });
+        await controller.getAllReplacementCandidates(req, res, next);
+
+        expect(ranking.rankCandidates).toHaveBeenCalledWith(
+            prisma,
+            expect.objectContaining({ clientId: 1, excludeEmployeeId: 3 }),
+            expect.objectContaining({ mode: 'soft' }),
+        );
+        const payload = res.json.mock.calls[0][0];
+        expect(payload.eligible).toHaveLength(1);
+        expect(payload.ineligible[0].conflicts).toEqual(['already_scheduled']);
+    });
+
+    test('does not pass a limit (full list, not top 5)', async () => {
+        prisma.shift.findUnique.mockResolvedValue({
+            id: 7, clientId: 1, employeeId: 3, serviceCode: 'PCS',
+            shiftDate: new Date('2026-08-03T00:00:00Z'), startTime: '09:00', endTime: '13:00',
+        });
+        ranking.rankCandidates.mockResolvedValue({ status: 'ok', eligible: [], ineligible: [] });
+        prisma.shiftCallout.findFirst.mockResolvedValue(null);
+
+        const { req, res, next } = mockReqRes({ params: { id: '7' } });
+        await controller.getAllReplacementCandidates(req, res, next);
+
+        const opts = ranking.rankCandidates.mock.calls[0][2];
+        expect(opts.limit).toBeUndefined();
+    });
+
+    test('404s for a missing shift', async () => {
+        prisma.shift.findUnique.mockResolvedValue(null);
+
+        const { req, res, next } = mockReqRes({ params: { id: '404' } });
+        await controller.getAllReplacementCandidates(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(404);
+    });
+});
+
 describe('GET /employees/nearby', () => {
     test('ranks in soft mode so unavailable employees stay selectable', async () => {
         ranking.rankCandidates.mockResolvedValue({ status: 'ok', eligible: [], ineligible: [] });

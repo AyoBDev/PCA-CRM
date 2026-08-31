@@ -6,3 +6,6 @@ dist/
 *.db
 *.db-journal
 *.log
+
+# Scratch output from one-time cleanup/import scripts and their tests
+tmp/

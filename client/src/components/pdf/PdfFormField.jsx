@@ -2,6 +2,11 @@ import { pdfRectToScreen } from '../../utils/pdfFormFields';
 
 export default function PdfFormField({ field, pageHeight, zoom, value, onChange }) {
     const pos = pdfRectToScreen(field.rect, pageHeight, zoom);
+    // Fit font to the smaller of height-based and a width-based bound so
+    // content in very narrow boxes (date Month/Day/Year) isn't clipped.
+    const heightFont = pos.height * 0.7;
+    const widthFont = pos.width * 0.5; // ~2 chars fit comfortably
+    const fontSize = Math.max(7, Math.min(heightFont, widthFont, 13 * (zoom || 1)));
 
     const style = {
         position: 'absolute',
@@ -9,6 +14,7 @@ export default function PdfFormField({ field, pageHeight, zoom, value, onChange 
         top: pos.top,
         width: pos.width,
         height: pos.height,
+        fontSize,
         zIndex: 20,
     };
 
@@ -18,14 +24,29 @@ export default function PdfFormField({ field, pageHeight, zoom, value, onChange 
     }
 
     if (field.type === 'text') {
-        const InputTag = field.multiline ? 'textarea' : 'input';
+        const narrow = pos.width < 60;
+        // Narrow boxes (e.g. date Month/Day/Year, ~18px) need a smaller font
+        // floor than the general 7px minimum so 2 digits don't clip.
+        const effFont = narrow ? Math.min(fontSize, Math.max(6, pos.height * 0.6)) : fontSize;
+        // Only use a textarea for fields that are both flagged multiline AND
+        // tall enough to show more than one line. Small/short fields (e.g. the
+        // Month/Day/Year date boxes, which are multiline in the PDF but tiny)
+        // render as single-line inputs so their content isn't clipped/garbled.
+        // Decide textarea vs single-line from the PDF-authored (unscaled) rect
+        // size so the choice doesn't flip as the user zooms. Raw point units:
+        // tall+wide multiline boxes (e.g. a comments field) get a textarea;
+        // small multiline boxes (e.g. date Month/Day/Year) get a single-line input.
+        const useTextarea = field.multiline && field.rect.height >= 24 && field.rect.width >= 60;
+        const InputTag = useTextarea ? 'textarea' : 'input';
+        const textStyle = narrow
+            ? { ...style, fontSize: effFont, width: pos.width + 8, marginLeft: -4, padding: 0, textAlign: 'center', boxSizing: 'border-box', whiteSpace: 'nowrap' }
+            : { ...style, fontSize: effFont, padding: '2px 6px', textAlign: 'left', whiteSpace: useTextarea ? 'normal' : 'nowrap' };
         return (
             <InputTag
                 className="pdf-form-field pdf-form-field--text"
-                style={style}
+                style={textStyle}
                 value={value || ''}
                 onChange={(e) => onChange(field.name, e.target.value)}
-                placeholder={field.name}
                 disabled={field.readOnly}
             />
         );
@@ -39,27 +60,23 @@ export default function PdfFormField({ field, pageHeight, zoom, value, onChange 
                     checked={!!value}
                     onChange={(e) => onChange(field.name, e.target.checked)}
                     disabled={field.readOnly}
+                    style={{ width: '100%', height: '100%', margin: 0 }}
                 />
             </div>
         );
     }
 
-    if (field.type === 'radio') {
+    if (field.type === 'radio-option') {
         return (
-            <div className="pdf-form-field pdf-form-field--radio" style={style}>
-                {(field.options || []).map(opt => (
-                    <label key={opt} className="pdf-form-field__radio-label">
-                        <input
-                            type="radio"
-                            name={field.name}
-                            value={opt}
-                            checked={value === opt}
-                            onChange={() => onChange(field.name, opt)}
-                            disabled={field.readOnly}
-                        />
-                        <span>{opt}</span>
-                    </label>
-                ))}
+            <div className="pdf-form-field pdf-form-field--checkbox" style={style}>
+                <input
+                    type="radio"
+                    name={field.name}
+                    checked={value === field.optionValue}
+                    onChange={() => onChange(field.name, field.optionValue)}
+                    disabled={field.readOnly}
+                    style={{ width: '100%', height: '100%', margin: 0 }}
+                />
             </div>
         );
     }

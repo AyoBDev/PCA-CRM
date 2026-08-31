@@ -6,6 +6,7 @@ const compression = require('compression');
 const apiRoutes = require('./routes/api');
 const { resolveAgency } = require('./middleware/resolveAgency');
 const { corsOrigin } = require('./lib/corsOrigin');
+const observability = require('./lib/observability');
 
 const app = express();
 
@@ -60,11 +61,30 @@ app.get('*', (_req, res) => {
     res.sendFile(path.join(clientDist, 'index.html'));
 });
 
-// ── Global error handler ──
-app.use((err, _req, res, _next) => {
+// ── Error handling ──
+// A 413 (file too large) is an expected client error, not a server fault — turn
+// it into a clean 4xx BEFORE Sentry sees it so it doesn't pollute error reports.
+app.use((err, _req, res, next) => {
     if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(413).json({ error: 'File is too large. Maximum size is 20 MB.' });
     }
+    return next(err);
+});
+
+// Tag the error's Sentry scope with the authenticated user (id + role only, no
+// PHI) so reports are attributable. No-op when Sentry is disabled.
+app.use((err, req, _res, next) => {
+    observability.setRequestUser(req);
+    return next(err);
+});
+
+// Sentry's Express error handler captures unhandled 5xx errors. No-op (pass
+// through) when SENTRY_DSN is unset.
+observability.setupExpressErrorHandler(app);
+
+// ── Final global error handler ──
+// Runs after Sentry has recorded the error; returns the opaque 500 to the client.
+app.use((err, _req, res, _next) => {
     console.error('[ERROR]', err.message);
     res.status(500).json({ error: 'Internal server error' });
 });

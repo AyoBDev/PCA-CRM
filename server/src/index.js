@@ -1,4 +1,8 @@
 require('dotenv').config();
+// Initialize Sentry BEFORE requiring the app or other modules so its
+// auto-instrumentation can hook the HTTP layer. No-op unless SENTRY_DSN is set.
+const observability = require('./lib/observability');
+observability.initObservability();
 const { validateEnv } = require('./lib/validateEnv');
 validateEnv(); // fail fast if security-critical env vars are missing/malformed
 const http = require('http');
@@ -10,6 +14,7 @@ const { runTaskTriggers } = require('./jobs/taskTriggers');
 const { sendTaskReminders } = require('./jobs/taskReminders');
 const { runCertReminderSweep } = require('./jobs/certReminderCron');
 const { runLeadDormancySweep } = require('./jobs/leadDormancySweep');
+const { runAuditLogRetention } = require('./jobs/auditLogRetention');
 const { startWorker } = require('./workers/replacementWorker');
 
 if (process.env.NODE_ENV === 'production' && !process.env.APP_DATABASE_URL) {
@@ -30,6 +35,7 @@ server.listen(PORT, () => {
             await sendOverdueReminders();
         } catch (err) {
             console.error('[Cron] Reminder job failed:', err);
+            observability.captureError(err);
         }
     }, { timezone: 'UTC' });
 
@@ -41,6 +47,7 @@ server.listen(PORT, () => {
             await runTaskTriggers();
         } catch (err) {
             console.error('[Cron] Task triggers job failed:', err);
+            observability.captureError(err);
         }
     }, { timezone: 'UTC' });
 
@@ -50,6 +57,7 @@ server.listen(PORT, () => {
             await sendTaskReminders();
         } catch (err) {
             console.error('[Cron] Task reminders job failed:', err);
+            observability.captureError(err);
         }
     }, { timezone: 'UTC' });
 
@@ -61,7 +69,8 @@ server.listen(PORT, () => {
         try {
             await runCertReminderSweep();
         } catch (err) {
-            console.error('[Cron] Cert reminder sweep failed:', err);
+            console.error('[Cron] Compliance check failed:', err);
+            observability.captureError(err);
         }
     }, { timezone: 'America/Los_Angeles' });
 
@@ -73,10 +82,23 @@ server.listen(PORT, () => {
             await runLeadDormancySweep();
         } catch (err) {
             console.error('[Cron] Lead dormancy sweep failed:', err);
+            observability.captureError(err);
         }
     }, { timezone: 'UTC' });
 
     console.log('[Cron] Scheduled: lead dormancy sweep (daily 3:00 AM UTC)');
+
+    cron.schedule('0 4 * * *', async () => {
+        console.log('[Cron] Running audit-log retention...');
+        try {
+            await runAuditLogRetention();
+        } catch (err) {
+            console.error('[Cron] Audit-log retention failed:', err);
+            observability.captureError(err);
+        }
+    }, { timezone: 'UTC' });
+
+    console.log('[Cron] Scheduled: audit-log retention (daily 4:00 AM UTC; no-op unless AUDIT_LOG_RETENTION_DAYS is set)');
 
     // Start the BullMQ worker that expires unanswered offers and escalates the
     // replacement loop. No-ops when REDIS_URL is unset, so this is safe to call

@@ -61,7 +61,7 @@ server/src/
 prisma/
   schema.prisma     # PostgreSQL schema with @@map snake_case names; Agency model + agency_id on every tenant table
   seed.js           # Creates default agency + admin once (skips if exists); syncSuperadmin() creates-or-updates the superadmin from SUPERADMIN_EMAIL/SUPERADMIN_PASSWORD on every run. Uses ADMIN_EMAIL/ADMIN_PASSWORD, NVBEST_AGENCY_NAME/NVBEST_AGENCY_SLUG env vars
-  setup-app-role.js # Idempotently provisions the `app_user` Postgres role (NOBYPASSRLS) that tenantClient connects as via APP_DATABASE_URL
+  setup-app-role.js # Idempotently provisions the `app_user` Postgres role (NOBYPASSRLS) that tenantClient connects as via APP_DATABASE_URL. Also REVOKEs UPDATE/DELETE on `audit_logs` from app_user, so the request path can only APPEND audit rows (owner connection retains full access for the retention purge)
   migrate-data.js   # One-time SQLite → PostgreSQL data migration script
   migrations/       # Timestamped SQL migrations (includes the RLS-enabling migration: ENABLE ROW LEVEL SECURITY + tenant_isolation policy per tenant table, keyed on current_setting('app.agency_id'))
 ```
@@ -379,6 +379,13 @@ All FK relationships use cascade delete. Prisma schema uses `@@map` for snake_ca
 - Frontend: `ActivityButton` (page-level) and `EntityActivityButton` (entity-level) in `ActivityDrawer.jsx`
 - **History Page** (`HistoryPage.jsx`): shows all audit logs with filters by action, entity type, and date range. Entity types: Client, Employee, User, Shift, Timesheet, Authorization, PayrollRun, PermanentLink, InsuranceType, Service, Task, Receipt
 
+### Audit-log immutability (append-only at the DB level)
+The `audit_logs` table is **append-only for the application request path**, enforced by Postgres — not just convention. `setup-app-role.js` REVOKEs `UPDATE, DELETE` on `public.audit_logs` from `app_user` (the role every tenant request connects as via `req.db` / `APP_DATABASE_URL`); it keeps `SELECT` (History page reads) and `INSERT` (`auditService` writes). So a compromised app connection can append audit rows but can never rewrite or erase them. The **owner** connection (`DATABASE_URL`, used by `lib/prisma` — `auditService` writes and any retention purge) retains full access. Proof: `src/__integration__/auditLogImmutable.itest.js` asserts app_user INSERT/SELECT succeed while UPDATE/DELETE are rejected with "permission denied". Do not grant those privileges back or route audit-log deletes through `req.db`.
+### Audit-log retention
+- **Default: keep forever.** Audit history is never auto-deleted unless an operator explicitly opts in — the safe default for a healthcare-adjacent trail.
+- **Opt in** by setting `AUDIT_LOG_RETENTION_DAYS` (positive integer, e.g. `2555` ≈ 7 years). A daily cron (`jobs/auditLogRetention.js`, 4:00 AM UTC) then deletes `audit_logs` rows older than that window **across all agencies** (platform maintenance, owner connection). When the var is unset/invalid the job is a no-op.
+- Logic lives in `auditService.resolveRetentionDays()` + `purgeExpiredLogs({retentionDays, now})`. A purge that removes rows records its own `PERMANENT_DELETE` / `AuditLog` summary entry (count, cutoff, retentionDays) so the deletion is itself auditable. Tests: `src/services/__tests__/auditRetention.test.js`, `src/jobs/__tests__/auditLogRetention.test.js`.
+
 ### Audit Logging — Required for All New Features
 **Every new page or feature that performs mutations MUST log audit events.** This ensures the History page always reflects all system activity. When adding a new feature:
 1. Import `audit` from `../services/auditService` in the controller
@@ -607,7 +614,8 @@ const [preview, setPreview] = useState(null);
 - **Database**: PostgreSQL (migrated from SQLite, April 2026)
 - **Local dev**: Postgres.app or Docker (`postgresql://mac@localhost:5432/nvbestpca`)
 - **Production**: Railway managed PostgreSQL with automatic daily backups
-- **On-demand backup**: `GET /api/backup/export` (admin-only) — downloads all tables as JSON. Dashboard has a "Backup" button.
+- **On-demand backup**: `GET /api/backup/export` (admin-only) — downloads all tables as JSON. Dashboard has a "Backup" button. Export is **schema-driven** (`backupController.js` lists tables from `information_schema`), so it covers every table automatically.
+- **Restore**: `node prisma/import-backup.js <backup.json>` → wraps the **schema-driven** `src/lib/restoreBackup.js`, which restores every table in the backup (matched to the live schema's real columns), coerces timestamp/json columns, loads with FK checks deferred (`session_replication_role='replica'` — no hardcoded FK order), and resets id sequences. Restore into an EMPTY target DB; `ON CONFLICT DO NOTHING` makes re-runs safe but does not overwrite. **The restore target must have the same `ENCRYPTION_KEY` or encrypted PHI is unreadable.** Full runbook: `docs/ops/backup-restore.md`. Round-trip tested: `src/__integration__/backupRoundTrip.itest.js` exports → restores into a fresh scratch DB → asserts every table's row count matches. **Do not reintroduce a hardcoded restore table list** — that's the bug this replaced (old script covered 17 of 57 tables).
 - **Seed script**: `seed.js` only creates admin if none exists (never overwrites). Uses `ADMIN_EMAIL` and `ADMIN_PASSWORD` env vars with fallback defaults.
 - **Data migration**: `prisma/migrate-data.js` transfers data from SQLite `dev.db` to PostgreSQL (one-time use, requires `better-sqlite3` devDependency)
 
@@ -637,7 +645,7 @@ Full-featured file management system for administrative documents (insurance, el
 - Single service: Express serves the React build from `client/dist`
 - Start command: `prisma migrate deploy` → `setup-app-role.js` → `seed.js` → `node src/index.js`
 - **Storage Bucket**: Create bucket on Railway canvas → Connect to service → env vars auto-injected
-- Environment variables: `DATABASE_URL` (PostgreSQL, owner connection used by `lib/prisma.js`), `JWT_SECRET`, `PORT`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `BREVO_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`, `ENCRYPTION_KEY` (64 hex chars — PHI-at-rest encryption; losing it makes encrypted PHI unrecoverable, including in backups), `INTEGRITY_KEY` (64 hex chars — timesheet signature HMAC; falls back to a key derived from `ENCRYPTION_KEY`)
+- Environment variables: `DATABASE_URL` (PostgreSQL, owner connection used by `lib/prisma.js`), `JWT_SECRET`, `PORT`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `BREVO_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`, `ENCRYPTION_KEY` (64 hex chars — PHI-at-rest encryption; losing it makes encrypted PHI unrecoverable, including in backups), `INTEGRITY_KEY` (64 hex chars — timesheet signature HMAC; falls back to a key derived from `ENCRYPTION_KEY`), `SENTRY_DSN` (optional — enables server-side error tracking; error tracking is a complete no-op when unset)
 - **Multi-tenancy env vars**:
   - `BASE_DOMAIN` — the root domain agencies are subdomained under (e.g. `pcalink.com`); drives `resolveAgency.js` subdomain parsing, CORS origin matching (`lib/corsOrigin.js`), and socket auth. Defaults to `localhost` for local dev.
   - `APP_DATABASE_URL` — connection string for the RLS-constrained `app_user` role that `tenantClient()` uses for all tenant-scoped queries; falls back to `DATABASE_URL` if unset (fine locally before `setup-app-role.js` has run, unsafe in production — always set it on Railway).
@@ -645,6 +653,15 @@ Full-featured file management system for administrative documents (insurance, el
   - `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` — platform-console login, synced by `seed.js` on **every** boot (not just first-create): if a superadmin row exists, its email + password hash are overwritten to match whatever these env vars currently hold (only the vars that are set — an unset var leaves that field untouched). Rotation = edit the env var + restart, no manual DB work. Production refuses to create a default-credential superadmin if `SUPERADMIN_PASSWORD` is unset on first boot — set both before first deploy.
   - `NVBEST_AGENCY_NAME` / `NVBEST_AGENCY_SLUG` — only apply on a fresh DB via `seed.js` (agency #1 is otherwise created with static values inside migration 1, since migrations can't read env vars). The agency's name is editable afterward from the platform console via `PATCH /api/platform/agencies/:id` (superadmin-only; the slug is immutable).
 - **Railway wildcard-domain requirement**: subdomain routing (`acme.<BASE_DOMAIN>`) needs a wildcard custom domain (`*.<BASE_DOMAIN>`) added on the Railway service plus a wildcard CNAME at the DNS provider pointing to Railway. This wildcard also covers the reserved `admin.<BASE_DOMAIN>` platform-console host — no separate DNS entry needed. Until the wildcard is provisioned, agencies without a working wildcard entry fall back to being reached via their exact per-agency custom domain (added individually on the Railway service) — `resolveAgency.js` matches on whatever `Host` header actually arrives, so either path works as long as the agency's slug/domain resolves to this service.
+
+## Error Tracking (Sentry)
+- **`server/src/lib/observability.js`** is the single wrapper around Sentry (`@sentry/node`). It is a **strict no-op unless `SENTRY_DSN` is set** — dev/test/CI send nothing.
+- `initObservability()` runs at the very top of `src/index.js` (before `require('./app')`) so auto-instrumentation hooks the HTTP layer. `app.js` installs the Sentry Express error handler ahead of the final 500 handler and tags the scope with `id`+`role` only (`sendDefaultPii:false`) — **never** put PHI in error reports. Cron/job failures report via `observability.captureError(err)`.
+- Optional tuning: `SENTRY_ENVIRONMENT`, `SENTRY_RELEASE`, `SENTRY_TRACES_SAMPLE_RATE` (0..1, default 0 = tracing off). Tests: `server/__tests__/observability.test.js`.
+
+## Spreadsheet I/O (`exceljs`, not `xlsx`)
+- **All** `.xlsx`/`.csv` reading and writing goes through **`server/src/lib/xlsxHelper.js`** (built on `exceljs`). The `xlsx`/SheetJS package was removed — it carried unfixable prototype-pollution + ReDoS advisories and parsed hostile uploads. **Never re-add `xlsx` or `require('xlsx')`.**
+- Helper API: `sheetToRows(buffer, {csv})` (first sheet → array-of-arrays, matching the old `sheet_to_json({header:1, defval:'', raw:true})` contract — blank cells `''`, raw numbers, date cells as `Date`), `sheetsToRows` / `namedSheetsToRows` (all sheets, optionally with names), `readRowsFromFile(path)`, `readSheetObjects(bufferOrPath, {sheetName})` (header-keyed objects), `rowsToXlsxBuffer(aoa, {sheetName, colWidths})`, `writeXlsxFile(path, [{name, rows}])`, and `excelSerialToDate(serial)`. Reads are **async** (`await`). Tests: `server/__tests__/xlsxHelper.test.js`.
 
 ## Service Code System — Cross-Entity Trace
 

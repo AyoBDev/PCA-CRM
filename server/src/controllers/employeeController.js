@@ -168,12 +168,10 @@ async function bulkPermanentlyDeleteEmployees(req, res, next) {
 
 async function bulkImportEmployees(req, res, next) {
     try {
-        const XLSX = require('xlsx');
+        const { sheetToRows } = require('../lib/xlsxHelper');
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-        const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        const data = await sheetToRows(req.file.buffer);
 
         function excelDate(serial) {
             if (!serial || typeof serial !== 'number' || serial < 1000) return null;

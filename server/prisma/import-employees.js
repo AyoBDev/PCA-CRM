@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-const XLSX = require('xlsx');
 const path = require('path');
+const { readRowsFromFile } = require('../src/lib/xlsxHelper');
 
 const prisma = require('../src/lib/prisma');
 
@@ -18,9 +18,7 @@ function parsePhone(val) {
 
 async function main() {
     console.log(`Reading: ${FILE}`);
-    const wb = XLSX.readFile(FILE);
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+    const data = await readRowsFromFile(FILE);
 
     // Find sections
     const sections = [];

@@ -7,7 +7,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const XLSX = require('xlsx');
+const { writeXlsxFile } = require('../src/lib/xlsxHelper');
 const prisma = require('../src/lib/prisma');
 const {
     buildLiveSandataMap, buildSandataOwnerMap, classifyDrift, groupDrift,
@@ -76,19 +76,18 @@ async function main() {
     fs.mkdirSync(outDir, { recursive: true });
     const outPath = path.join(outDir, 'sandata-owner-review.xlsx');
 
-    const wb = XLSX.utils.book_new();
-    const reviewWs = XLSX.utils.aoa_to_sheet(buildAoa(groups));
-    XLSX.utils.book_append_sheet(wb, reviewWs, 'Review');
-
-    const choicesWs = XLSX.utils.aoa_to_sheet([
-        ['Owner decision — put ONE of these in the "Owner decision" column:'],
-        ['Keep current', 'leave the shifts as they are'],
-        ['Use proposed', 'change the shifts to the Proposed ID'],
-        ['Enter correct ID', 'neither is right — type the correct value in "Correct ID"'],
+    await writeXlsxFile(outPath, [
+        { name: 'Review', rows: buildAoa(groups) },
+        {
+            name: 'Choices',
+            rows: [
+                ['Owner decision — put ONE of these in the "Owner decision" column:'],
+                ['Keep current', 'leave the shifts as they are'],
+                ['Use proposed', 'change the shifts to the Proposed ID'],
+                ['Enter correct ID', 'neither is right — type the correct value in "Correct ID"'],
+            ],
+        },
     ]);
-    XLSX.utils.book_append_sheet(wb, choicesWs, 'Choices');
-
-    XLSX.writeFile(wb, outPath);
     console.log(`Wrote ${groups.length} decision rows to ${outPath}`);
     return { groups: groups.length, path: outPath };
 }

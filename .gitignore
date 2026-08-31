@@ -35,7 +35,9 @@ CLAUDE.md
 # Snyk Security Extension - AI Rules (auto-generated)
 .github/instructions/snyk_rules.instructions.md
 
-docs/
+docs/*
+# ...but keep operational/security-review docs tracked (see docs/ops/README.md)
+!docs/ops/
 
 # Worktrees
 worktrees/
