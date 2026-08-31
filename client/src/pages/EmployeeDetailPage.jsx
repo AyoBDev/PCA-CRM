@@ -1323,9 +1323,9 @@ function CertificationsTab({ employee, onEdit, onEmployeeChanged }) {
                                 })}
                                 {pendingRecords.length > 0 && (
                                     <>
-                                        <div style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--primary))', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '8px 0 4px' }}>Pending Review (uploaded by employee)</div>
+                                        <div className="pa-cert-section-label">Pending Review (uploaded by employee)</div>
                                         {pendingRecords.map(rec => (
-                                            <div key={rec.id} className="pa-auth-item" style={{ borderLeft: '3px solid hsl(var(--primary))' }}>
+                                            <div key={rec.id} className="pa-auth-item pa-cert-pending">
                                                 <div className="pa-auth-item__header">
                                                     <div className="pa-auth-item__left">
                                                         <span className="pa-auth-item__name">{rec.fileName || 'Pending Upload'}</span>
@@ -1340,19 +1340,21 @@ function CertificationsTab({ employee, onEdit, onEmployeeChanged }) {
                                                         )}
                                                     </div>
                                                 </div>
-                                                <div className="cert-history__list">
-                                                    {(rec.uploads || []).map(upload => (
-                                                        <CertFileRow
-                                                            key={upload.id}
-                                                            upload={upload}
-                                                            onPreview={setPreviewUpload}
-                                                            onDownload={handleDownloadUpload}
-                                                        />
-                                                    ))}
-                                                </div>
+                                                {(rec.uploads || []).length > 0 && (
+                                                    <div className="cert-history__list">
+                                                        {(rec.uploads || []).map(upload => (
+                                                            <CertFileRow
+                                                                key={upload.id}
+                                                                upload={upload}
+                                                                onPreview={setPreviewUpload}
+                                                                onDownload={handleDownloadUpload}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                )}
                                                 {/* HR decision on the employee-submitted renewal. Approve fires
                                                     the server-side approveCertRenewal (history/current/re-arm). */}
-                                                <div className="pa-auth-item__actions" style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                                                <div className="pa-cert-pending__decision">
                                                     <button
                                                         className="btn btn--primary btn--sm"
                                                         onClick={() => setApprovingCert({ rec, certLabel: colors.label })}

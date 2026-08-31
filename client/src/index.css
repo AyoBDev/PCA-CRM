@@ -11598,6 +11598,33 @@ button.sdr-section-tag:hover:not(:disabled) {
   display: flex;
   gap: 2px;
 }
+
+/* Pending-review (employee-submitted renewal awaiting HR) card. Gives the
+   stacked contents — file row, uploaded-file list, and the Approve/Reject
+   decision — consistent 12px inset padding and vertical rhythm so the block
+   doesn't read as cramped against the card border. */
+.pa-cert-pending {
+  border-left: 3px solid #2563eb;
+  margin-bottom: 10px;
+}
+.pa-cert-pending .cert-history__list {
+  padding: 0 12px 4px;
+}
+.pa-cert-pending__decision {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  margin-top: 4px;
+  border-top: 1px solid hsl(var(--border) / 0.6);
+}
+.pa-cert-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: hsl(var(--primary));
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 14px 0 6px;
+}
 .pa-auth-item__body {
   padding: 0 12px 12px 38px;
   border-top: 1px solid hsl(var(--border) / 0.5);
