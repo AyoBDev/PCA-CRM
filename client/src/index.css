@@ -1679,22 +1679,22 @@ body {
    it never actually tracks scroll (CSS spec: the nearest scrolling/clipping
    ancestor becomes the sticky containing block). Rather than fight that ancestor's
    clipping, the viewer simply scrolls with the page — a clean, predictable layout. */
+/* Split layout: certificates on the left, Interactive Attachment Viewer on the
+   right, each taking 50% of the row. Both children carry min-width:0 so a flex
+   item's default min-width:auto can't force overflow — that was clipping the
+   two-column card grid. */
 .cert-portfolio {
   display: flex;
   align-items: flex-start;
   gap: 24px;
 }
 .cert-portfolio__list {
-  flex: 1 1 58%;
+  flex: 1 1 50%;
   min-width: 0;
 }
 .cert-portfolio__viewer {
-  flex: 1 1 42%;
-  /* Cap the viewer so it never starves the card list (which was clipping the
-     two-column grid) nor grows unbounded on very wide screens; min-width:0 lets
-     the flex child shrink instead of overflowing. */
+  flex: 1 1 50%;
   min-width: 0;
-  max-width: 560px;
   background: hsl(var(--card));
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius);
@@ -11236,19 +11236,18 @@ button.sdr-section-tag:hover:not(:disabled) {
 /* ═══ Programs & Auth Tab — Service Cards ═══ */
 .pa-services-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, 1fr) lets each 50% column shrink below its content width instead of
+     forcing the track wider (which clipped cards beside the doc viewer). */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
-.pa-services-grid__left {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
+.pa-services-grid__left,
 .pa-services-grid__right {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-width: 0;
 }
 /* Inside the portfolio list column (~55% width, beside the doc viewer) the older
    roomy authorization/program cards were too narrow at two columns, so that grid
