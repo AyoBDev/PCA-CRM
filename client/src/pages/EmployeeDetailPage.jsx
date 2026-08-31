@@ -1342,14 +1342,29 @@ function CertificationsTab({ employee, onEdit, onEmployeeChanged }) {
                                                 </div>
                                                 {(rec.uploads || []).length > 0 && (
                                                     <div className="cert-history__list">
-                                                        {(rec.uploads || []).map(upload => (
-                                                            <CertFileRow
-                                                                key={upload.id}
-                                                                upload={upload}
-                                                                onPreview={setPreviewUpload}
-                                                                onDownload={handleDownloadUpload}
-                                                            />
-                                                        ))}
+                                                        {(rec.uploads || []).map(upload => {
+                                                            const item = {
+                                                                id: `upload:${upload.id}`,
+                                                                fileName: upload.fileName,
+                                                                fileType: upload.fileType,
+                                                                cacheKey: `cert-upload:${upload.id}`,
+                                                                fetchBlob: certFetchBlobs.get(`upload:${upload.id}`) || (() => api.downloadCertificationUpload(upload.id)),
+                                                                meta: upload.submittedAt ? `Uploaded ${formatTimestamp(upload.submittedAt)}` : '',
+                                                            };
+                                                            return (
+                                                                <CertFileRow
+                                                                    key={upload.id}
+                                                                    upload={item}
+                                                                    fetchBlob={item.fetchBlob}
+                                                                    cacheKey={item.cacheKey}
+                                                                    expiresText={item.meta}
+                                                                    selected={selectedCertDoc?.id === item.id}
+                                                                    onSelect={() => openCertDoc(item)}
+                                                                    onPreview={() => openCertDoc(item)}
+                                                                    onDownload={() => saveItem(item)}
+                                                                />
+                                                            );
+                                                        })}
                                                     </div>
                                                 )}
                                                 {/* HR decision on the employee-submitted renewal. Approve fires

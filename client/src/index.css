@@ -1685,16 +1685,22 @@ body {
   gap: 24px;
 }
 .cert-portfolio__list {
-  flex: 1 1 55%;
+  flex: 1 1 58%;
   min-width: 0;
 }
 .cert-portfolio__viewer {
-  flex: 1 1 45%;
+  flex: 1 1 42%;
+  /* Cap the viewer so it never starves the card list (which was clipping the
+     two-column grid) nor grows unbounded on very wide screens; min-width:0 lets
+     the flex child shrink instead of overflowing. */
   min-width: 0;
+  max-width: 560px;
   background: hsl(var(--card));
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius);
   padding: 16px;
+  position: sticky;
+  top: 16px;
 }
 @media (max-width: 1023px) {
   .cert-portfolio {
@@ -11256,13 +11262,11 @@ button.sdr-section-tag:hover:not(:disabled) {
 .cert-portfolio__list .pa-services-grid:has(.pa-service-card--cert) {
   gap: 12px;
 }
-/* Below ~1200px the list column gets too tight for two compact cards beside the
-   viewer — stack them so each card keeps comfortable width. */
-@media (max-width: 1200px) {
-  .cert-portfolio__list .pa-services-grid:has(.pa-service-card--cert) {
-    grid-template-columns: 1fr;
-  }
-}
+/* The viewer is capped (max-width) so the list keeps enough room for two compact
+   cards. Only when the whole split stacks vertically (<=1023px, where the viewer
+   drops below the list) do we need the card grid itself to fall to one column —
+   handled by the .cert-portfolio column-stack breakpoint below. Keep two columns
+   above that so the double-column layout is preserved beside the viewer. */
 .pa-service-card {
   border: 2px solid var(--card-border, hsl(var(--border)));
   border-radius: 12px;
