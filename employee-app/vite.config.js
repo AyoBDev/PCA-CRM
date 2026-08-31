@@ -35,8 +35,17 @@ export default defineConfig({
   server: {
     port: 5174,
     proxy: {
-      '/api': 'http://localhost:4000',
-      '/socket.io': { target: 'http://localhost:4000', ws: true },
+      '/api': {
+        target: 'http://localhost:4000',
+        // Preserve the browser's Host (e.g. nvbest.localhost) so the backend's
+        // resolveAgency middleware resolves the right agency. The Vite shorthand
+        // ('/api': 'http://localhost:4000') defaults to changeOrigin:true, which
+        // rewrites Host to the target (localhost) and forces every request onto
+        // the platform host — making agency (subdomain) logins 401. Mirrors the
+        // admin client's proxy config.
+        changeOrigin: false,
+      },
+      '/socket.io': { target: 'http://localhost:4000', ws: true, changeOrigin: false },
     },
   },
 });

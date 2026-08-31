@@ -110,6 +110,47 @@ describe('getCertifications (ledger-driven)', () => {
     expect(prisma.employeeRequirement.findMany.mock.calls[0][0].where).toMatchObject({ employeeId: 7, kind: 'certification' });
     expect(prisma.employeeCertification.findMany.mock.calls[0][0].where).toMatchObject({ employeeId: 7 });
   });
+
+  test('shows one card per ACTIVE catalog cert type, even without a requirement row (parity with admin)', async () => {
+    // Employee has a requirement + cert for CPR only, but the catalog defines
+    // three active renewable types. All three must appear so the employee app's
+    // count matches the admin's full-catalog view.
+    prisma.employeeRequirement.findMany.mockResolvedValue([
+      { id: 40, kind: 'certification', catalogTypeId: 1, status: 'submitted', reviewStatus: 'approved', certificationId: 90 },
+    ]);
+    prisma.certType.findMany.mockResolvedValue([
+      { id: 1, key: 'cpr', label: 'CPR', requiresExpiry: true, renewalYears: 2, active: true },
+      { id: 2, key: 'tb_test', label: 'TB Test', requiresExpiry: true, renewalYears: 1, active: true },
+      { id: 3, key: 'background_check', label: 'Background Check', requiresExpiry: true, renewalYears: 5, active: true },
+    ]);
+    prisma.employeeCertification.findMany.mockResolvedValue([
+      { id: 90, certType: 'cpr', status: 'active', expirationDate: null, fileName: 'cpr.pdf', uploads: [] },
+    ]);
+    const res = mockReqRes().res;
+    await getCertifications({ employee: { id: 7 }, db: prisma }, res);
+
+    const payload = res.json.mock.calls[0][0];
+    const byType = Object.fromEntries(payload.certifications.map(c => [c.certType, c]));
+    expect(Object.keys(byType).sort()).toEqual(['background_check', 'cpr', 'tb_test']);
+    // The CPR one keeps its record; the others show as required with no file.
+    expect(byType.cpr).toMatchObject({ certType: 'cpr', certificationId: 90, status: 'active' });
+    expect(byType.tb_test).toMatchObject({ certType: 'tb_test', label: 'TB Test', status: 'required', certificationId: null });
+    expect(byType.background_check).toMatchObject({ certType: 'background_check', status: 'required' });
+    expect(payload.summary.total).toBe(3);
+  });
+
+  test('excludes inactive catalog cert types', async () => {
+    prisma.employeeRequirement.findMany.mockResolvedValue([]);
+    prisma.certType.findMany.mockResolvedValue([
+      { id: 1, key: 'cpr', label: 'CPR', requiresExpiry: true, renewalYears: 2, active: true },
+      { id: 9, key: 'retired', label: 'Retired', requiresExpiry: true, renewalYears: 1, active: false },
+    ]);
+    prisma.employeeCertification.findMany.mockResolvedValue([]);
+    const res = mockReqRes().res;
+    await getCertifications({ employee: { id: 7 }, db: prisma }, res);
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.certifications.map(c => c.certType)).toEqual(['cpr']);
+  });
 });
 
 const { downloadCertificationUpload } = require('../requirementsController');

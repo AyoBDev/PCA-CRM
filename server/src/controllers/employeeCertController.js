@@ -1,6 +1,7 @@
 const audit = require('../services/auditService');
 const { uploadFile, downloadFile } = require('../lib/storage');
 const { tenantKey } = require('../services/storageService');
+const { approveCertRenewal } = require('../services/complianceService');
 
 // Upload the file to the bucket BEFORE any cert record is written, so a bucket
 // failure aborts the request without persisting a partial/orphaned cert row.
@@ -102,6 +103,25 @@ async function updateCertification(req, res, next) {
 
         const old = await req.db.employeeCertification.findUnique({ where: { id } });
         if (!old) return res.status(404).json({ error: 'Certification not found' });
+
+        const isApprovalTransition =
+            (status === 'approved' || status === 'active') &&
+            old.status !== 'approved' && old.status !== 'active';
+
+        if (isApprovalTransition && !file) {
+            const newExp = expirationDate !== undefined
+                ? (expirationDate ? new Date(expirationDate) : old.expirationDate)
+                : old.expirationDate;
+            const cert = await approveCertRenewal(id, newExp, req.user);
+            audit.logAction({
+                userId: req.user.id, userName: req.user.name, userRole: req.user.role,
+                action: 'UPDATE', entityType: 'EmployeeCertification', entityId: id,
+                entityName: cert.certType || old.certType, changes: [],
+                metadata: { action: 'cert_renewal_approved' },
+            });
+            const { fileData, ...result } = cert;
+            return res.json(result);
+        }
 
         const data = {};
         if (expirationDate !== undefined) data.expirationDate = expirationDate ? new Date(expirationDate) : null;

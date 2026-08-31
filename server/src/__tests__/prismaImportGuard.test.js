@@ -32,11 +32,11 @@ const ALLOWLIST = new Set([
   'src/controllers/onboardingController.js',
   // Cron drivers: enumerate active agencies on the owner connection, then run
   // each job body inside runWithTenant with a per-agency tenantClient.
-  'src/jobs/complianceCron.js',
   'src/jobs/taskReminders.js',
   'src/jobs/taskTriggers.js',
   'src/jobs/timesheetReminders.js',
   'src/jobs/leadDormancySweep.js',
+  'src/jobs/certReminderCron.js',
   // Same cron-driver shape as the jobs above, just living under services/:
   // enumerates active agencies on the owner connection, then runs the
   // per-agency geocode backfill inside runWithTenant with a tenantClient.

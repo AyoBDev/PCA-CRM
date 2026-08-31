@@ -6,9 +6,15 @@ import CertIcons from '../components/common/CertIcons';
 import { CERT_COLORS } from '../utils/certColors';
 
 // status vocabulary matches the admin's CertificationsTab.getCertStatusForType:
-// 'ok' | 'critical' | 'expired' | 'unknown'
+// 'pending' | 'ok' | 'critical' | 'expired' | 'unknown'
+// A cert awaiting HR review (status 'pending'/'submitted') is shown as "Pending
+// Review" regardless of its (possibly stale) expiration date — otherwise a
+// just-uploaded renewal whose OLD date is still in the past would misleadingly
+// read "Expired". The review state takes precedence over the date-derived state.
 function statusFor(item) {
-  if (!item || (!item.requiresExpiry) || !item.expirationDate) return 'unknown';
+  if (!item) return 'unknown';
+  if (item.status === 'pending' || item.status === 'submitted') return 'pending';
+  if (!item.requiresExpiry || !item.expirationDate) return 'unknown';
   const now = new Date();
   const d = new Date(item.expirationDate);
   const days = Math.ceil((d - now) / 86400000);
@@ -25,10 +31,12 @@ function daysRemaining(item) {
 }
 
 function statusLabel(s) {
+  if (s === 'pending') return 'Pending Review';
   return s === 'ok' ? 'Active' : s === 'critical' ? 'Expiring Soon' : s === 'expired' ? 'Expired' : 'Not Set';
 }
 
 function statusBadgeStyle(s) {
+  if (s === 'pending') return { background: 'hsl(217 91% 93%)', color: '#2563eb' };
   if (s === 'ok') return { background: 'hsl(142 76% 92%)', color: '#16a34a' };
   if (s === 'critical') return { background: 'hsl(38 92% 92%)', color: '#d97706' };
   if (s === 'expired') return { background: 'hsl(0 84% 94%)', color: '#dc2626' };
@@ -156,11 +164,12 @@ export default function CertificationsPage() {
     const colors = CERT_COLORS[item.certType] || CERT_COLORS.other;
     const uploads = Array.isArray(item.uploads) ? item.uploads : [];
     const attachCount = uploads.length > 0 ? uploads.length : (item.currentFile ? 1 : 0);
-    const isExpanded = expandedId === item.requirementId;
+    const cardKey = item.certType || item.requirementId;
+    const isExpanded = expandedId === cardKey;
 
     return (
       <div
-        key={item.requirementId}
+        key={cardKey}
         className="pa-service-card"
         style={{ '--card-accent': colors.accent, '--card-bg': colors.bg, '--card-border': colors.border }}
       >
@@ -201,7 +210,7 @@ export default function CertificationsPage() {
           <button
             className="btn btn--outline btn--sm pa-btn--view-details"
             style={{ color: colors.accent, borderColor: colors.accent }}
-            onClick={() => setExpandedId(isExpanded ? null : item.requirementId)}
+            onClick={() => setExpandedId(isExpanded ? null : cardKey)}
           >
             {isExpanded ? CertIcons.chevronDown : CertIcons.chevronRight} {isExpanded ? 'Hide Details' : 'View Details'}
           </button>

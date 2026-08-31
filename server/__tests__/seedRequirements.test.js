@@ -32,6 +32,9 @@ describe('seedRequirements', () => {
 
   it('exposes the canonical cert catalog keys', () => {
     const keys = DEFAULT_CERT_TYPES.map(c => c.key);
-    expect(keys).toEqual(['id_expiration', 'tb_test', 'cpr', 'annual_training', 'background_check']);
+    expect(keys).toEqual([
+      'id_expiration', 'tb_test', 'cpr', 'annual_training',
+      'cultural_competency', 'infection_control', 'background_check', 'other',
+    ]);
   });
 });

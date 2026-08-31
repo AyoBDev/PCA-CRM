@@ -604,6 +604,12 @@ const [preview, setPreview] = useState(null);
 - **One-time data migration**: `npm run db:encrypt-phi` (idempotent — skips already-encrypted rows by format).
 - **Timesheet signature integrity**: `server/src/services/timesheetIntegrityService.js` stores an HMAC-SHA256 (`INTEGRITY_KEY`) over the persisted signed payload at submit. The hash is bound to the signing event: PCA-form submits always recompute; admin re-submits only recompute when the PCA/recipient signatures changed. `integrityStatus` (`valid`/`tampered`/`unsigned`) is returned on timesheet GET/list, shown in `TimesheetFormPage`, and printed on the PDF export. Any new code path that mutates timesheet entries or signatures must keep this rule intact.
 
+## Certification Renewal Automation (app-owned)
+- Daily per-agency sweep (`jobs/certReminderCron.js` → `services/certReminderService.sweepCertRemindersForAgency`, 6 AM PT) sends three staged reminders per renewable cert: `reminder_30day` (≤30 & >7 days), `reminder_7day` (≤7 & >0), `expired_final` (≤0). Channels: email (Brevo), in-app Notification (+ socket), push (stub in `reminderChannels/pushChannel.js` until the employee app ships).
+- Exactly-once per cert **version**: `CertReminderLog` unique on `(certificationId, versionKey, stage)`. `versionKey` = `EmployeeCertification.currentVersionKey` (the approved upload id).
+- On `expired_final` with no HR approval for the cycle, `evaluateCompliance` sets `Employee.complianceStatus='blocked'`. `complianceService.isClockInBlocked(employeeId)` is the armed-but-dormant gate for the future in-app clock (no timesheet is rejected yet).
+- HR approval routes through `complianceService.approveCertRenewal` (hooked in `updateCertification` on status→approved/active): old file stays in `CertificationUpload` (Portfolio History), the newest upload becomes `currentVersionKey`, tasks resolve, compliance re-evaluates — which re-arms all three stages against the new expiration. No Monday.com dependency.
+
 ## Database & Backup
 - **Database**: PostgreSQL (migrated from SQLite, April 2026)
 - **Local dev**: Postgres.app or Docker (`postgresql://mac@localhost:5432/nvbestpca`)

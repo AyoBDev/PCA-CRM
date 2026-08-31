@@ -1679,22 +1679,28 @@ body {
    it never actually tracks scroll (CSS spec: the nearest scrolling/clipping
    ancestor becomes the sticky containing block). Rather than fight that ancestor's
    clipping, the viewer simply scrolls with the page — a clean, predictable layout. */
+/* Split layout: certificates on the left, Interactive Attachment Viewer on the
+   right, each taking 50% of the row. Both children carry min-width:0 so a flex
+   item's default min-width:auto can't force overflow — that was clipping the
+   two-column card grid. */
 .cert-portfolio {
   display: flex;
   align-items: flex-start;
   gap: 24px;
 }
 .cert-portfolio__list {
-  flex: 1 1 55%;
+  flex: 1 1 50%;
   min-width: 0;
 }
 .cert-portfolio__viewer {
-  flex: 1 1 45%;
+  flex: 1 1 50%;
   min-width: 0;
   background: hsl(var(--card));
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius);
   padding: 16px;
+  position: sticky;
+  top: 16px;
 }
 @media (max-width: 1023px) {
   .cert-portfolio {
@@ -11230,19 +11236,18 @@ button.sdr-section-tag:hover:not(:disabled) {
 /* ═══ Programs & Auth Tab — Service Cards ═══ */
 .pa-services-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, 1fr) lets each 50% column shrink below its content width instead of
+     forcing the track wider (which clipped cards beside the doc viewer). */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
-.pa-services-grid__left {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
+.pa-services-grid__left,
 .pa-services-grid__right {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-width: 0;
 }
 /* Inside the portfolio list column (~55% width, beside the doc viewer) the older
    roomy authorization/program cards were too narrow at two columns, so that grid
@@ -11256,13 +11261,11 @@ button.sdr-section-tag:hover:not(:disabled) {
 .cert-portfolio__list .pa-services-grid:has(.pa-service-card--cert) {
   gap: 12px;
 }
-/* Below ~1200px the list column gets too tight for two compact cards beside the
-   viewer — stack them so each card keeps comfortable width. */
-@media (max-width: 1200px) {
-  .cert-portfolio__list .pa-services-grid:has(.pa-service-card--cert) {
-    grid-template-columns: 1fr;
-  }
-}
+/* The viewer is capped (max-width) so the list keeps enough room for two compact
+   cards. Only when the whole split stacks vertically (<=1023px, where the viewer
+   drops below the list) do we need the card grid itself to fall to one column —
+   handled by the .cert-portfolio column-stack breakpoint below. Keep two columns
+   above that so the double-column layout is preserved beside the viewer. */
 .pa-service-card {
   border: 2px solid var(--card-border, hsl(var(--border)));
   border-radius: 12px;
@@ -11597,6 +11600,33 @@ button.sdr-section-tag:hover:not(:disabled) {
 .pa-auth-item__actions {
   display: flex;
   gap: 2px;
+}
+
+/* Pending-review (employee-submitted renewal awaiting HR) card. Gives the
+   stacked contents — file row, uploaded-file list, and the Approve/Reject
+   decision — consistent 12px inset padding and vertical rhythm so the block
+   doesn't read as cramped against the card border. */
+.pa-cert-pending {
+  border-left: 3px solid #2563eb;
+  margin-bottom: 10px;
+}
+.pa-cert-pending .cert-history__list {
+  padding: 0 12px 4px;
+}
+.pa-cert-pending__decision {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  margin-top: 4px;
+  border-top: 1px solid hsl(var(--border) / 0.6);
+}
+.pa-cert-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: hsl(var(--primary));
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 14px 0 6px;
 }
 .pa-auth-item__body {
   padding: 0 12px 12px 38px;

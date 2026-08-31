@@ -79,12 +79,13 @@ export default function DashboardPage() {
     const firstOfType = (type) => employeeAttentionEvents.find(e => e.type === type);
 
     if (employeeAttentionCounts.certsPendingReview > 0) {
-        const e = firstOfType('cert-pending');
         attentionItems.push({
             icon: Icons.alertCircle,
             label: `${employeeAttentionCounts.certsPendingReview} certification${employeeAttentionCounts.certsPendingReview > 1 ? 's' : ''} awaiting review`,
             severity: 'warning',
-            action: () => navigate(e ? `/employees/${e.employeeId}#certs` : '/employees'),
+            // Mirror the onboarding item: filter the employees list to those with a
+            // cert awaiting HR review, rather than jumping to one employee.
+            action: () => navigate('/employees?certReview=pending'),
         });
     }
     if (employeeAttentionCounts.timeOffPending > 0) {
