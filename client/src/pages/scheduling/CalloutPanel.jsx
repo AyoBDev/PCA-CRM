@@ -278,11 +278,12 @@ export default function CalloutPanel({ shift, employees, onClose, onShiftChanged
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
                         <input
                             type="search"
+                            className="context-bar__search"
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                             placeholder="Search all caregivers by name…"
                             autoComplete="off"
-                            style={{ flex: 1 }}
+                            style={{ flex: 1, minWidth: 0, margin: 0 }}
                         />
                         <button
                             type="button"
