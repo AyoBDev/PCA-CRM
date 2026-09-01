@@ -1,4 +1,4 @@
-# DESIGN.md — PCAlink Design System
+# DESIGN.md — CareOmni Design System
 
 ## Overview
 Healthcare admin tool. Dark navy sidebar, white content area, blue accent. Calm, data-dense, professional. No decorative elements.

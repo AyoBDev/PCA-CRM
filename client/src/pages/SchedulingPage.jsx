@@ -1108,7 +1108,7 @@ function ScheduleCard({ title, icon, headerActions, children, collapsible = true
 
         const printWin = window.open('', '_blank');
         if (!printWin) return;
-        printWin.document.write(`<!DOCTYPE html><html><head><title>${title} — PCAlink</title>
+        printWin.document.write(`<!DOCTYPE html><html><head><title>${title} — CareOmni</title>
 <style>
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 32px; color: #09090b; background: #fff; margin: 0; }
 .pdf-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 2px solid #18181b; }
@@ -1143,7 +1143,7 @@ table.matrix tbody tr:not(:last-child) td { border-bottom: 1px solid #f4f4f5; }
 </head><body>
 <div class="pdf-header">
     <h1>${title}</h1>
-    <span>PCAlink — ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+    <span>CareOmni — ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
 </div>
 <h2 class="section-title">Shift Details</h2>
 <table class="detail">

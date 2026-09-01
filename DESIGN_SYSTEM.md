@@ -1,6 +1,6 @@
-# PCAlink Design System
+# CareOmni Design System
 
-A comprehensive reference for the visual language, component library, and design patterns used across the PCAlink application.
+A comprehensive reference for the visual language, component library, and design patterns used across the CareOmni application.
 
 ---
 
@@ -8,7 +8,7 @@ A comprehensive reference for the visual language, component library, and design
 
 ### Brand Identity
 
-- **Product**: PCAlink - Service Delivery Platform for PCA agencies
+- **Product**: CareOmni - Service Delivery Platform for PCA agencies
 - **Personality**: Professional, clean, healthcare-grade
 - **Visual Style**: Minimal borders, generous spacing, soft shadows, card-based layouts
 - **Font**: Inter (Google Fonts) - weights 400, 500, 600, 700

@@ -54,7 +54,7 @@ describe('status gating', () => {
     renderAt('/');
     // Stable marker rendered by EmployeeLayout (the app shell wrapping all
     // protected pages) — proves the shell mounted, not the onboarding screen.
-    expect(await screen.findByText('PCAlink')).toBeInTheDocument();
+    expect(await screen.findByText('CareOmni')).toBeInTheDocument();
     expect(screen.queryByText(/changes requested|onboarding submitted|complete your setup/i)).not.toBeInTheDocument();
   });
 
@@ -63,6 +63,6 @@ describe('status gating', () => {
     renderAt('/');
     // The onboarding-status screen renders instead of the schedule/home shell.
     expect(await screen.findByText(/changes requested/i)).toBeInTheDocument();
-    expect(screen.queryByText('PCAlink')).not.toBeInTheDocument();
+    expect(screen.queryByText('CareOmni')).not.toBeInTheDocument();
   });
 });

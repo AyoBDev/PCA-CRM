@@ -9,8 +9,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'PCAlink Employee',
-        short_name: 'PCAlink',
+        name: 'CareOmni Employee',
+        short_name: 'CareOmni',
         start_url: '/employee/',
         display: 'standalone',
         orientation: 'portrait',

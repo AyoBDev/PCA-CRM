@@ -1,6 +1,6 @@
 {
-  "name": "PCAlink Employee",
-  "short_name": "PCAlink",
+  "name": "CareOmni Employee",
+  "short_name": "CareOmni",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
