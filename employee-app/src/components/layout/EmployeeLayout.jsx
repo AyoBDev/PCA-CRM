@@ -16,7 +16,7 @@ export default function EmployeeLayout() {
         <header className="app-header">
           <div className="app-header__brand">
             <div className="app-header__logo"><Logo /></div>
-            <span className="app-header__name">PCAlink</span>
+            <span className="app-header__name">CareOmni</span>
           </div>
         </header>
         <main className="page-content">

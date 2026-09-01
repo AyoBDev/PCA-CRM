@@ -30,7 +30,7 @@ export default function ForgotPasswordPage() {
             <div className="login-card">
                 <div className="login-card__header">
                     <div className="login-card__logo">{Icons.shieldCheck}</div>
-                    <h1 className="login-card__title">PCAlink</h1>
+                    <h1 className="login-card__title">CareOmni</h1>
                     <p className="login-card__subtitle">Reset Your Password</p>
                 </div>
                 {sent ? (

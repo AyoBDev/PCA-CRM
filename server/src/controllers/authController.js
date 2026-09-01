@@ -251,7 +251,7 @@ async function resetPassword(req, res, next) {
             const loginUrl = `${req.protocol}://${req.get('host')}`;
             sendEmail(
                 user.email,
-                'Your Password Has Been Reset — PCAlink',
+                'Your Password Has Been Reset — CareOmni',
                 `<div style="font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:500px;margin:0 auto">
                     <h2 style="color:#09090b">Password Reset</h2>
                     <p>Hi ${user.name},</p>
@@ -347,7 +347,7 @@ async function forgotPassword(req, res, next) {
             const resetUrl = `${baseUrl}/reset-password?token=${resetToken.token}`;
             sendEmail(
                 user.email,
-                'Reset Your Password — PCAlink',
+                'Reset Your Password — CareOmni',
                 `<div style="font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:500px;margin:0 auto">
                     <h2 style="color:#09090b">Password Reset Request</h2>
                     <p>Hi ${user.name},</p>

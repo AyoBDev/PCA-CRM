@@ -40,7 +40,7 @@ test('agency host variant renders the agency name and a forgot-password link', a
 test('landing host variant renders no password input', async () => {
   getHostInfo.mockResolvedValue({ type: 'landing' });
   renderPage();
-  await waitFor(() => expect(screen.getByText('PCAlink')).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText('CareOmni')).toBeInTheDocument());
   expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument();
 });
 

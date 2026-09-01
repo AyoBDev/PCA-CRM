@@ -33,7 +33,7 @@ export default function LoginPage() {
             <path d="M9 12l2 2 4-4"/>
           </svg>
         </div>
-        <h1 className="login-title">PCAlink</h1>
+        <h1 className="login-title">CareOmni</h1>
         <p className="login-subtitle">Employee Portal</p>
         <form onSubmit={handleSubmit}>
           {error && <div className="login-error">{error}</div>}
