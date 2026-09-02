@@ -82,8 +82,29 @@ describe('useFitToWidth', () => {
             observers[0].trigger(1200);
         });
         expect(setZoom).toHaveBeenCalledTimes(2);
-        // (1200 - 48) / 612 ≈ 1.882
-        expect(setZoom.mock.calls[1][0]).toBeCloseTo(1.882, 2);
+        // (1200 - 48) / 612 ≈ 1.882, but the auto-fit is capped at the default
+        // maxScale (1.5) so a portrait page doesn't balloon on a wide viewer.
+        expect(setZoom.mock.calls[1][0]).toBeCloseTo(1.5, 2);
+    });
+
+    it('caps the auto-fit at the default maxScale (1.5) on a wide container', () => {
+        const setZoom = vi.fn();
+        const containerRef = { current: { clientWidth: 1650 } };
+        const userZoomedRef = { current: false };
+        const pages = [makePage(612)];
+        renderHook(() => useFitToWidth(containerRef, pages, userZoomedRef, setZoom));
+        // (1650 - 48) / 612 ≈ 2.62 uncapped → clamped to 1.5
+        expect(setZoom).toHaveBeenCalledTimes(1);
+        expect(setZoom.mock.calls[0][0]).toBeCloseTo(1.5, 2);
+    });
+
+    it('respects a custom maxScale argument', () => {
+        const setZoom = vi.fn();
+        const containerRef = { current: { clientWidth: 1650 } };
+        const userZoomedRef = { current: false };
+        const pages = [makePage(612)];
+        renderHook(() => useFitToWidth(containerRef, pages, userZoomedRef, setZoom, 2));
+        expect(setZoom.mock.calls[0][0]).toBeCloseTo(2, 2);
     });
 
     it('stops auto-fitting once the user has manually zoomed', () => {

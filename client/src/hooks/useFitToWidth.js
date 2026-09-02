@@ -12,7 +12,11 @@ import { computeFitScale } from '../utils/pdfFit';
 //   unscaled viewport width)
 // userZoomedRef: ref<boolean> — true once the user has manually zoomed
 // setZoom: setter to apply the computed fit scale
-export function useFitToWidth(containerRef, pages, userZoomedRef, setZoom) {
+// maxScale: ceiling for the AUTO fit (default 1.5). A portrait page in a very
+//   wide viewer would otherwise fit-to-width at 2x–3x and overflow the screen;
+//   capping keeps a comfortable default while manual zoom (toolbar) can still
+//   go higher.
+export function useFitToWidth(containerRef, pages, userZoomedRef, setZoom, maxScale = 1.5) {
     useEffect(() => {
         const el = containerRef.current;
         if (!el || !pages.length) return undefined;
@@ -23,7 +27,7 @@ export function useFitToWidth(containerRef, pages, userZoomedRef, setZoom) {
         const applyFit = (width) => {
             if (userZoomedRef.current) return;
             if (!(width > 0)) return;
-            const fit = computeFitScale(width, pageWidth);
+            const fit = computeFitScale(width, pageWidth, { max: maxScale });
             setZoom(fit);
         };
 
@@ -41,5 +45,5 @@ export function useFitToWidth(containerRef, pages, userZoomedRef, setZoom) {
         observer.observe(el);
 
         return () => observer.disconnect();
-    }, [containerRef, pages, userZoomedRef, setZoom]);
+    }, [containerRef, pages, userZoomedRef, setZoom, maxScale]);
 }
