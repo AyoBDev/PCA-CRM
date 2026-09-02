@@ -573,7 +573,7 @@ async function exportPayrollRun(req, res, next) {
 
         for (const row of model.rows) {
             const added = ws.addRow(row.values);
-            for (let i = 0; i < model.columns.length; i++) {
+            for (let i = 0; i < row.values.length; i++) {
                 const cell = added.getCell(i + 1);
                 const fill = row.fills[i];
                 const font = row.fonts[i];

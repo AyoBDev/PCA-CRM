@@ -4,6 +4,7 @@ const {
     SHEET_COLUMNS,
     COLUMN_WIDTHS,
     COLORS,
+    COL,
     buildExportModel,
     excelTimeFromHHMM,
     excelDurationFromMinutes,
@@ -54,8 +55,8 @@ describe('sheet skeleton matches the agency Google Sheet', () => {
         ]);
     });
 
-    test('column widths match the source sheet', () => {
-        expect(COLUMN_WIDTHS).toEqual([35.88, 59.88, 21.63, 13.38, 9.13, 11.13, 13.75, 14.25, 7.38]);
+    test('the nine printed column widths match the source sheet', () => {
+        expect(COLUMN_WIDTHS.slice(0, 9)).toEqual([35.88, 59.88, 21.63, 13.38, 9.13, 11.13, 13.75, 14.25, 7.38]);
     });
 
     test('palette matches the source sheet', () => {
@@ -68,7 +69,10 @@ describe('sheet skeleton matches the agency Google Sheet', () => {
 
     test('row 1 is the header band, row 2 is the period label', () => {
         const m = buildExportModel(run([visit()]), {});
-        expect(m.rows[0]).toMatchObject({ kind: 'header', values: SHEET_COLUMNS });
+        expect(m.rows[0].kind).toBe('header');
+        // The printed header band stops at Units; column J is left unlabelled.
+        expect(m.rows[0].values.slice(0, 9)).toEqual(SHEET_COLUMNS);
+        expect(m.rows[0].values[9]).toBe('');
         expect(m.rows[1].kind).toBe('period');
         expect(m.rows[1].values[0]).toBe('08/23/26-08/29/26');
     });
@@ -284,5 +288,93 @@ describe('edge cases', () => {
         const m = buildExportModel(run([visit({ visitDate: null })]), {});
         const v = firstWhere(m, (r) => r.kind === 'visit');
         expect(v.values[3]).toBe('');
+    });
+});
+
+// ── Void rows ─────────────────────────────────────────────
+describe('void rows are highlighted with their reason in column J', () => {
+    const voided = (over = {}) => visit({
+        voidFlag: true,
+        voidReason: 'No authorized units remaining (void)',
+        finalPayableUnits: 0,
+        ...over,
+    });
+
+    test('every cell of a void row carries the void highlight fill', () => {
+        const m = buildExportModel(run([voided()]), {});
+        const v = firstWhere(m, (r) => r.kind === 'visit');
+        for (let i = 0; i < SHEET_COLUMNS.length; i++) {
+            expect(v.fills[i]).toBe(COLORS.voidRow);
+        }
+    });
+
+    test('the reason is written in column J, immediately right of Units', () => {
+        const m = buildExportModel(run([voided()]), {});
+        const v = firstWhere(m, (r) => r.kind === 'visit');
+        expect(COL.VOID_REASON).toBe(9);
+        expect(v.values[COL.VOID_REASON]).toBe('No authorized units remaining (void)');
+    });
+
+    test('the reason text is red so it reads as an exception', () => {
+        const m = buildExportModel(run([voided()]), {});
+        const v = firstWhere(m, (r) => r.kind === 'visit');
+        expect(v.fonts[COL.VOID_REASON]).toMatchObject({ color: COLORS.annotationRed });
+    });
+
+    test('the overnight void reason is carried through verbatim', () => {
+        const reason = 'Overnight > 01:00 AM (void); Clock Out on next calendar day';
+        const m = buildExportModel(run([voided({ voidReason: reason })]), {});
+        const v = firstWhere(m, (r) => r.kind === 'visit');
+        expect(v.values[COL.VOID_REASON]).toBe(reason);
+    });
+
+    test('a void row still reports zero units', () => {
+        const m = buildExportModel(run([voided({ finalPayableUnits: 20 })]), {});
+        const v = firstWhere(m, (r) => r.kind === 'visit');
+        expect(v.values[COL.UNITS]).toBe(0);
+    });
+
+    test('a void row with no stated reason is still highlighted, with column J blank', () => {
+        const m = buildExportModel(run([voided({ voidReason: '' })]), {});
+        const v = firstWhere(m, (r) => r.kind === 'visit');
+        expect(v.fills[COL.CLIENT]).toBe(COLORS.voidRow);
+        expect(v.values[COL.VOID_REASON]).toBe('');
+    });
+
+    test('non-void rows are neither highlighted nor annotated in column J', () => {
+        const m = buildExportModel(run([visit()]), {});
+        const v = firstWhere(m, (r) => r.kind === 'visit');
+        expect(v.fills[COL.CLIENT]).toBeNull();
+        expect(v.values[COL.VOID_REASON]).toBe('');
+    });
+
+    test('void rows are excluded from the client total', () => {
+        const m = buildExportModel(run([
+            visit({ id: 1, finalPayableUnits: 28 }),
+            voided({ id: 2, finalPayableUnits: 20 }),
+        ]), {});
+        const total = firstWhere(m, (r) => r.kind === 'total');
+        expect(total.values[COL.UNITS]).toBe(28);
+    });
+
+    test('every row is wide enough to hold column J', () => {
+        const m = buildExportModel(run([voided()]), {});
+        for (const row of m.rows) {
+            expect(row.values.length).toBe(SHEET_COLUMNS.length + 1);
+            expect(row.fills.length).toBe(SHEET_COLUMNS.length + 1);
+            expect(row.fonts.length).toBe(SHEET_COLUMNS.length + 1);
+        }
+    });
+
+    test('a width is provided for column J', () => {
+        const m = buildExportModel(run([voided()]), {});
+        expect(m.widths).toHaveLength(SHEET_COLUMNS.length + 1);
+        expect(m.widths[COL.VOID_REASON]).toBeGreaterThan(20);
+    });
+
+    test('the void highlight is distinct from the auth-banner and total fills', () => {
+        expect(COLORS.voidRow).not.toBe(COLORS.authShort);
+        expect(COLORS.voidRow).not.toBe(COLORS.authMet);
+        expect(COLORS.voidRow).not.toBe(COLORS.totalGreen);
     });
 });

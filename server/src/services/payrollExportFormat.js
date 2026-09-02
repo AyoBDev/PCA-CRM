@@ -25,7 +25,12 @@ const SHEET_COLUMNS = [
     'Call in', 'Call Out', 'Call Hours', 'Visit Status', 'Units',
 ];
 
-const COLUMN_WIDTHS = [35.88, 59.88, 21.63, 13.38, 9.13, 11.13, 13.75, 14.25, 7.38];
+// Column J sits beyond the agency's 9 printed columns and carries the reason a
+// row was voided. It is intentionally outside SHEET_COLUMNS: the header band
+// stops at Units, matching the hand-built sheet.
+const VOID_REASON_WIDTH = 46;
+
+const COLUMN_WIDTHS = [35.88, 59.88, 21.63, 13.38, 9.13, 11.13, 13.75, 14.25, 7.38, VOID_REASON_WIDTH];
 
 const COLORS = {
     headerGrey:     'FF999999',
@@ -33,6 +38,9 @@ const COLORS = {
     authShort:      'FFFF0000',
     totalGreen:     'FFB7E1CD',
     annotationRed:  'FFFF0000',
+    // Void rows are washed a light red so they read as struck-out at a glance
+    // without competing with the saturated red used for a short authorization.
+    voidRow:        'FFF4CCCC',
 };
 
 const NUM_FMT = {
@@ -45,7 +53,10 @@ const NUM_FMT = {
 // breathing room in the hand-built sheet.
 const SPACER_ROWS = 4;
 
-const COL = { CLIENT: 0, EMPLOYEE: 1, SERVICE: 2, DATE: 3, IN: 4, OUT: 5, HOURS: 6, STATUS: 7, UNITS: 8 };
+const COL = { CLIENT: 0, EMPLOYEE: 1, SERVICE: 2, DATE: 3, IN: 4, OUT: 5, HOURS: 6, STATUS: 7, UNITS: 8, VOID_REASON: 9 };
+
+// Rows are one cell wider than the printed header so column J always exists.
+const ROW_WIDTH = SHEET_COLUMNS.length + 1;
 
 // Agency display order for service codes (same convention as the payroll UI).
 const SERVICE_CODE_SORT_ORDER = { PCS: 0, S5130: 1, S5125: 2, S5150: 3, S5135: 4, SDPC: 5, S5120: 6 };
@@ -118,8 +129,8 @@ function deriveAnnotations(visits) {
 }
 
 /** Blank row template. */
-const blankValues = () => new Array(SHEET_COLUMNS.length).fill('');
-const blankMap    = () => new Array(SHEET_COLUMNS.length).fill(null);
+const blankValues = () => new Array(ROW_WIDTH).fill('');
+const blankMap    = () => new Array(ROW_WIDTH).fill(null);
 
 function makeRow(kind, values, opts = {}) {
     return {
@@ -144,18 +155,26 @@ function buildExportModel(run, authMap = {}) {
     const rows = [];
 
     // ── Row 1: header band ────────────────────────────────
-    rows.push(makeRow('header', SHEET_COLUMNS.slice(), {
-        fills: SHEET_COLUMNS.map(() => COLORS.headerGrey),
-        fonts: SHEET_COLUMNS.map(() => ({ bold: true, size: 15 })),
-    }));
+    const headerValues = blankValues();
+    SHEET_COLUMNS.forEach((label, i) => { headerValues[i] = label; });
+    const headerFills = blankMap();
+    const headerFonts = blankMap();
+    SHEET_COLUMNS.forEach((_, i) => {
+        headerFills[i] = COLORS.headerGrey;
+        headerFonts[i] = { bold: true, size: 15 };
+    });
+    rows.push(makeRow('header', headerValues, { fills: headerFills, fonts: headerFonts }));
 
     // ── Row 2: pay-period label ───────────────────────────
     const period = blankValues();
     period[COL.CLIENT] = periodLabel(run);
-    rows.push(makeRow('period', period, {
-        fills: SHEET_COLUMNS.map(() => COLORS.headerGrey),
-        fonts: SHEET_COLUMNS.map(() => ({ bold: true, size: 18 })),
-    }));
+    const periodFills = blankMap();
+    const periodFonts = blankMap();
+    SHEET_COLUMNS.forEach((_, i) => {
+        periodFills[i] = COLORS.headerGrey;
+        periodFonts[i] = { bold: true, size: 18 };
+    });
+    rows.push(makeRow('period', period, { fills: periodFills, fonts: periodFonts }));
 
     // ── Group visits by client (skip merged-away EVV rows) ─
     const groups = new Map();
@@ -250,7 +269,18 @@ function buildExportModel(run, authMap = {}) {
             values[COL.STATUS] = v.visitStatus || '';
             values[COL.UNITS]  = v.voidFlag ? 0 : (v.finalPayableUnits || 0);
 
-            rows.push(makeRow('visit', values, { numFmts, visitId: v.id }));
+            // A voided row is washed across the printed columns and states why
+            // in column J, so a reviewer can see the exclusion and its cause
+            // without cross-referencing anything.
+            const fills = blankMap();
+            const fonts = blankMap();
+            if (v.voidFlag) {
+                for (let i = 0; i < SHEET_COLUMNS.length; i++) fills[i] = COLORS.voidRow;
+                values[COL.VOID_REASON] = String(v.voidReason || '').trim();
+                fonts[COL.VOID_REASON] = { color: COLORS.annotationRed };
+            }
+
+            rows.push(makeRow('visit', values, { fills, fonts, numFmts, visitId: v.id }));
         }
 
         // ── Total row ─────────────────────────────────────
@@ -287,6 +317,7 @@ function buildExportModel(run, authMap = {}) {
 module.exports = {
     SHEET_COLUMNS,
     COLUMN_WIDTHS,
+    ROW_WIDTH,
     COLORS,
     NUM_FMT,
     SPACER_ROWS,
