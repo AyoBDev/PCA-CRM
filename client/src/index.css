@@ -13852,15 +13852,6 @@ tr:hover .auth-note-icon--empty {
     flex-wrap: wrap;
 }
 
-.files-page__select-all {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    color: hsl(var(--muted-foreground));
-    cursor: pointer;
-}
-.files-page__select-all input { width: 15px; height: 15px; accent-color: hsl(var(--primary)); }
 .files-page__selection-count { font-size: 13px; font-weight: 500; color: hsl(var(--primary)); }
 
 .files-page__panels {
