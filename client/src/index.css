@@ -14201,6 +14201,15 @@ button.files-page__crumb:hover { text-decoration: underline; }
 .file-row__main { cursor: default; }
 .file-row--cert[role="button"] .file-row__main, .file-row--cert .file-row__main[role="button"] { cursor: pointer; }
 
+/* Subfolder rows in the Files panel — click to drill down, like the file
+   rows above them but simpler (no checkbox/actions). */
+.file-list__folders { margin-bottom: 8px; }
+.file-row--folder { cursor: pointer; }
+.file-row--folder:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: -2px; }
+.file-row__icon--folder { color: hsl(var(--primary)); }
+.file-row__icon--folder svg { width: 18px; height: 18px; }
+.file-row--folder .file-row__name { font-weight: 600; }
+
 /* Certification history list (reuses .file-row rows) */
 .cert-history__label {
     font-size: 11px;

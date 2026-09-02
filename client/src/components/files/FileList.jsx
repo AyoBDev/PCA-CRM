@@ -10,6 +10,8 @@ import * as api from '../../api';
 export default function FileList({
     folder,
     files,
+    childFolders = [],
+    onOpenFolder,
     selected,
     onToggleSelect,
     onPreview,
@@ -123,13 +125,38 @@ export default function FileList({
                 </div>
             </div>
 
+            {childFolders.length > 0 && (
+                // Subfolders of the current folder — like a normal file manager,
+                // shown above the files so the user can drill down from here too
+                // (not just via the left tree). Minimal rows: icon + name, click
+                // navigates. No checkboxes/preview/rename — folder management
+                // stays in the left tree.
+                <div className="file-list__folders cert-history__list">
+                    {childFolders.map(cf => (
+                        <div
+                            key={cf.id}
+                            className="file-row file-row--folder"
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => onOpenFolder && onOpenFolder(cf)}
+                            onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && onOpenFolder) { e.preventDefault(); onOpenFolder(cf); } }}
+                        >
+                            <div className="file-row__icon file-row__icon--folder">{Icons.folder}</div>
+                            <div className="file-row__main">
+                                <div className="file-row__name">{cf.name}</div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
             {!hideDropzone && <UploadZone onUpload={onUpload} />}
 
-            {filtered.length === 0 ? (
+            {filtered.length === 0 && childFolders.length === 0 ? (
                 <div className="file-list__empty">
                     {filterType !== 'all' ? 'No files match this filter.' : 'No files yet. Upload files above.'}
                 </div>
-            ) : (
+            ) : filtered.length > 0 ? (
                 // Always the docked pane: clicking a file docks it inline (even
                 // with the toggle off — the click reveals the panel); the Preview
                 // toggle only shows/hides the empty panel by default. Full-screen
@@ -143,7 +170,7 @@ export default function FileList({
                     onDownload={(item) => onDownload(filtered.find(f => f.id === item.id))}
                     emptyText="No files yet. Upload files above."
                 />
-            )}
+            ) : null}
         </div>
     );
 }

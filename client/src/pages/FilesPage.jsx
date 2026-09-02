@@ -21,6 +21,7 @@ export default function FilesPage() {
 
     const [selectedFolder, setSelectedFolder] = useState(null);
     const [files, setFiles] = useState([]);
+    const [childFolders, setChildFolders] = useState([]);
     const [loadingFiles, setLoadingFiles] = useState(false);
     const [selected, setSelected] = useState(new Set());
     const [nameModal, setNameModal] = useState(null);
@@ -39,7 +40,7 @@ export default function FilesPage() {
     const nameInputRef = useRef(null);
 
     const loadFiles = useCallback(async (folder) => {
-        if (!folder) { setFiles([]); return; }
+        if (!folder) { setFiles([]); setChildFolders([]); return; }
         setLoadingFiles(true);
         setSelected(new Set());
         try {
@@ -52,6 +53,7 @@ export default function FilesPage() {
                 updatedAt: f.updatedAt,
                 uploadedBy: f.uploader?.name,
             })));
+            setChildFolders(data.children || []);
         } catch (err) {
             console.error('Failed to load files:', err);
         } finally {
@@ -77,6 +79,7 @@ export default function FilesPage() {
                     updatedAt: f.updatedAt,
                     uploadedBy: f.uploader?.name,
                 })));
+                setChildFolders(data.children || []);
             }).catch(() => {});
         }
     }, [searchParams]);
@@ -169,6 +172,11 @@ export default function FilesPage() {
                 if (selectedFolder?.id === deleteModal.item.id) {
                     setSelectedFolder(null);
                     setFiles([]);
+                    setChildFolders([]);
+                } else if (selectedFolder && deleteModal.item.parentId === selectedFolder.id) {
+                    // Deleted item was a subfolder shown in the right panel's
+                    // child list — refresh so it disappears immediately.
+                    loadFiles(selectedFolder);
                 }
                 showToast('Folder deleted');
             } catch (err) {
@@ -292,6 +300,11 @@ export default function FilesPage() {
                 const parentId = nameModal.parentId !== undefined ? nameModal.parentId : (selectedFolder?.id || null);
                 await api.createFolder(value, parentId);
                 setTreeRefreshKey(k => k + 1);
+                // New subfolder was created inside the currently open folder —
+                // refresh the right panel so it shows up immediately.
+                if (selectedFolder && parentId === selectedFolder.id) {
+                    loadFiles(selectedFolder);
+                }
             } catch (err) {
                 showToast(err.message || 'Failed to create folder', 'error');
             }
@@ -307,6 +320,11 @@ export default function FilesPage() {
                     setTreeRefreshKey(k => k + 1);
                     if (selectedFolder?.id === nameModal.item.id) {
                         setSelectedFolder(prev => ({ ...prev, name: value }));
+                    }
+                    // Renamed folder may be a subfolder shown in the right
+                    // panel's child list — refresh so its new name appears.
+                    if (selectedFolder && nameModal.item.parentId === selectedFolder.id) {
+                        loadFiles(selectedFolder);
                     }
                 } catch (err) {
                     showToast(err.message || 'Failed to rename folder', 'error');
@@ -338,6 +356,12 @@ export default function FilesPage() {
     const filteredFiles = search
         ? files.filter(f => f.name.toLowerCase().includes(search.toLowerCase()))
         : files;
+
+    // Same search term also narrows the subfolder list shown above the files,
+    // so search behaves consistently across both.
+    const filteredChildFolders = search
+        ? childFolders.filter(f => f.name.toLowerCase().includes(search.toLowerCase()))
+        : childFolders;
 
     // Clickable breadcrumb segments derived from selectedFolder.path, e.g.
     // "/Insurance/Medicaid" → [{name:'Insurance', id:3}, {name:'Medicaid', id:7}].
@@ -491,6 +515,8 @@ export default function FilesPage() {
                         <FileList
                             folder={selectedFolder}
                             files={filteredFiles}
+                            childFolders={filteredChildFolders}
+                            onOpenFolder={handleSelectFolder}
                             selected={selected}
                             onToggleSelect={handleToggleSelect}
                             onPreview={handlePreview}
