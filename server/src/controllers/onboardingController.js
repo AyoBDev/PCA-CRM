@@ -203,14 +203,36 @@ async function getOnboardingReviews(req, res, next) {
             select: { id: true, name: true, email: true, phone: true, updatedAt: true },
             orderBy: { updatedAt: 'asc' }, // oldest submissions first
         });
-        const reviews = await Promise.all(employees.map(async (e) => {
-            const [required, satisfied, optionalPending] = await Promise.all([
-                req.db.employeeRequirement.count({ where: { employeeId: e.id, optional: false } }),
-                req.db.employeeRequirement.count({ where: { employeeId: e.id, optional: false, status: { in: ['submitted', 'approved'] } } }),
-                req.db.employeeRequirement.count({ where: { employeeId: e.id, optional: true, status: 'required' } }),
-            ]);
+        // Tally every employee's requirements in ONE grouped query rather than
+        // three counts per employee. The per-employee version issued 3N+1
+        // queries concurrently — a few hundred pending reviews meant >1,000
+        // queries in a single request, saturating the connection pool.
+        const ids = employees.map((e) => e.id);
+        const grouped = ids.length
+            ? await req.db.employeeRequirement.groupBy({
+                by: ['employeeId', 'optional', 'status'],
+                where: { employeeId: { in: ids } },
+                _count: { _all: true },
+            })
+            : [];
+
+        const tally = new Map(ids.map((id) => [id, { required: 0, satisfied: 0, optionalPending: 0 }]));
+        for (const g of grouped) {
+            const t = tally.get(g.employeeId);
+            if (!t) continue;
+            const n = g._count._all;
+            if (!g.optional) {
+                t.required += n;
+                if (g.status === 'submitted' || g.status === 'approved') t.satisfied += n;
+            } else if (g.status === 'required') {
+                t.optionalPending += n;
+            }
+        }
+
+        const reviews = employees.map((e) => {
+            const { required, satisfied, optionalPending } = tally.get(e.id);
             return { id: e.id, name: e.name, email: e.email, phone: e.phone, submittedAt: e.updatedAt, requiredTotal: required, requiredDone: satisfied, optionalPending };
-        }));
+        });
         res.json({ reviews });
     } catch (err) { next(err); }
 }

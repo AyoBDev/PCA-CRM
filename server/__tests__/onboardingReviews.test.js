@@ -17,8 +17,8 @@ async function tokenFor(role) {
   return { header: { Authorization: `Bearer ${jwt.sign({ id: user.id, role, permissionsVersion: user.permissionsVersion ?? 1, agencyId: user.agencyId }, JWT_SECRET)}` }, userId: user.id };
 }
 
+let submittedEmpId;
 describe('GET /api/onboarding/reviews (admin-only)', () => {
-  let submittedEmpId;
   beforeAll(async () => {
     const e = await prisma.employee.create({ data: { name: 'Review Me', email: `rev-emp-${Date.now()}@t.co`, onboardingStatus: 'pending_review', agencyId: 1 } });
     submittedEmpId = e.id;
@@ -60,4 +60,70 @@ describe('GET /api/onboarding/reviews (admin-only)', () => {
     const res = await request(app).get('/api/onboarding/reviews');
     expect(res.status).toBe(401);
   });
+});
+
+// Regression: the handler used to issue 3 count queries PER employee awaiting
+// review (an N+1). With a few hundred pending employees that became >1,000
+// concurrent queries in one request, saturating the connection pool — it made
+// this suite flaky under parallel workers and would have degraded badly in
+// production as the queue grew. The counts must come from a bounded number of
+// queries that does not scale with the number of employees.
+describe('GET /api/onboarding/reviews — query count is bounded', () => {
+  it('serves a large review queue well inside the default test timeout', async () => {
+    // The N+1 issued 3 counts per employee concurrently; with a few hundred
+    // pending employees that saturated the pool and pushed a single request
+    // past 5s. Assert on wall-clock, which is the symptom that actually broke.
+    const { header } = await tokenFor('admin');
+    const t0 = Date.now();
+    const res = await request(app).get('/api/onboarding/reviews').set(header);
+    const elapsed = Date.now() - t0;
+
+    expect(res.status).toBe(200);
+    // Only meaningful once the queue is big enough to fan out over.
+    if (res.body.reviews.length >= 50) {
+      expect(elapsed).toBeLessThan(2000);
+    }
+  }, 20000);
+
+  it('returns the same counts it did with per-employee queries', async () => {
+    // Own fixture — the block above deletes its employee in afterAll.
+    const e = await prisma.employee.create({
+      data: { name: 'Counts Me', email: `counts-${Date.now()}@t.co`, onboardingStatus: 'pending_review', agencyId: 1 },
+    });
+    const dt = await prisma.documentType.create({
+      data: { key: `cnt-${Date.now()}`, label: 'ID', sortOrder: 1, agencyId: 1 },
+    });
+    await prisma.employeeRequirement.create({ data: { employeeId: e.id, kind: 'document', catalogTypeId: dt.id, status: 'submitted', optional: false, agencyId: 1 } });
+    await prisma.employeeRequirement.create({ data: { employeeId: e.id, kind: 'certification', catalogTypeId: dt.id, status: 'required', optional: true, agencyId: 1 } });
+    try {
+      const { header } = await tokenFor('admin');
+      const res = await request(app).get('/api/onboarding/reviews').set(header);
+      expect(res.status).toBe(200);
+
+      const row = res.body.reviews.find((r) => r.id === e.id);
+      expect(row).toBeTruthy();
+      expect(row.requiredTotal).toBe(1);
+      expect(row.requiredDone).toBe(1);
+      expect(row.optionalPending).toBe(1);
+    } finally {
+      await prisma.employee.delete({ where: { id: e.id } });
+    }
+  }, 20000);
+
+  it('reports zeroes for an employee with no requirements at all', async () => {
+    const e = await prisma.employee.create({
+      data: { name: 'No Reqs', email: `noreq-${Date.now()}@t.co`, onboardingStatus: 'pending_review', agencyId: 1 },
+    });
+    try {
+      const { header } = await tokenFor('admin');
+      const res = await request(app).get('/api/onboarding/reviews').set(header);
+      const row = res.body.reviews.find((r) => r.id === e.id);
+      expect(row).toBeTruthy();
+      expect(row.requiredTotal).toBe(0);
+      expect(row.requiredDone).toBe(0);
+      expect(row.optionalPending).toBe(0);
+    } finally {
+      await prisma.employee.delete({ where: { id: e.id } });
+    }
+  }, 20000);
 });
