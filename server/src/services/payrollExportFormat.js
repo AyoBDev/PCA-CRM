@@ -66,6 +66,9 @@ const SERVICE_CODE_SORT_ORDER = { PCS: 0, S5130: 1, S5125: 2, S5150: 3, S5135: 4
 
 const UNKNOWN_CLIENT = '(Unknown Client)';
 
+// Bucket for visits that carry no service code (EVV rows often arrive without one).
+const NO_SERVICE_CODE = '(none)';
+
 /** Sort index for a service code; unknown codes sort last. */
 function serviceCodeSortIndex(code) {
     const key = String(code || '').toUpperCase().trim();
@@ -175,6 +178,7 @@ function makeRow(kind, values, opts = {}) {
         numFmts: opts.numFmts || blankMap(),
         alignments: opts.alignments || blankMap(),
         ...(opts.visitId !== undefined ? { visitId: opts.visitId } : {}),
+        ...(opts.serviceCode !== undefined ? { serviceCode: opts.serviceCode } : {}),
     };
 }
 
@@ -301,7 +305,10 @@ function buildExportModel(run, authMap = {}) {
             if (dur !== null) { values[COL.HOURS] = dur; numFmts[COL.HOURS] = NUM_FMT.duration; }
 
             values[COL.STATUS] = v.visitStatus || '';
-            values[COL.UNITS]  = v.voidFlag ? 0 : (v.finalPayableUnits || 0);
+            // Column I carries the units the caregiver actually CLOCKED, so the
+            // sheet never silently shrinks a visit. What is payable after caps
+            // is stated in column J and summarised per service below the Total.
+            values[COL.UNITS]  = Number(v.unitsRaw) || 0;
 
             // A voided row is washed across the printed columns and states why
             // in column J, so a reviewer can see the exclusion and its cause
@@ -322,9 +329,10 @@ function buildExportModel(run, authMap = {}) {
         }
 
         // ── Total row ─────────────────────────────────────
-        const total = visits
-            .filter((v) => !v.voidFlag && !v.needsReview)
-            .reduce((sum, v) => sum + (v.finalPayableUnits || 0), 0);
+        // The Total adds up the column above it — clocked units — so the sheet
+        // reconciles visually. The payable figure per service is broken out
+        // immediately below.
+        const total = visits.reduce((sum, v) => sum + (Number(v.unitsRaw) || 0), 0);
 
         const tValues = blankValues();
         tValues[COL.OUT]   = 'Total';
@@ -334,6 +342,45 @@ function buildExportModel(run, authMap = {}) {
         const tAlign = blankMap();
         tAlign[COL.UNITS] = { horizontal: 'right' };
         rows.push(makeRow('total', tValues, { fills: tFills, alignments: tAlign }));
+
+        // ── Per-service clocked vs payable breakdown ──────
+        // A client's units are capped per service, so one blended total hides
+        // where the reduction landed. One row per service code states both.
+        const byService = new Map();
+        for (const v of visits) {
+            const code = String(v.serviceCode || '').toUpperCase().trim() || NO_SERVICE_CODE;
+            if (!byService.has(code)) byService.set(code, { clocked: 0, payable: 0 });
+            const acc = byService.get(code);
+            acc.clocked += Number(v.unitsRaw) || 0;
+            acc.payable += (v.voidFlag || v.needsReview) ? 0 : (Number(v.finalPayableUnits) || 0);
+        }
+
+        const serviceCodes = [...byService.keys()].sort(
+            (a, b) => serviceCodeSortIndex(a) - serviceCodeSortIndex(b)
+        );
+
+        for (const code of serviceCodes) {
+            const { clocked, payable } = byService.get(code);
+            const values = blankValues();
+            const fonts  = blankMap();
+            const alignments = blankMap();
+
+            values[COL.STATUS] = code === NO_SERVICE_CODE ? 'No service code' : code;
+            values[COL.UNITS]  = clocked;
+            values[COL.VOID_REASON] = clocked === payable
+                ? `payable ${payable}`
+                : `payable ${payable} (−${clocked - payable} capped)`;
+
+            fonts[COL.STATUS] = { bold: true };
+            fonts[COL.UNITS]  = { bold: true };
+            // Flag the services where the payable figure diverges from clocked.
+            fonts[COL.VOID_REASON] = clocked === payable
+                ? { bold: true }
+                : { bold: true, color: COLORS.annotationRed };
+            alignments[COL.UNITS] = { horizontal: 'right' };
+
+            rows.push(makeRow('breakdown', values, { fonts, alignments, serviceCode: code }));
+        }
 
         // ── Annotations (red, in the spacer area) ─────────
         const notes = deriveAnnotations(visits);

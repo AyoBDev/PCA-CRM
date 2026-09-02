@@ -83,7 +83,7 @@ describe('client blocks', () => {
     test('a client block is banner → visits → total → spacers', () => {
         const m = buildExportModel(run([visit()]), { 'abazyan hasmik': { PCS: 28 } });
         const kinds = m.rows.map((r) => r.kind);
-        expect(kinds.slice(0, 6)).toEqual(['header', 'period', 'banner', 'visit', 'total', 'spacer']);
+        expect(kinds.slice(0, 6)).toEqual(['header', 'period', 'banner', 'visit', 'total', 'breakdown']);
     });
 
     test('clients are ordered alphabetically', () => {
@@ -95,15 +95,15 @@ describe('client blocks', () => {
         expect(names).toEqual(['ABAZYAN, HASMIK', 'ZEBRA, ZOE']);
     });
 
-    test('total sums payable units, excluding void and needs-review rows', () => {
+    test('total sums the clocked units shown in the column above it', () => {
         const m = buildExportModel(run([
-            visit({ id: 1, finalPayableUnits: 28 }),
-            visit({ id: 2, finalPayableUnits: 20 }),
-            visit({ id: 3, finalPayableUnits: 12, voidFlag: true }),
-            visit({ id: 4, finalPayableUnits: 8, needsReview: true, reviewReason: 'missingCallOut' }),
+            visit({ id: 1, unitsRaw: 28, finalPayableUnits: 28 }),
+            visit({ id: 2, unitsRaw: 20, finalPayableUnits: 20 }),
+            visit({ id: 3, unitsRaw: 12, finalPayableUnits: 12, voidFlag: true }),
+            visit({ id: 4, unitsRaw: 8, finalPayableUnits: 8, needsReview: true, reviewReason: 'missingCallOut' }),
         ]), {});
         const total = firstWhere(m, (r) => r.kind === 'total');
-        expect(total.values[8]).toBe(48);
+        expect(total.values[8]).toBe(68);
     });
 
     test('total row is labelled and green in the Units column', () => {
@@ -197,7 +197,7 @@ describe('cell values are real Excel types, not strings', () => {
 
     test('an incomplete visit leaves call-out and hours blank', () => {
         const m = buildExportModel(run([
-            visit({ callOutTime: '', durationMinutes: 0, visitStatus: 'Incomplete', finalPayableUnits: 0, needsReview: true, reviewReason: 'missingCallOut' }),
+            visit({ callOutTime: '', durationMinutes: 0, unitsRaw: 0, visitStatus: 'Incomplete', finalPayableUnits: 0, needsReview: true, reviewReason: 'missingCallOut' }),
         ]), {});
         const v = firstWhere(m, (r) => r.kind === 'visit');
         expect(v.values[5]).toBe('');
@@ -328,10 +328,10 @@ describe('void rows are highlighted with their reason in column J', () => {
         expect(v.values[COL.VOID_REASON]).toBe(reason);
     });
 
-    test('a void row still reports zero units', () => {
-        const m = buildExportModel(run([voided({ finalPayableUnits: 20 })]), {});
+    test('a void row shows the units that were clocked, not the zero it pays', () => {
+        const m = buildExportModel(run([voided({ unitsRaw: 20, finalPayableUnits: 0 })]), {});
         const v = firstWhere(m, (r) => r.kind === 'visit');
-        expect(v.values[COL.UNITS]).toBe(0);
+        expect(v.values[COL.UNITS]).toBe(20);
     });
 
     test('a void row with no stated reason is still highlighted, with column J blank', () => {
@@ -348,13 +348,13 @@ describe('void rows are highlighted with their reason in column J', () => {
         expect(v.values[COL.VOID_REASON]).toBe('');
     });
 
-    test('void rows are excluded from the client total', () => {
+    test('void rows contribute their clocked units to the column-I total', () => {
         const m = buildExportModel(run([
-            visit({ id: 1, finalPayableUnits: 28 }),
-            voided({ id: 2, finalPayableUnits: 20 }),
+            visit({ id: 1, unitsRaw: 28, finalPayableUnits: 28 }),
+            voided({ id: 2, unitsRaw: 20, finalPayableUnits: 0 }),
         ]), {});
         const total = firstWhere(m, (r) => r.kind === 'total');
-        expect(total.values[COL.UNITS]).toBe(28);
+        expect(total.values[COL.UNITS]).toBe(48);
     });
 
     test('every row is wide enough to hold column J', () => {
@@ -446,13 +446,15 @@ describe('rows reduced by a cap are shaded amber and state what was lost', () =>
         expect(v.values[COL.VOID_REASON]).toBe('');
     });
 
-    test('a reduced row still contributes its PAID units to the client total', () => {
+    test('a reduced row shows its CLOCKED units and the total sums those', () => {
         const m = buildExportModel(run([
             visit({ id: 1, unitsRaw: 22, finalPayableUnits: 22, voidReason: '' }),
-            reduced({ id: 2 }),
+            reduced({ id: 2 }),  // 23 clocked, 6 paid
         ]), {});
+        const rows = m.rows.filter((r) => r.kind === 'visit');
+        expect(rows[1].values[COL.UNITS]).toBe(23);
         const total = firstWhere(m, (r) => r.kind === 'total');
-        expect(total.values[COL.UNITS]).toBe(28);
+        expect(total.values[COL.UNITS]).toBe(45);
     });
 
     test('a reduction with no raw figure still shades and explains without a bogus arrow', () => {
@@ -469,5 +471,81 @@ describe('rows reduced by a cap are shaded amber and state what was lost', () =>
         })]), {});
         const v = firstWhere(m, (r) => r.kind === 'visit');
         expect(v.fills[COL.CLIENT]).toBeNull();
+    });
+});
+
+// ── Per-service breakdown ─────────────────────────────────
+describe('each client block ends with a per-service clocked/payable breakdown', () => {
+    const mixed = () => run([
+        visit({ id: 1, serviceCode: 'PCS',   unitsRaw: 20, finalPayableUnits: 20, voidReason: '' }),
+        visit({ id: 2, serviceCode: 'PCS',   unitsRaw: 21, finalPayableUnits: 0,
+                voidReason: 'Daily cap of 28 units already reached (this client)' }),
+        visit({ id: 3, serviceCode: 'S5130', unitsRaw: 30, finalPayableUnits: 30, voidReason: '' }),
+    ]);
+
+    test('a breakdown row is emitted per service code used by the client', () => {
+        const m = buildExportModel(mixed(), {});
+        const b = m.rows.filter((r) => r.kind === 'breakdown');
+        expect(b).toHaveLength(2);
+    });
+
+    test('it states clocked and payable for that service', () => {
+        const m = buildExportModel(mixed(), {});
+        const pcs = m.rows.find((r) => r.kind === 'breakdown' && r.serviceCode === 'PCS');
+        expect(pcs.values[COL.UNITS]).toBe(41);                       // 20 + 21 clocked
+        expect(String(pcs.values[COL.VOID_REASON])).toContain('20');  // payable
+        expect(String(pcs.values[COL.STATUS])).toContain('PCS');
+    });
+
+    test('a service with nothing reduced still reports both figures', () => {
+        const m = buildExportModel(mixed(), {});
+        const hm = m.rows.find((r) => r.kind === 'breakdown' && r.serviceCode === 'S5130');
+        expect(hm.values[COL.UNITS]).toBe(30);
+        expect(String(hm.values[COL.VOID_REASON])).toContain('30');
+    });
+
+    test('breakdown rows follow the Total row', () => {
+        const m = buildExportModel(mixed(), {});
+        const kinds = m.rows.map((r) => r.kind);
+        expect(kinds.indexOf('breakdown')).toBeGreaterThan(kinds.indexOf('total'));
+    });
+
+    test('breakdown rows are ordered by the agency service order', () => {
+        const m = buildExportModel(run([
+            visit({ id: 1, serviceCode: 'SDPC', unitsRaw: 5, finalPayableUnits: 5, voidReason: '' }),
+            visit({ id: 2, serviceCode: 'PCS',  unitsRaw: 5, finalPayableUnits: 5, voidReason: '' }),
+        ]), {});
+        const codes = m.rows.filter((r) => r.kind === 'breakdown').map((r) => r.serviceCode);
+        expect(codes).toEqual(['PCS', 'SDPC']);
+    });
+
+    test('visits with no service code are grouped under a labelled bucket', () => {
+        const m = buildExportModel(run([
+            visit({ id: 1, serviceCode: '', unitsRaw: 9, finalPayableUnits: 9, voidReason: '' }),
+        ]), {});
+        const b = m.rows.filter((r) => r.kind === 'breakdown');
+        expect(b).toHaveLength(1);
+        expect(String(b[0].values[COL.STATUS])).toMatch(/no service|unspecified/i);
+    });
+
+    test('the clocked figures across breakdowns sum to the client Total', () => {
+        const m = buildExportModel(mixed(), {});
+        const total = firstWhere(m, (r) => r.kind === 'total');
+        const sum = m.rows.filter((r) => r.kind === 'breakdown')
+            .reduce((a, r) => a + r.values[COL.UNITS], 0);
+        expect(sum).toBe(total.values[COL.UNITS]);
+    });
+
+    test('a service whose payable differs from clocked is visually flagged', () => {
+        const m = buildExportModel(mixed(), {});
+        const pcs = m.rows.find((r) => r.kind === 'breakdown' && r.serviceCode === 'PCS');
+        const hm  = m.rows.find((r) => r.kind === 'breakdown' && r.serviceCode === 'S5130');
+        expect(pcs.fonts[COL.VOID_REASON]).toMatchObject({ color: COLORS.annotationRed });
+        expect(hm.fonts[COL.VOID_REASON]).not.toMatchObject({ color: COLORS.annotationRed });
+    });
+
+    test('a client with no visits produces no breakdown rows', () => {
+        const m = buildExportModel(run([]), {});
+        expect(m.rows.filter((r) => r.kind === 'breakdown')).toHaveLength(0);
     });
 });
