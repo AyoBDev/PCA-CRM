@@ -9,7 +9,7 @@ import { useToast } from '../hooks/useToast';
 import { flattenAnnotations } from '../utils/pdfSave';
 import { extractFormFields } from '../utils/pdfFormFields';
 import { fillFormFields } from '../utils/pdfSave';
-import { computeFitScale } from '../utils/pdfFit';
+import { useFitToWidth } from '../hooks/useFitToWidth';
 import * as api from '../api';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -53,7 +53,6 @@ export default function PdfEditorPage() {
 
     const scrollRef = useRef(null);
     const userZoomedRef = useRef(false);
-    const fitAppliedRef = useRef(false);
     const hasFormChanges = formFields.length > 0 && formFields.some(f => formValues[f.name] !== f.value);
     const hasChanges = annotations.length > 0 || hasFormChanges;
     const hasFormFields = formFields.length > 0;
@@ -106,19 +105,10 @@ export default function PdfEditorPage() {
         loadPdf();
     }, [fileId]);
 
-    // Default to fit-to-width the first time pages are available and the
-    // container has a measured width. Skipped once the user zooms manually.
-    useEffect(() => {
-        if (fitAppliedRef.current || userZoomedRef.current) return;
-        if (!pages.length || !scrollRef.current) return;
-        const containerWidth = scrollRef.current.clientWidth;
-        const pageWidth = pages[0].getViewport({ scale: 1 }).width;
-        const fit = computeFitScale(containerWidth, pageWidth);
-        if (fit !== 1) {
-            setZoom(fit);
-        }
-        fitAppliedRef.current = true;
-    }, [pages]);
+    // Keep the page fit to the container's real width: fires once the
+    // canvas area is actually measured (on open) and again on every resize,
+    // until the user manually zooms (userZoomedRef.current).
+    useFitToWidth(scrollRef, pages, userZoomedRef, setZoom);
 
     const pushUndo = useCallback((prevAnnotations) => {
         setUndoStack(s => [...s, prevAnnotations]);
