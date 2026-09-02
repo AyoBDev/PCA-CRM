@@ -22,6 +22,8 @@ export default function FileList({
     onTogglePreview,
     selectedFileId,
     onSelectFile,
+    hideHeader = false,
+    hideDropzone = false,
 }) {
     const [sortBy, setSortBy] = useState('name');
     const [filterType, setFilterType] = useState('all');
@@ -91,8 +93,8 @@ export default function FileList({
     return (
         <div className="file-list">
             <div className="file-list__header">
-                <h2 className="file-list__title">{folder.name}</h2>
-                <div className="file-list__controls">
+                {!hideHeader && <h2 className="file-list__title">{folder.name}</h2>}
+                <div className="file-list__controls" style={hideHeader ? { marginLeft: 'auto' } : undefined}>
                     <select
                         className="file-list__filter"
                         value={filterType}
@@ -121,7 +123,7 @@ export default function FileList({
                 </div>
             </div>
 
-            <UploadZone onUpload={onUpload} />
+            {!hideDropzone && <UploadZone onUpload={onUpload} />}
 
             {filtered.length === 0 ? (
                 <div className="file-list__empty">

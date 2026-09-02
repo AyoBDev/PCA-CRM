@@ -1500,11 +1500,31 @@ body {
   background: hsl(224 32% 15%);
   border-bottom: 1px solid hsl(224 20% 22%);
 }
+.doc-viewer__back {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 6px 8px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: hsl(0 0% 80%);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.doc-viewer__back svg { width: 16px; height: 16px; }
+.doc-viewer__back:hover { background: hsl(224 20% 24%); color: #fff; }
+.doc-viewer__back:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+
 .doc-viewer__title {
   display: flex;
   align-items: center;
   gap: 10px;
   min-width: 0;
+  flex: 1 1 auto;
 }
 .doc-viewer__title-icon {
   display: flex;
@@ -1512,6 +1532,20 @@ body {
   flex: 0 0 auto;
 }
 .doc-viewer__title-icon svg { width: 20px; height: 20px; }
+.doc-viewer__title-stack {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.doc-viewer__breadcrumb {
+  font-size: 11px;
+  font-weight: 500;
+  color: hsl(0 0% 65%);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .doc-viewer__title-text {
   font-size: 14px;
   font-weight: 600;
@@ -13741,6 +13775,83 @@ tr:hover .auth-note-icon--empty {
 /* ===== Files Page (Two-Panel) ===== */
 .files-page { padding: 0; }
 
+.files-page__breadcrumb {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: hsl(var(--muted-foreground));
+}
+.files-page__breadcrumb svg { width: 14px; height: 14px; }
+
+/* Panel header rows: the "All" checkbox + search input shared by both the
+   folders panel and the files panel, plus the files panel's folder-name
+   heading and bulk-action row. */
+.files-page__panel-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-bottom: 1px solid hsl(var(--border));
+    background: hsl(var(--card));
+    flex-wrap: wrap;
+}
+
+.files-page__panel-header--files {
+    background: hsl(var(--background));
+    padding: 14px 16px 10px;
+    border-bottom: none;
+}
+
+.files-page__folder-heading {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+    color: hsl(var(--foreground));
+}
+
+.files-page__panel-header--controls {
+    background: hsl(var(--background));
+}
+
+.files-page__all {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+.files-page__all input { width: 15px; height: 15px; accent-color: hsl(var(--primary)); cursor: pointer; }
+
+.files-page__panel-search {
+    flex: 1 1 160px;
+    min-width: 120px;
+    max-width: 320px;
+    font-size: 13px;
+    padding: 6px 10px;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
+}
+.files-page__panel-search:focus {
+    outline: none;
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.15);
+}
+
+.files-page__bulk-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    flex-wrap: wrap;
+}
+
 .files-page__select-all {
     display: flex;
     align-items: center;
@@ -14091,6 +14202,32 @@ tr:hover .auth-note-icon--empty {
    — reset that indent so its rows line up with the current-file row above. */
 .cert-history__body { padding: 4px 12px 10px; }
 .cert-history__body > .cert-history__label { padding: 6px 0 4px; }
+
+/* ===== Files Page — responsive (narrow screens) ===== */
+@media (max-width: 900px) {
+    .files-page__panels {
+        flex-direction: column;
+        height: auto;
+        overflow: visible;
+    }
+    .files-page__left {
+        width: 100%;
+        min-width: 0;
+        max-height: 260px;
+        border-right: none;
+        border-bottom: 1px solid hsl(var(--border));
+    }
+    .files-page__right {
+        overflow-y: visible;
+    }
+    .files-page__panel-search {
+        max-width: none;
+    }
+    .files-page__bulk-actions {
+        margin-left: 0;
+        width: 100%;
+    }
+}
 
 /* ===== PDF Editor ===== */
 .pdf-editor {
