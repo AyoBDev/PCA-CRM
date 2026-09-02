@@ -135,33 +135,38 @@ function deriveAnnotations(visits) {
 }
 
 /**
- * Was this row paid less than it clocked? Covers both cap paths in
- * payrollService: the daily 28-unit cap and the remaining-authorization
- * balance. These rows are NOT voided — they still pay — so without a marker
- * they are indistinguishable from a full-paid row despite losing units.
+ * Was this row paid less than it clocked?
+ *
+ * Detected ARITHMETICALLY (clocked > payable) rather than by matching the
+ * stored reason text. payrollService does not persist a reason for every
+ * reduction — a visit over 7 hours is capped at 28 units by calcUnits with its
+ * reason discarded — so reason-matching silently missed those rows. In one real
+ * run that was 60 rows losing 384 units with no marking at all.
  */
 function isReducedRow(v) {
     if (v.voidFlag || v.needsReview) return false;
-    return /^(reduced|daily cap)/i.test(String(v.voidReason || '').trim());
+    const raw = Number(v.unitsRaw);
+    const paid = Number(v.finalPayableUnits) || 0;
+    return Number.isFinite(raw) && raw > paid;
 }
 
 /**
- * Restate a reduction reason as "Reduced <clocked> → <paid>: <cause>" so the
- * sheet keeps the figure the caregiver actually clocked, which the Units
- * column no longer shows. Falls back to the raw reason when there is no
- * meaningful clocked figure to compare against.
+ * Restate a reduction as "Reduced <clocked> → <paid>: <cause>" so the sheet
+ * keeps the figure the caregiver actually clocked alongside why it was cut.
+ * Falls back to naming the single-visit cap when no reason was stored.
  */
 function reductionText(v) {
     const reason = String(v.voidReason || '').trim();
     const raw = Number(v.unitsRaw);
     const paid = Number(v.finalPayableUnits) || 0;
-    if (!Number.isFinite(raw) || raw <= 0 || raw <= paid) return reason;
 
-    // Strip the leading restatement of the paid figure; the arrow now says it.
     const cause = reason
-        .replace(/^reduced to remaining authorized units/i, 'remaining authorized units')
-        .replace(/^reduced to \d+:\s*/i, '')
-        .replace(/^daily cap/i, 'daily cap');
+        ? reason
+            .replace(/^reduced to remaining authorized units/i, 'remaining authorized units')
+            .replace(/^reduced to \d+:\s*/i, '')
+        // No reason stored: this is calcUnits' single-visit ceiling.
+        : `capped at ${paid} units`;
+
     return `Reduced ${raw} \u2192 ${paid}: ${cause}`;
 }
 
@@ -381,6 +386,26 @@ function buildExportModel(run, authMap = {}) {
 
             rows.push(makeRow('breakdown', values, { fonts, alignments, serviceCode: code }));
         }
+
+        // ── PAYABLE line ─────────────────────────────────
+        // The Total above sums CLOCKED units, which is not what the agency
+        // pays. State the payable figure explicitly so the block cannot be
+        // misread as an amount owed.
+        const payable = visits
+            .filter((v) => !v.voidFlag && !v.needsReview)
+            .reduce((sum, v) => sum + (Number(v.finalPayableUnits) || 0), 0);
+
+        const pValues = blankValues();
+        pValues[COL.STATUS] = 'PAYABLE';
+        pValues[COL.UNITS]  = payable;
+        const pFills = blankMap();
+        pFills[COL.UNITS] = COLORS.totalGreen;
+        const pFonts = blankMap();
+        pFonts[COL.STATUS] = { bold: true };
+        pFonts[COL.UNITS]  = { bold: true };
+        const pAlign = blankMap();
+        pAlign[COL.UNITS] = { horizontal: 'right' };
+        rows.push(makeRow('payable', pValues, { fills: pFills, fonts: pFonts, alignments: pAlign }));
 
         // ── Annotations (red, in the spacer area) ─────────
         const notes = deriveAnnotations(visits);

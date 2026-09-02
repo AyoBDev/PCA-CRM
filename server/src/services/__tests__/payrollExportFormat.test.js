@@ -411,7 +411,7 @@ describe('rows reduced by a cap are shaded amber and state what was lost', () =>
         })]), {});
         const v = firstWhere(m, (r) => r.kind === 'visit');
         expect(v.fills[COL.CLIENT]).toBe(COLORS.reducedRow);
-        expect(v.values[COL.VOID_REASON]).toBe('Reduced 10 → 0: daily cap of 28 units already reached (this client)');
+        expect(v.values[COL.VOID_REASON]).toBe('Reduced 10 → 0: Daily cap of 28 units already reached (this client)');
     });
 
     test('an authorization-balance reduction is shaded and explained too', () => {
@@ -457,11 +457,13 @@ describe('rows reduced by a cap are shaded amber and state what was lost', () =>
         expect(total.values[COL.UNITS]).toBe(45);
     });
 
-    test('a reduction with no raw figure still shades and explains without a bogus arrow', () => {
+    test('a row whose clocked figure is missing is not flagged as reduced', () => {
+        // Without a clocked figure there is no shortfall to report, and
+        // inventing one would misstate what the caregiver worked.
         const m = buildExportModel(run([reduced({ unitsRaw: 0 })]), {});
         const v = firstWhere(m, (r) => r.kind === 'visit');
-        expect(v.fills[COL.CLIENT]).toBe(COLORS.reducedRow);
-        expect(v.values[COL.VOID_REASON]).toBe('Reduced to 6: daily cap of 28 units (this client)');
+        expect(v.fills[COL.CLIENT]).toBeNull();
+        expect(v.values[COL.VOID_REASON]).toBe('');
     });
 
     test('needs-review rows are not mistaken for reductions', () => {
@@ -547,5 +549,95 @@ describe('each client block ends with a per-service clocked/payable breakdown', 
     test('a client with no visits produces no breakdown rows', () => {
         const m = buildExportModel(run([]), {});
         expect(m.rows.filter((r) => r.kind === 'breakdown')).toHaveLength(0);
+    });
+});
+
+// ── Reductions detected arithmetically, not by reason text ─
+describe('every row that lost units is flagged, whatever the stated reason', () => {
+    const short = (over = {}) => visit({ voidFlag: false, needsReview: false, ...over });
+
+    test('a single-visit cap with NO stored reason is still flagged', () => {
+        // payrollService caps a >7hr visit at 28 units but does not persist a
+        // reason, so reason-text matching missed these entirely.
+        const m = buildExportModel(run([short({ unitsRaw: 33, finalPayableUnits: 28, voidReason: '' })]), {});
+        const v = firstWhere(m, (r) => r.kind === 'visit');
+        expect(v.fills[COL.CLIENT]).toBe(COLORS.reducedRow);
+        expect(v.values[COL.VOID_REASON]).toBe('Reduced 33 → 28: capped at 28 units');
+    });
+
+    test('a late clock-out reduction is flagged', () => {
+        const m = buildExportModel(run([short({ unitsRaw: 33, finalPayableUnits: 28, voidReason: 'Clock Out after 11:30 PM' })]), {});
+        const v = firstWhere(m, (r) => r.kind === 'visit');
+        expect(v.fills[COL.CLIENT]).toBe(COLORS.reducedRow);
+        expect(v.values[COL.VOID_REASON]).toBe('Reduced 33 → 28: Clock Out after 11:30 PM');
+    });
+
+    test('a next-day clock-out reduction is flagged', () => {
+        const m = buildExportModel(run([short({ unitsRaw: 65, finalPayableUnits: 28, voidReason: 'Clock Out on next calendar day' })]), {});
+        const v = firstWhere(m, (r) => r.kind === 'visit');
+        expect(v.values[COL.VOID_REASON]).toBe('Reduced 65 → 28: Clock Out on next calendar day');
+    });
+
+    test('a row paid in full is never flagged, even carrying a note', () => {
+        const m = buildExportModel(run([short({ unitsRaw: 25, finalPayableUnits: 25, voidReason: 'Clock Out after 11:30 PM' })]), {});
+        const v = firstWhere(m, (r) => r.kind === 'visit');
+        expect(v.fills[COL.CLIENT]).toBeNull();
+        expect(v.values[COL.VOID_REASON]).toBe('');
+    });
+
+    test('a row paid MORE than clocked is not treated as reduced', () => {
+        const m = buildExportModel(run([short({ unitsRaw: 10, finalPayableUnits: 12, voidReason: '' })]), {});
+        const v = firstWhere(m, (r) => r.kind === 'visit');
+        expect(v.fills[COL.CLIENT]).toBeNull();
+    });
+});
+
+// ── PAYABLE line ──────────────────────────────────────────
+describe('each client block ends with a PAYABLE total', () => {
+    const block = () => run([
+        visit({ id: 1, serviceCode: 'PCS', unitsRaw: 33, finalPayableUnits: 28, voidReason: '' }),
+        visit({ id: 2, serviceCode: 'S5130', unitsRaw: 20, finalPayableUnits: 20, voidReason: '' }),
+    ]);
+
+    test('a payable row is emitted for the client', () => {
+        const m = buildExportModel(block(), {});
+        expect(m.rows.filter((r) => r.kind === 'payable')).toHaveLength(1);
+    });
+
+    test('it is labelled PAYABLE and carries the payable unit total', () => {
+        const m = buildExportModel(block(), {});
+        const p = firstWhere(m, (r) => r.kind === 'payable');
+        expect(String(p.values[COL.OUT]) + String(p.values[COL.STATUS])).toMatch(/PAYABLE/);
+        expect(p.values[COL.UNITS]).toBe(48);
+    });
+
+    test('it excludes void and needs-review rows', () => {
+        const m = buildExportModel(run([
+            visit({ id: 1, unitsRaw: 20, finalPayableUnits: 20, voidReason: '' }),
+            visit({ id: 2, unitsRaw: 12, finalPayableUnits: 12, voidFlag: true, voidReason: 'No authorized units remaining (void)' }),
+            visit({ id: 3, unitsRaw: 8, finalPayableUnits: 8, needsReview: true, reviewReason: 'missingCallOut' }),
+        ]), {});
+        const p = firstWhere(m, (r) => r.kind === 'payable');
+        expect(p.values[COL.UNITS]).toBe(20);
+    });
+
+    test('it comes after the per-service breakdown', () => {
+        const m = buildExportModel(block(), {});
+        const kinds = m.rows.map((r) => r.kind);
+        expect(kinds.lastIndexOf('payable')).toBeGreaterThan(kinds.lastIndexOf('breakdown'));
+    });
+
+    test('it is filled green like the Total so it reads as a figure that counts', () => {
+        const m = buildExportModel(block(), {});
+        const p = firstWhere(m, (r) => r.kind === 'payable');
+        expect(p.fills[COL.UNITS]).toBe(COLORS.totalGreen);
+    });
+
+    test('the payable total equals the sum of the breakdown payable figures', () => {
+        const m = buildExportModel(block(), {});
+        const p = firstWhere(m, (r) => r.kind === 'payable');
+        const sum = m.rows.filter((r) => r.kind === 'breakdown')
+            .reduce((a, r) => a + (Number(String(r.values[COL.VOID_REASON]).match(/payable (\d+)/)?.[1]) || 0), 0);
+        expect(p.values[COL.UNITS]).toBe(sum);
     });
 });
