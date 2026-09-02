@@ -1,5 +1,19 @@
 import { PDFDocument, PDFTextField, PDFCheckBox, PDFRadioGroup, PDFDropdown } from 'pdf-lib';
 
+// Matches the point size out of a PDF /DA (default appearance) string, e.g.
+// "/Helv 0 Tf 0 g" -> "0", "/Helv 10.5 Tf" -> "10.5". A size of 0 (or a DA
+// with no parseable Tf size) means AUTO-SIZE: pdf-lib/Acrobat scale the text
+// to fill the field's box height when the form is flattened.
+const DA_FONT_SIZE_RE = /\/[^\s]+\s+([\d.]+)\s+Tf/;
+
+function parseDaFontSize(da) {
+    if (!da) return 0;
+    const match = DA_FONT_SIZE_RE.exec(da);
+    if (!match) return 0;
+    const size = parseFloat(match[1]);
+    return Number.isFinite(size) && size > 0 ? size : 0;
+}
+
 export async function extractFormFields(pdfBytes) {
     const pdfDoc = await PDFDocument.load(pdfBytes);
     const form = pdfDoc.getForm();
@@ -26,6 +40,12 @@ export async function extractFormFields(pdfBytes) {
                 fieldInfo.type = 'text';
                 fieldInfo.value = field.getText() || '';
                 fieldInfo.multiline = field.isMultiline();
+                // Per-field /DA wins; fall back to the AcroForm root /DA (some
+                // PDFs only set a default there); no DA at all (or an
+                // unparseable/zero size) means auto-size -> fontSize: 0.
+                const fieldDa = field.acroField.getDefaultAppearance();
+                const rootDa = fieldDa ? undefined : form.acroForm.getDefaultAppearance?.();
+                fieldInfo.fontSize = parseDaFontSize(fieldDa || rootDa);
             } else if (field instanceof PDFCheckBox) {
                 fieldInfo.type = 'checkbox';
                 fieldInfo.value = field.isChecked();
