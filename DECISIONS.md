@@ -2,6 +2,18 @@
 
 A running log of notable build-vs-adopt and design decisions, most recent first.
 
+## 2026-09-02 — PDF opens fit-to-width; Files two-panel layout (build in-house, reuse existing parts)
+
+**Feature:** (A) When a PDF opens in the in-app editor it should fill the viewer's width so form fields are comfortable to type into without manual zoom — on-screen display only, the saved PDF/field sizes are unchanged. (B) Rework the `/files` page into a two-panel layout: a Folders panel (own All checkbox + search + tree) and a Files panel (folder-name header + own All checkbox + search + drag-drop upload zone + file list), with a file viewer that has Back + breadcrumbs.
+
+**Options considered:**
+- **(A) Fit-to-width:** adopt a full PDF-viewer component (e.g. react-pdf-viewer) that has fit modes built in — rejected: we already render via our own pdf.js `PdfEditorPage`/`DocViewer`; swapping the viewer to get one fit behavior would discard the form-field overlay + annotation layer we built. Chosen: a small `useFitToWidth` hook (ResizeObserver → `computeFitScale`) inside the existing editor. The prior one-shot `[pages]` effect measured the container before it had a real width and latched a tiny scale; observing width fixes it and re-fits on resize until the user manually zooms.
+- **(B) Files layout:** adopt a file-manager UI library — rejected: the page already has all the machinery (FolderTree, FileList, UploadZone, PreviewModal/DocViewer, upload/conflict/move/rename/delete/trash/audit). The request is a layout reorganization, so a library would mean re-integrating every existing behavior for no gain. Chosen: reorganize `FilesPage.jsx` + extend the existing `.files-page__*` CSS, moving search/All-checkbox into per-panel headers and surfacing the dropzone + folder search, reusing every existing component and handler.
+
+**Choice:** Build in-house on top of existing components for both.
+
+**Why:** both are refinements of things we already own (our pdf.js editor; our file manager). A library swap in either case would force re-integrating substantial existing behavior (form-field overlay, or the full file-ops handler set) for a single UX improvement. Verified: build clean, 163 client tests pass (incl. 6 new `useFitToWidth` tests), and a regression review confirmed all 13 existing FilesPage behaviors stay wired. Known limitation: folder search only reaches eagerly-loaded folders (root + one level) given the lazy-load tree contract.
+
 ## 2026-08-28 — Schema-driven restore + tested backup round-trip
 
 **Feature:** Make "restore has been tested" true — and fix the restore path, which testing revealed was badly broken.
