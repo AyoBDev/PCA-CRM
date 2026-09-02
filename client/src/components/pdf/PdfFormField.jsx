@@ -2,11 +2,13 @@ import { pdfRectToScreen } from '../../utils/pdfFormFields';
 
 export default function PdfFormField({ field, pageHeight, zoom, value, onChange }) {
     const pos = pdfRectToScreen(field.rect, pageHeight, zoom);
-    // Fit font to the smaller of height-based and a width-based bound so
-    // content in very narrow boxes (date Month/Day/Year) isn't clipped.
-    const heightFont = pos.height * 0.7;
-    const widthFont = pos.width * 0.5; // ~2 chars fit comfortably
-    const fontSize = Math.max(7, Math.min(heightFont, widthFont, 13 * (zoom || 1)));
+    // Render editing text at the same size the flattened PDF will actually
+    // use. A field's /DA carries either an explicit point size or 0 (auto) —
+    // auto-size fields (pdf-lib/Acrobat) scale the text to fill the box
+    // height when flattened, roughly height * 0.8 for a single line.
+    const renderFont = field.fontSize > 0
+        ? field.fontSize * (zoom || 1)
+        : pos.height * 0.8;
 
     const style = {
         position: 'absolute',
@@ -14,7 +16,7 @@ export default function PdfFormField({ field, pageHeight, zoom, value, onChange 
         top: pos.top,
         width: pos.width,
         height: pos.height,
-        fontSize,
+        fontSize: renderFont,
         zIndex: 20,
     };
 
@@ -25,9 +27,10 @@ export default function PdfFormField({ field, pageHeight, zoom, value, onChange 
 
     if (field.type === 'text') {
         const narrow = pos.width < 60;
-        // Narrow boxes (e.g. date Month/Day/Year, ~18px) need a smaller font
-        // floor than the general 7px minimum so 2 digits don't clip.
-        const effFont = narrow ? Math.min(fontSize, Math.max(6, pos.height * 0.6)) : fontSize;
+        // Narrow boxes (e.g. date Month/Day/Year, ~18px) can't fit the full
+        // auto/explicit size without clipping 2 digits — cap it, but keep a
+        // floor so the digits stay legible.
+        const effFont = narrow ? Math.min(renderFont, Math.max(6, pos.height * 0.6)) : renderFont;
         // Only use a textarea for fields that are both flagged multiline AND
         // tall enough to show more than one line. Small/short fields (e.g. the
         // Month/Day/Year date boxes, which are multiline in the PDF but tiny)

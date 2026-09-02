@@ -13,14 +13,30 @@ export default function FolderTreeItem({
     onDeleteFolder,
     childrenCache,
     fileCountCache,
+    filter = '',
+    subtreeMatches,
+    expandAll,
 }) {
     const [expanded, setExpanded] = useState(false);
     const [loading, setLoading] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef(null);
 
-    const children = childrenCache[folder.id] || [];
+    const allChildren = childrenCache[folder.id] || [];
+    // While a search filter is active, only show children whose subtree
+    // matches, and stay expanded so matches deeper in the tree stay visible.
+    const children = filter && subtreeMatches ? allChildren.filter(subtreeMatches) : allChildren;
     const fileCount = fileCountCache[folder.id];
+
+    useEffect(() => {
+        if (filter) { setExpanded(true); return; }
+    }, [filter]);
+
+    // "All" expand/collapse-all toggle from the panel header.
+    useEffect(() => {
+        if (expandAll === undefined) return;
+        setExpanded(expandAll);
+    }, [expandAll]);
 
     const handleToggle = useCallback(async (e) => {
         e.stopPropagation();
@@ -118,6 +134,9 @@ export default function FolderTreeItem({
                             onDeleteFolder={onDeleteFolder}
                             childrenCache={childrenCache}
                             fileCountCache={fileCountCache}
+                            filter={filter}
+                            subtreeMatches={subtreeMatches}
+                            expandAll={expandAll}
                         />
                     ))}
                 </div>

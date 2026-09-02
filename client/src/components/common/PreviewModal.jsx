@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom';
 import Icons from './Icons';
 import DocViewer from './DocViewer';
 
-export default function PreviewModal({ open, fileName, fetchBlob, onClose, onDelete, maxBytes }) {
+export default function PreviewModal({ open, fileName, fetchBlob, onClose, onDelete, maxBytes, breadcrumb }) {
     useEffect(() => {
         if (!open) return;
         const onKey = (e) => { if (e.key === 'Escape') onClose(); };
@@ -21,9 +21,38 @@ export default function PreviewModal({ open, fileName, fetchBlob, onClose, onDel
     return createPortal(
         <div className="doc-viewer doc-viewer--modal" role="dialog" aria-modal="true" aria-label={fileName || 'Document preview'}>
             <div className="doc-viewer__header">
+                <button className="doc-viewer__back" onClick={onClose} title="Back (Esc)" aria-label="Back">
+                    {Icons.arrowLeft || Icons.chevronLeft} <span>Back</span>
+                </button>
                 <div className="doc-viewer__title">
                     <span className="doc-viewer__title-icon">{Icons.fileText}</span>
-                    <span className="doc-viewer__title-text" title={fileName}>{fileName || 'Preview'}</span>
+                    <div className="doc-viewer__title-stack">
+                        {Array.isArray(breadcrumb) ? (
+                            breadcrumb.length > 0 && (
+                                <span className="doc-viewer__breadcrumb">
+                                    {breadcrumb.map((seg, idx) => (
+                                        <span key={`${seg.name}-${idx}`} className="doc-viewer__crumb-group">
+                                            {idx > 0 && <span className="doc-viewer__crumb-sep">/</span>}
+                                            {seg.onClick ? (
+                                                <button
+                                                    type="button"
+                                                    className="doc-viewer__crumb"
+                                                    onClick={seg.onClick}
+                                                >
+                                                    {seg.name}
+                                                </button>
+                                            ) : (
+                                                <span className="doc-viewer__crumb doc-viewer__crumb--current">{seg.name}</span>
+                                            )}
+                                        </span>
+                                    ))}
+                                </span>
+                            )
+                        ) : (
+                            breadcrumb && <span className="doc-viewer__breadcrumb">{breadcrumb}</span>
+                        )}
+                        <span className="doc-viewer__title-text" title={fileName}>{fileName || 'Preview'}</span>
+                    </div>
                 </div>
                 <button className="doc-viewer__close" onClick={onClose} title="Close (Esc)" aria-label="Close">{Icons.x}</button>
             </div>
