@@ -350,7 +350,7 @@ export default function PdfEditorPage() {
                     message="You have unsaved annotations. Discard changes and close?"
                     confirmLabel="Discard"
                     onConfirm={() => navigate(folderId ? `/files?folder=${folderId}` : '/files')}
-                    onCancel={() => setConfirmClose(false)}
+                    onClose={() => setConfirmClose(false)}
                 />
             )}
 

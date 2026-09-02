@@ -606,7 +606,7 @@ export default function SandataImportPage() {
                     message={`This will set the SANDATA Client ID on authorizations for ${selectedEntries.length} client${selectedEntries.length !== 1 ? 's' : ''} under account ${accountLabel}.${skippedCount > 0 ? ` (${skippedCount} selected client${skippedCount !== 1 ? 's' : ''} skipped — no matching authorizations)` : ''} Existing IDs will be overwritten.`}
                     confirmLabel="Apply"
                     onConfirm={handleApply}
-                    onCancel={() => setShowConfirm(false)}
+                    onClose={() => setShowConfirm(false)}
                 />
             )}
 
@@ -616,7 +616,7 @@ export default function SandataImportPage() {
                     message={`This will update ${selectedMismatches.size} field${selectedMismatches.size !== 1 ? 's' : ''} on client records with SANDATA values. This will overwrite the current values in the app.`}
                     confirmLabel="Update"
                     onConfirm={handleBulkUpdateMismatches}
-                    onCancel={() => setShowMismatchConfirm(false)}
+                    onClose={() => setShowMismatchConfirm(false)}
                 />
             )}
         </>
