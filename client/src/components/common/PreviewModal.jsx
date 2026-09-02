@@ -27,7 +27,30 @@ export default function PreviewModal({ open, fileName, fetchBlob, onClose, onDel
                 <div className="doc-viewer__title">
                     <span className="doc-viewer__title-icon">{Icons.fileText}</span>
                     <div className="doc-viewer__title-stack">
-                        {breadcrumb && <span className="doc-viewer__breadcrumb">{breadcrumb}</span>}
+                        {Array.isArray(breadcrumb) ? (
+                            breadcrumb.length > 0 && (
+                                <span className="doc-viewer__breadcrumb">
+                                    {breadcrumb.map((seg, idx) => (
+                                        <span key={`${seg.name}-${idx}`} className="doc-viewer__crumb-group">
+                                            {idx > 0 && <span className="doc-viewer__crumb-sep">/</span>}
+                                            {seg.onClick ? (
+                                                <button
+                                                    type="button"
+                                                    className="doc-viewer__crumb"
+                                                    onClick={seg.onClick}
+                                                >
+                                                    {seg.name}
+                                                </button>
+                                            ) : (
+                                                <span className="doc-viewer__crumb doc-viewer__crumb--current">{seg.name}</span>
+                                            )}
+                                        </span>
+                                    ))}
+                                </span>
+                            )
+                        ) : (
+                            breadcrumb && <span className="doc-viewer__breadcrumb">{breadcrumb}</span>
+                        )}
                         <span className="doc-viewer__title-text" title={fileName}>{fileName || 'Preview'}</span>
                     </div>
                 </div>

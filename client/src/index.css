@@ -1539,12 +1539,32 @@ body {
   gap: 1px;
 }
 .doc-viewer__breadcrumb {
+  display: inline-flex;
+  align-items: center;
   font-size: 11px;
   font-weight: 500;
   color: hsl(0 0% 65%);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.doc-viewer__crumb-group { display: inline-flex; align-items: center; }
+.doc-viewer__crumb-sep { margin: 0 4px; color: hsl(0 0% 45%); }
+.doc-viewer__crumb {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  color: hsl(0 0% 65%);
+  cursor: pointer;
+}
+button.doc-viewer__crumb:hover { color: #fff; text-decoration: underline; }
+.doc-viewer__crumb--current {
+  color: hsl(0 0% 85%);
+  cursor: default;
 }
 .doc-viewer__title-text {
   font-size: 14px;
@@ -13784,6 +13804,24 @@ tr:hover .auth-note-icon--empty {
     color: hsl(var(--muted-foreground));
 }
 .files-page__breadcrumb svg { width: 14px; height: 14px; }
+.files-page__crumb-group { display: inline-flex; align-items: center; }
+.files-page__crumb-sep { margin: 0 4px; color: hsl(var(--muted-foreground)); opacity: 0.6; }
+.files-page__crumb {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: hsl(var(--primary));
+    cursor: pointer;
+}
+button.files-page__crumb:hover { text-decoration: underline; }
+.files-page__crumb--current {
+    color: hsl(var(--muted-foreground));
+    cursor: default;
+}
 
 /* Panel header rows: the "All" checkbox + search input shared by both the
    folders panel and the files panel, plus the files panel's folder-name

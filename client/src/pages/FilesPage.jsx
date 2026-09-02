@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
@@ -249,7 +249,10 @@ export default function FilesPage() {
         }
     }, [showToast]);
 
-    const handleMoveFiles = useCallback(async () => {
+    // Walks the folder tree (root down) and returns a flat list of every
+    // folder ({id, name, path, parentId}). Used both to populate the Move
+    // modal's destination list and to resolve breadcrumb segments to ids.
+    const loadAllFolders = useCallback(async () => {
         const allFolders = await api.listFolders(null);
         const flat = [];
         const flatten = async (parentId) => {
@@ -264,8 +267,21 @@ export default function FilesPage() {
             await flatten(f.id);
         }
         setFolders(flat);
+        return flat;
+    }, []);
+
+    // Populate the flat folder list up front so breadcrumb segments can
+    // resolve to folder ids as soon as a folder is selected. Also refresh it
+    // whenever the folder tree changes (create/rename/delete) so breadcrumbs
+    // stay accurate.
+    useEffect(() => {
+        loadAllFolders().catch(() => {});
+    }, [loadAllFolders, treeRefreshKey]);
+
+    const handleMoveFiles = useCallback(async () => {
+        await loadAllFolders();
         setMoveModal({ fileIds: [...selected] });
-    }, [selected]);
+    }, [selected, loadAllFolders]);
 
     const handleNameSubmit = useCallback(async (e) => {
         e.preventDefault();
@@ -323,11 +339,33 @@ export default function FilesPage() {
         ? files.filter(f => f.name.toLowerCase().includes(search.toLowerCase()))
         : files;
 
-    // Folder path breadcrumb, e.g. "Insurance / Medicaid" — AdminFolder.path is
-    // a materialized path like "/Insurance/Medicaid".
-    const folderBreadcrumb = selectedFolder?.path
-        ? selectedFolder.path.split('/').filter(Boolean).join(' / ')
-        : '';
+    // Clickable breadcrumb segments derived from selectedFolder.path, e.g.
+    // "/Insurance/Medicaid" → [{name:'Insurance', id:3}, {name:'Medicaid', id:7}].
+    // Each segment's id is resolved by matching the path PREFIX up to that
+    // segment against the flat `folders` list. If a segment can't be
+    // resolved (flat list not loaded yet, or a mismatch), id is left null
+    // and the segment renders as plain (non-clickable) text instead of
+    // crashing.
+    const breadcrumbSegments = useMemo(() => {
+        if (!selectedFolder?.path) return [];
+        const parts = selectedFolder.path.split('/').filter(Boolean);
+        let prefix = '';
+        return parts.map((name, idx) => {
+            prefix += `/${name}`;
+            const isLast = idx === parts.length - 1;
+            const match = isLast
+                ? selectedFolder
+                : folders.find(f => f.path === prefix);
+            return { name, id: match ? match.id : null };
+        });
+    }, [selectedFolder, folders]);
+
+    const handleCrumbClick = useCallback((seg) => {
+        if (!seg || seg.id == null) return;
+        if (seg.id === selectedFolder?.id) return;
+        const target = folders.find(f => f.id === seg.id) || (seg.id === selectedFolder?.id ? selectedFolder : null);
+        if (target) handleSelectFolder(target);
+    }, [folders, selectedFolder, handleSelectFolder]);
 
     return (
         <div className="files-page">
@@ -344,8 +382,29 @@ export default function FilesPage() {
             />
             <ContextBar>
                 <ContextBar.Left>
-                    {folderBreadcrumb && (
-                        <span className="files-page__breadcrumb">{Icons.folder} {folderBreadcrumb}</span>
+                    {breadcrumbSegments.length > 0 && (
+                        <span className="files-page__breadcrumb">
+                            {Icons.folder}
+                            {breadcrumbSegments.map((seg, idx) => {
+                                const isLast = idx === breadcrumbSegments.length - 1;
+                                return (
+                                    <span key={`${seg.name}-${idx}`} className="files-page__crumb-group">
+                                        {idx > 0 && <span className="files-page__crumb-sep">/</span>}
+                                        {!isLast && seg.id != null ? (
+                                            <button
+                                                type="button"
+                                                className="files-page__crumb"
+                                                onClick={() => handleCrumbClick(seg)}
+                                            >
+                                                {seg.name}
+                                            </button>
+                                        ) : (
+                                            <span className="files-page__crumb files-page__crumb--current">{seg.name}</span>
+                                        )}
+                                    </span>
+                                );
+                            })}
+                        </span>
                     )}
                 </ContextBar.Left>
                 <ContextBar.Right>
@@ -565,7 +624,15 @@ export default function FilesPage() {
                 <PreviewModal
                     open
                     fileName={previewFile.name}
-                    breadcrumb={folderBreadcrumb || undefined}
+                    breadcrumb={breadcrumbSegments.length > 0 ? breadcrumbSegments.map((seg, idx) => {
+                        const isLast = idx === breadcrumbSegments.length - 1;
+                        return {
+                            name: seg.name,
+                            onClick: (!isLast && seg.id != null)
+                                ? () => { setPreviewFile(null); handleCrumbClick(seg); }
+                                : undefined,
+                        };
+                    }) : undefined}
                     onClose={() => setPreviewFile(null)}
                     onDelete={() => { const f = previewFile; setPreviewFile(null); handleDelete(f); }}
                     fetchBlob={() => fetch(`/api/files/${previewFile.id}/download`, {
