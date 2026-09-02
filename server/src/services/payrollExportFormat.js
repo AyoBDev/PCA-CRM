@@ -41,6 +41,9 @@ const COLORS = {
     // Void rows are washed a light red so they read as struck-out at a glance
     // without competing with the saturated red used for a short authorization.
     voidRow:        'FFF4CCCC',
+    // Rows that were paid but capped — a lighter amber, so a partly-paid row is
+    // visibly different from a fully-excluded (void) one.
+    reducedRow:     'FFFCE5CD',
 };
 
 const NUM_FMT = {
@@ -126,6 +129,37 @@ function deriveAnnotations(visits) {
         if (v.notes) add(String(v.notes).trim());
     }
     return out;
+}
+
+/**
+ * Was this row paid less than it clocked? Covers both cap paths in
+ * payrollService: the daily 28-unit cap and the remaining-authorization
+ * balance. These rows are NOT voided — they still pay — so without a marker
+ * they are indistinguishable from a full-paid row despite losing units.
+ */
+function isReducedRow(v) {
+    if (v.voidFlag || v.needsReview) return false;
+    return /^(reduced|daily cap)/i.test(String(v.voidReason || '').trim());
+}
+
+/**
+ * Restate a reduction reason as "Reduced <clocked> → <paid>: <cause>" so the
+ * sheet keeps the figure the caregiver actually clocked, which the Units
+ * column no longer shows. Falls back to the raw reason when there is no
+ * meaningful clocked figure to compare against.
+ */
+function reductionText(v) {
+    const reason = String(v.voidReason || '').trim();
+    const raw = Number(v.unitsRaw);
+    const paid = Number(v.finalPayableUnits) || 0;
+    if (!Number.isFinite(raw) || raw <= 0 || raw <= paid) return reason;
+
+    // Strip the leading restatement of the paid figure; the arrow now says it.
+    const cause = reason
+        .replace(/^reduced to remaining authorized units/i, 'remaining authorized units')
+        .replace(/^reduced to \d+:\s*/i, '')
+        .replace(/^daily cap/i, 'daily cap');
+    return `Reduced ${raw} \u2192 ${paid}: ${cause}`;
 }
 
 /** Blank row template. */
@@ -278,6 +312,10 @@ function buildExportModel(run, authMap = {}) {
                 for (let i = 0; i < SHEET_COLUMNS.length; i++) fills[i] = COLORS.voidRow;
                 values[COL.VOID_REASON] = String(v.voidReason || '').trim();
                 fonts[COL.VOID_REASON] = { color: COLORS.annotationRed };
+            } else if (isReducedRow(v)) {
+                for (let i = 0; i < SHEET_COLUMNS.length; i++) fills[i] = COLORS.reducedRow;
+                values[COL.VOID_REASON] = reductionText(v);
+                fonts[COL.VOID_REASON] = { color: COLORS.annotationRed };
             }
 
             rows.push(makeRow('visit', values, { fills, fonts, numFmts, visitId: v.id }));
@@ -328,4 +366,6 @@ module.exports = {
     serviceCodeSortIndex,
     periodLabel,
     deriveAnnotations,
+    isReducedRow,
+    reductionText,
 };

@@ -378,3 +378,96 @@ describe('void rows are highlighted with their reason in column J', () => {
         expect(COLORS.voidRow).not.toBe(COLORS.totalGreen);
     });
 });
+
+// ── Reduced rows ──────────────────────────────────────────
+describe('rows reduced by a cap are shaded amber and state what was lost', () => {
+    const reduced = (over = {}) => visit({
+        voidFlag: false,
+        unitsRaw: 23,
+        finalPayableUnits: 6,
+        voidReason: 'Reduced to 6: daily cap of 28 units (this client)',
+        ...over,
+    });
+
+    test('a reduced row is shaded amber across the printed columns', () => {
+        const m = buildExportModel(run([reduced()]), {});
+        const v = firstWhere(m, (r) => r.kind === 'visit');
+        for (let i = 0; i < SHEET_COLUMNS.length; i++) {
+            expect(v.fills[i]).toBe(COLORS.reducedRow);
+        }
+    });
+
+    test('column J names the clocked and paid units', () => {
+        const m = buildExportModel(run([reduced()]), {});
+        const v = firstWhere(m, (r) => r.kind === 'visit');
+        expect(v.values[COL.VOID_REASON]).toBe('Reduced 23 → 6: daily cap of 28 units (this client)');
+    });
+
+    test('a row zeroed by the daily cap is treated as reduced, not normal', () => {
+        const m = buildExportModel(run([reduced({
+            unitsRaw: 10,
+            finalPayableUnits: 0,
+            voidReason: 'Daily cap of 28 units already reached (this client)',
+        })]), {});
+        const v = firstWhere(m, (r) => r.kind === 'visit');
+        expect(v.fills[COL.CLIENT]).toBe(COLORS.reducedRow);
+        expect(v.values[COL.VOID_REASON]).toBe('Reduced 10 → 0: daily cap of 28 units already reached (this client)');
+    });
+
+    test('an authorization-balance reduction is shaded and explained too', () => {
+        const m = buildExportModel(run([reduced({
+            unitsRaw: 28,
+            finalPayableUnits: 22,
+            voidReason: 'Reduced to remaining authorized units (22)',
+        })]), {});
+        const v = firstWhere(m, (r) => r.kind === 'visit');
+        expect(v.fills[COL.CLIENT]).toBe(COLORS.reducedRow);
+        expect(v.values[COL.VOID_REASON]).toBe('Reduced 28 → 22: remaining authorized units (22)');
+    });
+
+    test('the reduced shade is distinct from the void shade and the banner fills', () => {
+        expect(COLORS.reducedRow).not.toBe(COLORS.voidRow);
+        expect(COLORS.reducedRow).not.toBe(COLORS.authMet);
+        expect(COLORS.reducedRow).not.toBe(COLORS.authShort);
+        expect(COLORS.reducedRow).not.toBe(COLORS.totalGreen);
+    });
+
+    test('void wins over reduced when a row is both', () => {
+        const m = buildExportModel(run([reduced({ voidFlag: true, voidReason: 'No authorized units remaining (void)' })]), {});
+        const v = firstWhere(m, (r) => r.kind === 'visit');
+        expect(v.fills[COL.CLIENT]).toBe(COLORS.voidRow);
+        expect(v.values[COL.VOID_REASON]).toBe('No authorized units remaining (void)');
+    });
+
+    test('a row paid in full is not shaded, even if it carries an unrelated reason', () => {
+        const m = buildExportModel(run([visit({ unitsRaw: 28, finalPayableUnits: 28, voidReason: '' })]), {});
+        const v = firstWhere(m, (r) => r.kind === 'visit');
+        expect(v.fills[COL.CLIENT]).toBeNull();
+        expect(v.values[COL.VOID_REASON]).toBe('');
+    });
+
+    test('a reduced row still contributes its PAID units to the client total', () => {
+        const m = buildExportModel(run([
+            visit({ id: 1, unitsRaw: 22, finalPayableUnits: 22, voidReason: '' }),
+            reduced({ id: 2 }),
+        ]), {});
+        const total = firstWhere(m, (r) => r.kind === 'total');
+        expect(total.values[COL.UNITS]).toBe(28);
+    });
+
+    test('a reduction with no raw figure still shades and explains without a bogus arrow', () => {
+        const m = buildExportModel(run([reduced({ unitsRaw: 0 })]), {});
+        const v = firstWhere(m, (r) => r.kind === 'visit');
+        expect(v.fills[COL.CLIENT]).toBe(COLORS.reducedRow);
+        expect(v.values[COL.VOID_REASON]).toBe('Reduced to 6: daily cap of 28 units (this client)');
+    });
+
+    test('needs-review rows are not mistaken for reductions', () => {
+        const m = buildExportModel(run([visit({
+            needsReview: true, reviewReason: 'missingCallOut',
+            unitsRaw: 0, finalPayableUnits: 0, voidReason: '',
+        })]), {});
+        const v = firstWhere(m, (r) => r.kind === 'visit');
+        expect(v.fills[COL.CLIENT]).toBeNull();
+    });
+});
