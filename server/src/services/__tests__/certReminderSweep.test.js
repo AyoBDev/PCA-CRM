@@ -75,3 +75,44 @@ test('only sweeps certs of ACTIVE, non-archived employees (never former/archived
   const where = mockDb.employeeCertification.findMany.mock.calls[0][0].where;
   expect(where.employee).toMatchObject({ active: true, archivedAt: null });
 });
+
+test('an employee with multiple due certs gets ONE email but one ledger row per cert', async () => {
+  const emp2 = { id: 8, name: 'Multi Cert', email: 'multi@example.com' };
+  mockDb.certType.findMany.mockResolvedValue([
+    { key: 'cpr', label: 'CPR', requiresExpiry: true },
+    { key: 'tb_test', label: 'TB Test', requiresExpiry: true },
+  ]);
+  mockDb.employeeCertification.findMany.mockResolvedValue([
+    { id: 20, certType: 'cpr', status: 'active', currentVersionKey: '20', approvedAt: null,
+      expirationDate: new Date('2026-09-08T00:00:00Z'), employee: emp2 },  // 7-day
+    { id: 21, certType: 'tb_test', status: 'active', currentVersionKey: '21', approvedAt: null,
+      expirationDate: new Date('2026-09-25T00:00:00Z'), employee: emp2 },  // 30-day (NOW=2026-09-01)
+  ]);
+  const email = require('../reminderChannels/emailChannel');
+  const res = await sweepCertRemindersForAgency(NOW);
+  expect(email.send).toHaveBeenCalledTimes(1);               // ONE email for the employee
+  expect(mockDb.certReminderLog.create).toHaveBeenCalledTimes(2); // one row per cert
+  expect(res.sent).toBe(1);                                  // one employee emailed
+});
+
+test('a cert already in the ledger is excluded from its employee batch', async () => {
+  const email = require('../reminderChannels/emailChannel');
+  // cert 20 already sent, cert 21 not
+  mockDb.certReminderLog.findFirst.mockImplementation(({ where }) =>
+    Promise.resolve(where.certificationId === 20 ? { id: 1 } : null));
+  mockDb.certType.findMany.mockResolvedValue([
+    { key: 'cpr', label: 'CPR', requiresExpiry: true },
+    { key: 'tb_test', label: 'TB Test', requiresExpiry: true },
+  ]);
+  const emp2 = { id: 8, name: 'Multi', email: 'm@example.com' };
+  mockDb.employeeCertification.findMany.mockResolvedValue([
+    { id: 20, certType: 'cpr', status: 'active', currentVersionKey: '20', approvedAt: null, expirationDate: new Date('2026-09-08T00:00:00Z'), employee: emp2 },
+    { id: 21, certType: 'tb_test', status: 'active', currentVersionKey: '21', approvedAt: null, expirationDate: new Date('2026-09-25T00:00:00Z'), employee: emp2 },
+  ]);
+  await sweepCertRemindersForAgency(NOW);
+  expect(email.send).toHaveBeenCalledTimes(1);                // still one email (for cert 21)
+  expect(mockDb.certReminderLog.create).toHaveBeenCalledTimes(1); // only cert 21 recorded
+  expect(mockDb.certReminderLog.create).toHaveBeenCalledWith(expect.objectContaining({
+    data: expect.objectContaining({ certificationId: 21 }),
+  }));
+});

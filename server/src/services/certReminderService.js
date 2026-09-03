@@ -83,7 +83,11 @@ async function sweepCertRemindersForAgency(now = new Date()) {
   ]);
   const typeByKey = Object.fromEntries(certTypes.map(t => [t.key, t]));
 
-  let sent = 0, blocked = 0, checked = 0;
+  // Phase 1 — collect due, not-yet-sent certs per employee + the block set.
+  const dueByEmployee = new Map();  // employeeId -> { employee, items: [] }
+  const blockEmployeeIds = new Set();
+  let checked = 0;
+
   for (const cert of certs) {
     const type = typeByKey[cert.certType];
     const requiresExpiry = type ? Boolean(type.requiresExpiry) : true; // unknown type gated
@@ -95,21 +99,40 @@ async function sweepCertRemindersForAgency(now = new Date()) {
     const stage = computeStage(days);
     if (!stage) continue;
 
+    if (stage === 'expired_final' && !isApprovedForCycle(cert)) {
+      blockEmployeeIds.add(cert.employee.id);
+    }
+
     const already = await db.certReminderLog.findFirst({
       where: { certificationId: cert.id, versionKey, stage },
     });
-    if (!already) {
-      const certLabel = type ? type.label : cert.certType;
-      const res = await deliverReminder({ ...cert, certLabel }, stage, versionKey);
-      if (!res.skipped) sent++;
-    }
+    if (already) continue;
 
-    if (stage === 'expired_final' && !isApprovedForCycle(cert)) {
-      const status = await compliance.evaluateCompliance(cert.employee.id);
-      if (status === 'blocked') blocked++;
+    const certLabel = type ? type.label : cert.certType;
+    const entry = dueByEmployee.get(cert.employee.id) || { employee: cert.employee, items: [] };
+    entry.items.push({ cert, stage, versionKey, certLabel, expDate: cert.expirationDate });
+    dueByEmployee.set(cert.employee.id, entry);
+  }
+
+  // Phase 2 — one bundled send per employee.
+  let sent = 0;
+  for (const { employee, items } of dueByEmployee.values()) {
+    try {
+      const res = await deliverReminderBatch(employee, items);
+      if (res.certCount > 0) sent++;
+    } catch (err) {
+      console.error(`[CertReminder] batch send failed for employee ${employee.id}:`, err.message);
     }
   }
-  console.log(`[CertReminder] checked ${checked} certs, sent ${sent}, blocked ${blocked}`);
+
+  // Compliance: once per employee with an expired-unapproved cert.
+  let blocked = 0;
+  for (const employeeId of blockEmployeeIds) {
+    const status = await compliance.evaluateCompliance(employeeId);
+    if (status === 'blocked') blocked++;
+  }
+
+  console.log(`[CertReminder] checked ${checked} certs, emailed ${sent} employees, blocked ${blocked}`);
   return { sent, blocked, checked };
 }
 
