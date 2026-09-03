@@ -67,3 +67,11 @@ test('non-requiresExpiry cert type is skipped', async () => {
   expect(compliance.evaluateCompliance).not.toHaveBeenCalled();
   expect(res.checked).toBe(0);
 });
+
+test('only sweeps certs of ACTIVE, non-archived employees (never former/archived staff)', async () => {
+  // Regression: an archived/inactive ex-employee must not be reminded or emailed.
+  mockDb.employeeCertification.findMany.mockResolvedValue([]);
+  await sweepCertRemindersForAgency(NOW);
+  const where = mockDb.employeeCertification.findMany.mock.calls[0][0].where;
+  expect(where.employee).toMatchObject({ active: true, archivedAt: null });
+});

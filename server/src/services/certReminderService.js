@@ -73,7 +73,10 @@ async function sweepCertRemindersForAgency(now = new Date()) {
   const db = getTenantDb();
   const [certs, certTypes] = await Promise.all([
     db.employeeCertification.findMany({
-      where: { expirationDate: { not: null } },
+      // Only remind CURRENT staff: active and not archived. Former/archived
+      // employees keep their cert rows (for history) but must never be emailed,
+      // notified, or blocked by the sweep.
+      where: { expirationDate: { not: null }, employee: { active: true, archivedAt: null } },
       include: { employee: { select: { id: true, name: true, email: true } } },
     }),
     db.certType.findMany(),
