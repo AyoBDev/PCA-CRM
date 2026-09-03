@@ -12,6 +12,12 @@ const ALLOWLIST = new Set([
   'src/controllers/authController.js',      // login/tenant resolution (pre-JWT)
   'src/controllers/platformController.js',  // superadmin console (Task 11)
   'src/controllers/backupController.js',    // platform backup path (Task 11)
+  // Demo-agency provisioning: creates the agency row itself, so it necessarily
+  // runs before any tenant context for that agency can exist — same shape as
+  // platformController's createAgency. Every write passes an explicit agencyId,
+  // and its one delete is a slug-pinned agency.delete (see the SAFETY note in
+  // the service).
+  'src/services/demoAgencyService.js',
   'src/services/auditService.js',           // fire-and-forget writes w/ explicit agencyId
   // Public-token resolvers: token lookup crosses tenants by design. Their
   // authenticated handlers (if any) use req.db — see git blame for the split.

@@ -21,6 +21,9 @@ export default function PlatformPage() {
     const [saving, setSaving] = useState(false);
     const [confirmSuspend, setConfirmSuspend] = useState(null);
     const [confirmReactivate, setConfirmReactivate] = useState(null);
+    const [confirmDemo, setConfirmDemo] = useState(false);
+    const [demoBuilding, setDemoBuilding] = useState(false);
+    const [demoResult, setDemoResult] = useState(null);
 
     const fetchAgencies = useCallback(async () => {
         try {
@@ -83,6 +86,27 @@ export default function PlatformPage() {
         }
     };
 
+    // Destructive: erases the existing demo tenant and rebuilds it. Deliberately
+    // argument-free — the server pins the target slug, so nothing the client
+    // sends can redirect the wipe at a real agency.
+    const handleResetDemo = async () => {
+        setDemoBuilding(true);
+        try {
+            const result = await api.resetDemoAgency();
+            setConfirmDemo(false);
+            setDemoResult(result);
+            showToast(result.reset ? 'Demo agency rebuilt' : 'Demo agency created');
+            fetchAgencies();
+            // No undo entry: this destroys and recreates a tenant, so there is
+            // nothing coherent to roll back to. Re-running the reset is the
+            // intended way to get back to a clean demo.
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setDemoBuilding(false);
+        }
+    };
+
     const handleImpersonate = async (agency) => {
         try {
             const { token, subdomainUrl } = await api.impersonateAgency(agency.id);
@@ -116,6 +140,13 @@ export default function PlatformPage() {
                     />
                 </ContextBar.Left>
                 <ContextBar.Right>
+                    <button
+                        className="btn btn--outline"
+                        onClick={() => setConfirmDemo(true)}
+                        title="Create or rebuild the sales-demo agency"
+                    >
+                        {Icons.rotateCcw} Demo Agency
+                    </button>
                     <button className="btn btn--primary" onClick={() => setShowModal(true)}>
                         {Icons.plus} New Agency
                     </button>
@@ -275,6 +306,47 @@ export default function PlatformPage() {
                     onConfirm={() => handleReactivate(confirmReactivate)}
                     onClose={() => setConfirmReactivate(null)}
                 />
+            )}
+            {confirmDemo && (
+                <ConfirmModal
+                    title="Build demo agency"
+                    message={
+                        'This will erase the existing demo agency and everything in it — clients, ' +
+                        'caregivers, schedules, timesheets and payroll — then rebuild it with fresh ' +
+                        'sample data dated to this week. Only the "demo" agency is affected; no other ' +
+                        'agency is touched. Continue?'
+                    }
+                    confirmLabel={demoBuilding ? 'Building…' : 'Build demo'}
+                    confirmVariant="danger"
+                    onConfirm={handleResetDemo}
+                    onClose={() => setConfirmDemo(false)}
+                />
+            )}
+            {demoResult && (
+                <Modal onClose={() => setDemoResult(null)}>
+                    <h2 className="modal__title">Demo agency ready</h2>
+                    <p className="modal__desc">
+                        Sign in with these details. The password is shown once — copy it now.
+                    </p>
+                    <dl className="demo-summary">
+                        <dt>URL</dt>
+                        <dd><a href={demoResult.url} target="_blank" rel="noopener noreferrer">{demoResult.url}</a></dd>
+                        <dt>Admin email</dt>
+                        <dd><code>{demoResult.adminEmail}</code></dd>
+                        <dt>Admin password</dt>
+                        <dd><code>{demoResult.adminPassword}</code></dd>
+                        <dt>Caregiver password</dt>
+                        <dd><code>{demoResult.caregiverPassword}</code></dd>
+                    </dl>
+                    <p className="modal__desc" style={{ marginTop: 12 }}>
+                        Seeded {demoResult.counts?.clients} clients, {demoResult.counts?.employees} caregivers,{' '}
+                        {demoResult.counts?.shifts} shifts, {demoResult.counts?.timesheets} timesheets and{' '}
+                        {demoResult.counts?.payrollVisits} payroll visits.
+                    </p>
+                    <div className="form-actions">
+                        <button type="button" className="btn btn--primary" onClick={() => setDemoResult(null)}>Done</button>
+                    </div>
+                </Modal>
             )}
         </>
     );

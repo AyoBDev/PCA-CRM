@@ -17187,3 +17187,34 @@ button.files-page__crumb:hover { text-decoration: underline; }
     white-space: nowrap;
     vertical-align: middle;
 }
+
+/* Demo-agency credential summary (platform console). A definition list so the
+   label/value pairing is semantic, laid out as a two-column grid. */
+.demo-summary {
+    display: grid;
+    grid-template-columns: minmax(120px, auto) 1fr;
+    gap: 8px 16px;
+    margin: 16px 0 0;
+    align-items: baseline;
+}
+.demo-summary dt {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: hsl(var(--muted-foreground));
+}
+.demo-summary dd {
+    margin: 0;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+}
+.demo-summary code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+    background: hsl(var(--muted));
+    border: 1px solid hsl(var(--border));
+    border-radius: calc(var(--radius) - 2px);
+    padding: 2px 6px;
+    user-select: all;
+}

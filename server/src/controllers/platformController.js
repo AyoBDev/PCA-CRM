@@ -20,7 +20,9 @@ function auditForAgency(agencyId, fields) {
 }
 
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
-const RESERVED_SLUGS = new Set(['www', 'api', 'admin', 'app', 'platform', 'employee']);
+// 'demo' is reserved: the demo-agency reset DELETES the agency with that slug,
+// so a real tenant must never be able to claim it.
+const RESERVED_SLUGS = new Set(['www', 'api', 'admin', 'app', 'platform', 'employee', 'demo']);
 
 async function listAgencies(req, res, next) {
   try {
@@ -150,4 +152,32 @@ function hostInfo(req, res) {
   res.json({ type: 'landing' });
 }
 
-module.exports = { listAgencies, createAgency, updateAgency, suspendAgency: setAgencyStatus('suspended'), reactivateAgency: setAgencyStatus('active'), impersonate, agencyInfo, hostInfo };
+// Provision (or re-provision) the sales-demo agency. Destructive by design:
+// it wipes the existing demo tenant and rebuilds it with data whose dates are
+// relative to today. The target slug is hard-coded in demoAgencyService — no
+// part of the request can redirect the wipe at a real agency.
+async function resetDemoAgency(req, res, next) {
+  try {
+    const { provisionDemoAgency } = require('../services/demoAgencyService');
+    const result = await provisionDemoAgency({
+      actor: { id: req.user.id, name: req.user.name, role: req.user.role },
+    });
+
+    const { clearAgencyCache } = require('../middleware/resolveAgency');
+    clearAgencyCache();
+
+    const proto = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+    res.status(201).json({
+      agency: result.agency,
+      url: `${proto}://${result.agency.slug}.${process.env.BASE_DOMAIN || 'localhost'}`,
+      adminEmail: result.adminEmail,
+      // Shown once in the console so the demoer can sign in; never logged.
+      adminPassword: result.adminPassword,
+      caregiverPassword: result.caregiverPassword,
+      counts: result.counts,
+      reset: result.reset,
+    });
+  } catch (err) { next(err); }
+}
+
+module.exports = { listAgencies, createAgency, resetDemoAgency, updateAgency, suspendAgency: setAgencyStatus('suspended'), reactivateAgency: setAgencyStatus('active'), impersonate, agencyInfo, hostInfo };
