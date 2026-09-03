@@ -998,6 +998,9 @@ export const createPlatformAgency = (payload) => request('/platform/agencies', {
 export const suspendAgency = (id) => request(`/platform/agencies/${id}/suspend`, { method: 'PUT' });
 export const reactivateAgency = (id) => request(`/platform/agencies/${id}/reactivate`, { method: 'PUT' });
 export const impersonateAgency = (id) => request(`/platform/agencies/${id}/impersonate`, { method: 'POST', body: JSON.stringify({}) });
+// Destructive: wipes and rebuilds the demo tenant. The target agency is fixed
+// server-side, so this deliberately takes no arguments.
+export const resetDemoAgency = () => request('/platform/demo-agency', { method: 'POST', body: JSON.stringify({}) });
 
 // ── Agency Info (public — resolves current subdomain, no auth token) ──
 export const getAgencyInfo = () =>

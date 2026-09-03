@@ -1,6 +1,6 @@
 const express = require('express');
 const { requireRole } = require('../middleware/authMiddleware');
-const { listAgencies, createAgency, updateAgency, suspendAgency, reactivateAgency, impersonate } = require('../controllers/platformController');
+const { listAgencies, createAgency, resetDemoAgency, updateAgency, suspendAgency, reactivateAgency, impersonate } = require('../controllers/platformController');
 const { platformBackup } = require('../controllers/backupController');
 
 const router = express.Router();
@@ -14,6 +14,8 @@ router.use((req, res, next) => {
 router.use(requireRole('superadmin'));
 router.get('/agencies', listAgencies);
 router.post('/agencies', createAgency);
+// Destructive: wipes and rebuilds the demo tenant (slug fixed server-side).
+router.post('/demo-agency', resetDemoAgency);
 router.patch('/agencies/:id', updateAgency);
 router.put('/agencies/:id/suspend', suspendAgency);
 router.put('/agencies/:id/reactivate', reactivateAgency);

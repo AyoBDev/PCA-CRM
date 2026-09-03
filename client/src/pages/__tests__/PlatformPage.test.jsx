@@ -15,6 +15,15 @@ vi.mock('../../api', () => ({
   suspendAgency: vi.fn(),
   reactivateAgency: vi.fn(),
   impersonateAgency: vi.fn().mockResolvedValue({ token: 't', subdomainUrl: 'http://acme.localhost' }),
+  resetDemoAgency: vi.fn().mockResolvedValue({
+    agency: { id: 9, name: 'Silver Sage Home Care (Demo)', slug: 'demo' },
+    url: 'http://demo.localhost',
+    adminEmail: 'admin@demo.local',
+    adminPassword: 'Demo-abc123',
+    caregiverPassword: 'DemoPass1234!',
+    counts: { clients: 8, employees: 5, shifts: 40 },
+    reset: false,
+  }),
 }));
 
 import * as api from '../../api';
@@ -45,4 +54,35 @@ test('create agency form submits name, slug and admin details', async () => {
       name: 'Beta Care', slug: 'beta', adminEmail: 'a@beta.test', adminName: 'Beta Admin',
     })
   );
+});
+
+
+// ── Demo agency ─────────────────────────────────────────────────────────────
+
+test('demo agency button does not provision until the wipe is confirmed', async () => {
+  renderPage();
+  await screen.findByText('NV Best PCA');
+  fireEvent.click(screen.getByRole('button', { name: /demo agency/i }));
+  // Confirmation is up, but nothing has been destroyed yet.
+  expect(api.resetDemoAgency).not.toHaveBeenCalled();
+  expect(screen.getByText(/erase/i)).toBeInTheDocument();
+});
+
+test('confirming the demo reset provisions and shows the sign-in details', async () => {
+  renderPage();
+  await screen.findByText('NV Best PCA');
+  fireEvent.click(screen.getByRole('button', { name: /demo agency/i }));
+  fireEvent.click(screen.getByRole('button', { name: /build demo/i }));
+  await waitFor(() => expect(api.resetDemoAgency).toHaveBeenCalledTimes(1));
+  // The one-time password is surfaced so the demoer can actually sign in.
+  expect(await screen.findByText('admin@demo.local')).toBeInTheDocument();
+  expect(screen.getByText('Demo-abc123')).toBeInTheDocument();
+});
+
+test('demo reset takes no arguments, so the target cannot be redirected', async () => {
+  renderPage();
+  await screen.findByText('NV Best PCA');
+  fireEvent.click(screen.getByRole('button', { name: /demo agency/i }));
+  fireEvent.click(screen.getByRole('button', { name: /build demo/i }));
+  await waitFor(() => expect(api.resetDemoAgency).toHaveBeenCalledWith());
 });
