@@ -1,6 +1,8 @@
 'use strict';
 
-const { namedSheetsToRows, rowsToXlsxBuffer } = require('../lib/xlsxHelper');
+const { namedSheetsToRows } = require('../lib/xlsxHelper');
+const ExcelJS = require('exceljs');
+const { buildExportModel } = require('../services/payrollExportFormat');
 const { processPayrollRows, parseTimeToMinutes, minutesToHHMM, applyTimeRules, calcUnits, normalizeName, computeManualUnitLimit } = require('../services/payrollService');
 const { filterAuthsByWeek } = require('../services/authorizationService');
 const audit = require('../services/auditService');
@@ -543,82 +545,61 @@ async function exportPayrollRun(req, res, next) {
         });
         if (!run) return res.status(404).json({ error: 'Payroll run not found.' });
 
-        // Group visits by client (empty clientName → sentinel key)
-        // Exclude mergedInto reference rows from main grouping; they'll be shown under their parent
-        const clientGroups = new Map();
-        const mergedIntoMap = new Map(); // parentId → [originalRows]
-        for (const v of run.visits) {
-            if (v.mergedInto != null) {
-                if (!mergedIntoMap.has(v.mergedInto)) mergedIntoMap.set(v.mergedInto, []);
-                mergedIntoMap.get(v.mergedInto).push(v);
-                continue;
+        // Authorization data drives the green/red banner above each client —
+        // same source of truth the payroll UI banner uses (snapshot first,
+        // live fallback for runs predating the snapshot feature).
+        let authMap = {};
+        const snapshot = run.authorizationSnapshot;
+        if (snapshot && snapshot !== '{}') {
+            try {
+                authMap = JSON.parse(snapshot) || {};
+            } catch {
+                authMap = {};
             }
-            const key = v.clientName || '(Unknown Client)';
-            if (!clientGroups.has(key)) clientGroups.set(key, []);
-            clientGroups.get(key).push(v);
+        } else {
+            const allClients = await req.db.client.findMany({ include: { authorizations: true } });
+            authMap = buildClientAuthMap(allClients, run.periodStart, run.periodEnd);
         }
 
-        // Build rows array
-        const header = ['Client', 'Employee', 'Service', 'Date', 'In', 'Out', 'Status', 'Units (Raw)', 'Final Units', 'Void?', 'Void/Review Reason', 'Overlap', 'Notes'];
-        const aoa    = [header];
+        const model = buildExportModel(run, authMap);
 
-        for (const [clientName, visits] of clientGroups) {
-            // Client banner row
-            aoa.push([clientName, '', '', '', '', '', '', '', '', '', '', '', '']);
+        const wb = new ExcelJS.Workbook();
+        wb.creator = 'NV Best PCA';
+        wb.created = new Date();
+        const ws = wb.addWorksheet('Payroll', {
+            views: [{ state: 'frozen', ySplit: 1 }],
+        });
+        ws.columns = model.widths.map((width) => ({ width }));
 
-            for (const v of visits) {
-                const reason = v.needsReview ? `NEEDS REVIEW: ${v.reviewReason}` : (v.voidReason || '');
-                aoa.push([
-                    v.clientName || '',
-                    v.employeeName || '',
-                    v.service || '',
-                    v.visitDate ? new Date(v.visitDate).toLocaleDateString('en-US') : '',
-                    v.callInTime  || '',
-                    v.callOutTime || '',
-                    v.visitStatus || '',
-                    v.unitsRaw,
-                    v.needsReview ? '' : (v.voidFlag ? 0 : v.finalPayableUnits),
-                    v.needsReview ? 'REVIEW' : (v.voidFlag ? 'VOID' : ''),
-                    reason,
-                    v.overlapId || '',
-                    v.notes     || '',
-                ]);
+        for (const row of model.rows) {
+            const added = ws.addRow(row.values);
+            for (let i = 0; i < row.values.length; i++) {
+                const cell = added.getCell(i + 1);
+                const fill = row.fills[i];
+                const font = row.fonts[i];
+                const numFmt = row.numFmts[i];
+                const align = row.alignments[i];
 
-                // Show original incomplete rows under the merged row
-                const originals = mergedIntoMap.get(v.id);
-                if (originals) {
-                    for (const orig of originals) {
-                        aoa.push([
-                            `  ↳ ${orig.clientName || ''}`,
-                            orig.employeeName || '',
-                            orig.service || '',
-                            orig.visitDate ? new Date(orig.visitDate).toLocaleDateString('en-US') : '',
-                            orig.callInTime  || '',
-                            orig.callOutTime || '',
-                            `(original) ${orig.visitStatus || ''}`,
-                            orig.unitsRaw,
-                            '',
-                            '',
-                            '',
-                            '',
-                            '',
-                        ]);
-                    }
+                if (fill) {
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
                 }
+                cell.font = {
+                    name: 'Arial',
+                    ...(font && font.bold ? { bold: true } : {}),
+                    ...(font && font.size ? { size: font.size } : {}),
+                    ...(font && font.color ? { color: { argb: font.color } } : {}),
+                };
+                if (numFmt) cell.numFmt = numFmt;
+                if (align) cell.alignment = align;
             }
-
-            // Total row (exclude needsReview and mergedInto from totals)
-            const total = visits.filter((v) => !v.voidFlag && !v.needsReview).reduce((s, v) => s + v.finalPayableUnits, 0);
-            aoa.push(['', '', '', '', '', '', 'TOTAL', '', total, '', '', '', '']);
         }
 
-        const colWidths = [30, 25, 20, 12, 8, 8, 12, 12, 12, 6, 35, 8, 40];
-        const buf = await rowsToXlsxBuffer(aoa, { sheetName: 'Payroll', colWidths });
-        const safeName = run.name.replace(/[^a-z0-9_\-]/gi, '_');
+        const buf = await wb.xlsx.writeBuffer();
+        const safeName = String(run.name || 'run').replace(/[^a-z0-9_\-]/gi, '_');
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename="payroll_${safeName}.xlsx"`);
-        return res.send(buf);
+        return res.send(Buffer.from(buf));
     } catch (err) {
         return next(err);
     }
