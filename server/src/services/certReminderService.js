@@ -2,7 +2,7 @@ const { getTenantDb, getAgencyId } = require('../lib/tenantContext');
 const emailChannel = require('./reminderChannels/emailChannel');
 const inAppChannel = require('./reminderChannels/inAppChannel');
 const pushChannel = require('./reminderChannels/pushChannel');
-const { buildMessage } = require('./certReminderMessages');
+const { buildMessage, buildBatchMessage } = require('./certReminderMessages');
 const audit = require('./auditService');
 const compliance = require('./complianceService');
 
@@ -113,4 +113,35 @@ async function sweepCertRemindersForAgency(now = new Date()) {
   return { sent, blocked, checked };
 }
 
-module.exports = { daysBetween, computeStage, versionKeyFor, deliverReminder, sweepCertRemindersForAgency };
+async function deliverReminderBatch(employee, items) {
+  const db = getTenantDb();
+  const msg = buildBatchMessage(employee.name, items.map(i => ({ certLabel: i.certLabel, stage: i.stage, expDate: i.expDate })));
+
+  const channels = {
+    email: await emailChannel.send(employee, msg),
+    inApp: await inAppChannel.send(employee, 'cert_reminder', msg),
+    push: await pushChannel.send(employee, msg),
+  };
+
+  for (const item of items) {
+    try {
+      await db.certReminderLog.create({
+        data: { certificationId: item.cert.id, versionKey: item.versionKey, stage: item.stage, channels, agencyId: getAgencyId() },
+      });
+    } catch (err) {
+      if (err.code === 'P2002') continue; // already recorded — skip this row
+      throw err;
+    }
+  }
+
+  audit.logAction({
+    userId: 0, userName: 'System', userRole: 'system',
+    action: 'UPDATE', entityType: 'EmployeeCertification', entityId: employee.id,
+    entityName: employee.name, changes: [],
+    metadata: { action: 'cert_reminder_sent', stages: items.map(i => i.stage), certCount: items.length, channels },
+  });
+
+  return { channels, certCount: items.length };
+}
+
+module.exports = { daysBetween, computeStage, versionKeyFor, deliverReminder, deliverReminderBatch, sweepCertRemindersForAgency };
