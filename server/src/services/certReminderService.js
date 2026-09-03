@@ -2,7 +2,7 @@ const { getTenantDb, getAgencyId } = require('../lib/tenantContext');
 const emailChannel = require('./reminderChannels/emailChannel');
 const inAppChannel = require('./reminderChannels/inAppChannel');
 const pushChannel = require('./reminderChannels/pushChannel');
-const { buildMessage } = require('./certReminderMessages');
+const { buildMessage, buildBatchMessage } = require('./certReminderMessages');
 const audit = require('./auditService');
 const compliance = require('./complianceService');
 
@@ -73,14 +73,21 @@ async function sweepCertRemindersForAgency(now = new Date()) {
   const db = getTenantDb();
   const [certs, certTypes] = await Promise.all([
     db.employeeCertification.findMany({
-      where: { expirationDate: { not: null } },
+      // Only remind CURRENT staff: active and not archived. Former/archived
+      // employees keep their cert rows (for history) but must never be emailed,
+      // notified, or blocked by the sweep.
+      where: { expirationDate: { not: null }, employee: { active: true, archivedAt: null } },
       include: { employee: { select: { id: true, name: true, email: true } } },
     }),
     db.certType.findMany(),
   ]);
   const typeByKey = Object.fromEntries(certTypes.map(t => [t.key, t]));
 
-  let sent = 0, blocked = 0, checked = 0;
+  // Phase 1 — collect due, not-yet-sent certs per employee + the block set.
+  const dueByEmployee = new Map();  // employeeId -> { employee, items: [] }
+  const blockEmployeeIds = new Set();
+  let checked = 0;
+
   for (const cert of certs) {
     const type = typeByKey[cert.certType];
     const requiresExpiry = type ? Boolean(type.requiresExpiry) : true; // unknown type gated
@@ -92,22 +99,72 @@ async function sweepCertRemindersForAgency(now = new Date()) {
     const stage = computeStage(days);
     if (!stage) continue;
 
+    if (stage === 'expired_final' && !isApprovedForCycle(cert)) {
+      blockEmployeeIds.add(cert.employee.id);
+    }
+
     const already = await db.certReminderLog.findFirst({
       where: { certificationId: cert.id, versionKey, stage },
     });
-    if (!already) {
-      const certLabel = type ? type.label : cert.certType;
-      const res = await deliverReminder({ ...cert, certLabel }, stage, versionKey);
-      if (!res.skipped) sent++;
-    }
+    if (already) continue;
 
-    if (stage === 'expired_final' && !isApprovedForCycle(cert)) {
-      const status = await compliance.evaluateCompliance(cert.employee.id);
-      if (status === 'blocked') blocked++;
+    const certLabel = type ? type.label : cert.certType;
+    const entry = dueByEmployee.get(cert.employee.id) || { employee: cert.employee, items: [] };
+    entry.items.push({ cert, stage, versionKey, certLabel, expDate: cert.expirationDate });
+    dueByEmployee.set(cert.employee.id, entry);
+  }
+
+  // Phase 2 — one bundled send per employee.
+  let sent = 0;
+  for (const { employee, items } of dueByEmployee.values()) {
+    try {
+      const res = await deliverReminderBatch(employee, items);
+      if (res.certCount > 0) sent++;
+    } catch (err) {
+      console.error(`[CertReminder] batch send failed for employee ${employee.id}:`, err.message);
     }
   }
-  console.log(`[CertReminder] checked ${checked} certs, sent ${sent}, blocked ${blocked}`);
+
+  // Compliance: once per employee with an expired-unapproved cert.
+  let blocked = 0;
+  for (const employeeId of blockEmployeeIds) {
+    const status = await compliance.evaluateCompliance(employeeId);
+    if (status === 'blocked') blocked++;
+  }
+
+  console.log(`[CertReminder] checked ${checked} certs, emailed ${sent} employees, blocked ${blocked}`);
   return { sent, blocked, checked };
 }
 
-module.exports = { daysBetween, computeStage, versionKeyFor, deliverReminder, sweepCertRemindersForAgency };
+async function deliverReminderBatch(employee, items) {
+  const db = getTenantDb();
+  const msg = buildBatchMessage(employee.name, items.map(i => ({ certLabel: i.certLabel, stage: i.stage, expDate: i.expDate })));
+
+  const channels = {
+    email: await emailChannel.send(employee, msg),
+    inApp: await inAppChannel.send(employee, 'cert_reminder', msg),
+    push: await pushChannel.send(employee, msg),
+  };
+
+  for (const item of items) {
+    try {
+      await db.certReminderLog.create({
+        data: { certificationId: item.cert.id, versionKey: item.versionKey, stage: item.stage, channels, agencyId: getAgencyId() },
+      });
+    } catch (err) {
+      if (err.code === 'P2002') continue; // already recorded — skip this row
+      throw err;
+    }
+  }
+
+  audit.logAction({
+    userId: 0, userName: 'System', userRole: 'system',
+    action: 'UPDATE', entityType: 'EmployeeCertification', entityId: employee.id,
+    entityName: employee.name, changes: [],
+    metadata: { action: 'cert_reminder_sent', stages: items.map(i => i.stage), certCount: items.length, channels },
+  });
+
+  return { channels, certCount: items.length };
+}
+
+module.exports = { daysBetween, computeStage, versionKeyFor, deliverReminder, deliverReminderBatch, sweepCertRemindersForAgency };
