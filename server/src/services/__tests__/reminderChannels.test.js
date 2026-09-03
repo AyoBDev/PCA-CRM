@@ -38,6 +38,30 @@ test('email channel returns "failed" when Brevo throws', async () => {
   expect(await emailChannel.send(emp, msg)).toBe('failed');
 });
 
+test('email channel is "skipped" and sends nothing when CERT_REMINDER_EMAIL_ENABLED=false', async () => {
+  const prev = process.env.CERT_REMINDER_EMAIL_ENABLED;
+  process.env.CERT_REMINDER_EMAIL_ENABLED = 'false';
+  try {
+    notif.sendEmail.mockResolvedValue({});
+    expect(await emailChannel.send(emp, msg)).toBe('skipped');
+    expect(notif.sendEmail).not.toHaveBeenCalled();
+  } finally {
+    if (prev === undefined) delete process.env.CERT_REMINDER_EMAIL_ENABLED;
+    else process.env.CERT_REMINDER_EMAIL_ENABLED = prev;
+  }
+});
+
+test('email channel still sends when CERT_REMINDER_EMAIL_ENABLED is unset (default on)', async () => {
+  const prev = process.env.CERT_REMINDER_EMAIL_ENABLED;
+  delete process.env.CERT_REMINDER_EMAIL_ENABLED;
+  try {
+    notif.sendEmail.mockResolvedValue({});
+    expect(await emailChannel.send(emp, msg)).toBe('sent');
+  } finally {
+    if (prev !== undefined) process.env.CERT_REMINDER_EMAIL_ENABLED = prev;
+  }
+});
+
 test('in-app channel creates a notification and returns "sent"', async () => {
   compliance.createNotification.mockResolvedValue({});
   expect(await inAppChannel.send(emp, 'reminder_7day', msg)).toBe('sent');
