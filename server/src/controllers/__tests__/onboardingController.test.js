@@ -6,7 +6,29 @@ const bcrypt = require('bcryptjs');
 let adminToken;
 let testEmployee;
 
+// Fixed fixture emails mean a run that crashes before afterAll leaves rows
+// behind and every later run dies on the (agency_id, email) unique
+// constraint. Clearing first makes the suite self-healing.
+// Dependent rows go before the employee, and employees before users.
+async function purgeFixtures() {
+    const employees = await prisma.employee.findMany({
+        where: { email: 'newpca@test.com' },
+        select: { id: true },
+    });
+    if (employees.length) {
+        const employeeId = { in: employees.map((e) => e.id) };
+        await prisma.employeeAvailability.deleteMany({ where: { employeeId } });
+        await prisma.onboardingToken.deleteMany({ where: { employeeId } });
+        await prisma.employee.deleteMany({ where: { id: employeeId } });
+    }
+    await prisma.user.deleteMany({
+        where: { email: { in: ['onboard-test-admin@test.com', 'newpca@test.com'] } },
+    });
+}
+
 beforeAll(async () => {
+    await purgeFixtures();
+
     const passwordHash = await bcrypt.hash('admin123', 10);
     const admin = await prisma.user.create({
         data: { email: 'onboard-test-admin@test.com', passwordHash, name: 'Test Admin', role: 'admin', agencyId: 1 },
@@ -16,15 +38,12 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-    // Scoped to THIS test's employee only — an unscoped deleteMany({}) here
+    // Scoped to THIS suite's fixture emails — an unscoped deleteMany({}) here
     // previously wiped every onboarding token / availability row globally,
     // racing with any other test file mid-flight against the shared DB.
-    if (testEmployee) {
-        await prisma.employeeAvailability.deleteMany({ where: { employeeId: testEmployee.id } });
-        await prisma.onboardingToken.deleteMany({ where: { employeeId: testEmployee.id } });
-    }
-    await prisma.employee.deleteMany({ where: { email: 'newpca@test.com' } });
-    await prisma.user.deleteMany({ where: { email: { in: ['onboard-test-admin@test.com', 'newpca@test.com'] } } });
+    // Keyed off the fixtures rather than testEmployee so it still cleans up
+    // when a test failed before that variable was assigned.
+    await purgeFixtures();
 });
 
 describe('Onboarding Flow', () => {

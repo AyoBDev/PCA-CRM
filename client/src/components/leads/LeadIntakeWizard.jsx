@@ -5,6 +5,7 @@ import Icons from '../common/Icons';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../hooks/useToast';
 import { LEAD_STATUSES, LEAD_CASE_TYPES, computeDeposit, computeWeekly } from '../../utils/leadConstants';
+import LeadAttachmentList from './LeadAttachmentList';
 
 const SERVICE_OPTIONS = [
     'B/D/G', 'Toileting', 'Diaper Change', 'Transfer Assistance', 'Mobility',
@@ -109,20 +110,9 @@ function FormCard({ title, children }) {
 
 const ATTACH_ACCEPT = 'image/*,application/pdf,.doc,.docx';
 
-function fmtSize(bytes) {
-    if (!bytes && bytes !== 0) return '';
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 // Attachments card — staged files on a new lead, live upload/delete on an edit.
 function AttachmentsCard({ isEdit, pendingFiles, existingDocs, busy, onAdd, onRemovePending, onRemoveExisting }) {
     const inputRef = useRef(null);
-    const rows = [
-        ...existingDocs.map((d) => ({ key: `e-${d.id}`, name: d.fileName, size: d.fileSize, saved: true, id: d.id })),
-        ...pendingFiles.map((f, i) => ({ key: `p-${i}`, name: f.name, size: f.size, saved: false, idx: i })),
-    ];
     return (
         <FormCard title="Attachments">
             <div className="fld" style={{ marginBottom: 0 }}>
@@ -147,27 +137,14 @@ function AttachmentsCard({ isEdit, pendingFiles, existingDocs, busy, onAdd, onRe
                     <span className="lead-attach__hint">Images, PDF, or Word docs · up to 20 MB each</span>
                 </div>
 
-                {rows.length > 0 && (
-                    <ul className="lead-attach__list">
-                        {rows.map((r) => (
-                            <li key={r.key} className="lead-attach__item">
-                                <span className="lead-attach__icon">{Icons.fileText}</span>
-                                <span className="lead-attach__name" title={r.name}>{r.name}</span>
-                                <span className="lead-attach__size">{fmtSize(r.size)}</span>
-                                {!r.saved && <span className="lead-attach__badge">Pending</span>}
-                                <button
-                                    type="button"
-                                    className="lead-attach__remove"
-                                    aria-label={`Remove ${r.name}`}
-                                    disabled={busy}
-                                    onClick={() => (r.saved ? onRemoveExisting(r.id) : onRemovePending(r.idx))}
-                                >
-                                    {Icons.x}
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
-                )}
+                <LeadAttachmentList
+                    docs={existingDocs}
+                    pending={pendingFiles}
+                    busy={busy}
+                    onRemoveExisting={onRemoveExisting}
+                    onRemovePending={onRemovePending}
+                />
+
                 {!isEdit && pendingFiles.length > 0 && (
                     <span className="lead-attach__note">These upload automatically when you save the referral.</span>
                 )}

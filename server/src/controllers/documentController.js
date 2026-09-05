@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const audit = require('../services/auditService');
-const { uploadFile, downloadFile } = require('../lib/storage');
+const { uploadFile, downloadFile, deleteFile } = require('../lib/storage');
 
 // POST /api/clients/:clientId/documents (multipart — req.file from multer)
 async function uploadDocument(req, res, next) {
@@ -91,6 +91,18 @@ async function deleteDocument(req, res, next) {
         const id = Number(req.params.id);
         const doc = await req.db.clientDocument.findUnique({ where: { id }, include: { client: true } });
         if (!doc) return res.status(404).json({ error: 'Document not found' });
+
+        // Drop the stored bytes too, so deleting a document doesn't leave an
+        // orphaned object behind. Legacy rows kept bytes inline (fileData) and
+        // have no bucket object to remove. Best-effort: a storage failure must
+        // not strand the row the user asked to delete.
+        if (doc.filePath && !doc.fileData) {
+            try {
+                await deleteFile(doc.filePath);
+            } catch (err) {
+                console.error(`[clientDocument] failed to delete stored file ${doc.filePath}:`, err.message);
+            }
+        }
 
         await req.db.clientDocument.delete({ where: { id } });
 

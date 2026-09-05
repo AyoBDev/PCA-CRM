@@ -1,5 +1,5 @@
 const audit = require('../services/auditService');
-const { uploadFile, downloadFile } = require('../lib/storage');
+const { uploadFile, downloadFile, deleteFile } = require('../lib/storage');
 const { tenantKey } = require('../services/storageService');
 const { approveCertRenewal } = require('../services/complianceService');
 
@@ -158,6 +158,23 @@ async function deleteCertification(req, res, next) {
         const id = Number(req.params.id);
         const cert = await req.db.employeeCertification.findUnique({ where: { id } });
         if (!cert) return res.status(404).json({ error: 'Certification not found' });
+
+        // Deleting a certification cascades to its CertificationUpload rows
+        // (Portfolio History), so clear EVERY upload's stored file first —
+        // otherwise the cascade strands all of them in the bucket. Best-effort:
+        // a storage failure must not stop the delete the user asked for.
+        const uploads = await req.db.certificationUpload.findMany({
+            where: { certificationId: id },
+            select: { bucketKey: true },
+        });
+        for (const up of uploads) {
+            if (!up.bucketKey) continue;
+            try {
+                await deleteFile(up.bucketKey);
+            } catch (err) {
+                console.error(`[certification] failed to delete stored file ${up.bucketKey}:`, err.message);
+            }
+        }
 
         await req.db.employeeCertification.delete({ where: { id } });
 

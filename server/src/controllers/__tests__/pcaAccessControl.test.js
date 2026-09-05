@@ -15,7 +15,18 @@ let pcaEmployee;
 const PCA_EMAIL = 'sec-pca@test.com';
 const ADMIN_EMAIL = 'sec-admin@test.com';
 
+// Fixed fixture emails mean a run that crashes before afterAll leaves rows
+// behind and every later run dies on the (agency_id, email) unique
+// constraint. Clearing first makes the suite self-healing.
+// Employees are removed before users, since an employee references a user.
+async function purgeFixtures() {
+    await prisma.employee.deleteMany({ where: { email: PCA_EMAIL } });
+    await prisma.user.deleteMany({ where: { email: { in: [PCA_EMAIL, ADMIN_EMAIL] } } });
+}
+
 beforeAll(async () => {
+    await purgeFixtures();
+
     const passwordHash = await bcrypt.hash('secret123', 10);
 
     const admin = await prisma.user.create({
@@ -33,8 +44,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-    await prisma.employee.deleteMany({ where: { email: PCA_EMAIL } });
-    await prisma.user.deleteMany({ where: { email: { in: [PCA_EMAIL, ADMIN_EMAIL] } } });
+    await purgeFixtures();
 });
 
 describe('pca token cannot reach the main staff API', () => {

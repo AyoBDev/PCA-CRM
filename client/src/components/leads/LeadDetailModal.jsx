@@ -3,6 +3,7 @@ import Modal from '../common/Modal';
 import LogContactForm from './LogContactForm';
 import FollowUpHistoryList from './FollowUpHistoryList';
 import { LEAD_CASE_TYPES, LEAD_STATUSES } from '../../utils/leadConstants';
+import LeadAttachmentList from './LeadAttachmentList';
 import { formatDate } from '../../utils/dates';
 import * as api from '../../api';
 
@@ -38,6 +39,7 @@ export default function LeadDetailModal({ lead, onClose, onEdit, onArchive, onCo
     const [contacts, setContacts] = useState([]);
     const [logging, setLogging] = useState(false);
     const [showForm, setShowForm] = useState(false);
+    const [docs, setDocs] = useState([]);
 
     // Reload the timeline when the lead changes or when an external undo/redo
     // (contactsRefreshKey bump from LeadsPage) changes this lead's contacts.
@@ -45,6 +47,7 @@ export default function LeadDetailModal({ lead, onClose, onEdit, onArchive, onCo
         if (!lead?.id) return;
         let alive = true;
         api.listLeadContacts(lead.id).then((rows) => { if (alive) setContacts(rows); }).catch(() => {});
+        api.listLeadDocuments(lead.id).then((rows) => { if (alive) setDocs(rows); }).catch(() => { if (alive) setDocs([]); });
         return () => { alive = false; };
     }, [lead?.id, contactsRefreshKey]);
 
@@ -128,6 +131,14 @@ export default function LeadDetailModal({ lead, onClose, onEdit, onArchive, onCo
 
                 <DetSection title="Call Notes">
                     <div className="det-notes">{lead.callNotes || 'No call notes recorded.'}</div>
+                </DetSection>
+
+                <DetSection title="Attachments">
+                    {docs.length ? (
+                        <LeadAttachmentList docs={docs} />
+                    ) : (
+                        <div className="det-empty">No attachments</div>
+                    )}
                 </DetSection>
 
                 <section className="lead-history">

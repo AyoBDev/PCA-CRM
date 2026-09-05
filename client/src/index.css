@@ -16258,6 +16258,47 @@ button.files-page__crumb:hover { text-decoration: underline; }
     font-style: italic;
 }
 
+/* Clickable attachment name — opens the in-app PreviewModal. */
+.lead-attach__name--link {
+    text-align: left;
+    border: none;
+    background: transparent;
+    padding: 0;
+    font: inherit;
+    color: hsl(var(--primary));
+    cursor: pointer;
+}
+
+.lead-attach__name--link:hover {
+    text-decoration: underline;
+}
+
+.lead-attach__action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    border-radius: 4px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.lead-attach__action:hover:not(:disabled) {
+    background: hsl(var(--primary) / 0.1);
+    color: hsl(var(--primary));
+}
+
+.lead-attach__action svg {
+    width: 14px;
+    height: 14px;
+}
+
+
 .det-row {
     display: flex;
     justify-content: space-between;

@@ -18,7 +18,25 @@ const NEW_PASSWORD = 'newpass456';
 let adminToken;
 let targetUser;
 
+// These fixtures use fixed emails, so a run that crashes before afterAll
+// leaves rows behind and every later run dies on the (agency_id, email)
+// unique constraint. Clearing first makes the suite self-healing instead of
+// needing the rows removed by hand.
+async function purgeFixtures() {
+    const users = await prisma.user.findMany({
+        where: { email: { in: [ADMIN_EMAIL, USER_EMAIL] } },
+        select: { id: true },
+    });
+    if (users.length) {
+        const userIds = users.map((u) => u.id);
+        await prisma.passwordResetToken.deleteMany({ where: { userId: { in: userIds } } });
+        await prisma.user.deleteMany({ where: { id: { in: userIds } } });
+    }
+}
+
 beforeAll(async () => {
+    await purgeFixtures();
+
     const adminHash = await bcrypt.hash('secret123', 10);
     const userHash = await bcrypt.hash(OLD_PASSWORD, 10);
 
@@ -33,8 +51,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-    await prisma.passwordResetToken.deleteMany({ where: { userId: targetUser.id } });
-    await prisma.user.deleteMany({ where: { email: { in: [ADMIN_EMAIL, USER_EMAIL] } } });
+    // Reuses the same purge as beforeAll: it is keyed off the fixture emails
+    // rather than targetUser, so it still cleans up when beforeAll failed
+    // partway (dereferencing targetUser.id there would throw and mask the
+    // original error).
+    await purgeFixtures();
 });
 
 describe('admin reset-password logs the user out of existing sessions', () => {

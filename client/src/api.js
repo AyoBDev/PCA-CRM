@@ -295,6 +295,10 @@ export const downloadLeadDocument = (id) => {
             return new Blob([arrayBuffer], { type: contentType });
         });
 };
+// Raw Response for the shared DocViewer/PreviewModal engine (they read
+// Content-Type / Content-Length off the Response before calling .blob()).
+export const fetchLeadDocument = (id) =>
+    fetch(`${BASE}/lead-documents/${id}/download`, { headers: { Authorization: `Bearer ${getToken()}` } });
 export const deleteLeadDocument = (id) =>
     request(`/lead-documents/${id}`, { method: 'DELETE' });
 
@@ -998,9 +1002,6 @@ export const createPlatformAgency = (payload) => request('/platform/agencies', {
 export const suspendAgency = (id) => request(`/platform/agencies/${id}/suspend`, { method: 'PUT' });
 export const reactivateAgency = (id) => request(`/platform/agencies/${id}/reactivate`, { method: 'PUT' });
 export const impersonateAgency = (id) => request(`/platform/agencies/${id}/impersonate`, { method: 'POST', body: JSON.stringify({}) });
-// Destructive: wipes and rebuilds the demo tenant. The target agency is fixed
-// server-side, so this deliberately takes no arguments.
-export const resetDemoAgency = () => request('/platform/demo-agency', { method: 'POST', body: JSON.stringify({}) });
 
 // ── Agency Info (public — resolves current subdomain, no auth token) ──
 export const getAgencyInfo = () =>

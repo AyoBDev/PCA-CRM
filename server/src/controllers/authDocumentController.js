@@ -1,5 +1,5 @@
 const audit = require('../services/auditService');
-const { uploadFile, downloadFile } = require('../lib/storage');
+const { uploadFile, downloadFile, deleteFile } = require('../lib/storage');
 
 // POST /api/authorizations/:authId/documents (multipart — req.file from multer)
 async function uploadAuthDocument(req, res, next) {
@@ -102,6 +102,17 @@ async function deleteAuthDocument(req, res, next) {
             }
         });
         if (!doc) return res.status(404).json({ error: 'Document not found' });
+
+        // Drop the stored bytes too. Legacy rows kept bytes inline (file_data)
+        // and have no bucket object to remove. Best-effort: a storage failure
+        // must not strand the row the user asked to delete.
+        if (doc.file_path && !doc.file_data) {
+            try {
+                await deleteFile(doc.file_path);
+            } catch (err) {
+                console.error(`[authDocument] failed to delete stored file ${doc.file_path}:`, err.message);
+            }
+        }
 
         await req.db.authorization_documents.delete({ where: { id } });
 
