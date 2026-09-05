@@ -109,6 +109,17 @@ describe('storage.js — LOCAL MODE (no RAILWAY_OBJECT_STORAGE_ENDPOINT)', () =>
     for (const k of keys) expect(k).not.toContain('\\');
   });
 
+  test('listObjects reports an mtime for every key (local)', async () => {
+    await storage.uploadFile('certs/1/tb_test/a.pdf', Buffer.from('a'), 'application/pdf');
+
+    const objs = await storage.listObjects('certs/');
+    expect(objs).toHaveLength(1);
+    expect(objs[0].key).toBe('certs/1/tb_test/a.pdf');
+    expect(typeof objs[0].mtimeMs).toBe('number');
+    // Just written, so it should be within a few seconds of now.
+    expect(Math.abs(Date.now() - objs[0].mtimeMs)).toBeLessThan(60_000);
+  });
+
   test('deleteFile ignores empty/nullish keys instead of touching the uploads root', async () => {
     await expect(storage.deleteFile('')).resolves.toBeUndefined();
     await expect(storage.deleteFile(null)).resolves.toBeUndefined();
@@ -193,6 +204,48 @@ describe('storage.js — S3 MODE via AWS_* fallback (Railway auto-injected vars)
     mockSend.mockResolvedValueOnce({ IsTruncated: false });
     const keys = await storage.listKeys('certs/');
     expect(keys).toEqual([]);
+  });
+
+  test('listObjects carries S3 LastModified through as mtimeMs', async () => {
+    // Without this the age filter is blind in S3 mode and would happily
+    // collect a file uploaded seconds ago whose DB row hasn't committed.
+    const when = new Date('2026-01-15T10:00:00Z');
+    mockSend.mockResolvedValueOnce({
+      Contents: [{ Key: 'certs/a.pdf', LastModified: when }],
+      IsTruncated: false,
+    });
+
+    const objs = await storage.listObjects('certs/');
+    expect(objs).toEqual([{ key: 'certs/a.pdf', mtimeMs: when.getTime() }]);
+  });
+
+  test('listObjects reports mtimeMs null when S3 omits LastModified', async () => {
+    // Null means "unknown", which the caller must treat as not-collectable
+    // rather than assuming the object is old.
+    mockSend.mockResolvedValueOnce({
+      Contents: [{ Key: 'certs/a.pdf' }],
+      IsTruncated: false,
+    });
+
+    const objs = await storage.listObjects('certs/');
+    expect(objs).toEqual([{ key: 'certs/a.pdf', mtimeMs: null }]);
+  });
+
+  test('listObjects paginates like listKeys', async () => {
+    mockSend
+      .mockResolvedValueOnce({
+        Contents: [{ Key: 'certs/a.pdf', LastModified: new Date(1000) }],
+        IsTruncated: true,
+        NextContinuationToken: 'page2',
+      })
+      .mockResolvedValueOnce({
+        Contents: [{ Key: 'certs/b.pdf', LastModified: new Date(2000) }],
+        IsTruncated: false,
+      });
+
+    const objs = await storage.listObjects('certs/');
+    expect(mockSend).toHaveBeenCalledTimes(2);
+    expect(objs.map((o) => o.key)).toEqual(['certs/a.pdf', 'certs/b.pdf']);
   });
 });
 

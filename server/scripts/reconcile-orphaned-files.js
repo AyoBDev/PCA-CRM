@@ -14,7 +14,9 @@
  *   - Only keys under a known prefix are considered. Anything else is reported
  *     as "unrecognized" and never deleted.
  *   - Files newer than --min-age-days (default 7) are skipped, so an upload
- *     racing this scan can't be collected before its row is committed.
+ *     racing this scan can't be collected before its row is committed. A file
+ *     whose backend reports NO last-modified time is skipped too — unknown age
+ *     fails closed rather than being assumed old.
  *   - --execute writes a JSON manifest of everything it deleted.
  *
  * TWO STORAGE MODULES: admin files (the File Manager) go through
@@ -37,22 +39,24 @@
 
 const fs = require('fs');
 const path = require('path');
+// Load env before requiring prisma/storage — they read DATABASE_URL and the
+// bucket vars at import time. Anchored to the script's own location so this
+// works regardless of the directory it is invoked from.
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
 const prisma = require('../src/lib/prisma');
 const libStorage = require('../src/lib/storage');
 const adminStorage = require('../src/services/storageService');
 
-const UPLOADS_ROOT = path.join(__dirname, '..', 'uploads');
-
-// The two storage backends, each with the local root its keys resolve against.
+// The two storage backends. Each enumerates and deletes through its own module,
+// since their key namespaces differ (see the note above).
 const MODULES = {
     lib: {
-        localRoot: UPLOADS_ROOT,
-        listKeys: (p) => libStorage.listKeys(p),
+        listObjects: (p) => libStorage.listObjects(p),
         deleteFile: (k) => libStorage.deleteFile(k),
     },
     admin: {
-        localRoot: path.join(UPLOADS_ROOT, 'admin-files'),
-        listKeys: (p) => adminStorage.listKeys(p),
+        listObjects: (p) => adminStorage.listObjects(p),
         deleteFile: (k) => adminStorage.remove(k),
     },
 };
@@ -101,13 +105,15 @@ function classifyKeys({ storedKeys, referenced, owners = OWNERS }) {
     let referencedCount = 0;
 
     for (const entry of storedKeys) {
-        const { key, module } = typeof entry === 'string' ? { key: entry, module: 'lib' } : entry;
+        const { key, module, mtimeMs } = typeof entry === 'string'
+            ? { key: entry, module: 'lib', mtimeMs: null }
+            : entry;
         // Match on the stored shape or its tenant-stripped alias, so a bare key
         // in the DB still matches a tenant-prefixed object and vice versa.
         if (referenced.has(key) || referenced.has(stripTenant(key))) { referencedCount++; continue; }
         const owner = ownerFor(key, owners);
         if (!owner) { unrecognized.push(key); continue; }
-        orphans.push({ key, owner: owner.label, module });
+        orphans.push({ key, owner: owner.label, module, mtimeMs: mtimeMs ?? null });
     }
     return { orphans, unrecognized, referencedCount };
 }
@@ -155,14 +161,31 @@ function parseArgs(argv) {
     return { execute, verbose, minAgeDays };
 }
 
-/** Local-disk mtime for a key, or null when unavailable (e.g. S3 mode). */
-function localMtime(key, moduleName) {
-    try {
-        const full = path.join(MODULES[moduleName].localRoot, key);
-        return fs.existsSync(full) ? fs.statSync(full).mtimeMs : null;
-    } catch {
-        return null;
+/**
+ * Split orphans into what is safe to collect, what is too recent, and what has
+ * no known age.
+ *
+ * FAIL-CLOSED: an unknown mtime (null) is never collectable. Object storage
+ * does not always report a last-modified time, and treating "unknown" as "old
+ * enough" would let this delete a file uploaded seconds ago whose DB row has
+ * not committed yet. Unknown-age files are reported so an operator can decide.
+ */
+function partitionByAge(orphans, minAgeDays, now = Date.now()) {
+    const cutoff = now - minAgeDays * 86400000;
+    const collectable = [];
+    const tooNew = [];
+    const unknownAge = [];
+
+    for (const o of orphans) {
+        if (o.mtimeMs === null || o.mtimeMs === undefined || !Number.isFinite(o.mtimeMs)) {
+            unknownAge.push(o);
+        } else if (o.mtimeMs > cutoff) {
+            tooNew.push(o);
+        } else {
+            collectable.push(o);
+        }
     }
+    return { collectable, tooNew, unknownAge };
 }
 
 /** Tenant-scoped variants of a prefix, since some uploaders namespace per agency. */
@@ -207,8 +230,8 @@ async function main() {
         const mod = MODULES[owner.module];
         for (const p of [owner.prefix, ...(await tenantPrefixes(owner.prefix))]) {
             try {
-                for (const key of await mod.listKeys(p)) {
-                    storedKeys.push({ key, module: owner.module });
+                for (const obj of await mod.listObjects(p)) {
+                    storedKeys.push({ key: obj.key, module: owner.module, mtimeMs: obj.mtimeMs });
                 }
             } catch (err) {
                 scanFailures.push(`${owner.module}:${p} — ${err.message}`);
@@ -234,15 +257,9 @@ async function main() {
     const { orphans, unrecognized, referencedCount } = classifyKeys({ storedKeys: uniqueStored, referenced });
 
     // 4. Age filter — never collect a file young enough to belong to an
-    //    in-flight upload whose row hasn't been committed yet.
-    const cutoff = Date.now() - minAgeDays * 86400000;
-    const tooNew = [];
-    const collectable = [];
-    for (const o of orphans) {
-        const mtime = localMtime(o.key, o.module);
-        if (mtime !== null && mtime > cutoff) tooNew.push(o);
-        else collectable.push(o);
-    }
+    //    in-flight upload whose row hasn't been committed yet, nor one whose
+    //    age the backend didn't report.
+    const { collectable, tooNew, unknownAge } = partitionByAge(orphans, minAgeDays);
 
     const byOwner = {};
     for (const o of collectable) byOwner[o.owner] = (byOwner[o.owner] || 0) + 1;
@@ -251,12 +268,19 @@ async function main() {
     console.log(`  referenced (in use)     : ${referencedCount}`);
     console.log(`  orphaned, collectable   : ${collectable.length}`);
     console.log(`  orphaned, too recent    : ${tooNew.length}  (< ${minAgeDays}d old, skipped)`);
+    console.log(`  orphaned, age unknown   : ${unknownAge.length}  (no mtime reported, skipped)`);
     console.log(`  unrecognized prefix     : ${unrecognized.length}  (never deleted)`);
     if (collectable.length) {
         console.log('\n  Collectable orphans by owner:');
         for (const [label, n] of Object.entries(byOwner)) {
             console.log(`    ${String(n).padStart(6)}  ${label}`);
         }
+    }
+    if (unknownAge.length) {
+        console.log('\n  Skipped — storage reported no last-modified time, so their age');
+        console.log('  cannot be confirmed. Verify these by hand before removing them:');
+        for (const o of unknownAge.slice(0, 10)) console.log(`    [${o.owner}] ${o.key}`);
+        if (unknownAge.length > 10) console.log(`    … and ${unknownAge.length - 10} more`);
     }
     if (unrecognized.length) {
         console.log('\n  Unrecognized keys (add a prefix to OWNERS if these are ours):');
@@ -296,6 +320,7 @@ async function main() {
     fs.mkdirSync(path.dirname(manifest), { recursive: true });
     fs.writeFileSync(manifest, JSON.stringify({
         ranAt: new Date().toISOString(), minAgeDays, deleted, failed,
+        skippedTooNew: tooNew.length, skippedUnknownAge: unknownAge.length,
     }, null, 2));
 
     console.log(`  deleted : ${deleted.length}`);
@@ -304,7 +329,7 @@ async function main() {
     console.log(`\nManifest written to ${manifest}`);
 }
 
-module.exports = { classifyKeys, collectReferencedKeys, ownerFor, stripTenant, matchesPrefix, parseArgs, OWNERS, MODULES };
+module.exports = { classifyKeys, collectReferencedKeys, ownerFor, stripTenant, matchesPrefix, parseArgs, partitionByAge, OWNERS, MODULES };
 
 if (require.main === module) {
     main()

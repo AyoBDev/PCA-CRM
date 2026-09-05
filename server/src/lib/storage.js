@@ -96,14 +96,20 @@ async function deleteFile(key) {
   }
 }
 
-// Enumerate every stored key under a prefix. Used by maintenance tooling that
-// has to compare what is stored against what the DB still references, so this
-// MUST be exhaustive — an S3 page that is silently dropped would make the keys
-// on it look unreferenced. Returns POSIX-style keys in both modes.
-async function listKeys(prefix = '') {
+// Enumerate stored objects under a prefix, with the last-modified time of
+// each. Used by maintenance tooling that compares what is stored against what
+// the DB still references, so this MUST be exhaustive — an S3 page that is
+// silently dropped would make the keys on it look unreferenced.
+//
+// mtimeMs is null when the backend doesn't report one. Callers that use it to
+// decide whether a file is safe to delete must treat null as "unknown" and
+// skip the file, never as "old enough to collect".
+//
+// Returns POSIX-style keys in both modes.
+async function listObjects(prefix = '') {
   if (isS3) {
     const { ListObjectsV2Command } = require('@aws-sdk/client-s3');
-    const keys = [];
+    const out = [];
     let token;
     do {
       const res = await s3.send(new ListObjectsV2Command({
@@ -112,29 +118,38 @@ async function listKeys(prefix = '') {
         ContinuationToken: token,
       }));
       for (const obj of res.Contents || []) {
-        if (obj.Key) keys.push(obj.Key);
+        if (!obj.Key) continue;
+        const t = obj.LastModified ? new Date(obj.LastModified).getTime() : NaN;
+        out.push({ key: obj.Key, mtimeMs: Number.isFinite(t) ? t : null });
       }
       token = res.IsTruncated ? res.NextContinuationToken : undefined;
     } while (token);
-    return keys;
+    return out;
   }
 
   const root = path.join(LOCAL_DIR, prefix);
   if (!fs.existsSync(root)) return [];
-  const keys = [];
+  const out = [];
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
       else if (entry.isFile()) {
+        let mtimeMs = null;
+        try { mtimeMs = fs.statSync(full).mtimeMs; } catch { mtimeMs = null; }
         // Key is the path relative to the uploads root, POSIX-separated so it
         // compares equal to the keys stored in the DB on any platform.
-        keys.push(path.relative(LOCAL_DIR, full).split(path.sep).join('/'));
+        out.push({ key: path.relative(LOCAL_DIR, full).split(path.sep).join('/'), mtimeMs });
       }
     }
   };
   walk(root);
-  return keys;
+  return out;
 }
 
-module.exports = { uploadFile, getPresignedUrl, downloadFile, deleteFile, listKeys };
+// Key-only view of listObjects, for callers that don't care about timestamps.
+async function listKeys(prefix = '') {
+  return (await listObjects(prefix)).map((o) => o.key);
+}
+
+module.exports = { uploadFile, getPresignedUrl, downloadFile, deleteFile, listKeys, listObjects };

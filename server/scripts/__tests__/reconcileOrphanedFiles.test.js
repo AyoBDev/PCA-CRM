@@ -7,6 +7,7 @@ const {
     stripTenant,
     matchesPrefix,
     parseArgs,
+    partitionByAge,
     OWNERS,
 } = require('../reconcile-orphaned-files');
 
@@ -63,15 +64,15 @@ describe('classifyKeys', () => {
         const referenced = new Set(['certs/1/tb/keep.pdf']);
         const { orphans, referencedCount } = classifyKeys({
             storedKeys: [
-                { key: 'certs/1/tb/keep.pdf', module: 'lib' },
-                { key: 'certs/1/tb/gone.pdf', module: 'lib' },
+                { key: 'certs/1/tb/keep.pdf', module: 'lib', mtimeMs: 1000 },
+                { key: 'certs/1/tb/gone.pdf', module: 'lib', mtimeMs: 2000 },
             ],
             referenced,
         });
 
         expect(referencedCount).toBe(1);
         expect(orphans).toEqual([
-            { key: 'certs/1/tb/gone.pdf', owner: 'certification uploads', module: 'lib' },
+            { key: 'certs/1/tb/gone.pdf', owner: 'certification uploads', module: 'lib', mtimeMs: 2000 },
         ]);
     });
 
@@ -191,5 +192,87 @@ describe('parseArgs', () => {
     test('rejects a malformed age floor rather than defaulting silently', () => {
         expect(() => parseArgs(['--min-age-days=abc'])).toThrow(/non-negative/);
         expect(() => parseArgs(['--min-age-days=-5'])).toThrow(/non-negative/);
+    });
+});
+
+
+describe('partitionByAge', () => {
+    const DAY = 86400000;
+    const orphan = (key, mtimeMs) => ({ key, owner: 'certification uploads', module: 'lib', mtimeMs });
+
+    test('collects files older than the age floor', () => {
+        const old = orphan('certs/old.pdf', Date.now() - 30 * DAY);
+        const { collectable, tooNew, unknownAge } = partitionByAge([old], 7);
+
+        expect(collectable).toEqual([old]);
+        expect(tooNew).toEqual([]);
+        expect(unknownAge).toEqual([]);
+    });
+
+    test('skips files newer than the age floor', () => {
+        const fresh = orphan('certs/fresh.pdf', Date.now() - 1 * DAY);
+        const { collectable, tooNew } = partitionByAge([fresh], 7);
+
+        expect(collectable).toEqual([]);
+        expect(tooNew).toEqual([fresh]);
+    });
+
+    test('an UNKNOWN mtime is never collectable', () => {
+        // This is the S3 gap: previously a null mtime fell through to
+        // "collectable", so a file uploaded seconds ago could be deleted
+        // before its DB row committed. Unknown age must fail closed.
+        const unknown = orphan('certs/mystery.pdf', null);
+        const { collectable, unknownAge, tooNew } = partitionByAge([unknown], 7);
+
+        expect(collectable).toEqual([]);
+        expect(tooNew).toEqual([]);
+        expect(unknownAge).toEqual([unknown]);
+    });
+
+    test('a zero age floor still refuses an unknown mtime', () => {
+        // --min-age-days=0 disables the age check for files whose age we know,
+        // but must not turn unknown-age files into collectable ones.
+        const unknown = orphan('certs/mystery.pdf', null);
+        const known = orphan('certs/known.pdf', Date.now());
+
+        const { collectable, unknownAge } = partitionByAge([unknown, known], 0);
+
+        expect(collectable).toEqual([known]);
+        expect(unknownAge).toEqual([unknown]);
+    });
+
+    test('sorts a mixed batch into the three buckets', () => {
+        const old = orphan('certs/old.pdf', Date.now() - 30 * DAY);
+        const fresh = orphan('certs/fresh.pdf', Date.now());
+        const unknown = orphan('certs/mystery.pdf', null);
+
+        const { collectable, tooNew, unknownAge } = partitionByAge([old, fresh, unknown], 7);
+
+        expect(collectable).toEqual([old]);
+        expect(tooNew).toEqual([fresh]);
+        expect(unknownAge).toEqual([unknown]);
+    });
+});
+
+describe('classifyKeys carries mtime through', () => {
+    test('an orphan keeps the mtime its listing reported', () => {
+        const { orphans } = classifyKeys({
+            storedKeys: [{ key: 'certs/a.pdf', module: 'lib', mtimeMs: 12345 }],
+            referenced: new Set(),
+        });
+
+        expect(orphans).toEqual([
+            { key: 'certs/a.pdf', owner: 'certification uploads', module: 'lib', mtimeMs: 12345 },
+        ]);
+    });
+
+    test('a missing mtime survives as null rather than becoming 0', () => {
+        // A 0 would read as 1970 and classify as ancient — exactly backwards.
+        const { orphans } = classifyKeys({
+            storedKeys: [{ key: 'certs/a.pdf', module: 'lib' }],
+            referenced: new Set(),
+        });
+
+        expect(orphans[0].mtimeMs).toBeNull();
     });
 });

@@ -42,6 +42,17 @@ describe('storageService.listKeys — LOCAL MODE', () => {
         expect(keys).toEqual([]);
     });
 
+    test('listObjects reports an mtime for every key', async () => {
+        fs.mkdirSync(SCRATCH, { recursive: true });
+        fs.writeFileSync(path.join(SCRATCH, 'a.pdf'), 'a');
+
+        const objs = await storage.listObjects('__listkeys_test__/');
+        expect(objs).toHaveLength(1);
+        expect(objs[0].key).toBe('__listkeys_test__/a.pdf');
+        expect(typeof objs[0].mtimeMs).toBe('number');
+        expect(Math.abs(Date.now() - objs[0].mtimeMs)).toBeLessThan(60_000);
+    });
+
     test('returns POSIX-style keys, never backslashes', async () => {
         fs.mkdirSync(path.join(SCRATCH, 'deep', 'deeper'), { recursive: true });
         fs.writeFileSync(path.join(SCRATCH, 'deep', 'deeper', 'c.pdf'), 'c');
@@ -101,5 +112,26 @@ describe('storageService.listKeys — S3 MODE', () => {
         mockSend.mockResolvedValueOnce({ IsTruncated: false });
         const keys = await storage.listKeys('admin-files/');
         expect(keys).toEqual([]);
+    });
+
+    test('listObjects carries S3 LastModified through as mtimeMs', async () => {
+        const when = new Date('2026-01-15T10:00:00Z');
+        mockSend.mockResolvedValueOnce({
+            Contents: [{ Key: 'admin-files/a.pdf', LastModified: when }],
+            IsTruncated: false,
+        });
+
+        const objs = await storage.listObjects('admin-files/');
+        expect(objs).toEqual([{ key: 'admin-files/a.pdf', mtimeMs: when.getTime() }]);
+    });
+
+    test('listObjects reports mtimeMs null when S3 omits LastModified', async () => {
+        mockSend.mockResolvedValueOnce({
+            Contents: [{ Key: 'admin-files/a.pdf' }],
+            IsTruncated: false,
+        });
+
+        const objs = await storage.listObjects('admin-files/');
+        expect(objs).toEqual([{ key: 'admin-files/a.pdf', mtimeMs: null }]);
     });
 });
