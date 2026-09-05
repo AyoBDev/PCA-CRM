@@ -77,6 +77,45 @@ describe('storage.js — LOCAL MODE (no RAILWAY_OBJECT_STORAGE_ENDPOINT)', () =>
     const out = await storage.downloadFile('certs/does/not/exist.pdf');
     expect(out).toBeNull();
   });
+
+  test('deleteFile removes the stored file from disk (local)', async () => {
+    await storage.uploadFile(TEST_KEY, Buffer.from('bytes'), 'application/pdf');
+    expect(fs.existsSync(TEST_KEY_PATH)).toBe(true);
+
+    await storage.deleteFile(TEST_KEY);
+    expect(fs.existsSync(TEST_KEY_PATH)).toBe(false);
+  });
+
+  test('deleteFile resolves without throwing for a missing key (local)', async () => {
+    await expect(storage.deleteFile('certs/does/not/exist.pdf')).resolves.toBeUndefined();
+  });
+
+  test('listKeys enumerates stored keys recursively (local)', async () => {
+    await storage.uploadFile('certs/1/tb_test/a.pdf', Buffer.from('a'), 'application/pdf');
+    await storage.uploadFile('certs/2/cpr/b.pdf', Buffer.from('b'), 'application/pdf');
+
+    const keys = await storage.listKeys('certs/');
+    expect(keys.sort()).toEqual(['certs/1/tb_test/a.pdf', 'certs/2/cpr/b.pdf']);
+  });
+
+  test('listKeys returns [] for a prefix with nothing under it (local)', async () => {
+    const keys = await storage.listKeys('certs/nothing-here/');
+    expect(keys).toEqual([]);
+  });
+
+  test('listKeys returns POSIX-style keys, never backslashes (local)', async () => {
+    await storage.uploadFile('certs/9/x/y.pdf', Buffer.from('y'), 'application/pdf');
+    const keys = await storage.listKeys('certs/');
+    for (const k of keys) expect(k).not.toContain('\\');
+  });
+
+  test('deleteFile ignores empty/nullish keys instead of touching the uploads root', async () => {
+    await expect(storage.deleteFile('')).resolves.toBeUndefined();
+    await expect(storage.deleteFile(null)).resolves.toBeUndefined();
+    await expect(storage.deleteFile(undefined)).resolves.toBeUndefined();
+    // The uploads root itself must survive.
+    expect(fs.existsSync(LOCAL_DIR)).toBe(true);
+  });
 });
 
 describe('storage.js — S3 MODE via AWS_* fallback (Railway auto-injected vars)', () => {
@@ -96,6 +135,8 @@ describe('storage.js — S3 MODE via AWS_* fallback (Railway auto-injected vars)
       S3Client: jest.fn(() => ({ send: mockSend })),
       PutObjectCommand: jest.fn((a) => a),
       GetObjectCommand: jest.fn((a) => a),
+      DeleteObjectCommand: jest.fn((a) => a),
+      ListObjectsV2Command: jest.fn((a) => a),
     }));
     jest.mock('@aws-sdk/s3-request-presigner', () => ({ getSignedUrl: jest.fn().mockResolvedValue('https://signed.example/file') }));
     storage = require('../storage');
@@ -114,6 +155,44 @@ describe('storage.js — S3 MODE via AWS_* fallback (Railway auto-injected vars)
     // getPresignedUrl returns the signed URL, not a file:// path
     const url = await storage.getPresignedUrl('certs/1/tb_test/x.pdf');
     expect(url.startsWith('file://')).toBe(false);
+  });
+
+  test('deleteFile issues a DeleteObject call against the bucket', async () => {
+    await storage.deleteFile('certs/1/tb_test/x.pdf');
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(mockSend).toHaveBeenCalledWith(
+      expect.objectContaining({ Bucket: 'my-bucket', Key: 'certs/1/tb_test/x.pdf' })
+    );
+  });
+
+  test('deleteFile does not call S3 for an empty key', async () => {
+    await storage.deleteFile('');
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  test('listKeys follows the continuation token across pages', async () => {
+    // A bucket with more than 1000 objects pages; missing a page would make
+    // every key on it look unreferenced, so this must be exhaustive.
+    mockSend
+      .mockResolvedValueOnce({
+        Contents: [{ Key: 'certs/a.pdf' }, { Key: 'certs/b.pdf' }],
+        IsTruncated: true,
+        NextContinuationToken: 'page2',
+      })
+      .mockResolvedValueOnce({
+        Contents: [{ Key: 'certs/c.pdf' }],
+        IsTruncated: false,
+      });
+
+    const keys = await storage.listKeys('certs/');
+    expect(mockSend).toHaveBeenCalledTimes(2);
+    expect(keys).toEqual(['certs/a.pdf', 'certs/b.pdf', 'certs/c.pdf']);
+  });
+
+  test('listKeys handles an empty bucket response', async () => {
+    mockSend.mockResolvedValueOnce({ IsTruncated: false });
+    const keys = await storage.listKeys('certs/');
+    expect(keys).toEqual([]);
   });
 });
 

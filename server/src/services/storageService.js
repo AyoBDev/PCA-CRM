@@ -1,4 +1,4 @@
-const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, DeleteObjectsCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, DeleteObjectsCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 const fs = require('fs');
 const path = require('path');
 const { getAgencyId } = require('../lib/tenantContext');
@@ -87,4 +87,43 @@ async function removeBatch(keys) {
     }
 }
 
-module.exports = { tenantKey, upload, download, remove, removeBatch };
+// Enumerate every stored key under a prefix. Used by maintenance tooling that
+// compares what is stored against what the DB still references, so this MUST be
+// exhaustive — a dropped S3 page would make the keys on it look unreferenced.
+// Keys come back relative to LOCAL_DIR (the admin-files root), matching the
+// shape stored in admin_files.storage_key.
+async function listKeys(prefix = '') {
+    if (isS3) {
+        const keys = [];
+        let token;
+        do {
+            const res = await s3.send(new ListObjectsV2Command({
+                Bucket: BUCKET,
+                Prefix: prefix,
+                ContinuationToken: token,
+            }));
+            for (const obj of res.Contents || []) {
+                if (obj.Key) keys.push(obj.Key);
+            }
+            token = res.IsTruncated ? res.NextContinuationToken : undefined;
+        } while (token);
+        return keys;
+    }
+
+    const root = path.join(LOCAL_DIR, prefix);
+    if (!fs.existsSync(root)) return [];
+    const keys = [];
+    const walk = (dir) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) walk(full);
+            else if (entry.isFile()) {
+                keys.push(path.relative(LOCAL_DIR, full).split(path.sep).join('/'));
+            }
+        }
+    };
+    walk(root);
+    return keys;
+}
+
+module.exports = { tenantKey, upload, download, remove, removeBatch, listKeys };

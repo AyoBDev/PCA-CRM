@@ -433,3 +433,33 @@ Two items from a production-readiness review, done together on `feat/hardening-e
 **Safety (this feature deletes data, so the blast radius is fixed by construction):** the target slug is the hard-coded `DEMO_SLUG` constant — no request field can redirect it; `demo` was added to `RESERVED_SLUGS` so no real tenant can ever occupy the slug the reset deletes; `destroyDemoAgency` re-checks the slug on the row it fetched and throws rather than deleting if it isn't the demo agency; and deletion is a single `agency.delete` by id relying on `onDelete: Cascade`, deliberately avoiding any manual `deleteMany` sweep that could be mis-scoped. Verified against the live dev DB (260 real clients, 42,825 real shifts present): re-running rebuilt the demo without duplicating it and left the `nvbest` agency's counts byte-identical. `demoAgencyService` is allowlisted in `prismaImportGuard` for the same reason `platformController` is — it creates the agency row itself, so it necessarily runs before any tenant context for that agency exists.
 
 **Note:** invented data only — no name, address, phone or Medicaid ID derives from a real record. IDs are `DEMO-` prefixed and emails sit on the non-routable `@demo.local` domain so demo mail can never reach a person, and PHI-marked fields still travel the normal `lib/prisma` encryption path.
+
+## 2026-09-05 — Lead attachment viewing + orphaned-file cleanup
+
+**Feature:** Attachments on a lead ("potential patient") could be uploaded but never opened — the Quick View had no attachments section at all, and the edit wizard listed files with only a remove button. Investigating the read path surfaced a second, unrelated defect: every document delete removed the DB row but left the stored bytes behind.
+
+**Options considered (viewing):**
+- **Reuse the app's `PreviewModal` / `DocViewer` engine (chosen).** Already the mandated in-app viewer per CLAUDE.md, already handles pdf.js multi-page rendering, images, zoom/rotate/print, and oversized-file download fallback. Costs one new `fetchLeadDocument` API helper returning a raw `Response` (the engine reads `Content-Type`/`Content-Length` before `.blob()`), plus a small shared `LeadAttachmentList` used by both surfaces so Quick View and Edit cannot drift.
+- **`window.open` / `<iframe>` on the download URL.** Rejected: explicitly prohibited by the project's file-preview rules, and it breaks on the authenticated endpoint (the download route needs an `Authorization` header, which a bare tab navigation cannot send).
+- **A new lead-specific viewer component.** Rejected: duplicates the pdf.js worker setup the codebase deliberately centralizes in `lib/pdfThumbnail.js`, and would diverge from the File Manager's behavior.
+
+**Choice:** Reuse the existing viewer; no new dependency. The backend already had list/upload/download/delete routes — this was purely an unwired frontend.
+
+**Options considered (orphaned files):**
+- **Delete the stored file inside each delete handler (chosen), best-effort.** A storage failure logs and still removes the row, so a missing object can never wedge a delete the user asked for.
+- **Transactional two-phase delete.** Rejected: object storage isn't transactional, so this buys consistency theater while making a `NoSuchKey` on an already-missing file block the row delete.
+- **Background sweeper only, leaving handlers as-is.** Rejected as the primary fix: it leaves a known leak in the write path and makes correctness depend on a cron.
+
+**Why the certification case needed its own handling:** `CertificationUpload` cascades from `EmployeeCertification` (`onDelete: Cascade`), so deleting a cert silently drops every Portfolio-History row. Removing only the newest file would strand the rest, so the handler clears every upload's `bucketKey` before the delete.
+
+**Reconciliation script (`npm run storage:reconcile`)** cleans up files already orphaned by the old behavior. It deletes data, so it fails closed: dry-run by default; the full reference set is read *before* any scan and any failed table read or unlistable prefix aborts the run rather than proceeding on partial data (a partial set would classify live files as orphans); keys outside known prefixes are reported but never deleted; files newer than `--min-age-days` (default 7) are skipped so an in-flight upload can't be collected before its row commits; `--execute` writes a JSON manifest.
+
+**Two findings that would have caused data loss in a naive version:**
+1. **Two storage modules with different local roots.** `admin_files` (the File Manager) goes through `services/storageService.js` rooted at `uploads/admin-files`; everything else through `lib/storage.js` rooted at `uploads`. Reading admin files with the wrong module yields keys like `admin-files/admin-files/…` that never match the DB's `admin-files/…`, classifying **all 3,630 live File Manager files as orphans**. Each owner now declares its module.
+2. **`client_documents` has two prefixes**, a legacy `documents/` alongside the current `client-documents/`. Found by querying the distinct stored prefixes rather than trusting the upload code.
+
+Both storage modules gained a paginated `listKeys` (neither could enumerate objects); a dropped S3 page would make those keys look unreferenced.
+
+**Verified:** 74 tests across 8 suites, written test-first. All 624 live DB-referenced keys across five tables were fed through the classifier — zero misclassified as orphans. A sentinel test (two identical files, one registered in the DB, one not) deleted the orphan and preserved the referenced one. A real dry run read all 7,731 referenced keys with zero unrecognized prefixes; `--execute` then removed 11 genuine orphans and a re-run found nothing, confirming idempotency. `passwordChangeLogout` fails on unmodified `origin/main` and is unrelated.
+
+**Follow-up:** the age filter reads local mtimes, which don't exist in S3 mode, so on production files without a readable mtime are treated as collectable. Extending `listKeys` to carry S3 `LastModified` should land before running this against the real bucket; until then run it dry with `--verbose` and read the list first.

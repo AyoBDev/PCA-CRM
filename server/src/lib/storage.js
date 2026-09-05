@@ -80,4 +80,61 @@ async function downloadFile(key) {
   }
 }
 
-module.exports = { uploadFile, getPresignedUrl, downloadFile };
+// Remove a stored object. Safe to call for a key that no longer exists — the
+// point is that the DB row and the bytes disappear together, so a delete must
+// never fail just because the file was already gone. Callers guard their own
+// DB delete; this is best-effort on the storage side.
+async function deleteFile(key) {
+  // Never let an empty key resolve to the uploads root (path.join would).
+  if (!key || typeof key !== 'string') return;
+  if (isS3) {
+    const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
+    await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+  } else {
+    const filePath = path.join(LOCAL_DIR, key);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  }
+}
+
+// Enumerate every stored key under a prefix. Used by maintenance tooling that
+// has to compare what is stored against what the DB still references, so this
+// MUST be exhaustive — an S3 page that is silently dropped would make the keys
+// on it look unreferenced. Returns POSIX-style keys in both modes.
+async function listKeys(prefix = '') {
+  if (isS3) {
+    const { ListObjectsV2Command } = require('@aws-sdk/client-s3');
+    const keys = [];
+    let token;
+    do {
+      const res = await s3.send(new ListObjectsV2Command({
+        Bucket: BUCKET,
+        Prefix: prefix,
+        ContinuationToken: token,
+      }));
+      for (const obj of res.Contents || []) {
+        if (obj.Key) keys.push(obj.Key);
+      }
+      token = res.IsTruncated ? res.NextContinuationToken : undefined;
+    } while (token);
+    return keys;
+  }
+
+  const root = path.join(LOCAL_DIR, prefix);
+  if (!fs.existsSync(root)) return [];
+  const keys = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.isFile()) {
+        // Key is the path relative to the uploads root, POSIX-separated so it
+        // compares equal to the keys stored in the DB on any platform.
+        keys.push(path.relative(LOCAL_DIR, full).split(path.sep).join('/'));
+      }
+    }
+  };
+  walk(root);
+  return keys;
+}
+
+module.exports = { uploadFile, getPresignedUrl, downloadFile, deleteFile, listKeys };
