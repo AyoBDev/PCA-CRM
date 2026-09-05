@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Icons from '../components/common/Icons';
 import * as api from '../api';
 
 export default function ResetPasswordPage() {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const [searchParams] = useSearchParams();
     const token = searchParams.get('token');
     const [password, setPassword] = useState('');
@@ -86,9 +89,9 @@ export default function ResetPasswordPage() {
                             </div>
                         )}
                         <div className="form-group">
-                            <label>New Password</label>
+                            <label htmlFor={fid('newPassword')}>New Password</label>
                             <div style={{ position: 'relative' }}>
-                                <input
+                                <input id={fid('newPassword')}
                                     type={showPassword ? 'text' : 'password'}
                                     value={password}
                                     onChange={(e) => { setPassword(e.target.value); setError(''); }}
@@ -113,8 +116,8 @@ export default function ResetPasswordPage() {
                             </div>
                         </div>
                         <div className="form-group">
-                            <label>Confirm Password</label>
-                            <input
+                            <label htmlFor={fid('confirmPassword')}>Confirm Password</label>
+                            <input id={fid('confirmPassword')}
                                 type={showPassword ? 'text' : 'password'}
                                 value={confirmPassword}
                                 onChange={(e) => { setConfirmPassword(e.target.value); setError(''); }}

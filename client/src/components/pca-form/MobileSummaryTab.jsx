@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { useId, memo } from 'react';
 import SignaturePad from '../common/SignaturePad';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -46,6 +46,9 @@ function MobileSummaryTab({
     pcaSig, setPcaSig, recipientSig, setRecipientSig,
     submitted, setHasUnsavedChanges, submitAttempted,
 }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     return (
         <div className="pcaf-msummary">
             {/* Day summary rows */}
@@ -117,8 +120,8 @@ function MobileSummaryTab({
             <div className="pcaf-msummary__signatures">
                 <h3 className="pcaf-msummary__sig-title">SIGNATURES</h3>
                 <div className="pcaf-msummary__sig-field">
-                    <label>PCA (Caregiver) Name *</label>
-                    <input
+                    <label htmlFor={fid('pcaCaregiverName')}>PCA (Caregiver) Name *</label>
+                    <input id={fid('pcaCaregiverName')}
                         type="text"
                         value={pcaFullName}
                         onChange={(e) => { setPcaFullName(e.target.value); setHasUnsavedChanges(true); }}
@@ -131,8 +134,8 @@ function MobileSummaryTab({
                     <SignaturePad label="PCA (Caregiver) Signature *" value={pcaSig} onChange={(v) => { setPcaSig(v); setHasUnsavedChanges(true); }} disabled={submitted} />
                 </div>
                 <div className="pcaf-msummary__sig-field">
-                    <label>Recipient (Client) Name *</label>
-                    <input
+                    <label htmlFor={fid('recipientClientName')}>Recipient (Client) Name *</label>
+                    <input id={fid('recipientClientName')}
                         type="text"
                         value={recipientName}
                         onChange={(e) => { setRecipientName(e.target.value); setHasUnsavedChanges(true); }}

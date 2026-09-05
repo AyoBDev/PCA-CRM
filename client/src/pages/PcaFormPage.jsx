@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useId, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
@@ -247,6 +247,9 @@ function ProgramSection({ title, icon, colorClass, activities, section, entries,
 }
 
 export default function PcaFormPage() {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const { token } = useParams();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -897,12 +900,12 @@ export default function PcaFormPage() {
                                     <div className="pcaf-signatures__body">
                                         <div className="pcaf-signatures__grid">
                                             <div className={`pcaf-signatures__field ${fieldErrors.pcaFullName ? 'pcaf-name-error' : ''}`}>
-                                                <label>PCA (Caregiver) Name *</label>
-                                                <input type="text" value={pcaFullName} onChange={(e) => { setPcaFullName(e.target.value); setHasUnsavedChanges(true); }} disabled={submitted} placeholder="Jane A. Doe" />
+                                                <label htmlFor={fid('pcaCaregiverName')}>PCA (Caregiver) Name *</label>
+                                                <input id={fid('pcaCaregiverName')} type="text" value={pcaFullName} onChange={(e) => { setPcaFullName(e.target.value); setHasUnsavedChanges(true); }} disabled={submitted} placeholder="Jane A. Doe" />
                                             </div>
                                             <div className={`pcaf-signatures__field ${fieldErrors.recipientName ? 'pcaf-name-error' : ''}`}>
-                                                <label>Recipient (Client) Name *</label>
-                                                <input type="text" value={recipientName} onChange={(e) => { setRecipientName(e.target.value); setHasUnsavedChanges(true); }} disabled={submitted} placeholder="John B. Client" />
+                                                <label htmlFor={fid('recipientClientName')}>Recipient (Client) Name *</label>
+                                                <input id={fid('recipientClientName')} type="text" value={recipientName} onChange={(e) => { setRecipientName(e.target.value); setHasUnsavedChanges(true); }} disabled={submitted} placeholder="John B. Client" />
                                             </div>
                                         </div>
                                         <div className="pcaf-signatures__sig-grid">

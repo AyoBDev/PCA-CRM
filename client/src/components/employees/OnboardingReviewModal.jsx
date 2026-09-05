@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useId, useEffect, useState } from 'react';
 import Modal from '../common/Modal';
 import * as api from '../../api';
 import { useToast } from '../../hooks/useToast';
@@ -100,6 +100,9 @@ function RequirementRow({ row, onDecide, busyId }) {
 // admin approve/reject each requirement individually, then finalize the review
 // once every required item has a decision.
 export default function OnboardingReviewModal({ employeeId, onClose, onResolved }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const [data, setData] = useState(null);
     const [rows, setRows] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -236,12 +239,12 @@ export default function OnboardingReviewModal({ employeeId, onClose, onResolved 
 
             {!loading && emp && decisionMode && (
                 <div className="form-group orm-note">
-                    <label>
+                    <label htmlFor={fid('decisionNote')}>
                         {decisionMode === 'send_back'
                             ? 'What does the employee need to correct? (they will see this)'
                             : 'Reason for rejecting this application (internal note)'}
                     </label>
-                    <textarea
+                    <textarea id={fid('decisionNote')}
                         rows={3}
                         value={note}
                         onChange={(e) => setNote(e.target.value)}

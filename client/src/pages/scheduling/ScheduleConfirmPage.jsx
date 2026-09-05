@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useId, useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import * as api from '../../api';
 import { DAY_NAMES_FULL } from '../../utils/constants';
 
 export default function ScheduleConfirmPage() {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const { token } = useParams();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -103,10 +106,10 @@ export default function ScheduleConfirmPage() {
 
                         {selectedResponse === 'changes_requested' && (
                             <div style={{ marginTop: 12 }}>
-                                <label style={{ display: 'block', fontWeight: 500, marginBottom: 6, fontSize: 13, color: '#374151' }}>
+                                <label htmlFor={fid('pleaseExplainWhatChanges')} style={{ display: 'block', fontWeight: 500, marginBottom: 6, fontSize: 13, color: '#374151' }}>
                                     Please explain what changes you need: <span style={{ color: '#ef4444' }}>*</span>
                                 </label>
-                                <textarea
+                                <textarea id={fid('pleaseExplainWhatChanges')}
                                     value={notes}
                                     onChange={(e) => setNotes(e.target.value)}
                                     placeholder="Describe the revisions needed (e.g., time conflicts, day changes, client preferences)..."

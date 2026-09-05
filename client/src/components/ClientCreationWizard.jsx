@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useId, useState, useCallback } from 'react';
 import Modal from './common/Modal';
 import * as api from '../api';
 import { useToast } from '../hooks/useToast';
@@ -80,20 +80,23 @@ function StepIndicator({ currentStep, onStepClick }) {
 }
 
 function StepClientInfo({ form, setForm, insuranceTypes, onDatePaste }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     return (
         <>
             <div className="form-group">
-                <label>Client Name <span style={{ color: '#dc2626' }}>*</span></label>
-                <input type="text" value={form.clientName} onChange={(e) => setForm({ ...form, clientName: e.target.value })} placeholder="Full name" autoFocus />
+                <label htmlFor={fid('clientName')}>Client Name <span style={{ color: '#dc2626' }}>*</span></label>
+                <input id={fid('clientName')} type="text" value={form.clientName} onChange={(e) => setForm({ ...form, clientName: e.target.value })} placeholder="Full name" autoFocus />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group">
-                    <label>Medicaid ID</label>
-                    <input type="text" value={form.medicaidId} onChange={(e) => setForm({ ...form, medicaidId: e.target.value })} placeholder="e.g. 00002399084" />
+                    <label htmlFor={fid('medicaidId')}>Medicaid ID</label>
+                    <input id={fid('medicaidId')} type="text" value={form.medicaidId} onChange={(e) => setForm({ ...form, medicaidId: e.target.value })} placeholder="e.g. 00002399084" />
                 </div>
                 <div className="form-group">
-                    <label>Insurance Type</label>
-                    <select value={form.insuranceType} onChange={(e) => setForm({ ...form, insuranceType: e.target.value })}>
+                    <label htmlFor={fid('insuranceType')}>Insurance Type</label>
+                    <select id={fid('insuranceType')} value={form.insuranceType} onChange={(e) => setForm({ ...form, insuranceType: e.target.value })}>
                         {insuranceTypes.length > 0 ? insuranceTypes.map(t => (
                             <option key={t.id} value={t.name}>{t.name}</option>
                         )) : <option value="MEDICAID">MEDICAID</option>}
@@ -102,18 +105,18 @@ function StepClientInfo({ form, setForm, insuranceTypes, onDatePaste }) {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group">
-                    <label>Phone</label>
-                    <input type="text" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Optional" />
+                    <label htmlFor={fid('phone')}>Phone</label>
+                    <input id={fid('phone')} type="text" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Optional" />
                 </div>
                 <div className="form-group">
-                    <label>Date of Birth</label>
-                    <input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} onPaste={onDatePaste('dob')} />
+                    <label htmlFor={fid('dateOfBirth')}>Date of Birth</label>
+                    <input id={fid('dateOfBirth')} type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} onPaste={onDatePaste('dob')} />
                 </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group">
-                    <label>Gender</label>
-                    <select value={form.gender || ''} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
+                    <label htmlFor={fid('gender')}>Gender</label>
+                    <select id={fid('gender')} value={form.gender || ''} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
                         <option value="">— Select —</option>
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>
@@ -121,18 +124,18 @@ function StepClientInfo({ form, setForm, insuranceTypes, onDatePaste }) {
                     </select>
                 </div>
                 <div className="form-group">
-                    <label>Address</label>
-                    <input type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Optional" />
+                    <label htmlFor={fid('address')}>Address</label>
+                    <input id={fid('address')} type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Optional" />
                 </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group">
-                    <label>Doctor Name</label>
-                    <input type="text" value={form.doctorName} onChange={(e) => setForm({ ...form, doctorName: e.target.value })} placeholder="Optional" />
+                    <label htmlFor={fid('doctorName')}>Doctor Name</label>
+                    <input id={fid('doctorName')} type="text" value={form.doctorName} onChange={(e) => setForm({ ...form, doctorName: e.target.value })} placeholder="Optional" />
                 </div>
                 <div className="form-group">
-                    <label>Doctor Phone</label>
-                    <input type="text" value={form.doctorPhone} onChange={(e) => setForm({ ...form, doctorPhone: e.target.value })} placeholder="Optional" />
+                    <label htmlFor={fid('doctorPhone')}>Doctor Phone</label>
+                    <input id={fid('doctorPhone')} type="text" value={form.doctorPhone} onChange={(e) => setForm({ ...form, doctorPhone: e.target.value })} placeholder="Optional" />
                 </div>
             </div>
         </>
@@ -140,6 +143,9 @@ function StepClientInfo({ form, setForm, insuranceTypes, onDatePaste }) {
 }
 
 function AuthCard({ index, auth, onChange, onRemove }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const { serviceOptions } = useServices();
     const update = (field, value) => onChange(index, { ...auth, [field]: value });
 
@@ -173,22 +179,22 @@ function AuthCard({ index, auth, onChange, onRemove }) {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group">
-                    <label>Service Category</label>
-                    <AutocompleteInput value={auth.serviceCategory} onChange={handleServiceCategoryChange} options={SERVICE_CATEGORIES} placeholder="PCS, SDPC, Waiver 58…" />
+                    <label htmlFor={fid('serviceCategory')}>Service Category</label>
+                    <AutocompleteInput id={fid('serviceCategory')} value={auth.serviceCategory} onChange={handleServiceCategoryChange} options={SERVICE_CATEGORIES} placeholder="PCS, SDPC, Waiver 58…" />
                 </div>
                 <div className="form-group">
-                    <label>Service Code <span style={{ color: '#dc2626' }}>*</span></label>
-                    <ServiceCodeSelect value={auth.serviceCode} onChange={(e) => handleServiceCodeChange(e.target.value)} options={serviceOptions()} />
+                    <label htmlFor={fid('serviceCode')}>Service Code <span style={{ color: '#dc2626' }}>*</span></label>
+                    <ServiceCodeSelect id={fid('serviceCode')} value={auth.serviceCode} onChange={(e) => handleServiceCodeChange(e.target.value)} options={serviceOptions()} />
                 </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group">
-                    <label>Service Name</label>
-                    <AutocompleteInput value={auth.serviceName} onChange={(v) => update('serviceName', v)} options={SERVICE_NAME_SUGGESTIONS} placeholder="Personal Care Services" filterMode="includes" />
+                    <label htmlFor={fid('serviceName')}>Service Name</label>
+                    <AutocompleteInput id={fid('serviceName')} value={auth.serviceName} onChange={(v) => update('serviceName', v)} options={SERVICE_NAME_SUGGESTIONS} placeholder="Personal Care Services" filterMode="includes" />
                 </div>
                 <div className="form-group">
-                    <label>Account Number</label>
-                    <select value={auth.accountNumber} onChange={(e) => update('accountNumber', e.target.value)}>
+                    <label htmlFor={fid('accountNumber')}>Account Number</label>
+                    <select id={fid('accountNumber')} value={auth.accountNumber} onChange={(e) => update('accountNumber', e.target.value)}>
                         <option value="">— Select —</option>
                         {ACCOUNT_NUMBER_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
@@ -196,36 +202,36 @@ function AuthCard({ index, auth, onChange, onRemove }) {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group">
-                    <label>Sandata Client ID</label>
-                    <input type="text" value={auth.sandataClientId} onChange={(e) => update('sandataClientId', e.target.value)} placeholder="e.g. 1234567" />
+                    <label htmlFor={fid('sandataClientId')}>Sandata Client ID</label>
+                    <input id={fid('sandataClientId')} type="text" value={auth.sandataClientId} onChange={(e) => update('sandataClientId', e.target.value)} placeholder="e.g. 1234567" />
                 </div>
                 <div className="form-group">
-                    <label>Authorization Number</label>
-                    <input type="text" value={auth.authorizationNumber} onChange={(e) => update('authorizationNumber', e.target.value)} placeholder="e.g. 45268348457" />
+                    <label htmlFor={fid('authorizationNumber')}>Authorization Number</label>
+                    <input id={fid('authorizationNumber')} type="text" value={auth.authorizationNumber} onChange={(e) => update('authorizationNumber', e.target.value)} placeholder="e.g. 45268348457" />
                 </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group">
-                    <label>Auth Units <span style={{ color: '#dc2626' }}>*</span></label>
-                    <input type="number" value={auth.authorizedUnits} onChange={(e) => update('authorizedUnits', e.target.value)} placeholder="0" />
+                    <label htmlFor={fid('authUnits')}>Auth Units <span style={{ color: '#dc2626' }}>*</span></label>
+                    <input id={fid('authUnits')} type="number" value={auth.authorizedUnits} onChange={(e) => update('authorizedUnits', e.target.value)} placeholder="0" />
                 </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group">
-                    <label>Start Date <span style={{ color: '#dc2626' }}>*</span></label>
-                    <input type="date" value={auth.startDate} onChange={(e) => update('startDate', e.target.value)} onPaste={handleDatePaste((v) => update('startDate', v))} />
+                    <label htmlFor={fid('startDate')}>Start Date <span style={{ color: '#dc2626' }}>*</span></label>
+                    <input id={fid('startDate')} type="date" value={auth.startDate} onChange={(e) => update('startDate', e.target.value)} onPaste={handleDatePaste((v) => update('startDate', v))} />
                 </div>
                 <div className="form-group">
-                    <label>End Date <span style={{ color: '#dc2626' }}>*</span></label>
-                    <input type="date" value={auth.endDate} onChange={(e) => update('endDate', e.target.value)} onPaste={handleDatePaste((v) => update('endDate', v))} />
+                    <label htmlFor={fid('endDate')}>End Date <span style={{ color: '#dc2626' }}>*</span></label>
+                    <input id={fid('endDate')} type="date" value={auth.endDate} onChange={(e) => update('endDate', e.target.value)} onPaste={handleDatePaste((v) => update('endDate', v))} />
                 </div>
             </div>
             <div className="form-group">
-                <label>Notes</label>
-                <input type="text" value={auth.notes} onChange={(e) => update('notes', e.target.value)} placeholder="Optional notes…" />
+                <label htmlFor={fid('notes')}>Notes</label>
+                <input id={fid('notes')} type="text" value={auth.notes} onChange={(e) => update('notes', e.target.value)} placeholder="Optional notes…" />
             </div>
-            <div className="form-group">
-                <label>Status</label>
+            <fieldset className="form-group form-fieldset">
+                <legend className="form-label">Status</legend>
                 <div className="auth-status-cards">
                     <label className={`auth-status-card ${auth.manualStatus === 'active' ? 'auth-status-card--active' : ''}`}>
                         <input type="radio" name={`authStatus-${index}`} value="active" checked={auth.manualStatus === 'active'} onChange={() => update('manualStatus', 'active')} />
@@ -243,10 +249,10 @@ function AuthCard({ index, auth, onChange, onRemove }) {
                         <span className="auth-status-card__label" style={{ color: '#dc2626' }}>Expired</span>
                     </label>
                 </div>
-            </div>
+            </fieldset>
             <div className="form-group">
-                <label>Upload PA / Care Plan Documents</label>
-                <input
+                <label htmlFor={fid('uploadPaCarePlan')}>Upload PA / Care Plan Documents</label>
+                <input id={fid('uploadPaCarePlan')}
                     type="file"
                     multiple
                     onChange={(e) => update('files', Array.from(e.target.files))}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useId, useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useToast } from '../hooks/useToast';
 import Icons from '../components/common/Icons';
@@ -110,6 +110,9 @@ function handleDatePaste(setter) {
 }
 
 function EmployeeFormModal({ employee, users, onSave, onClose }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const { showToast } = useToast();
     const [step, setStep] = useState(1);
     const [name, setName] = useState(employee?.name || '');
@@ -259,12 +262,12 @@ function EmployeeFormModal({ employee, users, onSave, onClose }) {
                                 <div className="emp-cert-row__label">{c.label}</div>
                                 <div className="emp-cert-row__dates">
                                     <div className="form-group">
-                                        <label>Initial Date</label>
-                                        <input type="date" value={certDates[c.type]?.initial || ''} onChange={e => setCertDate(c.type, 'initial', e.target.value)} onPaste={handleDatePaste((v) => setCertDate(c.type, 'initial', v))} />
+                                        <label htmlFor={fid(`cert-${c.type}-initial`)}>Initial Date</label>
+                                        <input id={fid(`cert-${c.type}-initial`)} type="date" value={certDates[c.type]?.initial || ''} onChange={e => setCertDate(c.type, 'initial', e.target.value)} onPaste={handleDatePaste((v) => setCertDate(c.type, 'initial', v))} />
                                     </div>
                                     <div className="form-group">
-                                        <label>Expiration Date</label>
-                                        <input type="date" value={certDates[c.type]?.expiration || ''} onChange={e => setCertDate(c.type, 'expiration', e.target.value)} onPaste={handleDatePaste((v) => setCertDate(c.type, 'expiration', v))} />
+                                        <label htmlFor={fid(`cert-${c.type}-expiration`)}>Expiration Date</label>
+                                        <input id={fid(`cert-${c.type}-expiration`)} type="date" value={certDates[c.type]?.expiration || ''} onChange={e => setCertDate(c.type, 'expiration', e.target.value)} onPaste={handleDatePaste((v) => setCertDate(c.type, 'expiration', v))} />
                                     </div>
                                 </div>
                                 <div className="emp-cert-row__file">

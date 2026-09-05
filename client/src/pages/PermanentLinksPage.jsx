@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useId, useState, useEffect, useCallback } from 'react';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
@@ -9,6 +9,9 @@ import { useToast } from '../hooks/useToast';
 import { useUndoStack } from '../hooks/useUndoStack';
 
 export default function PermanentLinksPage() {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const { showToast } = useToast();
     const undoState = useUndoStack();
     const [links, setLinks] = useState([]);
@@ -143,15 +146,15 @@ export default function PermanentLinksPage() {
                     <h2 className="modal__title">Create Permanent Link</h2>
                     <p className="modal__desc">One link per PCA+Client pair. The PCA will use this link every week.</p>
                     <div className="form-group">
-                        <label>Client</label>
-                        <select value={newClientId} onChange={(e) => setNewClientId(e.target.value)}>
+                        <label htmlFor={fid('client')}>Client</label>
+                        <select id={fid('client')} value={newClientId} onChange={(e) => setNewClientId(e.target.value)}>
                             <option value="">Select a client…</option>
                             {clients.map((c) => <option key={c.id} value={c.id}>{c.clientName}</option>)}
                         </select>
                     </div>
                     <div className="form-group">
-                        <label>PCA Name</label>
-                        <input type="text" value={newPcaName} onChange={(e) => setNewPcaName(e.target.value)} placeholder="Jane Smith" />
+                        <label htmlFor={fid('pcaName')}>PCA Name</label>
+                        <input id={fid('pcaName')} type="text" value={newPcaName} onChange={(e) => setNewPcaName(e.target.value)} placeholder="Jane Smith" />
                     </div>
                     <div className="form-actions">
                         <button className="btn btn--outline" onClick={() => setShowModal(false)}>Cancel</button>

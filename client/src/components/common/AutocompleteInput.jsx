@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 
-export default function AutocompleteInput({ value, onChange, options, placeholder, filterMode = 'startsWith' }) {
+export default function AutocompleteInput({ id, value, onChange, options, placeholder, filterMode = 'startsWith' }) {
     const [open, setOpen] = useState(false);
     const ref = useRef(null);
 
@@ -22,6 +22,7 @@ export default function AutocompleteInput({ value, onChange, options, placeholde
     return (
         <div ref={ref} style={{ position: 'relative' }}>
             <input
+                id={id}
                 type="text"
                 value={value}
                 onChange={(e) => { onChange(e.target.value); setOpen(true); }}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useId, useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import GlobalToolbar from '../components/common/GlobalToolbar';
 import ContextBar from '../components/common/ContextBar';
@@ -10,10 +10,12 @@ import { useUndoStack } from '../hooks/useUndoStack';
 import { useToast } from '../hooks/useToast';
 import FolderTree from '../components/files/FolderTree';
 import FileList from '../components/files/FileList';
-import UploadZone from '../components/files/UploadZone';
 import * as api from '../api';
 
 export default function FilesPage() {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const undoState = useUndoStack();
@@ -21,7 +23,6 @@ export default function FilesPage() {
 
     const [selectedFolder, setSelectedFolder] = useState(null);
     const [files, setFiles] = useState([]);
-    const [childFolders, setChildFolders] = useState([]);
     const [loadingFiles, setLoadingFiles] = useState(false);
     const [selected, setSelected] = useState(new Set());
     const [nameModal, setNameModal] = useState(null);
@@ -33,14 +34,12 @@ export default function FilesPage() {
     const [folders, setFolders] = useState([]);
     const [treeRefreshKey, setTreeRefreshKey] = useState(0);
     const [search, setSearch] = useState('');
-    const [folderSearch, setFolderSearch] = useState('');
-    const [expandAllFolders, setExpandAllFolders] = useState(false);
     const [split, setSplit] = useState(false);
     const [selectedFileId, setSelectedFileId] = useState(null);
     const nameInputRef = useRef(null);
 
     const loadFiles = useCallback(async (folder) => {
-        if (!folder) { setFiles([]); setChildFolders([]); return; }
+        if (!folder) { setFiles([]); return; }
         setLoadingFiles(true);
         setSelected(new Set());
         try {
@@ -53,7 +52,6 @@ export default function FilesPage() {
                 updatedAt: f.updatedAt,
                 uploadedBy: f.uploader?.name,
             })));
-            setChildFolders(data.children || []);
         } catch (err) {
             console.error('Failed to load files:', err);
         } finally {
@@ -79,7 +77,6 @@ export default function FilesPage() {
                     updatedAt: f.updatedAt,
                     uploadedBy: f.uploader?.name,
                 })));
-                setChildFolders(data.children || []);
             }).catch(() => {});
         }
     }, [searchParams]);
@@ -172,11 +169,6 @@ export default function FilesPage() {
                 if (selectedFolder?.id === deleteModal.item.id) {
                     setSelectedFolder(null);
                     setFiles([]);
-                    setChildFolders([]);
-                } else if (selectedFolder && deleteModal.item.parentId === selectedFolder.id) {
-                    // Deleted item was a subfolder shown in the right panel's
-                    // child list — refresh so it disappears immediately.
-                    loadFiles(selectedFolder);
                 }
                 showToast('Folder deleted');
             } catch (err) {
@@ -257,10 +249,7 @@ export default function FilesPage() {
         }
     }, [showToast]);
 
-    // Walks the folder tree (root down) and returns a flat list of every
-    // folder ({id, name, path, parentId}). Used both to populate the Move
-    // modal's destination list and to resolve breadcrumb segments to ids.
-    const loadAllFolders = useCallback(async () => {
+    const handleMoveFiles = useCallback(async () => {
         const allFolders = await api.listFolders(null);
         const flat = [];
         const flatten = async (parentId) => {
@@ -275,21 +264,8 @@ export default function FilesPage() {
             await flatten(f.id);
         }
         setFolders(flat);
-        return flat;
-    }, []);
-
-    // Populate the flat folder list up front so breadcrumb segments can
-    // resolve to folder ids as soon as a folder is selected. Also refresh it
-    // whenever the folder tree changes (create/rename/delete) so breadcrumbs
-    // stay accurate.
-    useEffect(() => {
-        loadAllFolders().catch(() => {});
-    }, [loadAllFolders, treeRefreshKey]);
-
-    const handleMoveFiles = useCallback(async () => {
-        await loadAllFolders();
         setMoveModal({ fileIds: [...selected] });
-    }, [selected, loadAllFolders]);
+    }, [selected]);
 
     const handleNameSubmit = useCallback(async (e) => {
         e.preventDefault();
@@ -300,11 +276,6 @@ export default function FilesPage() {
                 const parentId = nameModal.parentId !== undefined ? nameModal.parentId : (selectedFolder?.id || null);
                 await api.createFolder(value, parentId);
                 setTreeRefreshKey(k => k + 1);
-                // New subfolder was created inside the currently open folder —
-                // refresh the right panel so it shows up immediately.
-                if (selectedFolder && parentId === selectedFolder.id) {
-                    loadFiles(selectedFolder);
-                }
             } catch (err) {
                 showToast(err.message || 'Failed to create folder', 'error');
             }
@@ -320,11 +291,6 @@ export default function FilesPage() {
                     setTreeRefreshKey(k => k + 1);
                     if (selectedFolder?.id === nameModal.item.id) {
                         setSelectedFolder(prev => ({ ...prev, name: value }));
-                    }
-                    // Renamed folder may be a subfolder shown in the right
-                    // panel's child list — refresh so its new name appears.
-                    if (selectedFolder && nameModal.item.parentId === selectedFolder.id) {
-                        loadFiles(selectedFolder);
                     }
                 } catch (err) {
                     showToast(err.message || 'Failed to rename folder', 'error');
@@ -357,40 +323,6 @@ export default function FilesPage() {
         ? files.filter(f => f.name.toLowerCase().includes(search.toLowerCase()))
         : files;
 
-    // Same search term also narrows the subfolder list shown above the files,
-    // so search behaves consistently across both.
-    const filteredChildFolders = search
-        ? childFolders.filter(f => f.name.toLowerCase().includes(search.toLowerCase()))
-        : childFolders;
-
-    // Clickable breadcrumb segments derived from selectedFolder.path, e.g.
-    // "/Insurance/Medicaid" → [{name:'Insurance', id:3}, {name:'Medicaid', id:7}].
-    // Each segment's id is resolved by matching the path PREFIX up to that
-    // segment against the flat `folders` list. If a segment can't be
-    // resolved (flat list not loaded yet, or a mismatch), id is left null
-    // and the segment renders as plain (non-clickable) text instead of
-    // crashing.
-    const breadcrumbSegments = useMemo(() => {
-        if (!selectedFolder?.path) return [];
-        const parts = selectedFolder.path.split('/').filter(Boolean);
-        let prefix = '';
-        return parts.map((name, idx) => {
-            prefix += `/${name}`;
-            const isLast = idx === parts.length - 1;
-            const match = isLast
-                ? selectedFolder
-                : folders.find(f => f.path === prefix);
-            return { name, id: match ? match.id : null };
-        });
-    }, [selectedFolder, folders]);
-
-    const handleCrumbClick = useCallback((seg) => {
-        if (!seg || seg.id == null) return;
-        if (seg.id === selectedFolder?.id) return;
-        const target = folders.find(f => f.id === seg.id) || (seg.id === selectedFolder?.id ? selectedFolder : null);
-        if (target) handleSelectFolder(target);
-    }, [folders, selectedFolder, handleSelectFolder]);
-
     return (
         <div className="files-page">
             <GlobalToolbar
@@ -406,29 +338,32 @@ export default function FilesPage() {
             />
             <ContextBar>
                 <ContextBar.Left>
-                    {breadcrumbSegments.length > 0 && (
-                        <span className="files-page__breadcrumb">
-                            {Icons.folder}
-                            {breadcrumbSegments.map((seg, idx) => {
-                                const isLast = idx === breadcrumbSegments.length - 1;
-                                return (
-                                    <span key={`${seg.name}-${idx}`} className="files-page__crumb-group">
-                                        {idx > 0 && <span className="files-page__crumb-sep">/</span>}
-                                        {!isLast && seg.id != null ? (
-                                            <button
-                                                type="button"
-                                                className="files-page__crumb"
-                                                onClick={() => handleCrumbClick(seg)}
-                                            >
-                                                {seg.name}
-                                            </button>
-                                        ) : (
-                                            <span className="files-page__crumb files-page__crumb--current">{seg.name}</span>
-                                        )}
-                                    </span>
-                                );
-                            })}
-                        </span>
+                    <input
+                        type="text"
+                        className="context-bar__search"
+                        placeholder="Search files..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                    />
+                    {files.length > 0 && (
+                        <label className="files-page__select-all" onClick={(e) => e.stopPropagation()}>
+                            <input
+                                type="checkbox"
+                                checked={files.length > 0 && selected.size === files.length}
+                                ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < files.length; }}
+                                onChange={handleSelectAll}
+                            />
+                            <span>Select All</span>
+                        </label>
+                    )}
+                    {selected.size > 0 && (
+                        <>
+                            <span className="files-page__selection-count">{selected.size} selected</span>
+                            <button className="btn btn--outline btn--sm" onClick={handleMoveFiles}>{Icons.folder} Move</button>
+                            <button className="btn btn--danger btn--sm" onClick={handleBulkDelete}>{Icons.trash} Delete</button>
+                            <button className="btn btn--secondary btn--sm" onClick={handleBulkDownload}>{Icons.download} Download</button>
+                            <button className="btn btn--outline btn--sm" onClick={() => setSelected(new Set())}>Clear</button>
+                        </>
                     )}
                 </ContextBar.Left>
                 <ContextBar.Right>
@@ -443,23 +378,6 @@ export default function FilesPage() {
 
             <div className="files-page__panels">
                 <div className="files-page__left">
-                    <div className="files-page__panel-header">
-                        <label className="files-page__all" title="Expand/collapse all folders">
-                            <input
-                                type="checkbox"
-                                checked={expandAllFolders}
-                                onChange={() => setExpandAllFolders(v => !v)}
-                            />
-                            <span>All</span>
-                        </label>
-                        <input
-                            type="text"
-                            className="files-page__panel-search"
-                            placeholder="Search folders..."
-                            value={folderSearch}
-                            onChange={(e) => setFolderSearch(e.target.value)}
-                        />
-                    </div>
                     <FolderTree
                         activeFolderId={selectedFolder?.id}
                         onSelectFolder={handleSelectFolder}
@@ -468,55 +386,15 @@ export default function FilesPage() {
                         onRenameFolder={handleRenameFolder}
                         onDeleteFolder={handleDeleteFolder}
                         refreshKey={treeRefreshKey}
-                        filter={folderSearch}
-                        expandAll={expandAllFolders}
                     />
                 </div>
                 <div className="files-page__right">
-                    <div className="files-page__panel-header files-page__panel-header--files">
-                        <h2 className="files-page__folder-heading">
-                            {selectedFolder ? selectedFolder.name : 'Select a folder'}
-                        </h2>
-                    </div>
-                    {selectedFolder && (
-                        <div className="files-page__panel-header files-page__panel-header--controls">
-                            <label className="files-page__all" onClick={(e) => e.stopPropagation()}>
-                                <input
-                                    type="checkbox"
-                                    checked={files.length > 0 && selected.size === files.length}
-                                    ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < files.length; }}
-                                    onChange={handleSelectAll}
-                                    disabled={files.length === 0}
-                                />
-                                <span>All</span>
-                            </label>
-                            <input
-                                type="text"
-                                className="files-page__panel-search"
-                                placeholder="Search files..."
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                            />
-                            {selected.size > 0 && (
-                                <div className="files-page__bulk-actions">
-                                    <span className="files-page__selection-count">{selected.size} selected</span>
-                                    <button className="btn btn--outline btn--sm" onClick={handleMoveFiles}>{Icons.folder} Move</button>
-                                    <button className="btn btn--danger btn--sm" onClick={handleBulkDelete}>{Icons.trash} Delete</button>
-                                    <button className="btn btn--secondary btn--sm" onClick={handleBulkDownload}>{Icons.download} Download</button>
-                                    <button className="btn btn--outline btn--sm" onClick={() => setSelected(new Set())}>Clear</button>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                    {selectedFolder && <UploadZone onUpload={handleUpload} />}
                     {loadingFiles ? (
                         <div className="file-list file-list--empty-state"><p>Loading...</p></div>
                     ) : (
                         <FileList
                             folder={selectedFolder}
                             files={filteredFiles}
-                            childFolders={filteredChildFolders}
-                            onOpenFolder={handleSelectFolder}
                             selected={selected}
                             onToggleSelect={handleToggleSelect}
                             onPreview={handlePreview}
@@ -529,8 +407,6 @@ export default function FilesPage() {
                             onTogglePreview={() => setSplit(s => !s)}
                             selectedFileId={selectedFileId}
                             onSelectFile={(id) => { setSelectedFileId(id); setSplit(true); }}
-                            hideHeader
-                            hideDropzone
                         />
                     )}
                 </div>
@@ -541,8 +417,8 @@ export default function FilesPage() {
                     <h2 className="modal__title">{nameModal.mode === 'create' ? 'New Folder' : nameModal.mode === 'renameFolder' ? 'Rename Folder' : 'Rename File'}</h2>
                     <form onSubmit={handleNameSubmit}>
                         <div className="form-group">
-                            <label className="form-label">{nameModal.mode === 'create' ? 'Folder name' : 'New name'}</label>
-                            <input ref={nameInputRef} className="form-input" type="text" defaultValue={nameModal.defaultValue} autoFocus placeholder={nameModal.mode === 'create' ? 'Enter folder name' : 'Enter new name'} />
+                            <label className="form-label" htmlFor={fid('folderName')}>{nameModal.mode === 'create' ? 'Folder name' : 'New name'}</label>
+                            <input id={fid('folderName')} ref={nameInputRef} className="form-input" type="text" defaultValue={nameModal.defaultValue} autoFocus placeholder={nameModal.mode === 'create' ? 'Enter folder name' : 'Enter new name'} />
                         </div>
                         <div className="form-actions">
                             <button type="button" className="btn btn--outline" onClick={() => setNameModal(null)}>Cancel</button>
@@ -650,15 +526,6 @@ export default function FilesPage() {
                 <PreviewModal
                     open
                     fileName={previewFile.name}
-                    breadcrumb={breadcrumbSegments.length > 0 ? breadcrumbSegments.map((seg, idx) => {
-                        const isLast = idx === breadcrumbSegments.length - 1;
-                        return {
-                            name: seg.name,
-                            onClick: (!isLast && seg.id != null)
-                                ? () => { setPreviewFile(null); handleCrumbClick(seg); }
-                                : undefined,
-                        };
-                    }) : undefined}
                     onClose={() => setPreviewFile(null)}
                     onDelete={() => { const f = previewFile; setPreviewFile(null); handleDelete(f); }}
                     fetchBlob={() => fetch(`/api/files/${previewFile.id}/download`, {

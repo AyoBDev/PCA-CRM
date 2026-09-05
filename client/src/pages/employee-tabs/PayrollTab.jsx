@@ -1,9 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useId, useState, useEffect, useCallback } from 'react';
 import * as api from '../../api';
 import Icons from '../../components/common/Icons';
 import { useToast } from '../../hooks/useToast';
 
 export default function PayrollTab({ employeeId }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const { showToast } = useToast();
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -177,12 +180,12 @@ export default function PayrollTab({ employeeId }) {
                 <div className="cp-card__body">
                     <div className="form-grid-2">
                         <div className="form-group">
-                            <label>Hourly Rate ($)</label>
-                            <input type="number" step="0.01" value={form.hourlyRate || ''} onChange={e => handleChange('hourlyRate', e.target.value)} />
+                            <label htmlFor={fid('hourlyRate')}>Hourly Rate ($)</label>
+                            <input id={fid('hourlyRate')} type="number" step="0.01" value={form.hourlyRate || ''} onChange={e => handleChange('hourlyRate', e.target.value)} />
                         </div>
                         <div className="form-group">
-                            <label>Classification</label>
-                            <select value={form.classification || 'W2'} onChange={e => handleChange('classification', e.target.value)}>
+                            <label htmlFor={fid('classification')}>Classification</label>
+                            <select id={fid('classification')} value={form.classification || 'W2'} onChange={e => handleChange('classification', e.target.value)}>
                                 <option value="W2">W2</option>
                                 <option value="1099">1099</option>
                             </select>
@@ -191,18 +194,18 @@ export default function PayrollTab({ employeeId }) {
 
                     <div className="form-grid-2">
                         <div className="form-group">
-                            <label>SSN</label>
-                            <input type="text" value={form.ssn || ''} onChange={e => handleChange('ssn', e.target.value)} placeholder="123-45-6789" />
+                            <label htmlFor={fid('ssn')}>SSN</label>
+                            <input id={fid('ssn')} type="text" value={form.ssn || ''} onChange={e => handleChange('ssn', e.target.value)} placeholder="123-45-6789" />
                         </div>
                         <div className="form-group">
-                            <label>EIN</label>
-                            <input type="text" value={form.ein || ''} onChange={e => handleChange('ein', e.target.value)} placeholder="12-3456789" />
+                            <label htmlFor={fid('ein')}>EIN</label>
+                            <input id={fid('ein')} type="text" value={form.ein || ''} onChange={e => handleChange('ein', e.target.value)} placeholder="12-3456789" />
                         </div>
                     </div>
 
                     <div className="form-group">
-                        <label>Account Number</label>
-                        <input type="text" value={form.accountNumber || ''} onChange={e => handleChange('accountNumber', e.target.value)} />
+                        <label htmlFor={fid('accountNumber')}>Account Number</label>
+                        <input id={fid('accountNumber')} type="text" value={form.accountNumber || ''} onChange={e => handleChange('accountNumber', e.target.value)} />
                     </div>
 
                     <div className="separator" style={{ margin: '16px 0' }} />
@@ -226,8 +229,8 @@ export default function PayrollTab({ employeeId }) {
                         )}
                     </div>
                     <div className="form-group">
-                        <label>Overpayment Balance ($)</label>
-                        <input type="number" step="0.01" value={form.overpaymentBalance || ''} onChange={e => handleChange('overpaymentBalance', e.target.value)} />
+                        <label htmlFor={fid('overpaymentBalance')}>Overpayment Balance ($)</label>
+                        <input id={fid('overpaymentBalance')} type="number" step="0.01" value={form.overpaymentBalance || ''} onChange={e => handleChange('overpaymentBalance', e.target.value)} />
                     </div>
 
                     <div className="form-actions" style={{ marginTop: 16 }}>

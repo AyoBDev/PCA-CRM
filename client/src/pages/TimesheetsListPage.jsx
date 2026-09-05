@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useId, useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
@@ -35,6 +35,9 @@ function formatWeekEnding(weekStartStr) {
 }
 
 export default function TimesheetsListPage() {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const { isAdmin } = useAuth();
     const { showToast } = useToast();
     const undoState = useUndoStack();
@@ -302,8 +305,8 @@ export default function TimesheetsListPage() {
                     <>
                         <div className="ts-filter-bar">
                             <div className="ts-filter-bar__field">
-                                <label>Week</label>
-                                <div className="ts-week-picker">
+                                <span className="form-label" id={fid('week')}>Week</span>
+                                <div className="ts-week-picker" role="group" aria-labelledby={fid('week')}>
                                     <button className="ts-week-picker__btn" onClick={() => {
                                         const d = dateFrom ? new Date(dateFrom + 'T00:00:00') : new Date();
                                         d.setDate(d.getDate() - 7);
@@ -330,8 +333,8 @@ export default function TimesheetsListPage() {
                                 </div>
                             </div>
                             <div className="ts-filter-bar__field">
-                                <label>Caregiver</label>
-                                <SearchableSelect
+                                <label htmlFor={fid('caregiver')}>Caregiver</label>
+                                <SearchableSelect id={fid('caregiver')}
                                     options={[{ value: '', label: 'All Caregivers' }, ...pcaNames.map(name => ({ value: name, label: name }))]}
                                     value={pcaFilter}
                                     onChange={setPcaFilter}
@@ -339,8 +342,8 @@ export default function TimesheetsListPage() {
                                 />
                             </div>
                             <div className="ts-filter-bar__field">
-                                <label>Client</label>
-                                <SearchableSelect
+                                <label htmlFor={fid('client')}>Client</label>
+                                <SearchableSelect id={fid('client')}
                                     options={[{ value: '', label: 'All Clients' }, ...[...clients].sort((a, b) => a.clientName.localeCompare(b.clientName)).map(c => ({ value: String(c.id), label: c.clientName }))]}
                                     value={clientFilter}
                                     onChange={setClientFilter}
@@ -348,8 +351,8 @@ export default function TimesheetsListPage() {
                                 />
                             </div>
                             <div className="ts-filter-bar__field">
-                                <label>Service Type</label>
-                                <select value={serviceFilter} onChange={(e) => setServiceFilter(e.target.value)}>
+                                <label htmlFor={fid('serviceType')}>Service Type</label>
+                                <select id={fid('serviceType')} value={serviceFilter} onChange={(e) => setServiceFilter(e.target.value)}>
                                     <option value="">All Services</option>
                                     <option value="PAS">PAS</option>
                                     <option value="Homemaker">Homemaker</option>
@@ -358,8 +361,8 @@ export default function TimesheetsListPage() {
                                 </select>
                             </div>
                             <div className="ts-filter-bar__field">
-                                <label>Status</label>
-                                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                                <label htmlFor={fid('status')}>Status</label>
+                                <select id={fid('status')} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                                     <option value="">All Status</option>
                                     <option value="draft">Draft</option>
                                     <option value="submitted">Submitted</option>
@@ -509,10 +512,10 @@ export default function TimesheetsListPage() {
                 <Modal onClose={() => setShowNewModal(false)}>
                     <h2 className="modal__title">New Service Delivery Record</h2>
                     <p className="modal__desc">Create a weekly PCA timesheet (Sunday–Saturday).</p>
-                    <div className="form-group"><label>PCA Name</label><input type="text" value={newPcaName} onChange={(e) => setNewPcaName(e.target.value)} placeholder="Jane Smith" autoFocus /></div>
+                    <div className="form-group"><label htmlFor={fid('pcaName')}>PCA Name</label><input id={fid('pcaName')} type="text" value={newPcaName} onChange={(e) => setNewPcaName(e.target.value)} placeholder="Jane Smith" autoFocus /></div>
                     <div className="form-group">
-                        <label>Client</label>
-                        <SearchableSelect
+                        <label htmlFor={fid('client2')}>Client</label>
+                        <SearchableSelect id={fid('client2')}
                             options={[...clients].sort((a, b) => a.clientName.localeCompare(b.clientName)).map(c => ({ value: c.id, label: c.clientName }))}
                             value={newClientId}
                             onChange={setNewClientId}
@@ -520,10 +523,10 @@ export default function TimesheetsListPage() {
                         />
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                        <div className="form-group"><label>Client Phone</label><input type="tel" value={newClientPhone} onChange={(e) => setNewClientPhone(e.target.value)} placeholder="702-555-0123" /></div>
-                        <div className="form-group"><label>Client ID #</label><input type="text" value={newClientIdNumber} onChange={(e) => setNewClientIdNumber(e.target.value)} placeholder="Optional" /></div>
+                        <div className="form-group"><label htmlFor={fid('clientPhone')}>Client Phone</label><input id={fid('clientPhone')} type="tel" value={newClientPhone} onChange={(e) => setNewClientPhone(e.target.value)} placeholder="702-555-0123" /></div>
+                        <div className="form-group"><label htmlFor={fid('clientId')}>Client ID #</label><input id={fid('clientId')} type="text" value={newClientIdNumber} onChange={(e) => setNewClientIdNumber(e.target.value)} placeholder="Optional" /></div>
                     </div>
-                    <div className="form-group"><label>Week Starting (Sunday)</label><input type="date" value={newWeekDate} onChange={(e) => setNewWeekDate(getSunday(e.target.value))} /></div>
+                    <div className="form-group"><label htmlFor={fid('weekStartingSunday')}>Week Starting (Sunday)</label><input id={fid('weekStartingSunday')} type="date" value={newWeekDate} onChange={(e) => setNewWeekDate(getSunday(e.target.value))} /></div>
                     <div className="form-actions">
                         <button type="button" className="btn btn--outline" onClick={() => setShowNewModal(false)}>Cancel</button>
                         <button type="button" className="btn btn--primary" onClick={handleCreate}>Create Timesheet</button>

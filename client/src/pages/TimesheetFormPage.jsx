@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useId, useState, useEffect } from 'react';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
@@ -200,6 +200,9 @@ function ProgramSection({ title, subtitle, icon, colorClass, activities, section
 }
 
 export default function TimesheetFormPage({ timesheetId, clients, onBack, showToast: showToastProp }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const { showToast: toastHook } = useToast();
     const showToast = showToastProp || toastHook;
     const { isAdmin, user: authUser } = useAuth();
@@ -684,37 +687,37 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                     <div>
                         <div className="tsv2-sig-section__title">Recipient / Client</div>
                         <div className="tsv2-sig-field">
-                            <label>Name:</label>
-                            <input type="text" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} disabled={readOnly} placeholder="Full name" />
+                            <label htmlFor={fid('name')}>Name:</label>
+                            <input id={fid('name')} type="text" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} disabled={readOnly} placeholder="Full name" />
                         </div>
                         <SignaturePad label="Signature:" value={recipientSig} onChange={setRecipientSig} disabled={readOnly} />
                         <div className="tsv2-sig-field">
-                            <label>Date:</label>
-                            <input type="date" value={completionDate} onChange={(e) => setCompletionDate(e.target.value)} disabled={readOnly} />
+                            <label htmlFor={fid('date')}>Date:</label>
+                            <input id={fid('date')} type="date" value={completionDate} onChange={(e) => setCompletionDate(e.target.value)} disabled={readOnly} />
                         </div>
                     </div>
                     <div>
                         <div className="tsv2-sig-section__title">Employee / PCA</div>
                         <div className="tsv2-sig-field">
-                            <label>Name:</label>
-                            <input type="text" value={pcaFullName} onChange={(e) => setPcaFullName(e.target.value)} disabled={readOnly} placeholder="Full name" />
+                            <label htmlFor={fid('name2')}>Name:</label>
+                            <input id={fid('name2')} type="text" value={pcaFullName} onChange={(e) => setPcaFullName(e.target.value)} disabled={readOnly} placeholder="Full name" />
                         </div>
                         <SignaturePad label="Signature:" value={pcaSig} onChange={setPcaSig} disabled={readOnly} />
                         <div className="tsv2-sig-field">
-                            <label>Date:</label>
-                            <input type="date" value={completionDate} onChange={(e) => setCompletionDate(e.target.value)} disabled={readOnly} />
+                            <label htmlFor={fid('date2')}>Date:</label>
+                            <input id={fid('date2')} type="date" value={completionDate} onChange={(e) => setCompletionDate(e.target.value)} disabled={readOnly} />
                         </div>
                     </div>
                     <div>
                         <div className="tsv2-sig-section__title">Supervisor</div>
                         <div className="tsv2-sig-field">
-                            <label>Name:</label>
-                            <input type="text" value={ts?.supervisorName || ''} disabled={readOnly} placeholder="Supervisor name" />
+                            <label htmlFor={fid('name3')}>Name:</label>
+                            <input id={fid('name3')} type="text" value={ts?.supervisorName || ''} disabled={readOnly} placeholder="Supervisor name" />
                         </div>
                         <SignaturePad label="Signature:" value={supervisorSig} onChange={setSupervisorSig} disabled={readOnly} />
                         <div className="tsv2-sig-field">
-                            <label>Date:</label>
-                            <input type="date" value={ts?.supervisorDate || completionDate} disabled={readOnly} />
+                            <label htmlFor={fid('date3')}>Date:</label>
+                            <input id={fid('date3')} type="date" value={ts?.supervisorDate || completionDate} disabled={readOnly} />
                         </div>
                     </div>
                     <div>
@@ -770,9 +773,9 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                     <h2 className="modal__title"><span style={{ display: 'inline-block', width: 20, height: 20, verticalAlign: 'middle', marginRight: 6 }}>{Icons.share}</span>Signing Link</h2>
                     <p className="modal__desc">Send this permanent link to the PCA. They can use it each week to log hours, activities, and collect signatures.</p>
                     <div className="share-link-group">
-                        <label style={{ fontWeight: 600, fontSize: 13, marginBottom: 4, display: 'block' }}>Signing Link (send to PCA)</label>
+                        <label htmlFor={fid('signingLinkSendTo')} style={{ fontWeight: 600, fontSize: 13, marginBottom: 4, display: 'block' }}>Signing Link (send to PCA)</label>
                         <div className="share-link-row">
-                            <input type="text" readOnly value={shareLinkModal.link} className="share-link-input" />
+                            <input id={fid('signingLinkSendTo')} type="text" readOnly value={shareLinkModal.link} className="share-link-input" />
                             <button className="btn btn--outline btn--sm" onClick={() => { navigator.clipboard.writeText(shareLinkModal.link); showToast('Link copied!'); }}>{Icons.copy} Copy</button>
                         </div>
                     </div>
@@ -784,8 +787,8 @@ export default function TimesheetFormPage({ timesheetId, clients, onBack, showTo
                     <h2 className="modal__title">Send Back for Corrections</h2>
                     <p className="modal__desc">Describe what needs to be corrected. The timesheet will be returned to draft status.</p>
                     <div className="form-group">
-                        <label>Correction Notes</label>
-                        <textarea rows={4} value={correctionNote} onChange={e => setCorrectionNote(e.target.value)} placeholder="Describe what needs to be fixed..." />
+                        <label htmlFor={fid('correctionNotes')}>Correction Notes</label>
+                        <textarea id={fid('correctionNotes')} rows={4} value={correctionNote} onChange={e => setCorrectionNote(e.target.value)} placeholder="Describe what needs to be fixed..." />
                     </div>
                     <div className="form-actions">
                         <button className="btn btn--outline" onClick={() => { setShowCorrectionModal(false); setCorrectionNote(''); }}>Cancel</button>

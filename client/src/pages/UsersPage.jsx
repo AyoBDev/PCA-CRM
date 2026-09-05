@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useId, useState, useEffect, useCallback } from 'react';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
@@ -12,6 +12,9 @@ import { useAuth } from '../hooks/useAuth';
 import { useUndoStack } from '../hooks/useUndoStack';
 
 export default function UsersPage() {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const { isAdmin } = useAuth();
     const { showToast } = useToast();
     const undoState = useUndoStack();
@@ -345,20 +348,20 @@ export default function UsersPage() {
                     <h2 className="modal__title">Create User</h2>
                     <p className="modal__desc">Add a new staff or caregiver account.</p>
                     <form onSubmit={handleCreate}>
-                        <div className="form-group"><label>Name</label><input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Full name" required /></div>
-                        <div className="form-group"><label>Email</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="user@example.com" required /></div>
-                        <div className="form-group"><label>Password</label><input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Minimum 4 characters" required minLength={4} /></div>
+                        <div className="form-group"><label htmlFor={fid('name')}>Name</label><input id={fid('name')} type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Full name" required /></div>
+                        <div className="form-group"><label htmlFor={fid('email')}>Email</label><input id={fid('email')} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="user@example.com" required /></div>
+                        <div className="form-group"><label htmlFor={fid('password')}>Password</label><input id={fid('password')} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Minimum 4 characters" required minLength={4} /></div>
                         <div className="form-group">
-                            <label>Role</label>
-                            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+                            <label htmlFor={fid('role')}>Role</label>
+                            <select id={fid('role')} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
                                 <option value="pca">PCA (Caregiver)</option>
                                 <option value="user">User (Staff)</option>
                             </select>
                         </div>
                         {form.role === 'user' && (
                             <div className="form-group">
-                                <label className="form-label">Permission Group</label>
-                                <select
+                                <label htmlFor={fid('permissionGroup')} className="form-label">Permission Group</label>
+                                <select id={fid('permissionGroup')}
                                     className="form-input"
                                     value={form.permissionGroupId ?? ''}
                                     onChange={(e) => setForm({ ...form, permissionGroupId: e.target.value === '' ? null : parseInt(e.target.value) })}
@@ -382,19 +385,19 @@ export default function UsersPage() {
                     <h2 className="modal__title">Edit User</h2>
                     <p className="modal__desc">Update account details for <strong>{editUser.name}</strong>.</p>
                     <form onSubmit={handleEditUser}>
-                        <div className="form-group"><label>Name</label><input type="text" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} placeholder="Full name" required /></div>
-                        <div className="form-group"><label>Email</label><input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} placeholder="user@example.com" required /></div>
+                        <div className="form-group"><label htmlFor={fid('name2')}>Name</label><input id={fid('name2')} type="text" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} placeholder="Full name" required /></div>
+                        <div className="form-group"><label htmlFor={fid('email2')}>Email</label><input id={fid('email2')} type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} placeholder="user@example.com" required /></div>
                         <div className="form-group">
-                            <label>Role</label>
-                            <select value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}>
+                            <label htmlFor={fid('role2')}>Role</label>
+                            <select id={fid('role2')} value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}>
                                 <option value="pca">PCA (Caregiver)</option>
                                 <option value="user">User (Staff)</option>
                             </select>
                         </div>
                         {editForm.role === 'user' && (
                             <div className="form-group">
-                                <label className="form-label">Permission Group</label>
-                                <select
+                                <label htmlFor={fid('permissionGroup2')} className="form-label">Permission Group</label>
+                                <select id={fid('permissionGroup2')}
                                     className="form-input"
                                     value={editForm.permissionGroupId ?? ''}
                                     onChange={(e) => setEditForm({ ...editForm, permissionGroupId: e.target.value === '' ? null : parseInt(e.target.value) })}
@@ -406,11 +409,11 @@ export default function UsersPage() {
                                 </select>
                             </div>
                         )}
-                        <div className="form-group"><label>Phone</label><input type="text" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} placeholder="Optional" /></div>
+                        <div className="form-group"><label htmlFor={fid('phone')}>Phone</label><input id={fid('phone')} type="text" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} placeholder="Optional" /></div>
                         <div className="form-group">
-                            <label>New Password <span style={{ color: 'hsl(var(--muted-foreground))', fontWeight: 400 }}>(leave blank to keep current)</span></label>
+                            <label htmlFor={fid('newPassword')}>New Password <span style={{ color: 'hsl(var(--muted-foreground))', fontWeight: 400 }}>(leave blank to keep current)</span></label>
                             <div style={{ position: 'relative' }}>
-                                <input
+                                <input id={fid('newPassword')}
                                     type={showEditPassword ? 'text' : 'password'}
                                     value={editForm.password}
                                     onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
@@ -450,9 +453,9 @@ export default function UsersPage() {
                     <p className="modal__desc">Set a new password for <strong>{resetUser.name}</strong> ({resetUser.email})</p>
                     <form onSubmit={handleResetPassword}>
                         <div className="form-group">
-                            <label>New Password</label>
+                            <label htmlFor={fid('newPassword2')}>New Password</label>
                             <div style={{ position: 'relative' }}>
-                                <input
+                                <input id={fid('newPassword2')}
                                     type={showNewPassword ? 'text' : 'password'}
                                     value={newPassword}
                                     onChange={(e) => setNewPassword(e.target.value)}

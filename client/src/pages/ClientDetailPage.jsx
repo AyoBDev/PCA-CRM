@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useId, useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
@@ -73,6 +73,9 @@ function isOverrideActive(client) {
 }
 
 export default function ClientDetailPage() {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const { clientId } = useParams();
     const navigate = useNavigate();
     const { showToast } = useToast();
@@ -1193,8 +1196,8 @@ export default function ClientDetailPage() {
                     <h2 className="modal__title">Assign PCA</h2>
                     <form onSubmit={handleAddCareTeam}>
                         <div className="form-group">
-                            <label>PCA</label>
-                            <select
+                            <label htmlFor={fid('pca')}>PCA</label>
+                            <select id={fid('pca')}
                                 value={careTeamForm.employeeId}
                                 onChange={(e) => setCareTeamForm({ ...careTeamForm, employeeId: e.target.value })}
                                 required
@@ -1206,8 +1209,8 @@ export default function ClientDetailPage() {
                             </select>
                         </div>
                         <div className="form-group">
-                            <label>Role</label>
-                            <select
+                            <label htmlFor={fid('role')}>Role</label>
+                            <select id={fid('role')}
                                 value={careTeamForm.role}
                                 onChange={(e) => setCareTeamForm({ ...careTeamForm, role: e.target.value })}
                                 required
@@ -1232,20 +1235,20 @@ export default function ClientDetailPage() {
                     <h2 className="modal__title">Upload Document</h2>
                     <form onSubmit={handleUploadDoc}>
                         <div className="form-group">
-                            <label>Category</label>
-                            <select value={docCategory} onChange={(e) => setDocCategory(e.target.value)} required>
+                            <label htmlFor={fid('category')}>Category</label>
+                            <select id={fid('category')} value={docCategory} onChange={(e) => setDocCategory(e.target.value)} required>
                                 {DOC_CATEGORIES.map(cat => (
                                     <option key={cat.value} value={cat.value}>{cat.label}</option>
                                 ))}
                             </select>
                         </div>
                         <div className="form-group">
-                            <label>File</label>
-                            <input type="file" onChange={(e) => setDocFile(e.target.files[0])} required />
+                            <label htmlFor={fid('file')}>File</label>
+                            <input id={fid('file')} type="file" onChange={(e) => setDocFile(e.target.files[0])} required />
                         </div>
                         <div className="form-group">
-                            <label>Notes (optional)</label>
-                            <textarea value={docNotes} onChange={(e) => setDocNotes(e.target.value)} rows={2} placeholder="Optional notes" />
+                            <label htmlFor={fid('notesOptional')}>Notes (optional)</label>
+                            <textarea id={fid('notesOptional')} value={docNotes} onChange={(e) => setDocNotes(e.target.value)} rows={2} placeholder="Optional notes" />
                         </div>
                         <div className="form-actions">
                             <button type="button" className="btn btn--outline" onClick={() => setShowDocUploadModal(false)}>Cancel</button>
@@ -1262,37 +1265,37 @@ export default function ClientDetailPage() {
                     <form onSubmit={handleSaveVisit}>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                             <div className="form-group">
-                                <label>Visit Date</label>
-                                <input type="date" value={visitForm.visitDate} onChange={(e) => setVisitForm({ ...visitForm, visitDate: e.target.value })} required />
+                                <label htmlFor={fid('visitDate')}>Visit Date</label>
+                                <input id={fid('visitDate')} type="date" value={visitForm.visitDate} onChange={(e) => setVisitForm({ ...visitForm, visitDate: e.target.value })} required />
                             </div>
                             <div className="form-group">
-                                <label>Visit Time</label>
-                                <input type="time" value={visitForm.visitTime} onChange={(e) => setVisitForm({ ...visitForm, visitTime: e.target.value })} />
+                                <label htmlFor={fid('visitTime')}>Visit Time</label>
+                                <input id={fid('visitTime')} type="time" value={visitForm.visitTime} onChange={(e) => setVisitForm({ ...visitForm, visitTime: e.target.value })} />
                             </div>
                         </div>
                         <div className="form-group">
-                            <label>Provider Name</label>
-                            <input type="text" value={visitForm.providerName} onChange={(e) => setVisitForm({ ...visitForm, providerName: e.target.value })} placeholder="Doctor or hospital name" />
+                            <label htmlFor={fid('providerName')}>Provider Name</label>
+                            <input id={fid('providerName')} type="text" value={visitForm.providerName} onChange={(e) => setVisitForm({ ...visitForm, providerName: e.target.value })} placeholder="Doctor or hospital name" />
                         </div>
                         <div className="form-group">
-                            <label>Location</label>
-                            <input type="text" value={visitForm.location} onChange={(e) => setVisitForm({ ...visitForm, location: e.target.value })} placeholder="Hospital or clinic address" />
+                            <label htmlFor={fid('location')}>Location</label>
+                            <input id={fid('location')} type="text" value={visitForm.location} onChange={(e) => setVisitForm({ ...visitForm, location: e.target.value })} placeholder="Hospital or clinic address" />
                         </div>
                         <div className="form-group">
-                            <label>Purpose</label>
-                            <input type="text" value={visitForm.purpose} onChange={(e) => setVisitForm({ ...visitForm, purpose: e.target.value })} placeholder="Reason for visit" />
+                            <label htmlFor={fid('purpose')}>Purpose</label>
+                            <input id={fid('purpose')} type="text" value={visitForm.purpose} onChange={(e) => setVisitForm({ ...visitForm, purpose: e.target.value })} placeholder="Reason for visit" />
                         </div>
                         <div className="form-group">
-                            <label>Status</label>
-                            <select value={visitForm.status} onChange={(e) => setVisitForm({ ...visitForm, status: e.target.value })}>
+                            <label htmlFor={fid('status')}>Status</label>
+                            <select id={fid('status')} value={visitForm.status} onChange={(e) => setVisitForm({ ...visitForm, status: e.target.value })}>
                                 <option value="upcoming">Upcoming</option>
                                 <option value="completed">Completed</option>
                                 <option value="cancelled">Cancelled</option>
                             </select>
                         </div>
                         <div className="form-group">
-                            <label>Notes</label>
-                            <textarea value={visitForm.notes} onChange={(e) => setVisitForm({ ...visitForm, notes: e.target.value })} rows={3} placeholder="Additional notes" />
+                            <label htmlFor={fid('notes')}>Notes</label>
+                            <textarea id={fid('notes')} value={visitForm.notes} onChange={(e) => setVisitForm({ ...visitForm, notes: e.target.value })} rows={3} placeholder="Additional notes" />
                         </div>
                         <div className="form-actions">
                             <button type="button" className="btn btn--outline" onClick={() => setShowVisitModal(false)}>Cancel</button>
@@ -1308,16 +1311,16 @@ export default function ClientDetailPage() {
                     <h2 className="modal__title">{editingIncident ? 'Edit Incident' : 'Report Incident'}</h2>
                     <form onSubmit={handleSaveIncident}>
                         <div className="form-group">
-                            <label>Incident Date</label>
-                            <input type="date" value={incidentForm.incidentDate} onChange={(e) => setIncidentForm({ ...incidentForm, incidentDate: e.target.value })} required />
+                            <label htmlFor={fid('incidentDate')}>Incident Date</label>
+                            <input id={fid('incidentDate')} type="date" value={incidentForm.incidentDate} onChange={(e) => setIncidentForm({ ...incidentForm, incidentDate: e.target.value })} required />
                         </div>
                         <div className="form-group">
-                            <label>Description</label>
-                            <textarea value={incidentForm.description} onChange={(e) => setIncidentForm({ ...incidentForm, description: e.target.value })} rows={3} placeholder="What happened?" required />
+                            <label htmlFor={fid('description')}>Description</label>
+                            <textarea id={fid('description')} value={incidentForm.description} onChange={(e) => setIncidentForm({ ...incidentForm, description: e.target.value })} rows={3} placeholder="What happened?" required />
                         </div>
                         <div className="form-group">
-                            <label>Severity</label>
-                            <select value={incidentForm.severity} onChange={(e) => setIncidentForm({ ...incidentForm, severity: e.target.value })}>
+                            <label htmlFor={fid('severity')}>Severity</label>
+                            <select id={fid('severity')} value={incidentForm.severity} onChange={(e) => setIncidentForm({ ...incidentForm, severity: e.target.value })}>
                                 <option value="minor">Minor</option>
                                 <option value="moderate">Moderate</option>
                                 <option value="serious">Serious</option>
@@ -1325,12 +1328,12 @@ export default function ClientDetailPage() {
                             </select>
                         </div>
                         <div className="form-group">
-                            <label>Reported By</label>
-                            <input type="text" value={incidentForm.reportedBy} onChange={(e) => setIncidentForm({ ...incidentForm, reportedBy: e.target.value })} placeholder="Name of reporter" />
+                            <label htmlFor={fid('reportedBy')}>Reported By</label>
+                            <input id={fid('reportedBy')} type="text" value={incidentForm.reportedBy} onChange={(e) => setIncidentForm({ ...incidentForm, reportedBy: e.target.value })} placeholder="Name of reporter" />
                         </div>
                         <div className="form-group">
-                            <label>Notes</label>
-                            <textarea value={incidentForm.notes} onChange={(e) => setIncidentForm({ ...incidentForm, notes: e.target.value })} rows={2} placeholder="Additional notes" />
+                            <label htmlFor={fid('notes2')}>Notes</label>
+                            <textarea id={fid('notes2')} value={incidentForm.notes} onChange={(e) => setIncidentForm({ ...incidentForm, notes: e.target.value })} rows={2} placeholder="Additional notes" />
                         </div>
                         <div className="form-actions">
                             <button type="button" className="btn btn--outline" onClick={() => setShowIncidentModal(false)}>Cancel</button>
@@ -1346,45 +1349,45 @@ export default function ClientDetailPage() {
                     <h2 className="modal__title">Edit Client Information</h2>
                     <form onSubmit={handleSaveEditClient}>
                         <div className="form-group">
-                            <label>Client Name</label>
-                            <input type="text" value={editClientForm.clientName} onChange={(e) => setEditClientForm({ ...editClientForm, clientName: e.target.value })} required />
+                            <label htmlFor={fid('clientName')}>Client Name</label>
+                            <input id={fid('clientName')} type="text" value={editClientForm.clientName} onChange={(e) => setEditClientForm({ ...editClientForm, clientName: e.target.value })} required />
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                             <div className="form-group">
-                                <label>Medicaid ID</label>
-                                <input type="text" value={editClientForm.medicaidId} onChange={(e) => setEditClientForm({ ...editClientForm, medicaidId: e.target.value })} />
+                                <label htmlFor={fid('medicaidId')}>Medicaid ID</label>
+                                <input id={fid('medicaidId')} type="text" value={editClientForm.medicaidId} onChange={(e) => setEditClientForm({ ...editClientForm, medicaidId: e.target.value })} />
                             </div>
                             <div className="form-group">
-                                <label>Insurance Type</label>
-                                <input type="text" value={editClientForm.insuranceType} onChange={(e) => setEditClientForm({ ...editClientForm, insuranceType: e.target.value })} />
+                                <label htmlFor={fid('insuranceType')}>Insurance Type</label>
+                                <input id={fid('insuranceType')} type="text" value={editClientForm.insuranceType} onChange={(e) => setEditClientForm({ ...editClientForm, insuranceType: e.target.value })} />
                             </div>
                         </div>
                         <div className="form-group">
-                            <label>Primary Address</label>
-                            <input type="text" value={editClientForm.address} onChange={(e) => setEditClientForm({ ...editClientForm, address: e.target.value })} />
+                            <label htmlFor={fid('primaryAddress')}>Primary Address</label>
+                            <input id={fid('primaryAddress')} type="text" value={editClientForm.address} onChange={(e) => setEditClientForm({ ...editClientForm, address: e.target.value })} />
                         </div>
                         <div className="form-group">
-                            <label>Secondary Address</label>
-                            <input type="text" value={editClientForm.secondaryAddress} onChange={(e) => setEditClientForm({ ...editClientForm, secondaryAddress: e.target.value })} placeholder="Optional alternate location" />
+                            <label htmlFor={fid('secondaryAddress')}>Secondary Address</label>
+                            <input id={fid('secondaryAddress')} type="text" value={editClientForm.secondaryAddress} onChange={(e) => setEditClientForm({ ...editClientForm, secondaryAddress: e.target.value })} placeholder="Optional alternate location" />
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                             <div className="form-group">
-                                <label>Phone</label>
-                                <input type="tel" value={editClientForm.phone} onChange={(e) => setEditClientForm({ ...editClientForm, phone: e.target.value })} />
+                                <label htmlFor={fid('phone')}>Phone</label>
+                                <input id={fid('phone')} type="tel" value={editClientForm.phone} onChange={(e) => setEditClientForm({ ...editClientForm, phone: e.target.value })} />
                             </div>
                             <div className="form-group">
-                                <label>Secondary Phone</label>
-                                <input type="tel" value={editClientForm.secondaryPhone} onChange={(e) => setEditClientForm({ ...editClientForm, secondaryPhone: e.target.value })} />
+                                <label htmlFor={fid('secondaryPhone')}>Secondary Phone</label>
+                                <input id={fid('secondaryPhone')} type="tel" value={editClientForm.secondaryPhone} onChange={(e) => setEditClientForm({ ...editClientForm, secondaryPhone: e.target.value })} />
                             </div>
                         </div>
                         <div className="form-group">
-                            <label>Email</label>
-                            <input type="email" value={editClientForm.email} onChange={(e) => setEditClientForm({ ...editClientForm, email: e.target.value })} />
+                            <label htmlFor={fid('email')}>Email</label>
+                            <input id={fid('email')} type="email" value={editClientForm.email} onChange={(e) => setEditClientForm({ ...editClientForm, email: e.target.value })} />
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                             <div className="form-group">
-                                <label>Gender</label>
-                                <select value={editClientForm.gender} onChange={(e) => setEditClientForm({ ...editClientForm, gender: e.target.value })}>
+                                <label htmlFor={fid('gender')}>Gender</label>
+                                <select id={fid('gender')} value={editClientForm.gender} onChange={(e) => setEditClientForm({ ...editClientForm, gender: e.target.value })}>
                                     <option value="">Select...</option>
                                     <option value="Male">Male</option>
                                     <option value="Female">Female</option>
@@ -1392,60 +1395,60 @@ export default function ClientDetailPage() {
                                 </select>
                             </div>
                             <div className="form-group">
-                                <label>Date of Birth</label>
-                                <input type="date" value={editClientForm.dob} onChange={(e) => setEditClientForm({ ...editClientForm, dob: e.target.value })} onPaste={handleClientDatePaste('dob')} />
+                                <label htmlFor={fid('dateOfBirth')}>Date of Birth</label>
+                                <input id={fid('dateOfBirth')} type="date" value={editClientForm.dob} onChange={(e) => setEditClientForm({ ...editClientForm, dob: e.target.value })} onPaste={handleClientDatePaste('dob')} />
                             </div>
                             <div className="form-group">
-                                <label>Gate Code</label>
-                                <input type="text" value={editClientForm.gateCode} onChange={(e) => setEditClientForm({ ...editClientForm, gateCode: e.target.value })} placeholder="Optional" />
-                            </div>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                            <div className="form-group">
-                                <label>Primary Doctor</label>
-                                <input type="text" value={editClientForm.doctorName} onChange={(e) => setEditClientForm({ ...editClientForm, doctorName: e.target.value })} placeholder="Doctor name" />
-                            </div>
-                            <div className="form-group">
-                                <label>Doctor Phone</label>
-                                <input type="tel" value={editClientForm.doctorPhone} onChange={(e) => setEditClientForm({ ...editClientForm, doctorPhone: e.target.value })} />
+                                <label htmlFor={fid('gateCode')}>Gate Code</label>
+                                <input id={fid('gateCode')} type="text" value={editClientForm.gateCode} onChange={(e) => setEditClientForm({ ...editClientForm, gateCode: e.target.value })} placeholder="Optional" />
                             </div>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                             <div className="form-group">
-                                <label>Backup Doctor</label>
-                                <input type="text" value={editClientForm.backupDoctorName} onChange={(e) => setEditClientForm({ ...editClientForm, backupDoctorName: e.target.value })} placeholder="Optional" />
+                                <label htmlFor={fid('primaryDoctor')}>Primary Doctor</label>
+                                <input id={fid('primaryDoctor')} type="text" value={editClientForm.doctorName} onChange={(e) => setEditClientForm({ ...editClientForm, doctorName: e.target.value })} placeholder="Doctor name" />
                             </div>
                             <div className="form-group">
-                                <label>Backup Doctor Phone</label>
-                                <input type="tel" value={editClientForm.backupDoctorPhone} onChange={(e) => setEditClientForm({ ...editClientForm, backupDoctorPhone: e.target.value })} />
+                                <label htmlFor={fid('doctorPhone')}>Doctor Phone</label>
+                                <input id={fid('doctorPhone')} type="tel" value={editClientForm.doctorPhone} onChange={(e) => setEditClientForm({ ...editClientForm, doctorPhone: e.target.value })} />
+                            </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div className="form-group">
+                                <label htmlFor={fid('backupDoctor')}>Backup Doctor</label>
+                                <input id={fid('backupDoctor')} type="text" value={editClientForm.backupDoctorName} onChange={(e) => setEditClientForm({ ...editClientForm, backupDoctorName: e.target.value })} placeholder="Optional" />
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor={fid('backupDoctorPhone')}>Backup Doctor Phone</label>
+                                <input id={fid('backupDoctorPhone')} type="tel" value={editClientForm.backupDoctorPhone} onChange={(e) => setEditClientForm({ ...editClientForm, backupDoctorPhone: e.target.value })} />
                             </div>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                             <div className="form-group">
-                                <label>Emergency Contact</label>
-                                <input type="text" value={editClientForm.emergencyContactName} onChange={(e) => setEditClientForm({ ...editClientForm, emergencyContactName: e.target.value })} placeholder="Name" />
+                                <label htmlFor={fid('emergencyContact')}>Emergency Contact</label>
+                                <input id={fid('emergencyContact')} type="text" value={editClientForm.emergencyContactName} onChange={(e) => setEditClientForm({ ...editClientForm, emergencyContactName: e.target.value })} placeholder="Name" />
                             </div>
                             <div className="form-group">
-                                <label>Relationship</label>
-                                <input type="text" value={editClientForm.emergencyContactRelation} onChange={(e) => setEditClientForm({ ...editClientForm, emergencyContactRelation: e.target.value })} placeholder="e.g. Spouse" />
+                                <label htmlFor={fid('relationship')}>Relationship</label>
+                                <input id={fid('relationship')} type="text" value={editClientForm.emergencyContactRelation} onChange={(e) => setEditClientForm({ ...editClientForm, emergencyContactRelation: e.target.value })} placeholder="e.g. Spouse" />
                             </div>
                             <div className="form-group">
-                                <label>Phone</label>
-                                <input type="tel" value={editClientForm.emergencyContactPhone} onChange={(e) => setEditClientForm({ ...editClientForm, emergencyContactPhone: e.target.value })} />
+                                <label htmlFor={fid('phone2')}>Phone</label>
+                                <input id={fid('phone2')} type="tel" value={editClientForm.emergencyContactPhone} onChange={(e) => setEditClientForm({ ...editClientForm, emergencyContactPhone: e.target.value })} />
                             </div>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                             <div className="form-group">
-                                <label>Secondary Emergency</label>
-                                <input type="text" value={editClientForm.secondaryEmergencyName} onChange={(e) => setEditClientForm({ ...editClientForm, secondaryEmergencyName: e.target.value })} placeholder="Name" />
+                                <label htmlFor={fid('secondaryEmergency')}>Secondary Emergency</label>
+                                <input id={fid('secondaryEmergency')} type="text" value={editClientForm.secondaryEmergencyName} onChange={(e) => setEditClientForm({ ...editClientForm, secondaryEmergencyName: e.target.value })} placeholder="Name" />
                             </div>
                             <div className="form-group">
-                                <label>Relationship</label>
-                                <input type="text" value={editClientForm.secondaryEmergencyRelation} onChange={(e) => setEditClientForm({ ...editClientForm, secondaryEmergencyRelation: e.target.value })} />
+                                <label htmlFor={fid('relationship2')}>Relationship</label>
+                                <input id={fid('relationship2')} type="text" value={editClientForm.secondaryEmergencyRelation} onChange={(e) => setEditClientForm({ ...editClientForm, secondaryEmergencyRelation: e.target.value })} />
                             </div>
                             <div className="form-group">
-                                <label>Phone</label>
-                                <input type="tel" value={editClientForm.secondaryEmergencyPhone} onChange={(e) => setEditClientForm({ ...editClientForm, secondaryEmergencyPhone: e.target.value })} />
+                                <label htmlFor={fid('phone3')}>Phone</label>
+                                <input id={fid('phone3')} type="tel" value={editClientForm.secondaryEmergencyPhone} onChange={(e) => setEditClientForm({ ...editClientForm, secondaryEmergencyPhone: e.target.value })} />
                             </div>
                         </div>
                         <div className="form-actions">
@@ -1478,8 +1481,8 @@ export default function ClientDetailPage() {
                         </div>
                         {(client.authorizationRequired !== false) !== authSettingsForm.authorizationRequired && (
                             <div className="form-group">
-                                <label>Reason for change <span style={{ color: 'hsl(var(--danger))' }}>*</span></label>
-                                <input
+                                <label htmlFor={fid('reasonForChange')}>Reason for change <span style={{ color: 'hsl(var(--danger))' }}>*</span></label>
+                                <input id={fid('reasonForChange')}
                                     type="text"
                                     value={authSettingsForm.reasonNote}
                                     onChange={(e) => setAuthSettingsForm({ ...authSettingsForm, reasonNote: e.target.value })}
@@ -1510,16 +1513,16 @@ export default function ClientDetailPage() {
                                 {authSettingsForm.overrideActive && (
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                                         <div className="form-group">
-                                            <label>Override expires on</label>
-                                            <input
+                                            <label htmlFor={fid('overrideExpiresOn')}>Override expires on</label>
+                                            <input id={fid('overrideExpiresOn')}
                                                 type="date"
                                                 value={authSettingsForm.overrideExpiresOn}
                                                 onChange={(e) => setAuthSettingsForm({ ...authSettingsForm, overrideExpiresOn: e.target.value })}
                                             />
                                         </div>
                                         <div className="form-group">
-                                            <label>Override reason</label>
-                                            <input
+                                            <label htmlFor={fid('overrideReason')}>Override reason</label>
+                                            <input id={fid('overrideReason')}
                                                 type="text"
                                                 value={authSettingsForm.overrideReason}
                                                 onChange={(e) => setAuthSettingsForm({ ...authSettingsForm, overrideReason: e.target.value })}

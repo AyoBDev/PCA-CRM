@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useId, useState, useEffect, useCallback } from 'react';
 import { listTasks, getTaskSummary, updateTask, deleteTask, bulkUpdateTasks, getUsers, listWorkflowTriggers, updateWorkflowTrigger } from '../api';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
@@ -17,6 +17,9 @@ const STATUS_LABELS = { open: 'Open', in_progress: 'In Progress', completed: 'Co
 const URGENCY_LABELS = { low: 'Low', medium: 'Medium', high: 'High' };
 
 export default function TasksPage() {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const { showToast } = useToast();
     const { isAdmin } = useAuth();
     const undoState = useUndoStack();
@@ -204,21 +207,21 @@ export default function TasksPage() {
 
                 <div className="ts-filter-bar">
                     <div className="ts-filter-bar__field">
-                        <label>Status</label>
-                        <select value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}>
+                        <label htmlFor={fid('status')}>Status</label>
+                        <select id={fid('status')} value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}>
                             {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s === 'all' ? 'All Statuses' : STATUS_LABELS[s]}</option>)}
                         </select>
                     </div>
                     <div className="ts-filter-bar__field">
-                        <label>Urgency</label>
-                        <select value={filters.urgency} onChange={(e) => setFilters((f) => ({ ...f, urgency: e.target.value }))}>
+                        <label htmlFor={fid('urgency')}>Urgency</label>
+                        <select id={fid('urgency')} value={filters.urgency} onChange={(e) => setFilters((f) => ({ ...f, urgency: e.target.value }))}>
                             {URGENCY_OPTIONS.map((u) => <option key={u} value={u}>{u === 'all' ? 'All Urgency' : URGENCY_LABELS[u]}</option>)}
                         </select>
                     </div>
                     {isAdmin && (
                         <div className="ts-filter-bar__field">
-                            <label>Assigned To</label>
-                            <select value={filters.assignedToUserId} onChange={(e) => setFilters((f) => ({ ...f, assignedToUserId: e.target.value }))}>
+                            <label htmlFor={fid('assignedTo')}>Assigned To</label>
+                            <select id={fid('assignedTo')} value={filters.assignedToUserId} onChange={(e) => setFilters((f) => ({ ...f, assignedToUserId: e.target.value }))}>
                                 <option value="">All Assignees</option>
                                 {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
                             </select>
@@ -367,23 +370,23 @@ export default function TasksPage() {
                                         </div>
                                         <div className="wf-trigger-card__fields">
                                             <div className="form-group">
-                                                <label>Threshold</label>
+                                                <label htmlFor={fid(`trigger-${trigger.id}-threshold`)}>Threshold</label>
                                                 <div className="wf-trigger-card__threshold">
-                                                    <input type="number" value={trigger.thresholdDays} onChange={(e) => handleTriggerUpdate(trigger.id, 'thresholdDays', Number(e.target.value))} min="1" />
+                                                    <input id={fid(`trigger-${trigger.id}-threshold`)} type="number" value={trigger.thresholdDays} onChange={(e) => handleTriggerUpdate(trigger.id, 'thresholdDays', Number(e.target.value))} min="1" />
                                                     <span>days before</span>
                                                 </div>
                                             </div>
                                             <div className="form-group">
-                                                <label>Urgency</label>
-                                                <select value={trigger.urgency} onChange={(e) => handleTriggerUpdate(trigger.id, 'urgency', e.target.value)}>
+                                                <label htmlFor={fid(`trigger-${trigger.id}-urgency`)}>Urgency</label>
+                                                <select id={fid(`trigger-${trigger.id}-urgency`)} value={trigger.urgency} onChange={(e) => handleTriggerUpdate(trigger.id, 'urgency', e.target.value)}>
                                                     <option value="low">Low</option>
                                                     <option value="medium">Medium</option>
                                                     <option value="high">High</option>
                                                 </select>
                                             </div>
                                             <div className="form-group">
-                                                <label>Assign To</label>
-                                                <select value={trigger.assignToUserId || ''} onChange={(e) => handleTriggerUpdate(trigger.id, 'assignToUserId', e.target.value ? Number(e.target.value) : null)}>
+                                                <label htmlFor={fid(`trigger-${trigger.id}-assignTo`)}>Assign To</label>
+                                                <select id={fid(`trigger-${trigger.id}-assignTo`)} value={trigger.assignToUserId || ''} onChange={(e) => handleTriggerUpdate(trigger.id, 'assignToUserId', e.target.value ? Number(e.target.value) : null)}>
                                                     <option value="">Role: {trigger.assignToRole || 'None'}</option>
                                                     {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
                                                 </select>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useId, useState, useEffect, useCallback } from 'react';
 import * as api from '../../api';
 import Icons from '../../components/common/Icons';
 import { useToast } from '../../hooks/useToast';
@@ -40,6 +40,9 @@ function formatDateTime(dateStr) {
 }
 
 export default function ActivityLogTab({ clientId, isAdmin }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const { showToast } = useToast();
     const [activities, setActivities] = useState([]);
     const [total, setTotal] = useState(0);
@@ -125,16 +128,16 @@ export default function ActivityLogTab({ clientId, isAdmin }) {
                         <form className="cal-form" onSubmit={handleSubmit}>
                             <div className="cal-form__grid">
                                 <div className="form-group">
-                                    <label>Type *</label>
-                                    <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+                                    <label htmlFor={fid('type')}>Type *</label>
+                                    <select id={fid('type')} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
                                         {ACTIVITY_TYPES.map(t => (
                                             <option key={t.value} value={t.value}>{t.label}</option>
                                         ))}
                                     </select>
                                 </div>
                                 <div className="form-group">
-                                    <label>Subject *</label>
-                                    <input
+                                    <label htmlFor={fid('subject')}>Subject *</label>
+                                    <input id={fid('subject')}
                                         type="text"
                                         value={form.subject}
                                         onChange={(e) => setForm({ ...form, subject: e.target.value })}
@@ -143,8 +146,8 @@ export default function ActivityLogTab({ clientId, isAdmin }) {
                                     />
                                 </div>
                                 <div className="form-group">
-                                    <label>Contact Name</label>
-                                    <input
+                                    <label htmlFor={fid('contactName')}>Contact Name</label>
+                                    <input id={fid('contactName')}
                                         type="text"
                                         value={form.contactName}
                                         onChange={(e) => setForm({ ...form, contactName: e.target.value })}
@@ -152,8 +155,8 @@ export default function ActivityLogTab({ clientId, isAdmin }) {
                                     />
                                 </div>
                                 <div className="form-group">
-                                    <label>Date/Time</label>
-                                    <input
+                                    <label htmlFor={fid('dateTime')}>Date/Time</label>
+                                    <input id={fid('dateTime')}
                                         type="datetime-local"
                                         value={form.occurredAt}
                                         onChange={(e) => setForm({ ...form, occurredAt: e.target.value })}
@@ -161,8 +164,8 @@ export default function ActivityLogTab({ clientId, isAdmin }) {
                                 </div>
                             </div>
                             <div className="form-group" style={{ marginTop: 12 }}>
-                                <label>Description</label>
-                                <textarea
+                                <label htmlFor={fid('description')}>Description</label>
+                                <textarea id={fid('description')}
                                     value={form.description}
                                     onChange={(e) => setForm({ ...form, description: e.target.value })}
                                     placeholder="Additional details (optional)"

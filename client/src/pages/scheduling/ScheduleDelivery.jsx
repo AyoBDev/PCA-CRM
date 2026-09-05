@@ -1,10 +1,13 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useId, useState, useMemo, useEffect, useCallback } from 'react';
 import { useToast } from '../../hooks/useToast';
 import Icons from '../../components/common/Icons';
 import Modal from '../../components/common/Modal';
 import * as api from '../../api';
 
 export default function ScheduleDelivery({ weekStart, shifts }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const [expanded, setExpanded] = useState(true);
     const [fullscreen, setFullscreen] = useState(false);
     const [sendingId, setSendingId] = useState(null);
@@ -286,9 +289,9 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                             const url = `${window.location.origin}/schedule/view/${link.token}`;
                             return (
                                 <div style={{ marginBottom: 12 }}>
-                                    <label style={{ display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' }}>Schedule Link:</label>
+                                    <label htmlFor={fid('scheduleLink')} style={{ display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' }}>Schedule Link:</label>
                                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                        <input readOnly value={url} style={{ flex: 1, fontSize: 12, padding: '6px 8px', borderRadius: 6, border: '1px solid #e4e4e7', background: '#f9fafb', color: '#374151' }} />
+                                        <input id={fid('scheduleLink')} readOnly value={url} style={{ flex: 1, fontSize: 12, padding: '6px 8px', borderRadius: 6, border: '1px solid #e4e4e7', background: '#f9fafb', color: '#374151' }} />
                                         <button className="btn btn--outline btn--sm" style={{ fontSize: 11, whiteSpace: 'nowrap' }} onClick={() => { navigator.clipboard.writeText(url); showToast('Link copied'); }}>
                                             Copy Link
                                         </button>
@@ -296,8 +299,8 @@ export default function ScheduleDelivery({ weekStart, shifts }) {
                                 </div>
                             );
                         })()}
-                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' }}>Message (optional):</label>
-                        <textarea
+                        <label htmlFor={fid('messageOptional')} style={{ display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' }}>Message (optional):</label>
+                        <textarea id={fid('messageOptional')}
                             value={bulkMessage}
                             onChange={e => setBulkMessage(e.target.value)}
                             placeholder="e.g. Please review your weekend shifts carefully."

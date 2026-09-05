@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useId, useState, useEffect, useCallback } from 'react';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
 import { useToast } from '../hooks/useToast';
@@ -184,6 +184,9 @@ export default function ReceiptsPage() {
 }
 
 function GenerateReceiptsModal({ onClose }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const { showToast } = useToast();
     const [periodStart, setPeriodStart] = useState('');
     const [periodEnd, setPeriodEnd] = useState('');
@@ -252,18 +255,18 @@ function GenerateReceiptsModal({ onClose }) {
             <h2 className="modal__title">Generate Receipts</h2>
             <div className="form-grid-2" style={{ marginBottom: 16 }}>
                 <div className="form-group">
-                    <label>Period Start (Sunday)</label>
-                    <input type="date" value={periodStart} onChange={e => handlePeriodChange(e.target.value)} />
+                    <label htmlFor={fid('periodStartSunday')}>Period Start (Sunday)</label>
+                    <input id={fid('periodStartSunday')} type="date" value={periodStart} onChange={e => handlePeriodChange(e.target.value)} />
                 </div>
                 <div className="form-group">
-                    <label>Period End (Saturday)</label>
-                    <input type="date" value={periodEnd} disabled />
+                    <label htmlFor={fid('periodEndSaturday')}>Period End (Saturday)</label>
+                    <input id={fid('periodEndSaturday')} type="date" value={periodEnd} disabled />
                 </div>
             </div>
             <div className="form-grid-2" style={{ marginBottom: 16 }}>
                 <div className="form-group">
-                    <label>Pay Date</label>
-                    <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} />
+                    <label htmlFor={fid('payDate')}>Pay Date</label>
+                    <input id={fid('payDate')} type="date" value={payDate} onChange={e => setPayDate(e.target.value)} />
                 </div>
                 <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
                     <button className="btn btn--outline" onClick={handlePreview} disabled={!periodStart}>Preview Employees</button>
