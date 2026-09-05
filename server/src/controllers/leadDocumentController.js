@@ -1,5 +1,5 @@
 const audit = require('../services/auditService');
-const { uploadFile, downloadFile } = require('../lib/storage');
+const { uploadFile, downloadFile, deleteFile } = require('../lib/storage');
 const { tenantKey } = require('../services/storageService');
 
 const leadName = (l) => `${l.firstName || ''} ${l.lastName || ''}`.trim() || `Lead #${l.id}`;
@@ -97,6 +97,16 @@ async function deleteLeadDocument(req, res, next) {
         const id = Number(req.params.id);
         const doc = await req.db.leadDocument.findUnique({ where: { id }, include: { lead: true } });
         if (!doc) return res.status(404).json({ error: 'Document not found' });
+
+        // Drop the stored bytes too, so deleting an attachment doesn't leave an
+        // orphaned object behind. Best-effort: if the file is already missing
+        // (or the bucket call fails) we still remove the row the user asked to
+        // delete rather than stranding it.
+        try {
+            await deleteFile(doc.filePath);
+        } catch (err) {
+            console.error(`[leadDocument] failed to delete stored file ${doc.filePath}:`, err.message);
+        }
 
         await req.db.leadDocument.delete({ where: { id } });
 
