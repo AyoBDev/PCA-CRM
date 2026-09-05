@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icons from '../components/common/Icons';
 import * as api from '../api';
 
 export default function ForgotPasswordPage() {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
     const [sent, setSent] = useState(false);
@@ -56,8 +59,8 @@ export default function ForgotPasswordPage() {
                             </div>
                         )}
                         <div className="form-group">
-                            <label>Email</label>
-                            <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setError(''); }} placeholder="Enter your email" autoFocus required />
+                            <label htmlFor={fid('email')}>Email</label>
+                            <input id={fid('email')} type="email" value={email} onChange={(e) => { setEmail(e.target.value); setError(''); }} placeholder="Enter your email" autoFocus required />
                         </div>
                         <button type="submit" className="btn btn--primary" style={{ width: '100%', marginTop: 8 }} disabled={loading}>
                             {loading ? 'Sending...' : 'Send Reset Link'}

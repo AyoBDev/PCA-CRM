@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
+import { useId, useState, useEffect, useCallback, useRef, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
@@ -109,6 +109,9 @@ function AuthRowMenu({ onEdit, onMarkInactive, onMarkExpired, onDelete }) {
 
 // ── Client Form Modal ──
 function ClientFormModal({ client, onSave, onClose, insuranceTypeNames }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const [name, setName] = useState(client?.clientName || '');
     const [medicaidId, setMedicaidId] = useState(client?.medicaidId || '');
     const [insuranceType, setInsuranceType] = useState(client?.insuranceType || 'MEDICAID');
@@ -185,8 +188,8 @@ function ClientFormModal({ client, onSave, onClose, insuranceTypeNames }) {
                     <textarea id="clientNotes" value={clientNotes} onChange={e => setClientNotes(e.target.value)} placeholder="Notes…" rows={3} />
                 </div>
                 <div className="form-group">
-                    <label>Enabled Services</label>
-                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', paddingTop: 4 }}>
+                    <span className="form-label" id={fid('enabledServices')}>Enabled Services</span>
+                    <div role="note" aria-labelledby={fid('enabledServices')} style={{ display: 'flex', gap: 16, flexWrap: 'wrap', paddingTop: 4 }}>
                         {['PAS', 'Homemaker', 'Respite'].map((svc) => (
                             <label key={svc} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 'normal' }}>
                                 <input
@@ -222,6 +225,9 @@ function sortAuthorizations(auths) {
 
 // ── Bulk Import Modal ──
 function BulkImportModal({ onImport, onClose }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const [file, setFile] = useState(null);
     const [error, setError] = useState('');
     const [uploading, setUploading] = useState(false);
@@ -260,8 +266,8 @@ function BulkImportModal({ onImport, onClose }) {
             </p>
 
             <div className="form-group">
-                <label>Choose File</label>
-                <input
+                <label htmlFor={fid('chooseFile')}>Choose File</label>
+                <input id={fid('chooseFile')}
                     type="file"
                     accept=".csv,.xlsx,.xls"
                     onChange={handleFileChange}
@@ -294,6 +300,9 @@ function BulkImportModal({ onImport, onClose }) {
 
 // ── Client Notes Section (for Drawer) ──
 function ClientNotesSection({ client, onSaved }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const [address, setAddress] = useState(client.address || '');
     const [phone, setPhone] = useState(client.phone || '');
     const [gateCode, setGateCode] = useState(client.gateCode || '');
@@ -321,20 +330,20 @@ function ClientNotesSection({ client, onSaved }) {
         <div className="drawer-section">
             <h3 className="drawer-section__title">Client Details</h3>
             <div className="drawer-field">
-                <label className="drawer-field__label">Address</label>
-                <input className="drawer-field__input" value={address} onChange={e => setAddress(e.target.value)} placeholder="Address…" />
+                <label htmlFor={fid('address')} className="drawer-field__label">Address</label>
+                <input id={fid('address')} className="drawer-field__input" value={address} onChange={e => setAddress(e.target.value)} placeholder="Address…" />
             </div>
             <div className="drawer-field">
-                <label className="drawer-field__label">Phone</label>
-                <input className="drawer-field__input" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone…" />
+                <label htmlFor={fid('phone')} className="drawer-field__label">Phone</label>
+                <input id={fid('phone')} className="drawer-field__input" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone…" />
             </div>
             <div className="drawer-field">
-                <label className="drawer-field__label">Gate Code</label>
-                <input className="drawer-field__input" value={gateCode} onChange={e => setGateCode(e.target.value)} placeholder="Gate code…" />
+                <label htmlFor={fid('gateCode')} className="drawer-field__label">Gate Code</label>
+                <input id={fid('gateCode')} className="drawer-field__input" value={gateCode} onChange={e => setGateCode(e.target.value)} placeholder="Gate code…" />
             </div>
             <div className="drawer-field">
-                <label className="drawer-field__label">Notes</label>
-                <textarea className="drawer-field__input drawer-field__textarea" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes…" />
+                <label htmlFor={fid('notes')} className="drawer-field__label">Notes</label>
+                <textarea id={fid('notes')} className="drawer-field__input drawer-field__textarea" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes…" />
             </div>
             {hasChanges && (
                 <button className="btn btn--primary btn--sm" onClick={handleSave} disabled={saving}>

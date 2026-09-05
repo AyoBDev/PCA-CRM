@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useId, useState, useEffect } from 'react';
 import Icons from '../common/Icons';
 
 const TOOLS = [
@@ -25,6 +25,9 @@ export default function PdfToolbar({
     hasChanges,
     hasFormFields,
 }) {
+    // Unique per-instance ids so each toolbar caption names its button group.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const [showOptions, setShowOptions] = useState(false);
 
     useEffect(() => {
@@ -107,61 +110,84 @@ export default function PdfToolbar({
                 <div className="pdf-toolbar__options">
                     {activeTool === 'text' && (
                         <>
-                            <label>Size:</label>
+                            <span className="pdf-toolbar__label" id={fid('size')}>Size:</span>
+                            <div role="group" aria-labelledby={fid('size')} className="pdf-toolbar__group">
                             {FONT_SIZES.map(s => (
                                 <button
                                     key={s}
+                                    type="button"
+                                    aria-pressed={toolOptions.fontSize === s}
                                     className={`pdf-toolbar__option ${toolOptions.fontSize === s ? 'pdf-toolbar__option--active' : ''}`}
                                     onClick={() => setToolOptions(o => ({ ...o, fontSize: s }))}
                                 >
                                     {s}
                                 </button>
                             ))}
-                            <label>Color:</label>
+                            </div>
+                            <span className="pdf-toolbar__label" id={fid('color1')}>Color:</span>
+                            <div role="group" aria-labelledby={fid('color1')} className="pdf-toolbar__group">
                             {COLORS.map(c => (
                                 <button
                                     key={c}
+                                    type="button"
+                                    aria-label={c}
+                                    aria-pressed={toolOptions.color === c}
                                     className="pdf-toolbar__color-swatch"
                                     style={{ background: c, outline: toolOptions.color === c ? '2px solid hsl(var(--primary))' : 'none' }}
                                     onClick={() => setToolOptions(o => ({ ...o, color: c }))}
                                 />
                             ))}
+                            </div>
                         </>
                     )}
                     {activeTool === 'draw' && (
                         <>
-                            <label>Width:</label>
+                            <span className="pdf-toolbar__label" id={fid('width')}>Width:</span>
+                            <div role="group" aria-labelledby={fid('width')} className="pdf-toolbar__group">
                             {STROKE_WIDTHS.map(w => (
                                 <button
                                     key={w}
+                                    type="button"
+                                    aria-pressed={toolOptions.strokeWidth === w}
                                     className={`pdf-toolbar__option ${toolOptions.strokeWidth === w ? 'pdf-toolbar__option--active' : ''}`}
                                     onClick={() => setToolOptions(o => ({ ...o, strokeWidth: w }))}
                                 >
                                     {w}px
                                 </button>
                             ))}
-                            <label>Color:</label>
+                            </div>
+                            <span className="pdf-toolbar__label" id={fid('color2')}>Color:</span>
+                            <div role="group" aria-labelledby={fid('color2')} className="pdf-toolbar__group">
                             {COLORS.map(c => (
                                 <button
                                     key={c}
+                                    type="button"
+                                    aria-label={c}
+                                    aria-pressed={toolOptions.color === c}
                                     className="pdf-toolbar__color-swatch"
                                     style={{ background: c, outline: toolOptions.color === c ? '2px solid hsl(var(--primary))' : 'none' }}
                                     onClick={() => setToolOptions(o => ({ ...o, color: c }))}
                                 />
                             ))}
+                            </div>
                         </>
                     )}
                     {activeTool === 'highlight' && (
                         <>
-                            <label>Color:</label>
+                            <span className="pdf-toolbar__label" id={fid('color3')}>Color:</span>
+                            <div role="group" aria-labelledby={fid('color3')} className="pdf-toolbar__group">
                             {HIGHLIGHT_COLORS.map(c => (
                                 <button
                                     key={c}
+                                    type="button"
+                                    aria-label={c}
+                                    aria-pressed={toolOptions.highlightColor === c}
                                     className="pdf-toolbar__color-swatch"
                                     style={{ background: c, outline: toolOptions.highlightColor === c ? '2px solid hsl(var(--primary))' : 'none' }}
                                     onClick={() => setToolOptions(o => ({ ...o, highlightColor: c }))}
                                 />
                             ))}
+                            </div>
                         </>
                     )}
                 </div>

@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { useId, memo } from 'react';
 
 function formatFullDate(dateStr) {
     if (!dateStr) return '';
@@ -17,6 +17,9 @@ function MobileDayCard({ entry, dayIndex, updateEntry, disabled, enabledSections
             </div>
 
             {enabledSections.map((sec) => {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
                 const activities = JSON.parse(entry[`${sec.key}Activities`] || '{}');
                 let blocks = [];
                 try { blocks = JSON.parse(entry[`${sec.key}TimeBlocks`] || '[]'); } catch {}
@@ -49,8 +52,8 @@ function MobileDayCard({ entry, dayIndex, updateEntry, disabled, enabledSections
                         {/* Initials */}
                         <div className="pcaf-mcard__initials">
                             <div className="pcaf-mcard__field">
-                                <label>PCA Initials</label>
-                                <input
+                                <label htmlFor={fid('pcaInitials')}>PCA Initials</label>
+                                <input id={fid('pcaInitials')}
                                     type="text"
                                     className={fieldErrors[`${dayIndex}-${sec.key}-pcaInitials`] ? 'pcaf-field-error' : ''}
                                     value={entry[`${sec.key}PcaInitials`] || ''}
@@ -60,8 +63,8 @@ function MobileDayCard({ entry, dayIndex, updateEntry, disabled, enabledSections
                                 />
                             </div>
                             <div className="pcaf-mcard__field">
-                                <label>Client Initials</label>
-                                <input
+                                <label htmlFor={fid('clientInitials')}>Client Initials</label>
+                                <input id={fid('clientInitials')}
                                     type="text"
                                     className={fieldErrors[`${dayIndex}-${sec.key}-clientInitials`] ? 'pcaf-field-error' : ''}
                                     value={entry[`${sec.key}ClientInitials`] || ''}
@@ -112,8 +115,9 @@ function MobileDayCard({ entry, dayIndex, updateEntry, disabled, enabledSections
                                 </span>
                                 <div className="pcaf-mcard__times">
                                     <div className="pcaf-mcard__field">
-                                        <label>Time In</label>
+                                        <label htmlFor={fid(`${sec.key}-block${b}-in`)}>Time In</label>
                                         <input
+                                            id={fid(`${sec.key}-block${b}-in`)}
                                             type="time"
                                             value={block.in || ''}
                                             disabled={disabled}
@@ -126,8 +130,9 @@ function MobileDayCard({ entry, dayIndex, updateEntry, disabled, enabledSections
                                         />
                                     </div>
                                     <div className="pcaf-mcard__field">
-                                        <label>Time Out</label>
+                                        <label htmlFor={fid(`${sec.key}-block${b}-out`)}>Time Out</label>
                                         <input
+                                            id={fid(`${sec.key}-block${b}-out`)}
                                             type="time"
                                             value={block.out || ''}
                                             disabled={disabled}

@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { createTask, updateTask } from '../../api';
 import { useToast } from '../../hooks/useToast';
 import Modal from '../common/Modal';
 
 export default function TaskModal({ task, users, onClose, onSaved, readOnly }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const { showToast } = useToast();
     const isEdit = !!task;
 
@@ -91,29 +94,29 @@ export default function TaskModal({ task, users, onClose, onSaved, readOnly }) {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
                     <div className="form-group">
-                        <label>Status</label>
-                        <div style={{ fontSize: 13, padding: '8px 0' }}>{task.status.replace('_', ' ')}</div>
+                        <span className="form-label" id={fid('status')}>Status</span>
+                        <div role="note" aria-labelledby={fid('status')} style={{ fontSize: 13, padding: '8px 0' }}>{task.status.replace('_', ' ')}</div>
                     </div>
                     <div className="form-group">
-                        <label>Urgency</label>
-                        <div style={{ fontSize: 13, padding: '8px 0' }}>{task.urgency}</div>
+                        <span className="form-label" id={fid('urgency')}>Urgency</span>
+                        <div role="note" aria-labelledby={fid('urgency')} style={{ fontSize: 13, padding: '8px 0' }}>{task.urgency}</div>
                     </div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
                     <div className="form-group">
-                        <label>Due Date</label>
-                        <div style={{ fontSize: 13, padding: '8px 0' }}>{fmtDate(task.dueDate)}</div>
+                        <span className="form-label" id={fid('dueDate')}>Due Date</span>
+                        <div role="note" aria-labelledby={fid('dueDate')} style={{ fontSize: 13, padding: '8px 0' }}>{fmtDate(task.dueDate)}</div>
                     </div>
                     <div className="form-group">
-                        <label>Assigned To</label>
-                        <div style={{ fontSize: 13, padding: '8px 0' }}>{task.assignedToUser?.name || task.assignedToRole || '—'}</div>
+                        <span className="form-label" id={fid('assignedTo')}>Assigned To</span>
+                        <div role="note" aria-labelledby={fid('assignedTo')} style={{ fontSize: 13, padding: '8px 0' }}>{task.assignedToUser?.name || task.assignedToRole || '—'}</div>
                     </div>
                 </div>
 
                 <div className="form-group">
-                    <label>Notes</label>
-                    <textarea rows={3} value={form.notes} onChange={(e) => handleChange('notes', e.target.value)} placeholder="Add notes..." />
+                    <label htmlFor={fid('notes')}>Notes</label>
+                    <textarea id={fid('notes')} rows={3} value={form.notes} onChange={(e) => handleChange('notes', e.target.value)} placeholder="Add notes..." />
                 </div>
 
                 <div className="form-actions">
@@ -141,41 +144,41 @@ export default function TaskModal({ task, users, onClose, onSaved, readOnly }) {
             <p className="modal__desc">{isEdit ? 'Update task details and assignment.' : 'Create a new task with assignment and due date.'}</p>
             <form onSubmit={handleSubmit}>
                 <div className="form-group">
-                    <label>Title *</label>
-                    <input type="text" value={form.title} onChange={(e) => handleChange('title', e.target.value)} placeholder="Enter task title" autoFocus />
+                    <label htmlFor={fid('title')}>Title *</label>
+                    <input id={fid('title')} type="text" value={form.title} onChange={(e) => handleChange('title', e.target.value)} placeholder="Enter task title" autoFocus />
                 </div>
 
                 <div className="form-group">
-                    <label>Description</label>
-                    <textarea rows={2} value={form.description} onChange={(e) => handleChange('description', e.target.value)} placeholder="Optional description" />
+                    <label htmlFor={fid('description')}>Description</label>
+                    <textarea id={fid('description')} rows={2} value={form.description} onChange={(e) => handleChange('description', e.target.value)} placeholder="Optional description" />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-group">
-                        <label>Urgency</label>
-                        <select value={form.urgency} onChange={(e) => handleChange('urgency', e.target.value)}>
+                        <label htmlFor={fid('urgency')}>Urgency</label>
+                        <select id={fid('urgency')} value={form.urgency} onChange={(e) => handleChange('urgency', e.target.value)}>
                             <option value="low">Low</option>
                             <option value="medium">Medium</option>
                             <option value="high">High</option>
                         </select>
                     </div>
                     <div className="form-group">
-                        <label>Due Date</label>
-                        <input type="date" value={form.dueDate} onChange={(e) => handleChange('dueDate', e.target.value)} />
+                        <label htmlFor={fid('dueDate')}>Due Date</label>
+                        <input id={fid('dueDate')} type="date" value={form.dueDate} onChange={(e) => handleChange('dueDate', e.target.value)} />
                     </div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-group">
-                        <label>Assign to User</label>
-                        <select value={form.assignedToUserId} onChange={(e) => handleChange('assignedToUserId', e.target.value)}>
+                        <label htmlFor={fid('assignToUser')}>Assign to User</label>
+                        <select id={fid('assignToUser')} value={form.assignedToUserId} onChange={(e) => handleChange('assignedToUserId', e.target.value)}>
                             <option value="">— None —</option>
                             {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
                         </select>
                     </div>
                     <div className="form-group">
-                        <label>Or Assign to Role</label>
-                        <select value={form.assignedToRole} onChange={(e) => handleChange('assignedToRole', e.target.value)}>
+                        <label htmlFor={fid('orAssignToRole')}>Or Assign to Role</label>
+                        <select id={fid('orAssignToRole')} value={form.assignedToRole} onChange={(e) => handleChange('assignedToRole', e.target.value)}>
                             <option value="">— None —</option>
                             <option value="admin">Admin</option>
                             <option value="pca">PCA</option>
@@ -184,8 +187,8 @@ export default function TaskModal({ task, users, onClose, onSaved, readOnly }) {
                 </div>
 
                 <div className="form-group">
-                    <label>Notes</label>
-                    <textarea rows={2} value={form.notes} onChange={(e) => handleChange('notes', e.target.value)} placeholder="Internal notes" />
+                    <label htmlFor={fid('notes2')}>Notes</label>
+                    <textarea id={fid('notes2')} rows={2} value={form.notes} onChange={(e) => handleChange('notes', e.target.value)} placeholder="Internal notes" />
                 </div>
 
                 <div className="form-actions">

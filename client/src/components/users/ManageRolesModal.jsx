@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useId, useState, useEffect, useMemo, useCallback } from 'react';
 import { PERMISSIONS } from '../../utils/permissions';
 import * as api from '../../api';
 import { useToast } from '../../hooks/useToast';
@@ -9,6 +9,9 @@ import Icons from '../common/Icons';
 const EMPTY_DRAFT = { id: null, name: '', description: '', permissions: [] };
 
 export default function ManageRolesModal({ open, onClose }) {
+    // Unique per-instance ids so each caption names its control or group.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const { showToast } = useToast();
     const [groups, setGroups] = useState([]);
     const [draft, setDraft] = useState(EMPTY_DRAFT);
@@ -194,13 +197,13 @@ export default function ManageRolesModal({ open, onClose }) {
 
                         <div className="form-group">
                             <div className="roles-modal__permissions-header">
-                                <label>Permissions</label>
+                                <span className="form-label" id={fid('permissions')}>Permissions</span>
                                 <div className="roles-modal__permissions-actions">
                                     <button type="button" className="btn btn--ghost btn--xs" onClick={selectAll}>Select all</button>
                                     <button type="button" className="btn btn--ghost btn--xs" onClick={clearAll}>Clear all</button>
                                 </div>
                             </div>
-                            <div className="roles-modal__permissions">
+                            <div className="roles-modal__permissions" role="group" aria-labelledby={fid('permissions')}>
                                 {Object.entries(sectionedPermissions).map(([section, perms]) => (
                                     <div key={section} className="roles-modal__permission-section">
                                         <div className="roles-modal__permission-section-title">{section}</div>

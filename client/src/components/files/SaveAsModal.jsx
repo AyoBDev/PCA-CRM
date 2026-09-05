@@ -1,8 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useId, useState, useEffect, useRef, useCallback } from 'react';
 import Modal from '../common/Modal';
 import FolderTreePicker from './FolderTreePicker';
 
 export default function SaveAsModal({ open, defaultName, defaultFolderId, onSave, onClose }) {
+    // Unique per-instance ids so each caption names its control or group.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const [name, setName] = useState(defaultName || '');
     const [folderId, setFolderId] = useState(defaultFolderId ?? null);
     const [saving, setSaving] = useState(false);
@@ -71,11 +74,13 @@ export default function SaveAsModal({ open, defaultName, defaultFolderId, onSave
                 </div>
 
                 <div className="form-group">
-                    <label>Destination folder</label>
+                    <span className="form-label" id={fid('destinationFolder')}>Destination folder</span>
+                    <div role="group" aria-labelledby={fid('destinationFolder')}>
                     <FolderTreePicker
                         selectedFolderId={folderId}
                         onSelect={(f) => setFolderId(f.id)}
                     />
+                    </div>
                 </div>
 
                 {error && <div className="save-as__error">{error}</div>}

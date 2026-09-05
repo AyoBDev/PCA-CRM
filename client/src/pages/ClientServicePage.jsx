@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useId, useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
@@ -11,6 +11,9 @@ import { unitsToHours } from '../utils/time';
 import { isAuthEffectiveOn } from '../utils/authorizations';
 
 export default function ClientServicePage() {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const { clientId, serviceCode } = useParams();
     const navigate = useNavigate();
     const { showToast } = useToast();
@@ -381,36 +384,36 @@ export default function ClientServicePage() {
                     <h2 className="modal__title">{editingAuth ? 'Edit Authorization' : 'Add Authorization'}</h2>
                     <form onSubmit={handleSaveAuth}>
                         <div className="form-group">
-                            <label>Service Code</label>
-                            <ServiceCodeSelect value={authForm.serviceCode} onChange={(e) => setAuthForm({ ...authForm, serviceCode: e.target.value })} disabled required />
+                            <label htmlFor={fid('serviceCode')}>Service Code</label>
+                            <ServiceCodeSelect id={fid('serviceCode')} value={authForm.serviceCode} onChange={(e) => setAuthForm({ ...authForm, serviceCode: e.target.value })} disabled required />
                         </div>
                         <div className="form-group">
-                            <label>Authorization Number</label>
-                            <input type="text" value={authForm.authorizationNumber} onChange={(e) => setAuthForm({ ...authForm, authorizationNumber: e.target.value })} placeholder="Auth number" />
+                            <label htmlFor={fid('authorizationNumber')}>Authorization Number</label>
+                            <input id={fid('authorizationNumber')} type="text" value={authForm.authorizationNumber} onChange={(e) => setAuthForm({ ...authForm, authorizationNumber: e.target.value })} placeholder="Auth number" />
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                             <div className="form-group">
-                                <label>Authorized Units (15-min)</label>
-                                <input type="number" value={authForm.authorizedUnits} onChange={(e) => setAuthForm({ ...authForm, authorizedUnits: e.target.value })} placeholder="e.g. 120" />
+                                <label htmlFor={fid('authorizedUnits15Min')}>Authorized Units (15-min)</label>
+                                <input id={fid('authorizedUnits15Min')} type="number" value={authForm.authorizedUnits} onChange={(e) => setAuthForm({ ...authForm, authorizedUnits: e.target.value })} placeholder="e.g. 120" />
                             </div>
                             <div className="form-group">
-                                <label>Authorized Hours</label>
-                                <input type="number" step="0.5" value={authForm.authorizedHours} onChange={(e) => setAuthForm({ ...authForm, authorizedHours: e.target.value })} placeholder="e.g. 30" />
+                                <label htmlFor={fid('authorizedHours')}>Authorized Hours</label>
+                                <input id={fid('authorizedHours')} type="number" step="0.5" value={authForm.authorizedHours} onChange={(e) => setAuthForm({ ...authForm, authorizedHours: e.target.value })} placeholder="e.g. 30" />
                             </div>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                             <div className="form-group">
-                                <label>Start Date</label>
-                                <input type="date" value={authForm.authorizationStartDate} onChange={(e) => setAuthForm({ ...authForm, authorizationStartDate: e.target.value })} onPaste={handleAuthDatePaste('authorizationStartDate')} />
+                                <label htmlFor={fid('startDate')}>Start Date</label>
+                                <input id={fid('startDate')} type="date" value={authForm.authorizationStartDate} onChange={(e) => setAuthForm({ ...authForm, authorizationStartDate: e.target.value })} onPaste={handleAuthDatePaste('authorizationStartDate')} />
                             </div>
                             <div className="form-group">
-                                <label>End Date</label>
-                                <input type="date" value={authForm.authorizationEndDate} onChange={(e) => setAuthForm({ ...authForm, authorizationEndDate: e.target.value })} onPaste={handleAuthDatePaste('authorizationEndDate')} />
+                                <label htmlFor={fid('endDate')}>End Date</label>
+                                <input id={fid('endDate')} type="date" value={authForm.authorizationEndDate} onChange={(e) => setAuthForm({ ...authForm, authorizationEndDate: e.target.value })} onPaste={handleAuthDatePaste('authorizationEndDate')} />
                             </div>
                         </div>
                         <div className="form-group">
-                            <label>Notes</label>
-                            <textarea value={authForm.notes} onChange={(e) => setAuthForm({ ...authForm, notes: e.target.value })} rows={2} placeholder="Optional notes" />
+                            <label htmlFor={fid('notes')}>Notes</label>
+                            <textarea id={fid('notes')} value={authForm.notes} onChange={(e) => setAuthForm({ ...authForm, notes: e.target.value })} rows={2} placeholder="Optional notes" />
                         </div>
                         <div className="form-actions">
                             <button type="button" className="btn btn--outline" onClick={() => setShowAuthModal(false)}>Cancel</button>

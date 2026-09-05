@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import Modal from './Modal';
 import AutocompleteInput from './AutocompleteInput';
 import { useServices } from '../../hooks/useServices';
@@ -29,12 +29,15 @@ function fmtDayBefore(dateStr) {
  *  - clientId: client the auth belongs to (for renewal payloads)
  *  - onSave(data): called with the form payload on submit
  *  - onClose(): close the modal
- *  - onRenewal(payload): optional — called when Status = Renewal on an edit (not correcting in place)
+ *  - onRenewal(payload): optional — called when Status = Renewal on an edit
  *  - onInactivate({ id, authorizationEndDate, inactiveReason, inactiveNote }): optional —
  *      called when Status = Inactive on an edit
  *  - isRenewal: optional — render as a "Renew Authorization" flow
- *  - showStatus: default true — on an existing auth, shows the Renewal/Inactive status
- *      toggle (no manual "Active" option — editing always defaults to Renewal). A
+ *  - showStatus: default true — on an existing auth, shows the
+ *      Correction / Renewal / Inactive status toggle (no manual "Active" option;
+ *      an edit is always one of those three actions, and none is preselected).
+ *      "Correction" reveals the same full field set as the create flow and saves
+ *      in place via onSave, preserving the auth's existing manualStatus. A
  *      brand-new auth never shows status cards (plain create flow).
  *  - showUpload: default true — show the PA / Care Plan file upload field
  */
@@ -50,6 +53,10 @@ export default function AuthorizationFormModal({
     showStatus = true,
     showUpload = true,
 }) {
+    // Unique per-instance prefix so every label/control pair is associated by
+    // id — and so two modals mounted at once can never collide on the same id.
+    const uid = useId();
+    const fid = (name) => `${uid}-${name}`;
     const { serviceOptions } = useServices();
     const [serviceCategory, setServiceCategory] = useState(auth?.serviceCategory || '');
     const [serviceCode, setServiceCode] = useState(auth?.serviceCode || 'PCS');
@@ -66,9 +73,9 @@ export default function AuthorizationFormModal({
     );
     const [notes, setNotes] = useState(isRenewal ? '' : (auth?.notes || ''));
     // Editing an existing auth opens with NO status chosen — the user must pick
-    // Renewal or Inactive, and only then do that flow's fields appear. An
-    // explicit /renew flow starts on renewal; a brand-new auth uses 'active'
-    // (its create flow doesn't show status cards).
+    // Correction, Renewal or Inactive, and only then do that flow's fields
+    // appear. An explicit /renew flow starts on renewal; a brand-new auth uses
+    // 'active' (its create flow doesn't show status cards).
     const [manualStatus, setManualStatus] = useState(
         isRenewal ? 'renewal' : (auth?.id ? '' : 'active')
     );
@@ -76,7 +83,6 @@ export default function AuthorizationFormModal({
     const [inactiveEnd, setInactiveEnd] = useState(new Date().toISOString().split('T')[0]);
     const [inactiveReason, setInactiveReason] = useState('Client transferred to another agency');
     const [inactiveNote, setInactiveNote] = useState('');
-    const [correctingInPlace, setCorrectingInPlace] = useState(false);
     // Renewal activation: 'scheduled' = keep the current auth in effect until the
     // new start date, then the renewal takes over automatically (dates are the
     // source of truth). 'immediate' = retire the current auth now and make the
@@ -223,7 +229,7 @@ export default function AuthorizationFormModal({
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (isEdit && manualStatus === 'renewal' && !correctingInPlace) {
+        if (isEdit && manualStatus === 'renewal') {
             // A future-dated renewal asks "wait vs start immediately" on a second
             // confirmation modal before it fires. A start today/earlier is always
             // immediate, so skip the extra step and renew directly.
@@ -246,7 +252,10 @@ export default function AuthorizationFormModal({
             onInactivate({ id: auth.id, authorizationEndDate: inactiveEnd, inactiveReason, inactiveNote });
             return;
         }
-        // Create, or "correct current" in-place edit → plain save (no new auth).
+        // Create, or "Correction" in-place edit → plain save (no new auth).
+        // A correction must never change the auth's lifecycle state — it keeps
+        // whatever manualStatus the row already had (an inactive auth stays
+        // inactive after a typo fix). Only a create defaults to 'active'.
         onSave({
             serviceCategory,
             serviceCode,
@@ -258,7 +267,7 @@ export default function AuthorizationFormModal({
             notes,
             accountNumber,
             sandataClientId,
-            manualStatus: 'active',
+            manualStatus: isEdit ? (auth?.manualStatus || 'active') : 'active',
             files,
             authorizationType,
             authorizedVisitsPerYear: isAnnual && authorizedVisitsPerYear ? Number(authorizedVisitsPerYear) : null,
@@ -276,6 +285,102 @@ export default function AuthorizationFormModal({
         ? `${serviceCode || ''}${serviceCode && serviceName ? ' - ' : ''}${serviceName || ''}`
         : 'Edit Authorization';
 
+    // The full authorization field set. Rendered by the create flow AND by the
+    // "Correction" edit flow, so correcting an existing authorization exposes
+    // exactly the same fields as adding a new one — no partial subset.
+    const coreFields = (
+        <>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="form-group" style={{ position: 'relative' }}>
+                <label htmlFor={fid('serviceCategory')}>Service Category</label>
+                <AutocompleteInput id={fid('serviceCategory')} value={serviceCategory} onChange={handleServiceCategoryChange} options={SERVICE_CATEGORIES} placeholder="PCS, SDPC, Waiver 58…" />
+            </div>
+            <div className="form-group">
+                <label htmlFor={fid('serviceCode')}>Service Code</label>
+                <ServiceCodeSelect id={fid('serviceCode')} value={serviceCode} onChange={(e) => handleServiceCodeChange(e.target.value)} options={serviceOptions()} />
+            </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="form-group">
+                <label htmlFor={fid('serviceName')}>Service Name</label>
+                <AutocompleteInput id={fid('serviceName')} value={serviceName} onChange={handleServiceNameChange} options={SERVICE_NAME_SUGGESTIONS} placeholder="Personal Care Services" filterMode="includes" />
+            </div>
+            <div className="form-group">
+                <label htmlFor={fid('accountNumber')}>Account Number</label>
+                <select id={fid('accountNumber')} value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)}>
+                    <option value="">- Select -</option>
+                    {ACCOUNT_NUMBER_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+            </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="form-group">
+                <label htmlFor={fid('sandataClientId')}>Sandata Client ID</label>
+                <input id={fid('sandataClientId')} type="text" value={sandataClientId} onChange={(e) => setSandataClientId(e.target.value)} placeholder="e.g. 1234567" />
+            </div>
+            <div className="form-group">
+                <label htmlFor={fid('authorizationNumber')}>Authorization Number</label>
+                <input id={fid('authorizationNumber')} type="text" value={authorizationNumber} onChange={(e) => setAuthorizationNumber(e.target.value)} placeholder="e.g. 45268348457" />
+            </div>
+        </div>
+
+        {/* Authorization type is derived from the service category / name.
+            GUIDE → Annual Visits (visits/year); everything else → Weekly Units. */}
+        <div className="form-group">
+            <span className="form-label" id={fid('authTypeLabel')}>Authorization Type</span>
+            <div
+                role="status"
+                aria-labelledby={fid('authTypeLabel')}
+                style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '4px 10px', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 500,
+                    background: isAnnual ? 'hsl(var(--accent))' : 'hsl(var(--muted))',
+                    color: isAnnual ? 'hsl(var(--accent-foreground))' : 'hsl(var(--muted-foreground))',
+                    border: `1px solid ${isAnnual ? 'hsl(var(--primary) / 0.3)' : 'hsl(var(--border))'}`,
+                }}
+            >
+                {isAnnual ? 'Annual Visits (GUIDE)' : 'Weekly Units'}
+            </div>
+            <p className="form-hint">Set automatically from the service category - GUIDE is tracked by annual visits, all other services by weekly units.</p>
+        </div>
+
+        {isAnnual ? (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                <div className="form-group">
+                    <label htmlFor={fid('visitsPerYear')}>Visits / Year</label>
+                    <input id={fid('visitsPerYear')} type="number" value={authorizedVisitsPerYear} onChange={(e) => setAuthorizedVisitsPerYear(e.target.value)} placeholder="e.g. 18" />
+                </div>
+                <div className="form-group">
+                    <label htmlFor={fid('hoursPerVisit')}>Hours / Visit</label>
+                    <input id={fid('hoursPerVisit')} type="number" step="0.25" value={hoursPerVisit} onChange={(e) => setHoursPerVisit(e.target.value)} placeholder="e.g. 4" />
+                </div>
+                <div className="form-group">
+                    <label htmlFor={fid('hoursPerYear')}>Hours / Year</label>
+                    <input id={fid('hoursPerYear')} type="text" readOnly value={hoursPerYear || ''} placeholder="auto" style={{ background: 'hsl(var(--muted))' }} />
+                </div>
+            </div>
+        ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="form-group">
+                    <label htmlFor={fid('authUnits')}>Auth Units</label>
+                    <input id={fid('authUnits')} type="number" value={authorizedUnits} onChange={(e) => setAuthorizedUnits(e.target.value)} placeholder="0" />
+                </div>
+            </div>
+        )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="form-group">
+                <label htmlFor={fid('startDate')}>{isAnnual ? 'Period Start' : 'Auth Start'}</label>
+                <input id={fid('startDate')} type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} onPaste={handleDatePaste(setStartDate)} />
+            </div>
+            <div className="form-group">
+                <label htmlFor={fid('endDate')}>{isAnnual ? 'Period End' : 'Auth End'}</label>
+                <input id={fid('endDate')} type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} onPaste={handleDatePaste(setEndDate)} required />
+            </div>
+        </div>
+        </>
+    );
+
     return (
       <>
         <Modal onClose={onClose} wide>
@@ -292,117 +397,37 @@ export default function AuthorizationFormModal({
             )}
             <form onSubmit={handleSubmit}>
                 {/* Create/renew flow shows the full field set up front. Edit mode
-                    hides these — the status cards come first and reveal only the
-                    fields relevant to the chosen action. Values still live in
-                    state (seeded from `auth`) so renewal + correct-in-place carry
+                    hides it — the status cards come first, and the Correction
+                    card reveals this same full field set below. Values live in
+                    state (seeded from `auth`) so renewal + correction carry
                     them. */}
-                {!isEdit && (
-                <>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div className="form-group" style={{ position: 'relative' }}>
-                        <label>Service Category</label>
-                        <AutocompleteInput value={serviceCategory} onChange={handleServiceCategoryChange} options={SERVICE_CATEGORIES} placeholder="PCS, SDPC, Waiver 58…" />
-                    </div>
-                    <div className="form-group">
-                        <label>Service Code</label>
-                        <ServiceCodeSelect value={serviceCode} onChange={(e) => handleServiceCodeChange(e.target.value)} options={serviceOptions()} />
-                    </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div className="form-group">
-                        <label>Service Name</label>
-                        <AutocompleteInput value={serviceName} onChange={handleServiceNameChange} options={SERVICE_NAME_SUGGESTIONS} placeholder="Personal Care Services" filterMode="includes" />
-                    </div>
-                    <div className="form-group">
-                        <label>Account Number</label>
-                        <select value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)}>
-                            <option value="">- Select -</option>
-                            {ACCOUNT_NUMBER_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                        </select>
-                    </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div className="form-group">
-                        <label>Sandata Client ID</label>
-                        <input type="text" value={sandataClientId} onChange={(e) => setSandataClientId(e.target.value)} placeholder="e.g. 1234567" />
-                    </div>
-                    <div className="form-group">
-                        <label>Authorization Number</label>
-                        <input type="text" value={authorizationNumber} onChange={(e) => setAuthorizationNumber(e.target.value)} placeholder="e.g. 45268348457" />
-                    </div>
-                </div>
-
-                {/* Authorization type is derived from the service category / name.
-                    GUIDE → Annual Visits (visits/year); everything else → Weekly Units. */}
-                <div className="form-group">
-                    <label>Authorization Type</label>
-                    <div
-                        style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 6,
-                            padding: '4px 10px', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 500,
-                            background: isAnnual ? 'hsl(var(--accent))' : 'hsl(var(--muted))',
-                            color: isAnnual ? 'hsl(var(--accent-foreground))' : 'hsl(var(--muted-foreground))',
-                            border: `1px solid ${isAnnual ? 'hsl(var(--primary) / 0.3)' : 'hsl(var(--border))'}`,
-                        }}
-                    >
-                        {isAnnual ? 'Annual Visits (GUIDE)' : 'Weekly Units'}
-                    </div>
-                    <p className="form-hint">Set automatically from the service category - GUIDE is tracked by annual visits, all other services by weekly units.</p>
-                </div>
-
-                {isAnnual ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-                        <div className="form-group">
-                            <label>Visits / Year</label>
-                            <input type="number" value={authorizedVisitsPerYear} onChange={(e) => setAuthorizedVisitsPerYear(e.target.value)} placeholder="e.g. 18" />
-                        </div>
-                        <div className="form-group">
-                            <label>Hours / Visit</label>
-                            <input type="number" step="0.25" value={hoursPerVisit} onChange={(e) => setHoursPerVisit(e.target.value)} placeholder="e.g. 4" />
-                        </div>
-                        <div className="form-group">
-                            <label>Hours / Year</label>
-                            <input type="text" readOnly value={hoursPerYear || ''} placeholder="auto" style={{ background: 'hsl(var(--muted))' }} />
-                        </div>
-                    </div>
-                ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                        <div className="form-group">
-                            <label>Auth Units</label>
-                            <input type="number" value={authorizedUnits} onChange={(e) => setAuthorizedUnits(e.target.value)} placeholder="0" />
-                        </div>
-                    </div>
-                )}
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div className="form-group">
-                        <label>{isAnnual ? 'Period Start' : 'Auth Start'}</label>
-                        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} onPaste={handleDatePaste(setStartDate)} />
-                    </div>
-                    <div className="form-group">
-                        <label>{isAnnual ? 'Period End' : 'Auth End'}</label>
-                        <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} onPaste={handleDatePaste(setEndDate)} required />
-                    </div>
-                </div>
-                </>
-                )}
+                {!isEdit && coreFields}
 
                 {/* Edit mode: a one-line helper mirrors the create flow's derived
-                    authorization-type hint, shown above the status cards. */}
-                {isEdit && (
+                    authorization-type hint, shown above the status cards. The
+                    Correction flow renders the real Authorization Type field via
+                    coreFields, so the standalone hint is redundant there. */}
+                {isEdit && manualStatus !== 'correct' && (
                     <p className="form-hint" style={{ marginTop: 0 }}>
                         Set automatically from the service category - GUIDE is tracked by annual visits, all other services by weekly units.
                     </p>
                 )}
 
-                {/* Existing auth: Renewal / Inactive toggle only — no manual "Active" card.
+                {/* Existing auth: Correction / Renewal / Inactive. There is no manual
+                    "Active" card — an edit is always one of these three actions.
                     Brand-new auth: no status cards at all (plain create flow). */}
                 {showStatus && isEdit && (
-                    <div className="form-group">
-                        <label>Status</label>
+                    <fieldset className="form-group form-fieldset">
+                        <legend className="form-label">Status</legend>
                         <div className="auth-status-cards">
+                            <label className={`auth-status-card ${manualStatus === 'correct' ? 'auth-status-card--correct' : ''}`}>
+                                <input type="radio" name="authStatus" value="correct" checked={manualStatus === 'correct'} onChange={() => setManualStatus('correct')} />
+                                <div className="auth-status-card__radio"><span className="auth-status-card__dot" /></div>
+                                <span className="auth-status-card__label auth-status-card__label--correct">Correction</span>
+                                <span className="auth-status-card__desc">Fix a mistake on this authorization - any field, in place. No new authorization is created.</span>
+                            </label>
                             <label className={`auth-status-card ${manualStatus === 'renewal' ? 'auth-status-card--renewal' : ''}`}>
-                                <input type="radio" name="authStatus" value="renewal" checked={manualStatus === 'renewal'} onChange={() => { setManualStatus('renewal'); setCorrectingInPlace(false); }} />
+                                <input type="radio" name="authStatus" value="renewal" checked={manualStatus === 'renewal'} onChange={() => setManualStatus('renewal')} />
                                 <div className="auth-status-card__radio"><span className="auth-status-card__dot" /></div>
                                 <span className="auth-status-card__label auth-status-card__label--renewal">Renewal</span>
                                 <span className="auth-status-card__desc">Annual renewal or any significant change - new dates, new units, new care plan.</span>
@@ -414,33 +439,46 @@ export default function AuthorizationFormModal({
                                 <span className="auth-status-card__desc">Client transferred, passed away, or no longer receiving this service.</span>
                             </label>
                         </div>
-                    </div>
+                    </fieldset>
                 )}
 
-                {isEdit && manualStatus === 'renewal' && !correctingInPlace && (
+                {/* Correction: the SAME full field set as the create flow, so any
+                    part of the authorization can be fixed in place. */}
+                {isEdit && manualStatus === 'correct' && (
+                    <>
+                        <div className="preview-box">
+                            Correcting this authorization in place - every field below is editable. Nothing new is
+                            created and its current status is unchanged. Use <b>Renewal</b> instead when the
+                            authorization genuinely changed.
+                        </div>
+                        {coreFields}
+                    </>
+                )}
+
+                {isEdit && manualStatus === 'renewal' && (
                     <>
                         <div className="form-group">
-                            <label>New Authorization Number</label>
-                            <input type="text" value={authorizationNumber} onChange={(e) => setAuthorizationNumber(e.target.value)} placeholder="e.g. A-2026-0119" />
+                            <label htmlFor={fid('renewalAuthNumber')}>New Authorization Number</label>
+                            <input id={fid('renewalAuthNumber')} type="text" value={authorizationNumber} onChange={(e) => setAuthorizationNumber(e.target.value)} placeholder="e.g. A-2026-0119" />
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                             <div className="form-group">
-                                <label>{isAnnual ? 'Authorized Visits' : 'Auth Units'}</label>
-                                <input type="number" value={isAnnual ? authorizedVisitsPerYear : authorizedUnits} onChange={(e) => (isAnnual ? setAuthorizedVisitsPerYear(e.target.value) : setAuthorizedUnits(e.target.value))} placeholder="0" />
+                                <label htmlFor={fid('renewalUnits')}>{isAnnual ? 'Authorized Visits' : 'Auth Units'}</label>
+                                <input id={fid('renewalUnits')} type="number" value={isAnnual ? authorizedVisitsPerYear : authorizedUnits} onChange={(e) => (isAnnual ? setAuthorizedVisitsPerYear(e.target.value) : setAuthorizedUnits(e.target.value))} placeholder="0" />
                             </div>
                             <div className="form-group">
-                                <label>Auth Start</label>
-                                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} onPaste={handleDatePaste(setStartDate)} />
+                                <label htmlFor={fid('renewalStart')}>Auth Start</label>
+                                <input id={fid('renewalStart')} type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} onPaste={handleDatePaste(setStartDate)} />
                             </div>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                             <div className="form-group">
-                                <label>Auth End</label>
-                                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} onPaste={handleDatePaste(setEndDate)} required />
+                                <label htmlFor={fid('renewalEnd')}>Auth End</label>
+                                <input id={fid('renewalEnd')} type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} onPaste={handleDatePaste(setEndDate)} required />
                             </div>
                             <div className="form-group">
-                                <label>Note</label>
-                                <select value={notePreset} onChange={(e) => setNotePreset(e.target.value)}>
+                                <label htmlFor={fid('notePreset')}>Note</label>
+                                <select id={fid('notePreset')} value={notePreset} onChange={(e) => setNotePreset(e.target.value)}>
                                     <option>Annual Renewal – No Changes</option>
                                     <option>Hours Increased</option>
                                     <option>Hours Decreased</option>
@@ -450,52 +488,14 @@ export default function AuthorizationFormModal({
                             </div>
                         </div>
                         <div className="form-group">
+                            <label htmlFor={fid('renewalNote')} className="sr-only">Note detail</label>
                             <textarea
+                                id={fid('renewalNote')}
                                 value={notes}
                                 onChange={(e) => setNotes(e.target.value)}
                                 placeholder="Add detail - e.g. increased from 40 to 48 units/week per new care plan."
                             />
                         </div>
-                        <button type="button" className="btn btn--ghost btn--sm" onClick={() => setCorrectingInPlace(true)}>
-                            Correct current authorization instead
-                        </button>
-                    </>
-                )}
-
-                {/* Correct-in-place: fix a typo on the current auth without creating
-                    a new one. Reveals the editable core fields only. */}
-                {isEdit && manualStatus === 'renewal' && correctingInPlace && (
-                    <>
-                        <div className="form-group">
-                            <label>Authorization Number</label>
-                            <input type="text" value={authorizationNumber} onChange={(e) => setAuthorizationNumber(e.target.value)} placeholder="e.g. A-2025-0119" />
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                            <div className="form-group">
-                                <label>{isAnnual ? 'Authorized Visits' : 'Auth Units'}</label>
-                                <input type="number" value={isAnnual ? authorizedVisitsPerYear : authorizedUnits} onChange={(e) => (isAnnual ? setAuthorizedVisitsPerYear(e.target.value) : setAuthorizedUnits(e.target.value))} placeholder="0" />
-                            </div>
-                            <div className="form-group">
-                                <label>Auth Start</label>
-                                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} onPaste={handleDatePaste(setStartDate)} />
-                            </div>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                            <div className="form-group">
-                                <label>Auth End</label>
-                                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} onPaste={handleDatePaste(setEndDate)} required />
-                            </div>
-                            <div className="form-group">
-                                <label>Account Number</label>
-                                <select value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)}>
-                                    <option value="">- Select -</option>
-                                    {ACCOUNT_NUMBER_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                </select>
-                            </div>
-                        </div>
-                        <button type="button" className="btn btn--ghost btn--sm" onClick={() => setCorrectingInPlace(false)}>
-                            ← Back to renewal
-                        </button>
                     </>
                 )}
 
@@ -507,12 +507,12 @@ export default function AuthorizationFormModal({
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                             <div className="form-group">
-                                <label>Authorization End Date</label>
-                                <input type="date" value={inactiveEnd} onChange={(e) => setInactiveEnd(e.target.value)} />
+                                <label htmlFor={fid('inactiveEnd')}>Authorization End Date</label>
+                                <input id={fid('inactiveEnd')} type="date" value={inactiveEnd} onChange={(e) => setInactiveEnd(e.target.value)} />
                             </div>
                             <div className="form-group">
-                                <label>Reason</label>
-                                <select value={inactiveReason} onChange={(e) => setInactiveReason(e.target.value)}>
+                                <label htmlFor={fid('inactiveReason')}>Reason</label>
+                                <select id={fid('inactiveReason')} value={inactiveReason} onChange={(e) => setInactiveReason(e.target.value)}>
                                     <option>Client transferred to another agency</option>
                                     <option>Client passed away</option>
                                     <option>No contact with client</option>
@@ -521,16 +521,17 @@ export default function AuthorizationFormModal({
                             </div>
                         </div>
                         <div className="form-group">
-                            <label>Notes</label>
-                            <textarea value={inactiveNote} onChange={(e) => setInactiveNote(e.target.value)} placeholder="Optional additional detail..." />
+                            <label htmlFor={fid('inactiveNote')}>Notes</label>
+                            <textarea id={fid('inactiveNote')} value={inactiveNote} onChange={(e) => setInactiveNote(e.target.value)} placeholder="Optional additional detail..." />
                         </div>
                     </>
                 )}
 
-                {showUpload && (!isEdit || (manualStatus === 'renewal' && !correctingInPlace)) && (
+                {showUpload && (!isEdit || manualStatus === 'renewal' || manualStatus === 'correct') && (
                     <div className="form-group">
-                        <label>Upload PA / Care Plan Documents</label>
+                        <label htmlFor={fid('files')}>Upload PA / Care Plan Documents</label>
                         <input
+                            id={fid('files')}
                             type="file"
                             multiple
                             onChange={(e) => setFiles(Array.from(e.target.files))}
@@ -544,7 +545,7 @@ export default function AuthorizationFormModal({
                     </div>
                 )}
 
-                {coverageWarning && !correctingInPlace && (
+                {coverageWarning && manualStatus !== 'inactive' && (
                     <div className="preview-box" role="alert"
                         style={{ background: 'hsl(var(--warning-bg))', borderColor: 'hsl(var(--warning))', color: 'hsl(38 60% 28%)' }}>
                         <b>⚠ {coverageWarning.kind === 'gap' ? 'Coverage gap' : 'Overlapping dates'}.</b> {coverageWarning.text}
@@ -556,10 +557,10 @@ export default function AuthorizationFormModal({
                     <button
                         type="submit"
                         className="btn btn--primary"
-                        disabled={isEdit && manualStatus !== 'renewal' && manualStatus !== 'inactive'}
+                        disabled={isEdit && !['correct', 'renewal', 'inactive'].includes(manualStatus)}
                     >
                         {!isEdit ? 'Add Authorization'
-                            : correctingInPlace ? 'Save Correction'
+                            : manualStatus === 'correct' ? 'Save Correction'
                             : manualStatus === 'inactive' ? 'Save & Mark Inactive'
                             : manualStatus === 'renewal' ? 'Save Renewal'
                             : 'Save'}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useId, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import * as api from '../api';
 import Icons from '../components/common/Icons';
 import Modal from '../components/common/Modal';
@@ -49,7 +49,7 @@ function ResolvedIdField({ value, label }) {
     };
     return (
         <span className="resolved-id">
-            <span className="resolved-id__value">{display}</span>
+            <span className="resolved-id__value" role="note" aria-label={`${label}: ${display}`}>{display}</span>
             {value ? (
                 <Tooltip content={`Copy ${label}`}>
                     <button type="button" className="resolved-id__copy" onClick={copy} aria-label={`Copy ${label}`}>
@@ -70,6 +70,9 @@ import SearchableSelect from '../components/common/SearchableSelect';
 // Helper: get YYYY-MM-DD from a date value.
 
 function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete, onClose, onFindCover, defaultDate, defaultClientId, defaultEmployeeId, defaultStartTime, weekStart: propWeekStart, draft, onClearDraft }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const DAY_NAMES = DAY_NAMES_SHORT;
     const isEdit = !!shift;
 
@@ -692,11 +695,11 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                 {isEdit ? (
                     <div className="form-grid-2">
                         <div className="form-group">
-                            <label>Account Number</label>
+                            <span className="form-label">Account Number</span>
                             <ResolvedIdField value={accountNumber} label="account number" />
                         </div>
                         <div className="form-group">
-                            <label>Sandata Client ID</label>
+                            <span className="form-label">Sandata Client ID</span>
                             <ResolvedIdField value={sandataClientId} label="Sandata Client ID" />
                         </div>
                     </div>
@@ -795,8 +798,8 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                 ) : (
                     /* ─── CREATE MODE: multi-day weekly ─── */
                     <>
-                        <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Days of the Week</label>
-                        <div className="sched-day-grid">
+                        <span className="form-label" id={fid('daysOfTheWeek')} style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Days of the Week</span>
+                        <div role="note" aria-labelledby={fid('daysOfTheWeek')} className="sched-day-grid">
                             {DAY_NAMES.map((day, i) => {
                                 const dayEntry = dayEntries[i];
                                 const dayTotalHrs = dayEntry.shifts.reduce((s, sh) => s + computeHrs(sh.startTime, sh.endTime).hours, 0);
@@ -820,6 +823,9 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                                             )}
                                         </div>
                                         {dayEntry.enabled && dayEntry.shifts.map((sh, si) => {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
                                             const shColorInfo = SERVICE_COLORS[sh.serviceCode] || { color: '#6B7280', label: sh.serviceCode };
                                             return (
                                                 <div key={si} className="sched-day-row__fields">
@@ -830,10 +836,10 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                                                         </div>
                                                     )}
                                                     <div className="sched-day-row__field">
-                                                        <label className="sched-day-row__field-label">Service</label>
+                                                        <label htmlFor={fid('service')} className="sched-day-row__field-label">Service</label>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                             <span style={{ width: 10, height: 10, borderRadius: '50%', background: shColorInfo.color, flexShrink: 0 }} />
-                                                            <select value={sh.serviceCode} onChange={e => updateDayShift(i, si, 'serviceCode', e.target.value)} className="sched-day-row__input">
+                                                            <select id={fid('service')} value={sh.serviceCode} onChange={e => updateDayShift(i, si, 'serviceCode', e.target.value)} className="sched-day-row__input">
                                                                 {clientId && authorizedServices.length > 0
                                                                     ? authorizedServices.map(code => {
                                                                         const info = SERVICE_COLORS[code] || { label: code };
@@ -848,19 +854,19 @@ function ShiftFormModal({ shift, clients, employees, onSave, onRepeat, onDelete,
                                                         </div>
                                                     </div>
                                                     <div className="sched-day-row__field">
-                                                        <label className="sched-day-row__field-label">Start</label>
-                                                        <input type="time" value={sh.startTime} onChange={e => updateDayShift(i, si, 'startTime', e.target.value)} className="sched-day-row__input" required />
+                                                        <label htmlFor={fid('start')} className="sched-day-row__field-label">Start</label>
+                                                        <input id={fid('start')} type="time" value={sh.startTime} onChange={e => updateDayShift(i, si, 'startTime', e.target.value)} className="sched-day-row__input" required />
                                                     </div>
                                                     <div className="sched-day-row__field">
-                                                        <label className="sched-day-row__field-label">End</label>
-                                                        <input type="time" value={sh.endTime} onChange={e => updateDayShift(i, si, 'endTime', e.target.value)} className="sched-day-row__input" required />
+                                                        <label htmlFor={fid('end')} className="sched-day-row__field-label">End</label>
+                                                        <input id={fid('end')} type="time" value={sh.endTime} onChange={e => updateDayShift(i, si, 'endTime', e.target.value)} className="sched-day-row__input" required />
                                                     </div>
                                                     <div className="sched-day-row__field">
-                                                        <label className="sched-day-row__field-label">Account</label>
+                                                        <span className="sched-day-row__field-label">Account</span>
                                                         <ResolvedIdField value={sh.accountNumber} label="account number" />
                                                     </div>
                                                     <div className="sched-day-row__field">
-                                                        <label className="sched-day-row__field-label">Sandata Client ID</label>
+                                                        <span className="sched-day-row__field-label">Sandata Client ID</span>
                                                         <ResolvedIdField value={sh.sandataClientId} label="Sandata Client ID" />
                                                     </div>
                                                     {si === 0 && enabledCount > 1 && (
@@ -1289,6 +1295,9 @@ function InlineWeekPicker({ weekStart, setWeekStart }) {
 }
 
 function BulkEditInline({ count, employees, clients, onSave, onDelete, saving, selectedShifts = [], onOpenModal }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
     const [employeeId, setEmployeeId] = useState('');
@@ -1329,37 +1338,37 @@ function BulkEditInline({ count, employees, clients, onSave, onDelete, saving, s
         <div className="sched-bulk-inline">
             <div className="sched-bulk-inline__row">
                 <div className="sched-bulk-inline__field">
-                    <label>Start Time</label>
-                    <input type="time" value={startTime} onChange={e => { setStartTime(e.target.value); setConfirmApply(false); }} />
+                    <label htmlFor={fid('startTime')}>Start Time</label>
+                    <input id={fid('startTime')} type="time" value={startTime} onChange={e => { setStartTime(e.target.value); setConfirmApply(false); }} />
                 </div>
                 <div className="sched-bulk-inline__field">
-                    <label>End Time</label>
-                    <input type="time" value={endTime} onChange={e => { setEndTime(e.target.value); setConfirmApply(false); }} />
+                    <label htmlFor={fid('endTime')}>End Time</label>
+                    <input id={fid('endTime')} type="time" value={endTime} onChange={e => { setEndTime(e.target.value); setConfirmApply(false); }} />
                 </div>
                 <div className="sched-bulk-inline__field">
-                    <label>Employee</label>
-                    <select value={employeeId} onChange={e => { setEmployeeId(e.target.value); setConfirmApply(false); }}>
+                    <label htmlFor={fid('employee')}>Employee</label>
+                    <select id={fid('employee')} value={employeeId} onChange={e => { setEmployeeId(e.target.value); setConfirmApply(false); }}>
                         <option value="">— No change —</option>
                         {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
                     </select>
                 </div>
                 <div className="sched-bulk-inline__field">
-                    <label>Client</label>
-                    <select value={clientId} onChange={e => { setClientId(e.target.value); setConfirmApply(false); }}>
+                    <label htmlFor={fid('client')}>Client</label>
+                    <select id={fid('client')} value={clientId} onChange={e => { setClientId(e.target.value); setConfirmApply(false); }}>
                         <option value="">— No change —</option>
                         {clients.map(c => <option key={c.id} value={c.id}>{c.clientName}</option>)}
                     </select>
                 </div>
                 <div className="sched-bulk-inline__field">
-                    <label>Service</label>
-                    <select value={serviceCode} onChange={e => { setServiceCode(e.target.value); setConfirmApply(false); }}>
+                    <label htmlFor={fid('service')}>Service</label>
+                    <select id={fid('service')} value={serviceCode} onChange={e => { setServiceCode(e.target.value); setConfirmApply(false); }}>
                         <option value="">— No change —</option>
                         {Object.entries(SERVICE_COLORS).map(([code, info]) => <option key={code} value={code}>{info.label}</option>)}
                     </select>
                 </div>
                 <div className="sched-bulk-inline__field">
-                    <label>Status</label>
-                    <select value={status} onChange={e => { setStatus(e.target.value); setConfirmApply(false); }}>
+                    <label htmlFor={fid('status')}>Status</label>
+                    <select id={fid('status')} value={status} onChange={e => { setStatus(e.target.value); setConfirmApply(false); }}>
                         <option value="">— No change —</option>
                         <option value="scheduled">Scheduled</option>
                         <option value="cancelled">Cancelled</option>
@@ -1416,6 +1425,9 @@ function BulkEditInline({ count, employees, clients, onSave, onDelete, saving, s
 }
 
 function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDelete, onClose, saving, onUndo, bulkBatches, defaultClientId, defaultEmployeeId }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const DAY_NAMES = DAY_NAMES_SHORT;
 
     // Filter state — pre-filled from page context if available
@@ -1767,8 +1779,8 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                 {/* Client + Employee searchable filters */}
                 <div className="form-grid-2">
                     <div className="form-group">
-                        <label>Client</label>
-                        <SearchableSelect
+                        <label htmlFor={fid('client')}>Client</label>
+                        <SearchableSelect id={fid('client')}
                             options={clientOptions}
                             value={filterClientId}
                             onChange={v => { setFilterClientId(v); }}
@@ -1776,8 +1788,9 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                         />
                     </div>
                     <div className="form-group">
-                        <label>{filterClientId ? 'Reassign to Employee' : 'Filter by Employee'}</label>
+                        <label htmlFor={fid('filterEmployee')}>{filterClientId ? 'Reassign to Employee' : 'Filter by Employee'}</label>
                         <SearchableSelect
+                            id={fid('filterEmployee')}
                             options={employeeOptions}
                             value={filterEmployeeId}
                             onChange={v => {
@@ -1883,10 +1896,10 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                 return (
                                     <div key={dateStr} className={`sched-day-row ${isEmpty ? 'sched-day-row--empty' : 'sched-day-row--active'}`}>
                                         <div className="sched-day-row__header">
-                                            <label className="sched-day-row__toggle">
+                                            <span className="sched-day-row__toggle">
                                                 <span className="sched-day-row__day">{dayName}</span>
                                                 <span className="sched-day-row__date">{dateStr.slice(5)}</span>
-                                            </label>
+                                            </span>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                 {!isEmpty && (
                                                     <span className="sched-day-row__badge" style={{ background: `color-mix(in srgb, ${firstColor.color} 15%, white)`, color: firstColor.color }}>
@@ -1896,6 +1909,9 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                             </div>
                                         </div>
                                         {liveDayShifts.map((shift, si) => {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
                                             const edit = edits[shift.id];
                                             if (!edit) return null;
                                             const shColorInfo = SERVICE_COLORS[edit.serviceCode] || { color: '#6B7280', label: edit.serviceCode };
@@ -1907,10 +1923,10 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                     </div>
                                                     <div className="sched-day-row__row">
                                                         <div className="sched-day-row__field">
-                                                            <label className="sched-day-row__field-label">Service</label>
+                                                            <label htmlFor={fid('service')} className="sched-day-row__field-label">Service</label>
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                                 <span className="sched-day-row__dot" style={{ background: shColorInfo.color }} />
-                                                                <select value={edit.serviceCode} onChange={e => updateShiftField(shift.id, 'serviceCode', e.target.value)} className="sched-day-row__input">
+                                                                <select id={fid('service')} value={edit.serviceCode} onChange={e => updateShiftField(shift.id, 'serviceCode', e.target.value)} className="sched-day-row__input">
                                                                     {Object.entries(SERVICE_COLORS).map(([code, info]) => (
                                                                         <option key={code} value={code}>{info.label}</option>
                                                                     ))}
@@ -1918,22 +1934,22 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                             </div>
                                                         </div>
                                                         <div className="sched-day-row__field">
-                                                            <label className="sched-day-row__field-label">Start</label>
-                                                            <input type="time" value={edit.startTime} onChange={e => updateShiftField(shift.id, 'startTime', e.target.value)} className="sched-day-row__input" />
+                                                            <label htmlFor={fid('start')} className="sched-day-row__field-label">Start</label>
+                                                            <input id={fid('start')} type="time" value={edit.startTime} onChange={e => updateShiftField(shift.id, 'startTime', e.target.value)} className="sched-day-row__input" />
                                                         </div>
                                                         <div className="sched-day-row__field">
-                                                            <label className="sched-day-row__field-label">End</label>
-                                                            <input type="time" value={edit.endTime} onChange={e => updateShiftField(shift.id, 'endTime', e.target.value)} className="sched-day-row__input" />
+                                                            <label htmlFor={fid('end')} className="sched-day-row__field-label">End</label>
+                                                            <input id={fid('end')} type="time" value={edit.endTime} onChange={e => updateShiftField(shift.id, 'endTime', e.target.value)} className="sched-day-row__input" />
                                                         </div>
                                                     </div>
                                                     <div className="sched-day-row__row">
                                                         <div className="sched-day-row__field">
-                                                            <label className="sched-day-row__field-label">Account</label>
+                                                            <span className="sched-day-row__field-label">Account</span>
                                                             <ResolvedIdField value={edit.accountNumber} label="account number" />
                                                         </div>
                                                         <div className="sched-day-row__field">
-                                                            <label className="sched-day-row__field-label">Employee</label>
-                                                            <SearchableSelect
+                                                            <label htmlFor={fid('employee')} className="sched-day-row__field-label">Employee</label>
+                                                            <SearchableSelect id={fid('employee')}
                                                                 className="sched-day-row__input"
                                                                 options={employees.map(emp => ({ value: emp.id, label: emp.name }))}
                                                                 value={edit.employeeId ? Number(edit.employeeId) : ''}
@@ -1942,7 +1958,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                             />
                                                         </div>
                                                         <div className="sched-day-row__field">
-                                                            <label className="sched-day-row__field-label">Client ID</label>
+                                                            <span className="sched-day-row__field-label">Client ID</span>
                                                             <ResolvedIdField value={edit.sandataClientId} label="Sandata Client ID" />
                                                         </div>
                                                     </div>
@@ -1955,6 +1971,9 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                             );
                                         })}
                                         {dayNewRows.map((r) => {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
                                             const shColorInfo = SERVICE_COLORS[r.serviceCode] || { color: '#6B7280', label: r.serviceCode };
                                             const err = rowErrors[r._key];
                                             return (
@@ -1965,10 +1984,10 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                     </div>
                                                     <div className="sched-day-row__row">
                                                         <div className="sched-day-row__field">
-                                                            <label className="sched-day-row__field-label">Service</label>
+                                                            <label htmlFor={fid('service')} className="sched-day-row__field-label">Service</label>
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                                 <span className="sched-day-row__dot" style={{ background: shColorInfo.color }} />
-                                                                <select value={r.serviceCode} onChange={e => updateNewRow(dateStr, r._key, 'serviceCode', e.target.value)} className="sched-day-row__input">
+                                                                <select id={fid('service')} value={r.serviceCode} onChange={e => updateNewRow(dateStr, r._key, 'serviceCode', e.target.value)} className="sched-day-row__input">
                                                                     {Object.entries(SERVICE_COLORS).map(([code, info]) => (
                                                                         <option key={code} value={code}>{info.label}</option>
                                                                     ))}
@@ -1976,22 +1995,22 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                             </div>
                                                         </div>
                                                         <div className="sched-day-row__field">
-                                                            <label className="sched-day-row__field-label">Start</label>
-                                                            <input type="time" value={r.startTime} onChange={e => updateNewRow(dateStr, r._key, 'startTime', e.target.value)} className="sched-day-row__input" />
+                                                            <label htmlFor={fid('start')} className="sched-day-row__field-label">Start</label>
+                                                            <input id={fid('start')} type="time" value={r.startTime} onChange={e => updateNewRow(dateStr, r._key, 'startTime', e.target.value)} className="sched-day-row__input" />
                                                         </div>
                                                         <div className="sched-day-row__field">
-                                                            <label className="sched-day-row__field-label">End</label>
-                                                            <input type="time" value={r.endTime} onChange={e => updateNewRow(dateStr, r._key, 'endTime', e.target.value)} className="sched-day-row__input" />
+                                                            <label htmlFor={fid('end')} className="sched-day-row__field-label">End</label>
+                                                            <input id={fid('end')} type="time" value={r.endTime} onChange={e => updateNewRow(dateStr, r._key, 'endTime', e.target.value)} className="sched-day-row__input" />
                                                         </div>
                                                     </div>
                                                     <div className="sched-day-row__row">
                                                         <div className="sched-day-row__field">
-                                                            <label className="sched-day-row__field-label">Account</label>
+                                                            <span className="sched-day-row__field-label">Account</span>
                                                             <ResolvedIdField value={r.accountNumber} label="account number" />
                                                         </div>
                                                         <div className="sched-day-row__field">
-                                                            <label className="sched-day-row__field-label">Employee</label>
-                                                            <SearchableSelect
+                                                            <label htmlFor={fid('employee')} className="sched-day-row__field-label">Employee</label>
+                                                            <SearchableSelect id={fid('employee')}
                                                                 className="sched-day-row__input"
                                                                 options={employees.map(emp => ({ value: emp.id, label: emp.name }))}
                                                                 value={r.employeeId ? Number(r.employeeId) : ''}
@@ -2000,7 +2019,7 @@ function BulkEditModal({ allShifts, weekStart, employees, clients, onSave, onDel
                                                             />
                                                         </div>
                                                         <div className="sched-day-row__field">
-                                                            <label className="sched-day-row__field-label">Client ID</label>
+                                                            <span className="sched-day-row__field-label">Client ID</span>
                                                             <ResolvedIdField value={r.sandataClientId} label="Sandata Client ID" />
                                                         </div>
                                                     </div>

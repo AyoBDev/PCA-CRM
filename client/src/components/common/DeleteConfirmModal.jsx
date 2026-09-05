@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import Modal from './Modal';
 import Icons from './Icons';
 
@@ -10,6 +10,9 @@ export default function DeleteConfirmModal({
     confirmLabel = 'Delete',
     scopeWarning = null,
 }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const count = items.length;
     const needsTyped = count >= 5;
     const [typedConfirm, setTypedConfirm] = useState('');
@@ -61,8 +64,8 @@ export default function DeleteConfirmModal({
 
             {needsTyped && (
                 <div className="form-group" style={{ marginTop: 16 }}>
-                    <label>Type <strong>{expectedText}</strong> to confirm:</label>
-                    <input
+                    <label htmlFor={fid('typeToConfirm')}>Type <strong>{expectedText}</strong> to confirm:</label>
+                    <input id={fid('typeToConfirm')}
                         type="text"
                         value={typedConfirm}
                         onChange={(e) => setTypedConfirm(e.target.value)}

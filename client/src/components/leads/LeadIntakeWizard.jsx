@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useId, useEffect, useRef, useState } from 'react';
 import Modal from '../common/Modal';
 import * as api from '../../api';
 import Icons from '../common/Icons';
@@ -112,12 +112,15 @@ const ATTACH_ACCEPT = 'image/*,application/pdf,.doc,.docx';
 
 // Attachments card — staged files on a new lead, live upload/delete on an edit.
 function AttachmentsCard({ isEdit, pendingFiles, existingDocs, busy, onAdd, onRemovePending, onRemoveExisting }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const inputRef = useRef(null);
     return (
         <FormCard title="Attachments">
             <div className="fld" style={{ marginBottom: 0 }}>
-                <label>Documents &amp; Images</label>
-                <input
+                <label htmlFor={fid('documentsImages')}>Documents &amp; Images</label>
+                <input id={fid('documentsImages')}
                     ref={inputRef}
                     type="file"
                     multiple
@@ -154,6 +157,9 @@ function AttachmentsCard({ isEdit, pendingFiles, existingDocs, busy, onAdd, onRe
 }
 
 function Step1Basic({ form, set, insuranceOptions, users }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const isEdit = !!form.id;
     // Preserve a current/legacy value (e.g. logged-in user) that isn't in the users list.
     const knownStaff = users.some((u) => u.name === form.createdBy);
@@ -162,10 +168,10 @@ function Step1Basic({ form, set, insuranceOptions, users }) {
             {/* Staff attribution — auto-filled with the current user; still editable on new referrals. */}
             <FormCard title="Staff Member Entering Lead">
                 <div className="fld" style={{ marginBottom: 0 }}>
-                    <label>
+                    <label htmlFor={fid('staffMemberCreatedBy')}>
                         Staff Member / Created By <span style={{ color: '#dc2626' }}>*</span>
                     </label>
-                    <select
+                    <select id={fid('staffMemberCreatedBy')}
                         className="finput"
                         value={form.createdBy}
                         onChange={(e) => set('createdBy', e.target.value)}
@@ -194,36 +200,36 @@ function Step1Basic({ form, set, insuranceOptions, users }) {
             <FormCard title="Basic Information">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="fld">
-                        <label>First Name <span style={{ color: '#dc2626' }}>*</span></label>
-                        <input className="finput" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} autoFocus />
+                        <label htmlFor={fid('firstName')}>First Name <span style={{ color: '#dc2626' }}>*</span></label>
+                        <input id={fid('firstName')} className="finput" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} autoFocus />
                     </div>
                     <div className="fld">
-                        <label>Last Name <span style={{ color: '#dc2626' }}>*</span></label>
-                        <input className="finput" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} />
+                        <label htmlFor={fid('lastName')}>Last Name <span style={{ color: '#dc2626' }}>*</span></label>
+                        <input id={fid('lastName')} className="finput" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} />
                     </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="fld">
-                        <label>Phone</label>
-                        <input className="finput" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
+                        <label htmlFor={fid('phone')}>Phone</label>
+                        <input id={fid('phone')} className="finput" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
                     </div>
                     <div className="fld">
-                        <label>Alternate Phone</label>
-                        <input className="finput" value={form.alternatePhone} onChange={(e) => set('alternatePhone', e.target.value)} />
+                        <label htmlFor={fid('alternatePhone')}>Alternate Phone</label>
+                        <input id={fid('alternatePhone')} className="finput" value={form.alternatePhone} onChange={(e) => set('alternatePhone', e.target.value)} />
                     </div>
                 </div>
                 <div className="fld">
-                    <label>Address</label>
-                    <input className="finput" value={form.address} onChange={(e) => set('address', e.target.value)} />
+                    <label htmlFor={fid('address')}>Address</label>
+                    <input id={fid('address')} className="finput" value={form.address} onChange={(e) => set('address', e.target.value)} />
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="fld">
-                        <label>Date of Birth</label>
-                        <input className="finput" type="date" value={form.dob} onChange={(e) => set('dob', e.target.value)} />
+                        <label htmlFor={fid('dateOfBirth')}>Date of Birth</label>
+                        <input id={fid('dateOfBirth')} className="finput" type="date" value={form.dob} onChange={(e) => set('dob', e.target.value)} />
                     </div>
                     <div className="fld">
-                        <label>Gender</label>
-                        <select className="finput" value={form.gender} onChange={(e) => set('gender', e.target.value)}>
+                        <label htmlFor={fid('gender')}>Gender</label>
+                        <select id={fid('gender')} className="finput" value={form.gender} onChange={(e) => set('gender', e.target.value)}>
                             <option value="">— Select —</option>
                             <option value="Male">Male</option>
                             <option value="Female">Female</option>
@@ -233,18 +239,18 @@ function Step1Basic({ form, set, insuranceOptions, users }) {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="fld">
-                        <label>Medicaid ID</label>
-                        <input className="finput" value={form.medicaidId} onChange={(e) => set('medicaidId', e.target.value)} />
+                        <label htmlFor={fid('medicaidId')}>Medicaid ID</label>
+                        <input id={fid('medicaidId')} className="finput" value={form.medicaidId} onChange={(e) => set('medicaidId', e.target.value)} />
                     </div>
                     <div className="fld">
-                        <label>Insurance Number</label>
-                        <input className="finput" value={form.insuranceNumber} onChange={(e) => set('insuranceNumber', e.target.value)} />
+                        <label htmlFor={fid('insuranceNumber')}>Insurance Number</label>
+                        <input id={fid('insuranceNumber')} className="finput" value={form.insuranceNumber} onChange={(e) => set('insuranceNumber', e.target.value)} />
                     </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="fld">
-                        <label>Insurance Type</label>
-                        <select className="finput" value={form.insuranceType} onChange={(e) => set('insuranceType', e.target.value)}>
+                        <label htmlFor={fid('insuranceType')}>Insurance Type</label>
+                        <select id={fid('insuranceType')} className="finput" value={form.insuranceType} onChange={(e) => set('insuranceType', e.target.value)}>
                             <option value="">— Select —</option>
                             {insuranceOptions.map((opt) => (
                                 <option key={opt} value={opt}>{opt}</option>
@@ -252,14 +258,14 @@ function Step1Basic({ form, set, insuranceOptions, users }) {
                         </select>
                     </div>
                     <div className="fld">
-                        <label>Referral Source</label>
-                        <input className="finput" value={form.referralSource} onChange={(e) => set('referralSource', e.target.value)} placeholder="e.g. Hospital discharge planner" />
+                        <label htmlFor={fid('referralSource')}>Referral Source</label>
+                        <input id={fid('referralSource')} className="finput" value={form.referralSource} onChange={(e) => set('referralSource', e.target.value)} placeholder="e.g. Hospital discharge planner" />
                     </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="fld" style={{ marginBottom: 0 }}>
-                        <label>Lead Source</label>
-                        <select className="finput" value={form.leadSource} onChange={(e) => set('leadSource', e.target.value)}>
+                        <label htmlFor={fid('leadSource')}>Lead Source</label>
+                        <select id={fid('leadSource')} className="finput" value={form.leadSource} onChange={(e) => set('leadSource', e.target.value)}>
                             <option value="">— Select —</option>
                             {LEAD_SOURCE_OPTIONS.map((o) => (
                                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -284,22 +290,22 @@ function Step1Basic({ form, set, insuranceOptions, users }) {
             <FormCard title="Doctor / Caseworker">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="fld">
-                        <label>Doctor Name</label>
-                        <input className="finput" value={form.doctorName} onChange={(e) => set('doctorName', e.target.value)} />
+                        <label htmlFor={fid('doctorName')}>Doctor Name</label>
+                        <input id={fid('doctorName')} className="finput" value={form.doctorName} onChange={(e) => set('doctorName', e.target.value)} />
                     </div>
                     <div className="fld">
-                        <label>Doctor Phone</label>
-                        <input className="finput" value={form.doctorPhone} onChange={(e) => set('doctorPhone', e.target.value)} />
+                        <label htmlFor={fid('doctorPhone')}>Doctor Phone</label>
+                        <input id={fid('doctorPhone')} className="finput" value={form.doctorPhone} onChange={(e) => set('doctorPhone', e.target.value)} />
                     </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="fld">
-                        <label>Caseworker Name</label>
-                        <input className="finput" value={form.caseworkerName} onChange={(e) => set('caseworkerName', e.target.value)} />
+                        <label htmlFor={fid('caseworkerName')}>Caseworker Name</label>
+                        <input id={fid('caseworkerName')} className="finput" value={form.caseworkerName} onChange={(e) => set('caseworkerName', e.target.value)} />
                     </div>
                     <div className="fld">
-                        <label>Caseworker Phone</label>
-                        <input className="finput" value={form.caseworkerPhone} onChange={(e) => set('caseworkerPhone', e.target.value)} />
+                        <label htmlFor={fid('caseworkerPhone')}>Caseworker Phone</label>
+                        <input id={fid('caseworkerPhone')} className="finput" value={form.caseworkerPhone} onChange={(e) => set('caseworkerPhone', e.target.value)} />
                     </div>
                 </div>
             </FormCard>
@@ -307,12 +313,12 @@ function Step1Basic({ form, set, insuranceOptions, users }) {
             <FormCard title="Emergency Contact">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="fld">
-                        <label>Name</label>
-                        <input className="finput" value={form.emergencyContactName} onChange={(e) => set('emergencyContactName', e.target.value)} />
+                        <label htmlFor={fid('name')}>Name</label>
+                        <input id={fid('name')} className="finput" value={form.emergencyContactName} onChange={(e) => set('emergencyContactName', e.target.value)} />
                     </div>
                     <div className="fld">
-                        <label>Relation</label>
-                        <select className="finput" value={form.emergencyContactRelation} onChange={(e) => set('emergencyContactRelation', e.target.value)}>
+                        <label htmlFor={fid('relation')}>Relation</label>
+                        <select id={fid('relation')} className="finput" value={form.emergencyContactRelation} onChange={(e) => set('emergencyContactRelation', e.target.value)}>
                             <option value="">— Select —</option>
                             {RELATION_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                         </select>
@@ -320,20 +326,20 @@ function Step1Basic({ form, set, insuranceOptions, users }) {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="fld">
-                        <label>Phone</label>
-                        <input className="finput" value={form.emergencyContactPhone} onChange={(e) => set('emergencyContactPhone', e.target.value)} />
+                        <label htmlFor={fid('phone2')}>Phone</label>
+                        <input id={fid('phone2')} className="finput" value={form.emergencyContactPhone} onChange={(e) => set('emergencyContactPhone', e.target.value)} />
                     </div>
                     <div className="fld">
-                        <label>Email</label>
-                        <input className="finput" type="email" value={form.emergencyContactEmail} onChange={(e) => set('emergencyContactEmail', e.target.value)} />
+                        <label htmlFor={fid('email')}>Email</label>
+                        <input id={fid('email')} className="finput" type="email" value={form.emergencyContactEmail} onChange={(e) => set('emergencyContactEmail', e.target.value)} />
                     </div>
                 </div>
             </FormCard>
 
             <FormCard title="Call Notes">
                 <div className="fld" style={{ marginBottom: 0 }}>
-                    <label>Notes from the intake call</label>
-                    <textarea className="finput" rows={4} value={form.callNotes} onChange={(e) => set('callNotes', e.target.value)} placeholder="Notes from the intake call…" />
+                    <label htmlFor={fid('notesFromTheIntake')}>Notes from the intake call</label>
+                    <textarea id={fid('notesFromTheIntake')} className="finput" rows={4} value={form.callNotes} onChange={(e) => set('callNotes', e.target.value)} placeholder="Notes from the intake call…" />
                 </div>
             </FormCard>
         </>
@@ -341,12 +347,15 @@ function Step1Basic({ form, set, insuranceOptions, users }) {
 }
 
 function Step2Services({ form, set, toggleArr }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     return (
         <>
             <FormCard title="Services Requested">
                 <div className="fld">
-                    <label>Select all that apply</label>
-                    <div className="chk-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <span className="form-label" id={fid('selectAllThatApply')}>Select all that apply</span>
+                    <div role="note" aria-labelledby={fid('selectAllThatApply')} className="chk-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                         {SERVICE_OPTIONS.map((opt) => (
                             <label key={opt} className="chk-item" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <input
@@ -373,20 +382,20 @@ function Step2Services({ form, set, toggleArr }) {
             <FormCard title="Schedule Details">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="fld">
-                        <label>Days per Week</label>
-                        <select className="finput" value={form.daysPerWeek} onChange={(e) => set('daysPerWeek', e.target.value)}>
+                        <label htmlFor={fid('daysPerWeek')}>Days per Week</label>
+                        <select id={fid('daysPerWeek')} className="finput" value={form.daysPerWeek} onChange={(e) => set('daysPerWeek', e.target.value)}>
                             <option value="">— Select —</option>
                             {DAYS_PER_WEEK_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                         </select>
                     </div>
                     <div className="fld">
-                        <label>Hours per Day</label>
-                        <input className="finput" value={form.hoursPerDay} onChange={(e) => set('hoursPerDay', e.target.value)} placeholder="e.g. 8" />
+                        <label htmlFor={fid('hoursPerDay')}>Hours per Day</label>
+                        <input id={fid('hoursPerDay')} className="finput" value={form.hoursPerDay} onChange={(e) => set('hoursPerDay', e.target.value)} placeholder="e.g. 8" />
                     </div>
                 </div>
                 <div className="fld" style={{ marginBottom: 0 }}>
-                    <label>Start Date Needed</label>
-                    <select className="finput" value={form.startDateNeeded} onChange={(e) => set('startDateNeeded', e.target.value)}>
+                    <label htmlFor={fid('startDateNeeded')}>Start Date Needed</label>
+                    <select id={fid('startDateNeeded')} className="finput" value={form.startDateNeeded} onChange={(e) => set('startDateNeeded', e.target.value)}>
                         <option value="">— Select —</option>
                         {START_DATE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                     </select>
@@ -397,6 +406,9 @@ function Step2Services({ form, set, toggleArr }) {
 }
 
 function Step3CaseType({ form, set }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const deposit = computeDeposit({ rate: form.ppRate, depositHours: form.ppDepositHours });
     const weekly = computeWeekly({ rate: form.ppRate, hoursPerWeek: form.ppHoursPerWeek });
 
@@ -428,15 +440,15 @@ function Step3CaseType({ form, set }) {
                 <FormCard title="Initial Case Details">
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                         <div className="fld">
-                            <label>Auth Status</label>
-                            <select className="finput" value={form.authStatus} onChange={(e) => set('authStatus', e.target.value)}>
+                            <label htmlFor={fid('authStatus')}>Auth Status</label>
+                            <select id={fid('authStatus')} className="finput" value={form.authStatus} onChange={(e) => set('authStatus', e.target.value)}>
                                 <option value="">Select...</option>
                                 {AUTH_STATUS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                             </select>
                         </div>
                         <div className="fld" style={{ marginBottom: 0 }}>
-                            <label>Expected Start Date</label>
-                            <input className="finput" type="date" value={form.expectedStartDate} onChange={(e) => set('expectedStartDate', e.target.value)} />
+                            <label htmlFor={fid('expectedStartDate')}>Expected Start Date</label>
+                            <input id={fid('expectedStartDate')} className="finput" type="date" value={form.expectedStartDate} onChange={(e) => set('expectedStartDate', e.target.value)} />
                         </div>
                     </div>
                 </FormCard>
@@ -446,27 +458,27 @@ function Step3CaseType({ form, set }) {
                 <FormCard title="Transfer Details">
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                         <div className="fld">
-                            <label>Current Agency Name</label>
-                            <input className="finput" value={form.currentAgencyName} onChange={(e) => set('currentAgencyName', e.target.value)} />
+                            <label htmlFor={fid('currentAgencyName')}>Current Agency Name</label>
+                            <input id={fid('currentAgencyName')} className="finput" value={form.currentAgencyName} onChange={(e) => set('currentAgencyName', e.target.value)} />
                         </div>
                         <div className="fld">
-                            <label>Current Auth Hours / Month</label>
-                            <input className="finput" type="number" value={form.currentAuthHoursMonth} onChange={(e) => set('currentAuthHoursMonth', e.target.value)} />
+                            <label htmlFor={fid('currentAuthHoursMonth')}>Current Auth Hours / Month</label>
+                            <input id={fid('currentAuthHoursMonth')} className="finput" type="number" value={form.currentAuthHoursMonth} onChange={(e) => set('currentAuthHoursMonth', e.target.value)} />
                         </div>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                         <div className="fld">
-                            <label>Auth Number</label>
-                            <input className="finput" value={form.authNumber} onChange={(e) => set('authNumber', e.target.value)} />
+                            <label htmlFor={fid('authNumber')}>Auth Number</label>
+                            <input id={fid('authNumber')} className="finput" value={form.authNumber} onChange={(e) => set('authNumber', e.target.value)} />
                         </div>
                         <div className="fld">
-                            <label>Transfer Reason</label>
-                            <input className="finput" value={form.transferReason} onChange={(e) => set('transferReason', e.target.value)} />
+                            <label htmlFor={fid('transferReason')}>Transfer Reason</label>
+                            <input id={fid('transferReason')} className="finput" value={form.transferReason} onChange={(e) => set('transferReason', e.target.value)} />
                         </div>
                     </div>
                     <div className="fld" style={{ marginBottom: 0 }}>
-                        <label>Transfer Notes</label>
-                        <textarea className="finput" rows={3} value={form.transferNotes} onChange={(e) => set('transferNotes', e.target.value)} />
+                        <label htmlFor={fid('transferNotes')}>Transfer Notes</label>
+                        <textarea id={fid('transferNotes')} className="finput" rows={3} value={form.transferNotes} onChange={(e) => set('transferNotes', e.target.value)} />
                     </div>
                 </FormCard>
             )}
@@ -475,16 +487,16 @@ function Step3CaseType({ form, set }) {
                 <FormCard title="Private Pay Details">
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                         <div className="fld">
-                            <label>Rate ($/hr)</label>
-                            <input className="finput" type="number" value={form.ppRate} onChange={(e) => set('ppRate', e.target.value)} />
+                            <label htmlFor={fid('rateHr')}>Rate ($/hr)</label>
+                            <input id={fid('rateHr')} className="finput" type="number" value={form.ppRate} onChange={(e) => set('ppRate', e.target.value)} />
                         </div>
                         <div className="fld">
-                            <label>Hours per Week</label>
-                            <input className="finput" type="number" value={form.ppHoursPerWeek} onChange={(e) => set('ppHoursPerWeek', e.target.value)} />
+                            <label htmlFor={fid('hoursPerWeek')}>Hours per Week</label>
+                            <input id={fid('hoursPerWeek')} className="finput" type="number" value={form.ppHoursPerWeek} onChange={(e) => set('ppHoursPerWeek', e.target.value)} />
                         </div>
                         <div className="fld" style={{ marginBottom: 0 }}>
-                            <label>Deposit Hours</label>
-                            <input className="finput" type="number" value={form.ppDepositHours} onChange={(e) => set('ppDepositHours', e.target.value)} />
+                            <label htmlFor={fid('depositHours')}>Deposit Hours</label>
+                            <input id={fid('depositHours')} className="finput" type="number" value={form.ppDepositHours} onChange={(e) => set('ppDepositHours', e.target.value)} />
                         </div>
                     </div>
                     <div className="dep-box" style={{ border: '1px solid hsl(var(--border))', borderRadius: 8, padding: 12, marginTop: 8 }}>
@@ -504,27 +516,30 @@ function Step3CaseType({ form, set }) {
 }
 
 function Step4Preferences({ form, set, toggleArr }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     return (
         <>
             <FormCard title="Caregiver Preferences">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="fld">
-                        <label>Gender Preference</label>
-                        <select className="finput" value={form.genderPreference} onChange={(e) => set('genderPreference', e.target.value)}>
+                        <label htmlFor={fid('genderPreference')}>Gender Preference</label>
+                        <select id={fid('genderPreference')} className="finput" value={form.genderPreference} onChange={(e) => set('genderPreference', e.target.value)}>
                             {GENDER_PREF_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                         </select>
                     </div>
                     <div className="fld" style={{ marginBottom: 0 }}>
-                        <label>Age Preference</label>
-                        <select className="finput" value={form.agePreference} onChange={(e) => set('agePreference', e.target.value)}>
+                        <label htmlFor={fid('agePreference')}>Age Preference</label>
+                        <select id={fid('agePreference')} className="finput" value={form.agePreference} onChange={(e) => set('agePreference', e.target.value)}>
                             {AGE_PREF_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                         </select>
                     </div>
                 </div>
 
                 <div className="fld">
-                    <label>Shift Preferences</label>
-                    <div className="pref-chips" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    <span className="form-label" id={fid('shiftPreferences')}>Shift Preferences</span>
+                    <div role="note" aria-labelledby={fid('shiftPreferences')} className="pref-chips" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                         {SHIFT_OPTIONS.map((opt) => (
                             <button
                                 type="button"
@@ -539,8 +554,8 @@ function Step4Preferences({ form, set, toggleArr }) {
                 </div>
 
                 <div className="fld" style={{ marginBottom: 0 }}>
-                    <label>Language Preference</label>
-                    <select className="finput" value={form.languagePreference} onChange={(e) => set('languagePreference', e.target.value)}>
+                    <label htmlFor={fid('languagePreference')}>Language Preference</label>
+                    <select id={fid('languagePreference')} className="finput" value={form.languagePreference} onChange={(e) => set('languagePreference', e.target.value)}>
                         {LANGUAGE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                     </select>
                     {form.languagePreference === 'Other' && (
@@ -557,8 +572,8 @@ function Step4Preferences({ form, set, toggleArr }) {
 
             <FormCard title="Schedule Notes">
                 <div className="fld" style={{ marginBottom: 0 }}>
-                    <label>Additional scheduling notes</label>
-                    <textarea className="finput" rows={4} value={form.scheduleNotes} onChange={(e) => set('scheduleNotes', e.target.value)} />
+                    <label htmlFor={fid('additionalSchedulingNotes')}>Additional scheduling notes</label>
+                    <textarea id={fid('additionalSchedulingNotes')} className="finput" rows={4} value={form.scheduleNotes} onChange={(e) => set('scheduleNotes', e.target.value)} />
                 </div>
             </FormCard>
         </>
@@ -566,6 +581,9 @@ function Step4Preferences({ form, set, toggleArr }) {
 }
 
 function Step5Status({ form, set, users }) {
+    // Unique per-instance ids so each <label> is tied to its control.
+    const uid = useId();
+    const fid = (n) => `${uid}-${n}`;
     const knownName = users.some((u) => u.name === form.assignedTo);
     return (
         <>
@@ -593,16 +611,16 @@ function Step5Status({ form, set, users }) {
             <FormCard title="Routing">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="fld">
-                        <label>Assigned To</label>
-                        <select className="finput" value={form.assignedTo} onChange={(e) => set('assignedTo', e.target.value)}>
+                        <label htmlFor={fid('assignedTo')}>Assigned To</label>
+                        <select id={fid('assignedTo')} className="finput" value={form.assignedTo} onChange={(e) => set('assignedTo', e.target.value)}>
                             <option value="">Unassigned</option>
                             {form.assignedTo && !knownName && <option value={form.assignedTo}>{form.assignedTo}</option>}
                             {users.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
                         </select>
                     </div>
                     <div className="fld" style={{ marginBottom: 0 }}>
-                        <label>Follow-up Date</label>
-                        <input className="finput" type="date" value={form.followUpDate} onChange={(e) => set('followUpDate', e.target.value)} />
+                        <label htmlFor={fid('followUpDate')}>Follow-up Date</label>
+                        <input id={fid('followUpDate')} className="finput" type="date" value={form.followUpDate} onChange={(e) => set('followUpDate', e.target.value)} />
                     </div>
                 </div>
             </FormCard>
